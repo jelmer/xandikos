@@ -1,0 +1,44 @@
++ Import consists of:
+ 1) Fetcher
+ 3) Importer
+
+The fetcher is responsible for retrieving data and post-processing it. This
+includes e.g. converting it to the right format, but also getting rid of any
+weird artefacts (like that fact that songkick doesn't use the STATUS field in
+VEVENTS).
+
+It is fine for the fetcher to retrieve data that has been previously retrieved.
+
+The importer takes care of integrating the transactions into the local
+repository. In its simplest form, it would just append the fetched file
+to the repository.
+
+It is responsible for making sure:
+ * items are not imported more than once
+ * any required UIDs are set appropriately, e.g. including prefixes
+ * local modifications are preserved
+ * any remote updates are integrated
+ * timestamps (e.g. DTIMESTAMP) aren't unnecessarily changed
+
+To make synchronisation easier, the importer keeps a branch named
+"<prefix>/master" around with the contents of the upstream repository.
+After importing, it then does a git merge to combine the upstream
+changes and the local ones.
+
+When the importer is invoked, a command-line flag controls what
+should be done to items that are no longer appearing in the stream.
+Options are:
+
+ * don't preserve old items
+ * preserve items that have already happened
+ * preserve any items older than the oldest item that does appear
+
+Formats:
+ 1) ics
+ 2) ledger
+ ...
+
+Transaction types:
+ * Past
+ * Tentative
+ * Confirmed

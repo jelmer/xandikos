@@ -1,0 +1,5 @@
+- Remove URL from description
+- Remove location from summary
+
+- "You're tracking this event." -> STATUS:TENTATIVE
+- "You're going." -> STATUS:CONFIRMED
