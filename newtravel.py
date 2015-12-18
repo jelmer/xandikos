@@ -19,6 +19,7 @@ DEFAULT_OUTPUT_DIR = os.path.join(utils.DEFAULT_PATH, "travel")
 
 parser = optparse.OptionParser("travel")
 parser.add_option('--url', type=str, dest="url", help="Associated URL.", default=None)
+parser.add_option('--categories', type=str, dest="categories", help="Comma-separated list of categories to set", default="Travel")
 parser.add_option('--outputdir', type=str, dest="outputdir", help="Output directory.",
                   default=DEFAULT_OUTPUT_DIR)
 opts, args = parser.parse_args()
@@ -69,7 +70,7 @@ else:
 
 
 props = {
-    'categories': ['Travel'],
+    'categories': opts.categories.split(','),
     'dtstart': vDate(dtstart.date()),
     'created': vDatetime(datetime.datetime.now()),
     'class': 'PUBLIC',
