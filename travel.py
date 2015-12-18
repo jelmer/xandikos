@@ -16,6 +16,7 @@ parser = optparse.OptionParser("travel")
 parser.add_option("--format", choices=["text", "html", "now"], default="text", help="Output format")
 parser.add_option("--html-template", type=str, help="Name of HTML template to use.", default="travel.html")
 parser.add_option("--category", type=str, help="Category to select", default="Travel")
+parser.add_option("--obscured-category", type=str, help="Category to show as opaque.", default="Visitors")
 parser.add_option("--show-past-cancelled", action="store_true", default=False, help="Show cancelled past events.")
 opts, args = parser.parse_args()
 
@@ -61,9 +62,9 @@ for ev in evs:
                 location = None
             if location == summary:
                 location = None
-    elif ev['CATEGORIES'] == 'Visitors' or 'Visitors' in ev['CATEGORIES']:
+    elif opts.obscured_category and (ev['CATEGORIES'] == opts.obscured_category or opts.obscured_category in ev['CATEGORIES']):
         location = None
-        summary = 'Visitors'
+        summary = opts.obscured_category
     else:
         # TODO(jelmer): There must be a cleaner way of doing this..
         logging.info(
