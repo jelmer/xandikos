@@ -1,7 +1,26 @@
 #!/usr/bin/python
 
 from icalendar.cal import Calendar
+import optparse
 import os
+
+DEFAULT_PATH = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer")
+
+class CollectionSet(object):
+
+    def get_option_group(self, parser, default_kind='calendar'):
+        """Return a optparser OptionGroup.
+
+        :param parser: An OptionParser
+        :param default_kind: Default kind
+        :return: An OptionGroup
+        """
+        group = optparse.OptionGroup(parser, "Path Settings")
+        group.add_option('--kind', type=str, dest="kind", help="Kind.", default=default_kind)
+        group.add_option('--inputdir', type=str, dest="inputdir", help="Input directory.",
+                         default=DEFAULT_PATH)
+        return group
+
 
 def statuschar(evstatus):
     return {'TENTATIVE': '?',

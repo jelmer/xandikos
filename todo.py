@@ -5,11 +5,14 @@ import os
 import sys
 from icalendar.cal import Calendar
 
-DEFAULT_PATH = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer")
+sys.path.insert(0, os.path.dirname(__file__))
+
+import utils
+
+collections = utils.CollectionSet()
 
 parser = optparse.OptionParser("travel")
-parser.add_option('--kind', type=str, dest="kind", help="Kind.", default='calendar')
-parser.add_option('--inputdir', type=str, dest="inputdir", help="Input directory.", default=DEFAULT_PATH)
+parser.add_option_group(collections.get_option_group(parser))
 opts, args = parser.parse_args()
 
 vtodos = []

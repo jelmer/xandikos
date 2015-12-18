@@ -11,7 +11,11 @@ import time
 from icalendar.cal import Calendar, Event
 from icalendar.prop import vDate, vDuration, vDatetime, vText, vUri
 
-DEFAULT_OUTPUT_DIR = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer/travel")
+sys.path.insert(0, os.path.dirname(__file__))
+
+import utils
+
+DEFAULT_OUTPUT_DIR = os.path.join(utils.DEFAULT_PATH, "travel")
 
 parser = optparse.OptionParser("travel")
 parser.add_option('--url', type=str, dest="url", help="Associated URL.", default=None)

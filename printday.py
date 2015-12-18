@@ -9,11 +9,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import utils
 
-DEFAULT_PATH = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer")
+collections = utils.CollectionSet()
 
 parser = optparse.OptionParser("printday DATE")
-parser.add_option('--kind', type=str, dest="kind", help="Kind.", default='calendar')
-parser.add_option('--basedir', type=str, dest="basedir", help="Input directory.", default=DEFAULT_PATH)
+parser.add_option_group(collections.get_option_group(parser, 'calendar'))
 opts, args = parser.parse_args()
 
 if len(args) < 1:
