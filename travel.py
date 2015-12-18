@@ -118,7 +118,7 @@ if opts.format == "text":
             f.write("\n")
 elif opts.format == "html":
     env = jinja2.Environment(loader=jinja2.FileSystemLoader('templates'))
-    template = env.get_template('fernweh.html')
+    template = env.get_template('travel.html')
     def status_char(status):
         if status == "TENTATIVE":
             return "?"
