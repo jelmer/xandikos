@@ -14,6 +14,7 @@ import utils
 
 parser = optparse.OptionParser("travel")
 parser.add_option("--format", choices=["text", "html", "now"], default="text", help="Output format")
+parser.add_option("--category", type=str, help="Category to select", default="Travel")
 parser.add_option("--show-past-cancelled", action="store_true", default=False, help="Show cancelled past events.")
 opts, args = parser.parse_args()
 
@@ -47,7 +48,7 @@ for ev in evs:
     except KeyError:
         url = None
 
-    if ev['CATEGORIES'] == 'Travel' or 'Travel' in ev['CATEGORIES']:
+    if ev['CATEGORIES'] == opts.category or opts.category in ev['CATEGORIES']:
         if ev.get('CLASS') == 'PRIVATE':
             summary = "Away"
             location = None
