@@ -14,6 +14,7 @@ import utils
 
 parser = optparse.OptionParser("travel")
 parser.add_option("--format", choices=["text", "html", "now"], default="text", help="Output format")
+parser.add_option("--html-template", type=str, help="Name of HTML template to use.", default="travel.html")
 parser.add_option("--category", type=str, help="Category to select", default="Travel")
 parser.add_option("--show-past-cancelled", action="store_true", default=False, help="Show cancelled past events.")
 opts, args = parser.parse_args()
@@ -118,7 +119,7 @@ if opts.format == "text":
             f.write("\n")
 elif opts.format == "html":
     env = jinja2.Environment(loader=jinja2.FileSystemLoader('templates'))
-    template = env.get_template('travel.html')
+    template = env.get_template(opts.html_template)
     def status_char(status):
         if status == "TENTATIVE":
             return "?"
