@@ -7,6 +7,7 @@ import os
 DEFAULT_PATH = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer")
 
 class CollectionSet(object):
+    """Set of iCalendar/vCard collections."""
 
     def get_option_group(self, parser, default_kind='calendar'):
         """Return a optparser OptionGroup.
@@ -43,6 +44,12 @@ def format_daterange(start, end):
 
 
 def gather_ics(dirs, filter_fn):
+    """Find all the ics files in a directory, yield components.
+
+    :param dirs: List of directories to browse
+    :param filter_fn: Function to call on components to decide what to return
+    :return: Iterator over components found
+    """
     for bp in dirs:
         for n in os.listdir(bp):
             p = os.path.join(bp, n)
