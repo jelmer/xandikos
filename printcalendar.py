@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import utils
+from dystros import utils
 
 collections = utils.CollectionSet()
 

@@ -10,7 +10,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import utils
+from dystros import utils
 
 parser = optparse.OptionParser("travel")
 parser.add_option("--format", choices=["text", "html", "now"], default="text", help="Output format")

@@ -13,7 +13,7 @@ from icalendar.prop import vDate, vDuration, vDatetime, vText, vUri
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import utils
+from dystros import utils
 
 DEFAULT_OUTPUT_DIR = os.path.join(utils.DEFAULT_PATH, "travel")
 
