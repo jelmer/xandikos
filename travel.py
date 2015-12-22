@@ -88,7 +88,7 @@ if not opts.show_past_cancelled:
             return ev.end >= datetime.datetime.now().date()
         return ev.start >= datetime.datetime.now().date()
     for year in travelevs:
-       travelevs[year] = filter(isNotPastCancelled, travelevs[year]) 
+       travelevs[year] = filter(isNotPastCancelled, travelevs[year])
 
 
 def iscurrent(ev):
@@ -136,8 +136,11 @@ elif opts.format == "now":
     location = set()
     for evlist in travelevs.values():
         for ev in evlist:
-            if iscurrent(ev):
-                location.add(ev.location)
+            if not iscurrent(ev):
+                continue
+            if not ev.location:
+                logging.warning('travel event %s does not have location', ev.summary)
+            location.add(ev.location or ev.summary)
     if not location:
         print "Home"
     else:
