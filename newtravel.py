@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from dystros import utils
 
-DEFAULT_OUTPUT_DIR = os.path.join(utils.DEFAULT_PATH, "travel")
+DEFAULT_OUTPUT_DIR = os.path.join(utils.DEFAULT_PATH, "calendar")
 
 parser = optparse.OptionParser("travel")
 parser.add_option('--url', type=str, dest="url", help="Associated URL.", default=None)
