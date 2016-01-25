@@ -1,6 +1,6 @@
 - newtravel: Handle items with unknown or vague date ("Nov?", "?", "Oct/Nov?")
 - fix-songkick: Get time somehow
+- export-freebusy
 
 - import tfl2ics
-
-- untappd?
+- import from untappd?
