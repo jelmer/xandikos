@@ -9,12 +9,13 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from dystros import utils
 
-collections = utils.CollectionSet()
-
 parser = optparse.OptionParser("travel")
-parser.add_option_group(collections.get_option_group(parser, 'calendar'))
+collection_set_options = utils.CollectionSetOptionGroup(parser)
+parser.add_option_group(collection_set_options)
 parser.add_option('--category', type=str, dest='category', help='Only display this category.')
 opts, args = parser.parse_args()
+
+collections = collection_set_options.get()
 
 def filter_fn(component):
     if opts.category and (

@@ -6,24 +6,20 @@ import os
 
 DEFAULT_PATH = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer")
 
-class CollectionSet(object):
-    """Set of iCalendar/vCard collections."""
+class CollectionSetOptionGroup(optparse.OptionGroup):
+    """Return a optparser OptionGroup.
 
-    def get_option_group(self, parser, default_kind='calendar'):
-        """Return a optparser OptionGroup.
+    :param parser: An OptionParser
+    :param default_kind: Default kind
+    :return: An OptionGroup
+    """
 
-        :param parser: An OptionParser
-        :param default_kind: Default kind
-        :return: An OptionGroup
-        """
-        self._set_kinds(default_kind)
-        self._set_inputdir(DEFAULT_PATH)
-        group = optparse.OptionGroup(parser, "Path Settings")
-        group.add_option('--kind', type=str, dest="kind", help="Kind.", default=default_kind,
-                         callback=self._set_kinds)
-        group.add_option('--inputdir', type=str, dest="inputdir", help="Input directory.",
-                         default=DEFAULT_PATH, callback=self._set_inputdir)
-        return group
+    def __init__(self, parser, default_kind="calendar"):
+        super(CollectionSetOptionGroup, self).__init__(parser, "Path Settings")
+        self.add_option('--kind', type=str, dest="kind", help="List of kinds separated by commas.",
+                        default=default_kind)
+        self.add_option('--inputdir', type=str, dest="inputdir", help="Input directory.",
+                        default=DEFAULT_PATH)
 
     def _set_inputdir(self, value):
         self._inputdir = value
@@ -31,12 +27,25 @@ class CollectionSet(object):
     def _set_kinds(self, value):
         self._kinds = value.split(',')
 
+    def get(self):
+        return CollectionSet(self._inputdir, self._kinds)
+
+
+class CollectionSet(object):
+    """Set of iCalendar/vCard collections."""
+
+    def __init__(self, inputdir, kinds):
+        self._inputdir = inputdir
+        self._kinds = kinds
+
     def iter_icalendars(self):
         return list(gather_icalendars([os.path.join(self._inputdir, kind) for kind in self._kinds]))
 
     def iter_vevents(self):
         return extract_vevents(self.iter_calendars())
 
+    def iter_vtodos(self):
+        return extract_vtodos(self.iter_calendars())
 
 
 def extract_vevents(calendars):
@@ -44,6 +53,14 @@ def extract_vevents(calendars):
         for component in calendar.subcomponents:
             if component.name == 'VEVENT':
                 yield component
+
+
+def extract_vtodos(calendars):
+    for calendar in calendars:
+        for component in calendar.subcomponents:
+            if component.name == 'VTODO':
+                yield component
+
 
 
 def statuschar(evstatus):

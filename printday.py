@@ -9,10 +9,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from dystros import utils
 
-collections = utils.CollectionSet()
-
 parser = optparse.OptionParser("printday DATE")
-parser.add_option_group(collections.get_option_group(parser, 'calendar'))
+collection_set_options = utils.CollectionSetOptionGroup(parser)
+parser.add_option_group(collection_set_options)
 opts, args = parser.parse_args()
 
 if len(args) < 1:
@@ -21,6 +20,7 @@ if len(args) < 1:
 
 day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
 
+collections = collection_set_options.get()
 vevents = list(collections.iter_vevents())
 vevents.sort(cmp=utils.cmpEvent)
 

@@ -3,32 +3,18 @@
 import optparse
 import os
 import sys
-from icalendar.cal import Calendar
 
 sys.path.insert(0, os.path.dirname(__file__))
 
 from dystros import utils
 
-collections = utils.CollectionSet()
-
 parser = optparse.OptionParser("travel")
-parser.add_option_group(collections.get_option_group(parser))
+collection_set_options = utils.CollectionSetOptionGroup(parser)
+parser.add_option_group(collection_set_options)
 opts, args = parser.parse_args()
 
-vtodos = []
-
-for kind in opts.kind.split(','):
-    bp = os.path.join(opts.inputdir, kind)
-    for n in os.listdir(bp):
-        p = os.path.join(bp, n)
-        if not p.endswith(".ics"):
-            continue
-
-        orig = Calendar.from_ical(open(p, 'r').read())
-
-        for component in orig.subcomponents:
-            if component.name == 'VTODO':
-                vtodos.append(component)
+collections = collection_set_options.get()
+vtodos = list(collections.iter_vtodo())
 
 def todoKey(vtodo):
     return (vtodo.get('PRIORITY'), vtodo.get('DUE'), vtodo['SUMMARY'])
