@@ -16,11 +16,23 @@ class CollectionSet(object):
         :param default_kind: Default kind
         :return: An OptionGroup
         """
+        self._set_kinds(default_kind)
+        self._set_inputdir(DEFAULT_PATH)
         group = optparse.OptionGroup(parser, "Path Settings")
-        group.add_option('--kind', type=str, dest="kind", help="Kind.", default=default_kind)
+        group.add_option('--kind', type=str, dest="kind", help="Kind.", default=default_kind,
+                         callback=self._set_kinds)
         group.add_option('--inputdir', type=str, dest="inputdir", help="Input directory.",
-                         default=DEFAULT_PATH)
+                         default=DEFAULT_PATH, callback=self._set_inputdir)
         return group
+
+    def _set_inputdir(self, value):
+        self._inputdir = value
+
+    def _set_kinds(self, value):
+        self._kinds = value.split(',')
+
+    def iter_vevents(self):
+        return list(gather_ics([os.path.join(self._inputdir, kind) for kind in self._kinds]))
 
 
 def statuschar(evstatus):
@@ -43,11 +55,10 @@ def format_daterange(start, end):
     return "%d %s-%d %s" % (start.day, format_month(start), end.day, format_month(end))
 
 
-def gather_ics(dirs, filter_fn):
+def gather_ics(dirs):
     """Find all the ics files in a directory, yield components.
 
     :param dirs: List of directories to browse
-    :param filter_fn: Function to call on components to decide what to return
     :return: Iterator over components found
     """
     for bp in dirs:
@@ -59,8 +70,7 @@ def gather_ics(dirs, filter_fn):
             orig = Calendar.from_ical(open(p, 'r').read())
 
             for component in orig.subcomponents:
-                if filter_fn(component):
-                    yield component
+                yield component
 
 
 def asdate(dt):

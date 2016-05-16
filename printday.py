@@ -26,8 +26,7 @@ def filter_fn(component):
 
 day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
 
-vevents = list(utils.gather_ics([os.path.join(opts.basedir, kind) for kind in opts.kind.split(',')], filter_fn))
-
+vevents = map(filter_fn, list(collections.iter_vevents()))
 vevents.sort(cmp=utils.cmpEvent)
 
 for vevent in vevents:
