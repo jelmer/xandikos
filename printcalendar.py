@@ -24,7 +24,7 @@ def filter_fn(component):
          return False
     return True
 
-vevents = map(filter_fn, collections.iter_vevents())
+vevents = filter(filter_fn, collections.iter_vevents())
 vevents.sort(cmp=utils.cmpEvent)
 
 for vevent in vevents:
