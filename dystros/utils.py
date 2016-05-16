@@ -33,14 +33,14 @@ class CollectionSet(object):
         return list(gather_icalendars([os.path.join(self._inputdir, kind) for kind in self._kinds]))
 
     def iter_vevents(self):
-        return extract_vevents(self.iter_calendars())
+        return extract_vevents(self.iter_icalendars())
 
     def iter_vtodos(self):
-        return extract_vtodos(self.iter_calendars())
+        return extract_vtodos(self.iter_icalendars())
 
     @classmethod
     def from_options(cls, opts):
-        return cls(opts.inputdir, opts.kind)
+        return cls(opts.inputdir, opts.kind.split(','))
 
 
 def extract_vevents(calendars):
