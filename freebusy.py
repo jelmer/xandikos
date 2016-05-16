@@ -14,7 +14,7 @@ collection_set_options = utils.CollectionSetOptionGroup(parser)
 parser.add_option_group(collection_set_options)
 opts, args = parser.parse_args()
 
-collections = collection_set_options.get()
+collections = utils.CollectionSet.from_options(opts)
 vevents = collections.iter_vevents()
 
 out = Calendar()

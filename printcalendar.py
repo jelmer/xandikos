@@ -15,7 +15,7 @@ parser.add_option_group(collection_set_options)
 parser.add_option('--category', type=str, dest='category', help='Only display this category.')
 opts, args = parser.parse_args()
 
-collections = collection_set_options.get()
+collections = utils.CollectionSet.from_options(opts)
 
 def filter_fn(component):
     if opts.category and (

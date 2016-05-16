@@ -15,20 +15,11 @@ class CollectionSetOptionGroup(optparse.OptionGroup):
     """
 
     def __init__(self, parser, default_kind="calendar"):
-        super(CollectionSetOptionGroup, self).__init__(parser, "Path Settings")
+        optparse.OptionGroup.__init__(self, parser, "Path Settings")
         self.add_option('--kind', type=str, dest="kind", help="List of kinds separated by commas.",
                         default=default_kind)
         self.add_option('--inputdir', type=str, dest="inputdir", help="Input directory.",
                         default=DEFAULT_PATH)
-
-    def _set_inputdir(self, value):
-        self._inputdir = value
-
-    def _set_kinds(self, value):
-        self._kinds = value.split(',')
-
-    def get(self):
-        return CollectionSet(self._inputdir, self._kinds)
 
 
 class CollectionSet(object):
@@ -46,6 +37,10 @@ class CollectionSet(object):
 
     def iter_vtodos(self):
         return extract_vtodos(self.iter_calendars())
+
+    @classmethod
+    def from_options(cls, opts):
+        return cls(opts.inputdir, opts.kind)
 
 
 def extract_vevents(calendars):

@@ -20,7 +20,7 @@ if len(args) < 1:
 
 day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
 
-collections = collection_set_options.get()
+collections = utils.CollectionSet.from_options(opts)
 vevents = list(collections.iter_vevents())
 vevents.sort(cmp=utils.cmpEvent)
 
