@@ -44,6 +44,11 @@ class CollectionSet(object):
 
 
 def extract_vevents(calendars):
+    """Extract vevents from an iterator over calendars.
+
+    :param calendars: Iterator over Calendar objects
+    :return: Iterator over Calendar subcomponents
+    """
     for calendar in calendars:
         for component in calendar.subcomponents:
             if component.name == 'VEVENT':
@@ -51,6 +56,11 @@ def extract_vevents(calendars):
 
 
 def extract_vtodos(calendars):
+    """Extract vtodos from an iterator over calendars.
+
+    :param calendars: Iterator over Calendar objects
+    :return: Iterator over Calendar subcomponents
+    """
     for calendar in calendars:
         for component in calendar.subcomponents:
             if component.name == 'VTODO':
@@ -59,6 +69,11 @@ def extract_vtodos(calendars):
 
 
 def statuschar(evstatus):
+    """Convert an event status to a single status character.
+
+    :param evstatus: Event status description
+    :return: A single character, empty string if the status is unknown
+    """
     return {'TENTATIVE': '?',
             'CONFIRMED': '.',
             'CANCELLED': '-'}.get(evstatus, '')
