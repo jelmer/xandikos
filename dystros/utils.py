@@ -31,8 +31,19 @@ class CollectionSet(object):
     def _set_kinds(self, value):
         self._kinds = value.split(',')
 
+    def iter_icalendars(self):
+        return list(gather_icalendars([os.path.join(self._inputdir, kind) for kind in self._kinds]))
+
     def iter_vevents(self):
-        return list(gather_ics([os.path.join(self._inputdir, kind) for kind in self._kinds]))
+        return extract_vevents(self.iter_calendars())
+
+
+
+def extract_vevents(calendars):
+    for calendar in calendars:
+        for component in calendar.subcomponents:
+            if component.name == 'VEVENT':
+                yield component
 
 
 def statuschar(evstatus):
@@ -55,7 +66,7 @@ def format_daterange(start, end):
     return "%d %s-%d %s" % (start.day, format_month(start), end.day, format_month(end))
 
 
-def gather_ics(dirs):
+def gather_icalendars(dirs):
     """Find all the ics files in a directory, yield components.
 
     :param dirs: List of directories to browse
@@ -67,10 +78,7 @@ def gather_ics(dirs):
             if not p.endswith(".ics"):
                 continue
 
-            orig = Calendar.from_ical(open(p, 'r').read())
-
-            for component in orig.subcomponents:
-                yield component
+            yield Calendar.from_ical(open(p, 'r').read())
 
 
 def asdate(dt):
@@ -82,6 +90,12 @@ def asdate(dt):
 
 
 def cmpEvent(a, b):
+    """Compare two events by date.
+
+    :param a: First event
+    :param b: Second event
+    :return: -1, 0, or 1 depending on whether a < b, a == b or a > b
+    """
     a = a['DTSTART'].dt
     b = b['DTSTART'].dt
     if getattr(a, "date", None):

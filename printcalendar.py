@@ -17,8 +17,6 @@ parser.add_option('--category', type=str, dest='category', help='Only display th
 opts, args = parser.parse_args()
 
 def filter_fn(component):
-    if component.name != 'VEVENT':
-         return False
     if opts.category and (
         not 'CATEGORIES' in component or
         not opts.category in component['CATEGORIES']):

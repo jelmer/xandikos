@@ -21,7 +21,7 @@ parser.add_option("--show-past-cancelled", action="store_true", default=False, h
 parser.add_option("--tense", choices=["past", "future", "all"], default="all", help="Tense")
 opts, args = parser.parse_args()
 
-evs = map(lambda c: c.name == 'VEVENT', list(utils.gather_ics(args)))
+evs = utils.extract_vevents(utils.gather_icalendars(args))
 
 TravelEvent = collections.namedtuple("TravelEvent", ["summary", "url", "location", "status", "start", "end"])
 

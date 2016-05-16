@@ -19,14 +19,9 @@ if len(args) < 1:
     parser.print_usage()
     sys.exit(1)
 
-def filter_fn(component):
-    if component.name != 'VEVENT':
-         return False
-    return True
-
 day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
 
-vevents = map(filter_fn, list(collections.iter_vevents()))
+vevents = list(collections.iter_vevents())
 vevents.sort(cmp=utils.cmpEvent)
 
 for vevent in vevents:

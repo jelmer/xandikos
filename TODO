@@ -4,3 +4,5 @@
 
 - import tfl2ics
 - import from untappd?
+
+- port to python-vobject
