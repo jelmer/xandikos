@@ -56,10 +56,12 @@ url = args[0]
 orig = Calendar.from_ical(urllib.urlopen(url).read())
 
 other = []
-evs = {}
+items = {}
 for component in orig.subcomponents:
     if component.name == 'VEVENT':
-        evs[component['UID']] = component
+        items[component['UID']] = component
+    elif component.name == 'VTODO':
+        items[component['UID']] = component
     else:
         other.append(component)
 
@@ -67,7 +69,7 @@ changed = 0
 added = 0
 seen = 0
 
-for (uid, ev) in evs.iteritems():
+for (uid, ev) in items.iteritems():
     seen += 1
     fname = "%s-%s.ics" % (opts.prefix, uid.replace("/", ""))
     path = os.path.join(opts.outdir, fname)
