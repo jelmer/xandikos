@@ -22,6 +22,7 @@
 
 
 from dulwich import porcelain
+import hashlib
 import logging
 import optparse
 import urllib
@@ -58,10 +59,14 @@ orig = Calendar.from_ical(urllib.urlopen(url).read())
 other = []
 items = {}
 for component in orig.subcomponents:
-    if component.name == 'VEVENT':
-        items[component['UID']] = component
-    elif component.name == 'VTODO':
-        items[component['UID']] = component
+    try:
+        uid = component['UID']
+    except KeyError:
+        md5 = hashlib.md5()
+        md5.update(component.to_ical())
+        component['UID'] = uid = md5.hexdigest()
+    if component.name in ('VEVENT', 'VTODO'):
+        items[uid] = component
     else:
         other.append(component)
 
