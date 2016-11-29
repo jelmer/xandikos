@@ -1,0 +1,14 @@
+Collections are represented as Git repositories on disk.
+
+A specific version is represented as a commit id. The 'ctag' for a calendar is taken from the
+tree id of the calendar root tree.
+
+The `entity tag`_ for an event is taken from the blob id of the Blob representing that EVENT. These kinds
+of entity tags are strong, since blobs are equivalent by octet equality.
+
+.. _entity tag: https://tools.ietf.org/html/rfc2616#section-3.11
+
+The file name of calendar events shall be <uuid>.ics / <uuid>.vcf. This makes it easy to enforce that there
+is only a single entry with a specific UID.
+
+All items in a collection *must* be well formed, so that they do not have to be validated when served.
