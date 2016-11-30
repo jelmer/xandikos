@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Dystros
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
@@ -25,7 +25,7 @@ from dulwich import porcelain
 import hashlib
 import logging
 import optparse
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import os
 from icalendar.cal import Calendar
 from icalendar.prop import vUri, vText
@@ -54,7 +54,7 @@ parser.add_option('--status', dest='status', type="choice", choices=["", "tentat
 opts, args = parser.parse_args()
 
 url = args[0]
-orig = Calendar.from_ical(urllib.urlopen(url).read())
+orig = Calendar.from_ical(urllib.request.urlopen(url).read())
 
 other = []
 items = {}
@@ -74,13 +74,13 @@ changed = 0
 added = 0
 seen = 0
 
-for (uid, ev) in items.iteritems():
+for (uid, ev) in items.items():
     seen += 1
     fname = "%s-%s.ics" % (opts.prefix, uid.replace("/", ""))
     path = os.path.join(opts.outdir, fname)
     out = Calendar()
     out['X-IMPORTED-FROM-URL'] = vUri(url)
-    out.update(orig.items())
+    out.update(list(orig.items()))
     for c in other:
         out.add_component(c)
     if opts.category:

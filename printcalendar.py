@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Dystros
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
@@ -44,7 +44,7 @@ def filter_fn(component):
          return False
     return True
 
-vevents = filter(filter_fn, collections.iter_vevents())
+vevents = list(filter(filter_fn, collections.iter_vevents()))
 vevents.sort(cmp=utils.cmpEvent)
 
 for vevent in vevents:

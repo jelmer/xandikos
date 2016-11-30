@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import collections
 import datetime
@@ -111,11 +111,11 @@ if not opts.show_past_cancelled:
             start = start.date()
         return start < datetime.datetime.now()
     for year in travelevs:
-       travelevs[year] = filter(isNotPastCancelled, travelevs[year])
+       travelevs[year] = list(filter(isNotPastCancelled, travelevs[year]))
        if opts.tense == "past":
-          travelevs[year] = filter(isPast, travelevs[year])
+          travelevs[year] = list(filter(isPast, travelevs[year]))
        elif opts.tense == "future":
-          travelevs[year] = filter(isFuture, travelevs[year])
+          travelevs[year] = list(filter(isFuture, travelevs[year]))
 
 def isCurrent(ev):
     import datetime
@@ -133,7 +133,7 @@ def isCurrent(ev):
 f = sys.stdout
 
 if opts.format == "text":
-    for year in sorted(travelevs.keys(), reverse=True):
+    for year in sorted(list(travelevs.keys()), reverse=True):
         if not travelevs[year]:
             continue
         f.write("%d\n" % year)
@@ -160,11 +160,11 @@ elif opts.format == "html":
             continue
         assert isinstance(travelevs[year], list)
         travelevs[year].sort(key=evsortkey, reverse=True)
-    print template.render(events=travelevs, format_daterange=utils.format_daterange,
-        status_char=status_char, sorted=sorted, iscurrent=isCurrent)
+    print(template.render(events=travelevs, format_daterange=utils.format_daterange,
+        status_char=status_char, sorted=sorted, iscurrent=isCurrent))
 elif opts.format == "now":
     location = set()
-    for evlist in travelevs.values():
+    for evlist in list(travelevs.values()):
         for ev in evlist:
             if not isCurrent(ev):
                 continue
@@ -172,6 +172,6 @@ elif opts.format == "now":
                 logging.warning('travel event %s does not have location', ev.summary)
             location.add(ev.location or ev.summary)
     if not location:
-        print "Home"
+        print("Home")
     else:
-        print location.pop()
+        print(location.pop())

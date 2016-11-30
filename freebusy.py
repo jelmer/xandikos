@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 from icalendar.cal import Calendar, FreeBusy
 import optparse
@@ -25,4 +25,4 @@ for vevent in vevents:
     freebusy['DTEND'] = vevent['DTEND']
     out.add_component(freebusy)
 
-print out.to_ical()
+print(out.to_ical())

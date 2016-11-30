@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Dystros
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
