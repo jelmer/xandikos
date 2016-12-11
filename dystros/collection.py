@@ -25,6 +25,8 @@ import stat
 from dulwich.objects import Blob, Tree
 import dulwich.repo
 
+_DEFAULT_COMMITTER_IDENTITY = 'Dystros <dystros>'
+
 
 class Collection(object):
     """A ICalendar collection."""
@@ -101,8 +103,12 @@ class BareGitCollection(GitCollection):
         return cls(dulwich.repo.MemoryRepo())
 
     def _commit_tree(self, tree_id, message):
+        try:
+            committer = self.repo._get_user_identity()
+        except KeyError:
+            committer = _DEFAULT_COMMITTER_IDENTITY
         return self.repo.do_commit(message=message, tree=tree_id,
-                ref=self.ref)
+                ref=self.ref, committer=committer)
 
     def import_one(self, name, data):
         """Import a single VCalendar object.
@@ -151,6 +157,10 @@ class TreeGitCollection(GitCollection):
         self.repo.stage(name)
         etag = self.repo.open_index()[name.encode('utf-8')].sha
         message = b'Add ' + name.encode('utf-8')
+        try:
+            committer = self.repo._get_user_identity()
+        except KeyError:
+            committer = _DEFAULT_COMMITTER_IDENTITY
         self.repo.do_commit(message=message)
         return etag
 
