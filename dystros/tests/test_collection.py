@@ -22,6 +22,23 @@ import shutil
 import unittest
 
 from dystros.collection import GitCollection
+from dulwich.objects import Blob, Commit, Tree
+
+EXAMPLE_VCALENDAR = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN
+BEGIN:VTODO
+CREATED:20150314T223512Z
+DTSTAMP:20150527T221952Z
+LAST-MODIFIED:20150314T223512Z
+STATUS:NEEDS-ACTION
+SUMMARY:do something
+UID:bdc22720-b9e1-42c9-89c2-a85405d8fbff
+END:VTODO
+X-CALYPSO-NAME:bdc22720-b9e1-42c9-89c2-a85405d8fbff.ics
+END:VCALENDAR
+"""
 
 
 class GitCollectionTest(unittest.TestCase):
@@ -39,3 +56,22 @@ class GitCollectionTest(unittest.TestCase):
         gc = GitCollection.create(d, bare=False)
         self.assertIsInstance(gc, GitCollection)
         self.assertEqual(gc.repo.path, d)
+
+    def test_create_memory(self):
+        gc = GitCollection.create_memory()
+        self.assertIsInstance(gc, GitCollection)
+
+    def test_iter_with_etag(self):
+        gc = GitCollection.create_memory()
+        b = Blob.from_string(EXAMPLE_VCALENDAR)
+        t = Tree()
+        t.add(b'foo.ics', 0o644, b.id)
+        c = Commit()
+        c.tree = t.id
+        c.committer = c.author = b'Somebody <foo@example.com>'
+        c.commit_time = c.author_time = 800000
+        c.commit_timezone = c.author_timezone = 0
+        c.message = b'do something'
+        gc.repo.object_store.add_objects([(b, None), (t, None), (c, None)])
+        gc.repo[gc.ref] = c.id
+        self.assertEqual([(b'foo.ics', b.id)], list(gc.iter_with_etag()))

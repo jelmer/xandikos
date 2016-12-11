@@ -19,26 +19,61 @@
 
 """Collections and collection sets."""
 
+from dulwich.objects import Tree
 import dulwich.repo
 
 
 class Collection(object):
     """A ICalendar collection."""
 
+    def iter_with_etag(self):
+        """Iterate over all items in the collection with etag.
+
+        :yield: (name, etag) tuples
+        """
+        raise NotImplementedError(self.iter_with_etag)
+
 
 class GitCollection(object):
     """A Collection backed by a Git Repository.
     """
 
-    def __init__(self, repo):
+    def __init__(self, repo, ref=b'refs/heads/master'):
+        self.ref = ref
         self.repo = repo
+
+    def iter_with_etag(self):
+        """Iterate over all items in the collection with etag.
+
+        :yield: (name, etag) tuples
+        """
+        ref_object = self.repo[self.ref]
+        if isinstance(ref_object, Tree):
+            tree = ref_object
+        else:
+            tree = self.repo.object_store[ref_object.tree]
+        for (name, mode, sha) in tree.iteritems():
+            yield (name, sha)
 
     @classmethod
     def create(cls, path, bare=True):
+        """Create a new collection backed by a Git repository on disk.
+
+        :param bare: Whether to create a bare repository
+        :return: A `GitCollection`
+        """
         if bare:
             return cls(dulwich.repo.Repo.init_bare(path))
         else:
             return cls(dulwich.repo.Repo.init(path))
+
+    @classmethod
+    def create_memory(cls):
+        """Create a new collection backed by a memory repository.
+
+        :return: A `GitCollection`
+        """
+        return cls(dulwich.repo.MemoryRepo())
 
 
 class CollectionSet(object):
