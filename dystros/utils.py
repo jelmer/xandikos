@@ -19,6 +19,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import datetime
 from icalendar.cal import Calendar
 import optparse
 import os
@@ -151,3 +152,27 @@ def keyEvent(a):
         a_date = a
         a = (0, 0)
     return (a_date, a)
+
+
+DEFAULT_PRIORITY = 10
+DEFAULT_DUE_DATE = datetime.date(datetime.MAXYEAR, 1, 1)
+
+
+def keyTodo(a):
+    priority = a.get('PRIORITY')
+    if priority is not None:
+        priority = int(priority)
+    else:
+        priority = DEFAULT_PRIORITY
+    due = a.get('DUE')
+    if due:
+        if getattr(due.dt, "date", None):
+            due_date = due.dt.date()
+            due_time = (due.dt.hour, due.dt.minute)
+        else:
+            due_date = due.dt
+            due_time = (0, 0)
+    else:
+        due_date = DEFAULT_DUE_DATE
+        due_time = None
+    return (priority, due_date, due_time, a['SUMMARY'])

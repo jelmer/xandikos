@@ -14,12 +14,9 @@ parser.add_option_group(collection_set_options)
 opts, args = parser.parse_args()
 
 collections = utils.CollectionSet.from_options(opts)
-vtodos = list(collections.iter_vtodo())
+vtodos = list(collections.iter_vtodos())
 
-def todoKey(vtodo):
-    return (vtodo.get('PRIORITY'), vtodo.get('DUE'), vtodo['SUMMARY'])
-
-vtodos.sort(key=todoKey)
+vtodos.sort(key=utils.keyTodo)
 
 for vtodo in vtodos:
     status = str(vtodo.get('STATUS', 'NEEDS-ACTION'))
