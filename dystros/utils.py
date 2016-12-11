@@ -138,28 +138,16 @@ def asdate(dt):
     return dt
 
 
-def cmpEvent(a, b):
-    """Compare two events by date.
+def keyEvent(a):
+    """Create key for an event
 
     :param a: First event
-    :param b: Second event
-    :return: -1, 0, or 1 depending on whether a < b, a == b or a > b
     """
     a = a['DTSTART'].dt
-    b = b['DTSTART'].dt
     if getattr(a, "date", None):
         a_date = a.date()
         a = (a.hour, a.minute)
     else:
         a_date = a
         a = (0, 0)
-    if getattr(b, "date", None):
-        b_date = b.date()
-        b = (b.hour, b.minute)
-    else:
-        b_date = b
-        b = (0, 0)
-    c = cmp(a_date, b_date)
-    if c != 0:
-        return c
-    return cmp(a, b)
+    return (a_date, a)

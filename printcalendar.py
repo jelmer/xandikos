@@ -45,7 +45,7 @@ def filter_fn(component):
     return True
 
 vevents = list(filter(filter_fn, collections.iter_vevents()))
-vevents.sort(cmp=utils.cmpEvent)
+vevents.sort(key=utils.keyEvent)
 
 for vevent in vevents:
     summary = vevent['SUMMARY']

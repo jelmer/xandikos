@@ -43,7 +43,7 @@ day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
 
 collections = utils.CollectionSet.from_options(opts)
 vevents = list(collections.iter_vevents())
-vevents.sort(cmp=utils.cmpEvent)
+vevents.sort(key=utils.keyEvent)
 
 for vevent in vevents:
     if not (day == utils.asdate(vevent['DTSTART'].dt) or
