@@ -23,7 +23,10 @@ from icalendar.cal import Calendar
 import optparse
 import os
 
-DEFAULT_PATH = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer")
+try:
+    DEFAULT_PATH = os.environ['DYSTROSPATH']
+except KeyError:
+    DEFAULT_PATH = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer")
 
 class CollectionSetOptionGroup(optparse.OptionGroup):
     """Return a optparser OptionGroup.
