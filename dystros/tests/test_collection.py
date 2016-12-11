@@ -17,4 +17,25 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import tempfile
+import shutil
 import unittest
+
+from dystros.collection import GitCollection
+
+
+class GitCollectionTest(unittest.TestCase):
+
+    def test_create_bare(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        gc = GitCollection.create(d, bare=True)
+        self.assertIsInstance(gc, GitCollection)
+        self.assertEqual(gc.repo.path, d)
+
+    def test_create_nonbare(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        gc = GitCollection.create(d, bare=False)
+        self.assertIsInstance(gc, GitCollection)
+        self.assertEqual(gc.repo.path, d)

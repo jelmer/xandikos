@@ -19,7 +19,7 @@
 
 """Collections and collection sets."""
 
-import dulwich
+import dulwich.repo
 
 
 class Collection(object):
@@ -31,7 +31,14 @@ class GitCollection(object):
     """
 
     def __init__(self, repo):
-        self._repo = repo
+        self.repo = repo
+
+    @classmethod
+    def create(cls, path, bare=True):
+        if bare:
+            return cls(dulwich.repo.Repo.init_bare(path))
+        else:
+            return cls(dulwich.repo.Repo.init(path))
 
 
 class CollectionSet(object):
