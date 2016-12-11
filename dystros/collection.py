@@ -67,6 +67,27 @@ class GitCollection(object):
         """
         raise NotImplementedError(self.create)
 
+    @classmethod
+    def open_from_path(cls, path):
+        """Open a GitCollection from a path.
+
+        :param path: Path
+        :return: A `GitCollection`
+        """
+        return cls.open(dulwich.repo.Repo(path))
+
+    @classmethod
+    def open(cls, repo):
+        """Open a GitCollection given a Repo object.
+
+        :param repo: A Dulwich `Repo`
+        :return: A `GitCollection`
+        """
+        if repo.has_index():
+            return TreeGitCollection(repo)
+        else:
+            return BareGitCollection(repo)
+
 
 class BareGitCollection(GitCollection):
     """A Collection backed by a bare git repository."""

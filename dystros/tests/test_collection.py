@@ -23,8 +23,10 @@ import shutil
 import stat
 import unittest
 
-from dystros.collection import GitCollection, BareGitCollection, TreeGitCollection
 from dulwich.objects import Blob, Commit, Tree
+from dulwich.repo import Repo
+
+from dystros.collection import GitCollection, BareGitCollection, TreeGitCollection
 
 EXAMPLE_VCALENDAR = b"""\
 BEGIN:VCALENDAR
@@ -43,7 +45,7 @@ END:VCALENDAR
 """
 
 
-class GitCollectionTest(object):
+class BaseGitCollectionTest(object):
 
     kls = None
 
@@ -64,7 +66,26 @@ class GitCollectionTest(object):
         self.assertEqual([('foo.ics', etag)], list(gc.iter_with_etag()))
 
 
-class BareGitCollectionTest(GitCollectionTest,unittest.TestCase):
+class GitCollectionTest(unittest.TestCase):
+
+    def test_open_from_path_bare(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        Repo.init_bare(d)
+        gc = GitCollection.open_from_path(d)
+        self.assertIsInstance(gc, BareGitCollection)
+        self.assertEqual(gc.repo.path, d)
+
+    def test_open_from_path_tree(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        Repo.init(d)
+        gc = GitCollection.open_from_path(d)
+        self.assertIsInstance(gc, TreeGitCollection)
+        self.assertEqual(gc.repo.path, d)
+
+
+class BareGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
 
     kls = BareGitCollection
 
@@ -108,7 +129,7 @@ class BareGitCollectionTest(GitCollectionTest,unittest.TestCase):
         self.assertEqual(t.id, gc.get_ctag())
 
 
-class TreeGitCollectionTest(GitCollectionTest,unittest.TestCase):
+class TreeGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
 
     kls = TreeGitCollection
 
