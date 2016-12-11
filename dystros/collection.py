@@ -25,7 +25,7 @@ import stat
 from dulwich.objects import Blob, Tree
 import dulwich.repo
 
-_DEFAULT_COMMITTER_IDENTITY = 'Dystros <dystros>'
+_DEFAULT_COMMITTER_IDENTITY = b'Dystros <dystros>'
 
 
 class Collection(object):
