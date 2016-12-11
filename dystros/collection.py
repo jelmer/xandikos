@@ -166,7 +166,7 @@ class TreeGitCollection(GitCollection):
             committer = self.repo._get_user_identity()
         except KeyError:
             committer = _DEFAULT_COMMITTER_IDENTITY
-        self.repo.do_commit(message=message)
+        self.repo.do_commit(message=message, committer=committer)
         return etag
 
     def get_ctag(self):
