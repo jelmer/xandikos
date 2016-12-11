@@ -1,0 +1,16 @@
+language: python
+sudo: false
+python:
+  - "2.7"
+  - "3.5"
+env:
+  global: PYTHONHASHSEED=random
+cache:
+  directories:
+    - $HOME/.cache/pip
+script:
+  - pip install pip --upgrade
+
+  # Test without c extensions
+  - python -m unittest dystros.tests.test_suite
+

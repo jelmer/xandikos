@@ -10,4 +10,5 @@ setup(name="dystros",
       author_email="jelmer@jelmer.uk",
       license="Apache v2 or later",
       url="https://www.jelmer.uk/projects/dystros",
+      requires=['jinja2', 'icalendar', 'dulwich'],
       packages=['dystros'])
