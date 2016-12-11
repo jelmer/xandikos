@@ -33,6 +33,10 @@ class Collection(object):
         """
         raise NotImplementedError(self.iter_with_etag)
 
+    def get_ctag(self):
+        """Return the ctag for this collection."""
+        raise NotImplementedError(self.get_ctag)
+
 
 class GitCollection(object):
     """A Collection backed by a Git Repository.
@@ -42,16 +46,26 @@ class GitCollection(object):
         self.ref = ref
         self.repo = repo
 
+    def _get_current_tree(self):
+        try:
+            ref_object = self.repo[self.ref]
+        except KeyError:
+            return Tree()
+        if isinstance(ref_object, Tree):
+            return ref_object
+        else:
+            return self.repo.object_store[ref_object.tree]
+
+    def get_ctag(self):
+        """Return the ctag for this collection."""
+        return self._get_current_tree().id
+
     def iter_with_etag(self):
         """Iterate over all items in the collection with etag.
 
         :yield: (name, etag) tuples
         """
-        ref_object = self.repo[self.ref]
-        if isinstance(ref_object, Tree):
-            tree = ref_object
-        else:
-            tree = self.repo.object_store[ref_object.tree]
+        tree = self._get_current_tree()
         for (name, mode, sha) in tree.iteritems():
             yield (name, sha)
 

@@ -75,3 +75,20 @@ class GitCollectionTest(unittest.TestCase):
         gc.repo.object_store.add_objects([(b, None), (t, None), (c, None)])
         gc.repo[gc.ref] = c.id
         self.assertEqual([(b'foo.ics', b.id)], list(gc.iter_with_etag()))
+
+    def test_get_ctag(self):
+        gc = GitCollection.create_memory()
+        self.assertEqual(Tree().id, gc.get_ctag())
+
+        b = Blob.from_string(EXAMPLE_VCALENDAR)
+        t = Tree()
+        t.add(b'foo.ics', 0o644, b.id)
+        c = Commit()
+        c.tree = t.id
+        c.committer = c.author = b'Somebody <foo@example.com>'
+        c.commit_time = c.author_time = 800000
+        c.commit_timezone = c.author_timezone = 0
+        c.message = b'do something'
+        gc.repo.object_store.add_objects([(b, None), (t, None), (c, None)])
+        gc.repo[gc.ref] = c.id
+        self.assertEqual(t.id, gc.get_ctag())
