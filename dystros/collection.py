@@ -117,6 +117,8 @@ class BareGitCollection(GitCollection):
         :return: etag
         """
         # TODO(jelmer): Check that UID is unique
+        # TODO(jelmer): Handle case where the item already exists
+        # TODO(jelmer): Verify that 'data' actually represents a valid calendar
         b = Blob.from_string(data)
         tree = self._get_current_tree()
         name_enc = name.encode('utf-8')
@@ -135,6 +137,7 @@ class BareGitCollection(GitCollection):
 
 
 class TreeGitCollection(GitCollection):
+    """A Collection that backs onto a treefull Git repository."""
 
     @classmethod
     def create(cls, path, bare=True):
@@ -151,6 +154,8 @@ class TreeGitCollection(GitCollection):
         :return: etag
         """
         # TODO(jelmer): Check that UID is unique
+        # TODO(jelmer): Handle case where the item already exists
+        # TODO(jelmer): Verify that 'data' actually represents a valid calendar
         p = os.path.join(self.repo.path, name)
         with open(p, 'wb') as f:
             f.write(data)
