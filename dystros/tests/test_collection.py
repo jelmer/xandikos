@@ -17,11 +17,13 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import os
 import tempfile
 import shutil
+import stat
 import unittest
 
-from dystros.collection import GitCollection
+from dystros.collection import GitCollection, BareGitCollection, TreeGitCollection
 from dulwich.objects import Blob, Commit, Tree
 
 EXAMPLE_VCALENDAR = b"""\
@@ -41,31 +43,43 @@ END:VCALENDAR
 """
 
 
-class GitCollectionTest(unittest.TestCase):
+class GitCollectionTest(object):
 
-    def test_create_bare(self):
+    kls = None
+
+    def create_collection(self):
+        raise NotImplementedError(self.create_collection)
+
+    def test_create(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
-        gc = GitCollection.create(d, bare=True)
+        gc = self.kls.create(d)
         self.assertIsInstance(gc, GitCollection)
         self.assertEqual(gc.repo.path, d)
 
-    def test_create_nonbare(self):
-        d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, d)
-        gc = GitCollection.create(d, bare=False)
-        self.assertIsInstance(gc, GitCollection)
-        self.assertEqual(gc.repo.path, d)
+    def test_import_one(self):
+        gc = self.create_collection()
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR)
+        self.assertIsInstance(etag, bytes)
+        self.assertEqual([('foo.ics', etag)], list(gc.iter_with_etag()))
+
+
+class BareGitCollectionTest(GitCollectionTest,unittest.TestCase):
+
+    kls = BareGitCollection
+
+    def create_collection(self):
+        return BareGitCollection.create_memory()
 
     def test_create_memory(self):
-        gc = GitCollection.create_memory()
+        gc = BareGitCollection.create_memory()
         self.assertIsInstance(gc, GitCollection)
 
     def test_iter_with_etag(self):
-        gc = GitCollection.create_memory()
+        gc = BareGitCollection.create_memory()
         b = Blob.from_string(EXAMPLE_VCALENDAR)
         t = Tree()
-        t.add(b'foo.ics', 0o644, b.id)
+        t.add(b'foo.ics', 0o644|stat.S_IFREG, b.id)
         c = Commit()
         c.tree = t.id
         c.committer = c.author = b'Somebody <foo@example.com>'
@@ -74,15 +88,15 @@ class GitCollectionTest(unittest.TestCase):
         c.message = b'do something'
         gc.repo.object_store.add_objects([(b, None), (t, None), (c, None)])
         gc.repo[gc.ref] = c.id
-        self.assertEqual([(b'foo.ics', b.id)], list(gc.iter_with_etag()))
+        self.assertEqual([('foo.ics', b.id)], list(gc.iter_with_etag()))
 
     def test_get_ctag(self):
-        gc = GitCollection.create_memory()
+        gc = BareGitCollection.create_memory()
         self.assertEqual(Tree().id, gc.get_ctag())
 
         b = Blob.from_string(EXAMPLE_VCALENDAR)
         t = Tree()
-        t.add(b'foo.ics', 0o644, b.id)
+        t.add(b'foo.ics', 0o644|stat.S_IFREG, b.id)
         c = Commit()
         c.tree = t.id
         c.committer = c.author = b'Somebody <foo@example.com>'
@@ -91,4 +105,35 @@ class GitCollectionTest(unittest.TestCase):
         c.message = b'do something'
         gc.repo.object_store.add_objects([(b, None), (t, None), (c, None)])
         gc.repo[gc.ref] = c.id
+        self.assertEqual(t.id, gc.get_ctag())
+
+
+class TreeGitCollectionTest(GitCollectionTest,unittest.TestCase):
+
+    kls = TreeGitCollection
+
+    def create_collection(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        return self.kls.create(d)
+
+    def test_iter_with_etag(self):
+        gc = self.create_collection()
+        with open(os.path.join(gc.repo.path, 'foo.ics'), 'wb') as f:
+            f.write(EXAMPLE_VCALENDAR)
+        gc.repo.stage(b'foo.ics')
+        self.assertEqual(
+                [('foo.ics', Blob.from_string(EXAMPLE_VCALENDAR).id)],
+                list(gc.iter_with_etag()))
+
+    def test_get_ctag(self):
+        gc = self.create_collection()
+        self.assertEqual(Tree().id, gc.get_ctag())
+        with open(os.path.join(gc.repo.path, 'foo.ics'), 'wb') as f:
+            f.write(EXAMPLE_VCALENDAR)
+        gc.repo.stage(b'foo.ics')
+        self.assertTrue(b'foo.ics' in gc.repo.open_index())
+        b = Blob.from_string(EXAMPLE_VCALENDAR)
+        t = Tree()
+        t.add(b'foo.ics', 0o644|stat.S_IFREG, b.id)
         self.assertEqual(t.id, gc.get_ctag())
