@@ -34,6 +34,7 @@ from icalendar.prop import vDate, vDuration, vDatetime, vText, vUri
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from dystros.collection import GitCollection
 from dystros import utils
 
 DEFAULT_OUTPUT_DIR = os.path.join(utils.DEFAULT_PATH, "calendar")
@@ -122,11 +123,6 @@ uid = md5.hexdigest()
 props['UID'] = uid
 
 fname = uid + '.ics'
-path = os.path.join(opts.outputdir, fname)
-porcelain.add(opts.outputdir, path)
-porcelain.commit(opts.outputdir, 'Add %s.' % description)
-
-with open(path, 'w') as f:
-    f.write(c.to_ical())
-
-logging.info('Wrote %s', path)
+collection = GitCollection.open_from_path(opts.outputdir)
+collection.import_one(fname, c.to_ical())
+logging.info('Wrote %s', fname)
