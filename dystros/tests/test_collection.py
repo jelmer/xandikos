@@ -28,9 +28,9 @@ from dulwich.repo import Repo
 
 from dystros.collection import (
     GitCollection, BareGitCollection, TreeGitCollection, DuplicateUidError,
-    ExtractUID)
+    ExtractUID, NameExists)
 
-EXAMPLE_VCALENDAR = b"""\
+EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN
@@ -42,7 +42,21 @@ STATUS:NEEDS-ACTION
 SUMMARY:do something
 UID:bdc22720-b9e1-42c9-89c2-a85405d8fbff
 END:VTODO
-X-CALYPSO-NAME:bdc22720-b9e1-42c9-89c2-a85405d8fbff.ics
+END:VCALENDAR
+"""
+
+EXAMPLE_VCALENDAR2 = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN
+BEGIN:VTODO
+CREATED:20120314T223512Z
+DTSTAMP:20130527T221952Z
+LAST-MODIFIED:20150314T223512Z
+STATUS:NEEDS-ACTION
+SUMMARY:do something else
+UID:bdc22764-b9e1-42c9-89c2-a85405d8fbff
+END:VTODO
 END:VCALENDAR
 """
 
@@ -63,16 +77,23 @@ class BaseGitCollectionTest(object):
 
     def test_import_one(self):
         gc = self.create_collection()
-        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR)
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertIsInstance(etag, bytes)
         self.assertEqual([('foo.ics', etag)], list(gc.iter_with_etag()))
 
-    def test_import_one_duplicate(self):
+    def test_import_one_duplicate_uid(self):
         gc = self.create_collection()
-        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR)
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertRaises(
                 DuplicateUidError, gc.import_one, 'bar.ics',
-                EXAMPLE_VCALENDAR)
+                EXAMPLE_VCALENDAR1)
+
+    def test_import_one_duplicate_name(self):
+        gc = self.create_collection()
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        self.assertRaises(
+                NameExists, gc.import_one, 'foo.ics',
+                EXAMPLE_VCALENDAR2)
 
 
 class GitCollectionTest(unittest.TestCase):
@@ -107,7 +128,7 @@ class BareGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
 
     def test_iter_with_etag(self):
         gc = BareGitCollection.create_memory()
-        b = Blob.from_string(EXAMPLE_VCALENDAR)
+        b = Blob.from_string(EXAMPLE_VCALENDAR1)
         t = Tree()
         t.add(b'foo.ics', 0o644|stat.S_IFREG, b.id)
         c = Commit()
@@ -124,7 +145,7 @@ class BareGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
         gc = BareGitCollection.create_memory()
         self.assertEqual(Tree().id, gc.get_ctag())
 
-        b = Blob.from_string(EXAMPLE_VCALENDAR)
+        b = Blob.from_string(EXAMPLE_VCALENDAR1)
         t = Tree()
         t.add(b'foo.ics', 0o644|stat.S_IFREG, b.id)
         c = Commit()
@@ -150,20 +171,20 @@ class TreeGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
     def test_iter_with_etag(self):
         gc = self.create_collection()
         with open(os.path.join(gc.repo.path, 'foo.ics'), 'wb') as f:
-            f.write(EXAMPLE_VCALENDAR)
+            f.write(EXAMPLE_VCALENDAR1)
         gc.repo.stage(b'foo.ics')
         self.assertEqual(
-                [('foo.ics', Blob.from_string(EXAMPLE_VCALENDAR).id)],
+                [('foo.ics', Blob.from_string(EXAMPLE_VCALENDAR1).id)],
                 list(gc.iter_with_etag()))
 
     def test_get_ctag(self):
         gc = self.create_collection()
         self.assertEqual(Tree().id, gc.get_ctag())
         with open(os.path.join(gc.repo.path, 'foo.ics'), 'wb') as f:
-            f.write(EXAMPLE_VCALENDAR)
+            f.write(EXAMPLE_VCALENDAR1)
         gc.repo.stage(b'foo.ics')
         self.assertTrue(b'foo.ics' in gc.repo.open_index())
-        b = Blob.from_string(EXAMPLE_VCALENDAR)
+        b = Blob.from_string(EXAMPLE_VCALENDAR1)
         t = Tree()
         t.add(b'foo.ics', 0o644|stat.S_IFREG, b.id)
         self.assertEqual(t.id, gc.get_ctag())
@@ -174,4 +195,4 @@ class ExtractUIDTests(unittest.TestCase):
     def test_extract(self):
         self.assertEqual(
             'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ExtractUID(EXAMPLE_VCALENDAR))
+            ExtractUID(EXAMPLE_VCALENDAR1))

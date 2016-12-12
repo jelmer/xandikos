@@ -53,6 +53,13 @@ class DuplicateUidError(Exception):
         self.fname = fname
 
 
+class NameExists(Exception):
+    """Name exists."""
+
+    def __init__(self, name):
+        self.name = name
+
+
 class Collection(object):
     """A ICalendar collection."""
 
@@ -95,6 +102,11 @@ class GitCollection(object):
         except KeyError:
             pass
 
+    def _check_duplicate_name(self, name):
+        self._scan_ids()
+        if name in self._fname_to_uid:
+            raise NameExists(name)
+
     def _scan_ids(self):
         removed = set(self._fname_to_uid.keys())
         for (name, mode, sha) in self._iterblobs():
@@ -120,7 +132,7 @@ class GitCollection(object):
         :yield: (name, etag) tuples
         """
         for (name, mode, sha) in self._iterblobs():
-            yield (name.decode('utf-8'), sha)
+            yield (name, sha)
 
     @classmethod
     def create(cls, path):
@@ -172,7 +184,7 @@ class BareGitCollection(GitCollection):
     def _iterblobs(self):
         tree = self._get_current_tree()
         for (name, mode, sha) in tree.iteritems():
-            yield (name, mode, sha)
+            yield (name.decode('utf-8'), mode, sha)
 
     @classmethod
     def create_memory(cls):
@@ -198,6 +210,7 @@ class BareGitCollection(GitCollection):
         """
         uid = ExtractUID(data)
         self._check_duplicate_uid(uid)
+        self._check_duplicate_name(name)
         # TODO(jelmer): Handle case where the item already exists
         # TODO(jelmer): Verify that 'data' actually represents a valid calendar
         b = Blob.from_string(data)
@@ -236,6 +249,7 @@ class TreeGitCollection(GitCollection):
         """
         uid = ExtractUID(data)
         self._check_duplicate_uid(uid)
+        self._check_duplicate_name(name)
         # TODO(jelmer): Handle case where the item already exists
         # TODO(jelmer): Verify that 'data' actually represents a valid calendar
         p = os.path.join(self.repo.path, name)
@@ -263,7 +277,7 @@ class TreeGitCollection(GitCollection):
         """
         index = self.repo.open_index()
         for (name, sha, mode) in index.iterblobs():
-            yield (name, mode, sha)
+            yield (name.decode('utf-8'), mode, sha)
 
 
 class CollectionSet(object):
