@@ -107,6 +107,14 @@ class GitCollection(object):
         if name in self._fname_to_uid:
             raise NameExists(name)
 
+    def iter_vcalendars(self):
+        """Iterate over all calendars.
+
+        :yield: (name, Calendar) tuples
+        """
+        for (name, mode, sha) in self._iterblobs():
+            yield (name, sha, Calendar.from_ical(self.repo.object_store[sha].data))
+
     def _scan_ids(self):
         removed = set(self._fname_to_uid.keys())
         for (name, mode, sha) in self._iterblobs():

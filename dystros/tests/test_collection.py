@@ -23,6 +23,8 @@ import shutil
 import stat
 import unittest
 
+from icalendar.cal import Calendar
+
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
@@ -61,19 +63,7 @@ END:VCALENDAR
 """
 
 
-class BaseGitCollectionTest(object):
-
-    kls = None
-
-    def create_collection(self):
-        raise NotImplementedError(self.create_collection)
-
-    def test_create(self):
-        d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, d)
-        gc = self.kls.create(d)
-        self.assertIsInstance(gc, GitCollection)
-        self.assertEqual(gc.repo.path, d)
+class BaseCollectionTest(object):
 
     def test_import_one(self):
         gc = self.create_collection()
@@ -94,6 +84,31 @@ class BaseGitCollectionTest(object):
         self.assertRaises(
                 NameExists, gc.import_one, 'foo.ics',
                 EXAMPLE_VCALENDAR2)
+
+    def test_iter_vcalendars(self):
+        gc = self.create_collection()
+        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
+        ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_vcalendars()}
+        self.assertEqual(ret,
+            {'bar.ics': (etag2, Calendar.from_ical(EXAMPLE_VCALENDAR2)),
+             'foo.ics': (etag1, Calendar.from_ical(EXAMPLE_VCALENDAR1)),
+             })
+
+
+class BaseGitCollectionTest(BaseCollectionTest):
+
+    kls = None
+
+    def create_collection(self):
+        raise NotImplementedError(self.create_collection)
+
+    def test_create(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        gc = self.kls.create(d)
+        self.assertIsInstance(gc, GitCollection)
+        self.assertEqual(gc.repo.path, d)
 
 
 class GitCollectionTest(unittest.TestCase):
