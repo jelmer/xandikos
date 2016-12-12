@@ -30,7 +30,7 @@ from dulwich.repo import Repo
 
 from dystros.collection import (
     GitCollection, BareGitCollection, TreeGitCollection, DuplicateUidError,
-    ExtractUID, NameExists)
+    ExtractUID, NameExists, InvalidETag, NoSuchItem)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -94,6 +94,39 @@ class BaseCollectionTest(object):
             {'bar.ics': (etag2, Calendar.from_ical(EXAMPLE_VCALENDAR2)),
              'foo.ics': (etag1, Calendar.from_ical(EXAMPLE_VCALENDAR1)),
              })
+
+    def delete_one(self):
+        gc = self.create_collection()
+        self.assertEqual([], list(gc.iter_with_etag()))
+        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        self.assertEqual([('foo.ics', etag1)], list(gc.iter_with_etag()))
+        gc.delete_one('foo.ics')
+        self.assertEqual([], list(gc.iter_with_etag()))
+
+    def delete_one_with_etag(self):
+        gc = self.create_collection()
+        self.assertEqual([], list(gc.iter_with_etag()))
+        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        self.assertEqual([('foo.ics', etag1)], list(gc.iter_with_etag()))
+        gc.delete_one('foo.ics', etag1)
+        self.assertEqual([], list(gc.iter_with_etag()))
+
+    def delete_one_nonexistant(self):
+        gc = self.create_collection()
+        self.assertRaises(NoSuchItem, gc.delete_one, 'foo.ics')
+
+    def delete_one_invalid_etag(self):
+        gc = self.create_collection()
+        self.assertEqual([], list(gc.iter_with_etag()))
+        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
+        self.assertEqual(
+            [('foo.ics', etag1), ('bar.ics', etag2)],
+            list(gc.iter_with_etag()))
+        self.assertRaises(InvalidETag, gc.delete_one, 'foo.ics', etag2)
+        self.assertEqual(
+            [('foo.ics', etag1), ('bar.ics', etag2)],
+            list(gc.iter_with_etag()))
 
 
 class BaseGitCollectionTest(BaseCollectionTest):

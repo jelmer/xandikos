@@ -60,6 +60,22 @@ class NameExists(Exception):
         self.name = name
 
 
+class NoSuchItem(Exception):
+    """No such item."""
+
+    def __init__(self, name):
+        self.name = name
+
+
+class InvalidETag(Exception):
+    """Unexpected value for etag."""
+
+    def __init__(self, name, expected_etag, got_etag):
+        self.name = name
+        self.expected_etag = expected_etag
+        self.got_etag = got_etag
+
+
 class Collection(object):
     """A ICalendar collection."""
 
@@ -78,9 +94,21 @@ class Collection(object):
         """Import a single VCalendar object.
 
         :param data: serialized vcalendar as bytes
+        :raise NameExists: when the name already exists
+        :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
         raise NotImplementedError(self.import_one)
+
+    def delete_one(self, name, etag=None):
+        """Delete an item.
+
+        :param name: Filename to delete
+        :param etag: Optional mandatory etag of object to remove
+        :raise NoSuchItem: when the item doesn't exist
+        :raise InvalidETag: If the specified ETag doesn't match the current
+        """
+        raise NotImplementedError(self.delete_one)
 
 
 class GitCollection(object):
@@ -214,6 +242,8 @@ class BareGitCollection(GitCollection):
         """Import a single VCalendar object.
 
         :param data: serialized vcalendar as bytes
+        :raise NameExists: when the name already exists
+        :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
         uid = ExtractUID(data)
@@ -228,6 +258,25 @@ class BareGitCollection(GitCollection):
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
         self._commit_tree(tree.id, b"Add " + name_enc)
         return b.id
+
+    def delete_one(self, name, etag=None):
+        """Delete an item.
+
+        :param name: Filename to delete
+        :param etag: Optional mandatory etag of object to remove
+        :raise NoSuchItem: when the item doesn't exist
+        :raise InvalidETag: If the specified ETag doesn't match the curren
+        """
+        tree = self._get_current_tree()
+        name_enc = name.encode('utf-8')
+        if not name_enc in tree:
+            raise NoSuchItem(name)
+        if etag is not None:
+            current_etag = tree[name.encode('utf-8')][1]
+            if current_etag != etag:
+                raise InvalidETag(name, etag, current_etag)
+        del tree[name]
+        self._commit_tree(tree.id, b"Add " + name_enc)
 
     @classmethod
     def create(cls, path):
@@ -249,10 +298,19 @@ class TreeGitCollection(GitCollection):
         """
         return cls(dulwich.repo.Repo.init(path))
 
+    def _commit_tree(self, message):
+        try:
+            committer = self.repo._get_user_identity()
+        except KeyError:
+            committer = _DEFAULT_COMMITTER_IDENTITY
+        return self.repo.do_commit(message=message, committer=committer)
+
     def import_one(self, name, data):
         """Import a single VCalendar object.
 
         :param data: serialized vcalendar as bytes
+        :raise NameExists: when the name already exists
+        :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
         uid = ExtractUID(data)
@@ -266,12 +324,26 @@ class TreeGitCollection(GitCollection):
         self.repo.stage(name)
         etag = self.repo.open_index()[name.encode('utf-8')].sha
         message = b'Add ' + name.encode('utf-8')
-        try:
-            committer = self.repo._get_user_identity()
-        except KeyError:
-            committer = _DEFAULT_COMMITTER_IDENTITY
-        self.repo.do_commit(message=message, committer=committer)
         return etag
+
+    def delete_one(self, name, etag=None):
+        """Delete an item.
+
+        :param name: Filename to delete
+        :param etag: Optional mandatory etag of object to remove
+        :raise NoSuchItem: when the item doesn't exist
+        :raise InvalidETag: If the specified ETag doesn't match the curren
+        """
+        p = os.path.join(self.repo.path, name)
+        if not os.path.exists(p):
+            raise NoSuchItem(name)
+        if etag is not None:
+            with open(p, 'wb') as f:
+                current_etag = Blob.from_string(f.read()).id
+            if etag != current_etag:
+                raise InvalidETag(name, etag, current_etag)
+        os.unlink(p)
+        self.repo.stage(name)
 
     def get_ctag(self):
         """Return the ctag for this collection."""
