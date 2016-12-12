@@ -26,7 +26,9 @@ import unittest
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
-from dystros.collection import GitCollection, BareGitCollection, TreeGitCollection
+from dystros.collection import (
+    GitCollection, BareGitCollection, TreeGitCollection, DuplicateUidError,
+    ExtractUID)
 
 EXAMPLE_VCALENDAR = b"""\
 BEGIN:VCALENDAR
@@ -64,6 +66,13 @@ class BaseGitCollectionTest(object):
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR)
         self.assertIsInstance(etag, bytes)
         self.assertEqual([('foo.ics', etag)], list(gc.iter_with_etag()))
+
+    def test_import_one_duplicate(self):
+        gc = self.create_collection()
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR)
+        self.assertRaises(
+                DuplicateUidError, gc.import_one, 'bar.ics',
+                EXAMPLE_VCALENDAR)
 
 
 class GitCollectionTest(unittest.TestCase):
@@ -158,3 +167,11 @@ class TreeGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
         t = Tree()
         t.add(b'foo.ics', 0o644|stat.S_IFREG, b.id)
         self.assertEqual(t.id, gc.get_ctag())
+
+
+class ExtractUIDTests(unittest.TestCase):
+
+    def test_extract(self):
+        self.assertEqual(
+            'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
+            ExtractUID(EXAMPLE_VCALENDAR))
