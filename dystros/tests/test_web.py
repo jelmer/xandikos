@@ -17,9 +17,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from dystros.web import DystrosApp
-
+from io import BytesIO
 import unittest
+
+from dystros.web import DystrosApp
 
 
 class WebTests(unittest.TestCase):
@@ -48,6 +49,19 @@ class WebTests(unittest.TestCase):
         contents = b''.join(self.app(environ, start_response))
         return _code[0], _headers, contents
 
+    def propfind(self, path, body):
+        environ = {
+                'PATH_INFO': path,
+                'REQUEST_METHOD': b'PROPFIND',
+                'wsgi.input': BytesIO(body)}
+        _code = []
+        _headers = []
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+        contents = b''.join(self.app(environ, start_response))
+        return _code[0], _headers, contents
+
     def test_wellknown_caldav(self):
         code, headers, contents = self.get('/.well-known/caldav')
         self.assertEqual('200 OK', code)
@@ -61,5 +75,13 @@ class WebTests(unittest.TestCase):
     def test_delete_wellknown(self):
         code, headers, contents = self.delete('/.well-known/carddav')
         self.assertEqual('405 Method Not Allowed', code)
-        self.assertIn(('Allow', 'GET'), headers)
+        self.assertIn(('Allow', 'GET, PROPFIND'), headers)
         self.assertEqual(b'', contents)
+
+    def test_propfind_wellknown_carddav(self):
+        code, headers, contents = self.propfind('/.well-known/carddav', b"""\
+<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>""")
+        self.assertMultiLineEqual(
+            contents.decode('utf-8'),
+            '<ns0:propstat xmlns:ns0="DAV:"><ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>')
+        self.assertEqual(code, '200 OK')

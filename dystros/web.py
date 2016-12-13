@@ -19,12 +19,18 @@
 
 """Simple CalDAV server."""
 
+from defusedxml.ElementTree import fromstring as xmlparse
+# Hmm, defusedxml doesn't have XML generation functions? :(
+from xml.etree import ElementTree as ET
+
 WELLKNOWN_DAV_PATHS = set(["/.well-known/caldav", "/.well-known/carddav"])
 
 class Endpoint(object):
     """Endpoint."""
 
-    def _allowed_methods(self):
+    @property
+    def allowed_methods(self):
+        """List of supported methods on this endpoint."""
         return [n[3:] for n in dir(self) if n.startswith('do_')]
 
     def __call__(self, environ, start_response):
@@ -33,16 +39,61 @@ class Endpoint(object):
             do = getattr(self, 'do_' + method.decode('utf-8'))
         except AttributeError:
             start_response('405 Method Not Allowed', [
-                ('Allow', ', '.join(self._allowed_methods()))])
+                ('Allow', ', '.join(self.allowed_methods))])
             return []
         else:
             return do(environ, start_response)
+
+    def _readXmlBody(self, environ):
+        try:
+            request_body_size = int(environ['CONTENT_LENGTH'])
+        except KeyError:
+            return xmlparse(environ['wsgi.input'].read())
+        else:
+            return xmlparse(environ['wsgi.input'].read(request_body_size))
 
 
 class DavResource(Endpoint):
     """A webdav resource."""
 
-    # TODO(jelmer): implement do_PROPFIND
+    def proplist(self):
+        """List all properties."""
+        raise NotImplementedError(self.listprops)
+
+    def propget(self, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        raise NotImplementedError(self.propget)
+
+    def do_PROPFIND(self, environ, start_response):
+        #TODO(jelmer): check Content-Type; should be something like
+        # 'text/xml; charset="utf-8"'
+        et = self._readXmlBody(environ)
+        if et.tag != '{DAV:}propfind':
+            print(et.tag)
+            # TODO-ERROR(jelmer): What to return here?
+            start_response('500 Internal Error', [])
+            return [b'Expected propfind tag, got ' + et.tag.encode('utf-8')]
+        response = ET.Element('{DAV:}propstat')
+        for requested in list(et):
+            if requested.tag == '{DAV:}prop':
+                respprop = ET.SubElement(response, '{DAV:}prop')
+                for propreq in requested:
+                    respprop.append(self.propget(propreq.tag))
+            else:
+                # TODO(jelmer): implement allprop and propname
+                # TODO-ERROR(jelmer): What to return here?
+                start_response('500 Internal Error', [])
+                return [b'Expected prop tag, got ' +
+                        requested.tag.encode('utf-8')]
+        out_encoding = 'utf-8'
+        body = ET.tostringlist(response, encoding=out_encoding)
+        start_response('200 OK', [
+            ('Content-Type', 'text/xml; charset="%s"' % out_encoding),
+            ('Content-Length', sum(map(len, body)))])
+        return body
 
 
 class WellknownEndpoint(DavResource):
@@ -50,6 +101,13 @@ class WellknownEndpoint(DavResource):
 
     def __init__(self, server_root):
         self.server_root = server_root
+
+    def propget(self, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        return ET.Element(name)
 
     def do_GET(self, environ, start_response):
         start_response('200 OK', [])
