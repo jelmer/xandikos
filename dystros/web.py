@@ -187,6 +187,7 @@ class DavResource(Endpoint):
         return body
 
     def dav_PROPFIND(self, environ):
+        #TODO(jelmer): Support depth
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
         et = self._readXmlBody(environ)
@@ -206,6 +207,7 @@ class DavResource(Endpoint):
                         propresp.append(self.propget(propreq.tag))
                     except KeyError:
                         statuscode = '404 Not Found'
+                        propresp.append(ET.SubElement(propresp, propreq.tag))
                     else:
                         statuscode = '200 OK'
                     propstat.append(
@@ -231,8 +233,7 @@ class WellknownEndpoint(DavResource):
 
         :param name: A property name.
         """
-        # TODO(jelmer)
-        return ET.Element(name)
+        raise KeyError
 
     def do_GET(self, environ, start_response):
         start_response('200 OK', [])
@@ -247,8 +248,7 @@ class RootEndpoint(DavResource):
 
         :param name: A property name.
         """
-        # TODO(jelmer)
-        return ET.Element(name)
+        raise KeyError
 
 
 class DebugEndpoint(Endpoint):
