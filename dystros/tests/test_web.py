@@ -28,8 +28,18 @@ class WebTests(unittest.TestCase):
         super(WebTests, self).setUp()
         self.app = DystrosApp()
 
+    def delete(self, path):
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': b'DELETE'}
+        _code = []
+        _headers = []
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+        contents = b''.join(self.app(environ, start_response))
+        return _code[0], _headers, contents
+
     def get(self, path):
-        environ = {'PATH_INFO': path, 'METHOD': 'GET'}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': b'GET'}
         _code = []
         _headers = []
         def start_response(code, headers):
@@ -47,3 +57,9 @@ class WebTests(unittest.TestCase):
         code, headers, contents = self.get('/.well-known/carddav')
         self.assertEqual('200 OK', code)
         self.assertEqual(b'/', contents)
+
+    def test_delete_wellknown(self):
+        code, headers, contents = self.delete('/.well-known/carddav')
+        self.assertEqual('405 Method Not Allowed', code)
+        self.assertIn(('Allow', 'GET'), headers)
+        self.assertEqual(b'', contents)

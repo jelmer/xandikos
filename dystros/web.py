@@ -21,6 +21,34 @@
 
 WELLKNOWN_DAV_PATHS = set(["/.well-known/caldav", "/.well-known/carddav"])
 
+class Endpoint(object):
+    """Endpoint."""
+
+    def _allowed_methods(self):
+        return [n[3:] for n in dir(self) if n.startswith('do_')]
+
+    def __call__(self, environ, start_response):
+        method = environ['REQUEST_METHOD']
+        try:
+            do = getattr(self, 'do_' + method.decode('utf-8'))
+        except AttributeError:
+            start_response('405 Method Not Allowed', [
+                ('Allow', ', '.join(self._allowed_methods()))])
+            return []
+        else:
+            return do(environ, start_response)
+
+
+class WellknownEndpoint(Endpoint):
+    """End point for well known URLs."""
+
+    def __init__(self, server_root):
+        self.server_root = server_root
+
+    def do_GET(self, environ, start_response):
+        start_response('200 OK', [])
+        return [self.server_root.encode('utf-8')]
+
 
 class DystrosApp(object):
 
@@ -29,11 +57,13 @@ class DystrosApp(object):
     def __call__(self, environ, start_response):
         p = environ['PATH_INFO']
         if p in WELLKNOWN_DAV_PATHS:
-            start_response('200 OK', [])
-            return [self.server_root.encode('utf-8')]
+            ep = WellknownEndpoint(self.server_root)
         else:
-            start_response('200 OK', [])
-            return [b'FIXME']
+            ep = None
+        if ep is None:
+            start_response('404 Not Found', [])
+            return [b'Path ' + p.encode('utf-8') + b' not found.']
+        return ep(environ, start_response)
 
 
 if __name__ == '__main__':
