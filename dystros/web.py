@@ -39,7 +39,13 @@ class Endpoint(object):
             return do(environ, start_response)
 
 
-class WellknownEndpoint(Endpoint):
+class DavResource(Endpoint):
+    """A webdav resource."""
+
+    # TODO(jelmer): implement do_PROPFIND
+
+
+class WellknownEndpoint(DavResource):
     """End point for well known URLs."""
 
     def __init__(self, server_root):
@@ -48,6 +54,25 @@ class WellknownEndpoint(Endpoint):
     def do_GET(self, environ, start_response):
         start_response('200 OK', [])
         return [self.server_root.encode('utf-8')]
+
+
+class DebugEndpoint(Endpoint):
+
+    def do_GET(self, environ, start_response):
+        print('GET: ' + environ['PATH_INFO'].decode('utf-8'))
+        start_response('200 OK', [])
+        return []
+
+    def do_PROPFIND(self, environ, start_response):
+        print('PROPFIND: ' + environ['PATH_INFO'].decode('utf-8'))
+        try:
+            request_body_size = int(environ['CONTENT_LENGTH'])
+        except KeyError:
+            print(environ['wsgi.input'].read())
+        else:
+            print(environ['wsgi.input'].read(request_body_size))
+        start_response('200 OK', [])
+        return []
 
 
 class DystrosApp(object):
@@ -59,7 +84,7 @@ class DystrosApp(object):
         if p in WELLKNOWN_DAV_PATHS:
             ep = WellknownEndpoint(self.server_root)
         else:
-            ep = None
+            ep = DebugEndpoint()
         if ep is None:
             start_response('404 Not Found', [])
             return [b'Path ' + p.encode('utf-8') + b' not found.']
