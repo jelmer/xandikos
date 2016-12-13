@@ -19,6 +19,9 @@
 
 """Simple CalDAV server."""
 
+# TODO(jelmer): Add multi-status support
+# TODO(jelmer): Add authorization support
+
 from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
@@ -92,7 +95,7 @@ class DavResource(Endpoint):
         body = ET.tostringlist(response, encoding=out_encoding)
         start_response('200 OK', [
             ('Content-Type', 'text/xml; charset="%s"' % out_encoding),
-            ('Content-Length', sum(map(len, body)))])
+            ('Content-Length', str(sum(map(len, body))))])
         return body
 
 
@@ -107,11 +110,24 @@ class WellknownEndpoint(DavResource):
 
         :param name: A property name.
         """
+        # TODO(jelmer)
         return ET.Element(name)
 
     def do_GET(self, environ, start_response):
         start_response('200 OK', [])
         return [self.server_root.encode('utf-8')]
+
+
+class RootEndpoint(DavResource):
+    """End point for root URL."""
+
+    def propget(self, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        # TODO(jelmer)
+        return ET.Element(name)
 
 
 class DebugEndpoint(Endpoint):
@@ -141,8 +157,10 @@ class DystrosApp(object):
         p = environ['PATH_INFO']
         if p in WELLKNOWN_DAV_PATHS:
             ep = WellknownEndpoint(self.server_root)
+        elif p == "/":
+            ep = RootEndpoint()
         else:
-            ep = DebugEndpoint()
+            ep = None
         if ep is None:
             start_response('404 Not Found', [])
             return [b'Path ' + p.encode('utf-8') + b' not found.']
