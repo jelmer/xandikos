@@ -24,6 +24,7 @@ def test_suite():
     names = [
         'collection',
         'filters',
+        'web',
         ]
     module_names = ['dystros.tests.test_' + name for name in names]
     loader = unittest.TestLoader()

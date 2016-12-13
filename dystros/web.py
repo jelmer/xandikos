@@ -19,12 +19,21 @@
 
 """Simple CalDAV server."""
 
+WELLKNOWN_DAV_PATHS = set(["/.well-known/caldav", "/.well-known/carddav"])
+
 
 class DystrosApp(object):
 
+    server_root = "/"
+
     def __call__(self, environ, start_response):
-        start_response('200 OK', [])
-        return [b'FIXME']
+        p = environ['PATH_INFO']
+        if p in WELLKNOWN_DAV_PATHS:
+            start_response('200 OK', [])
+            return [self.server_root.encode('utf-8')]
+        else:
+            start_response('200 OK', [])
+            return [b'FIXME']
 
 
 if __name__ == '__main__':
