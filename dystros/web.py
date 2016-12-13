@@ -19,14 +19,86 @@
 
 """Simple CalDAV server."""
 
-# TODO(jelmer): Add multi-status support
 # TODO(jelmer): Add authorization support
 
+import collections
 from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
 
 WELLKNOWN_DAV_PATHS = set(["/.well-known/caldav", "/.well-known/carddav"])
+
+
+PropStatus = collections.namedtuple(
+    'PropStatus', ['statuscode', 'responsedescription', 'prop'])
+
+
+class NeedsMultiStatus(Exception):
+    """Raised when a response needs multi-status (e.g. for propstat)."""
+
+
+class DavStatus(object):
+    """A DAV response that can be used in multi-status."""
+
+    def __init__(self, href, status, error=None, responsedescription=None,
+                 propstat=None):
+        self.href = href
+        self.status = status
+        self.error = error
+        self.propstat = propstat
+        self.responsedescription = responsedescription
+
+    def __repr__(self):
+        return "<%s(%r, %r, %r)>" % (
+            type(self).__name__, self.href, self.status, self.responsedescription)
+
+    def get_single_body(self, encoding):
+        if self.propstat and len(self._propstat_by_status()) > 1:
+            raise NeedsMultiStatus()
+        if self.propstat:
+            [ret] = list(self._propstat_xml())
+            body = ET.tostringlist(ret, encoding)
+            return body, ('text/xml; encoding="%s"' % encoding)
+        else:
+            body = self.responsedescription or ''
+            return body, ('text/plain; encoding="%s"' % encoding)
+
+    def _propstat_by_status(self):
+        bystatus = {}
+        for propstat in self.propstat:
+            bystatus.setdefault(
+                (propstat.statuscode, propstat.responsedescription), []).append(
+                        propstat.prop)
+        return bystatus
+
+    def _propstat_xml(self):
+        bystatus = self._propstat_by_status()
+        for (status, rd), props in bystatus.items():
+            propstat = ET.Element('{DAV:}propstat')
+            ET.SubElement(propstat,
+                '{DAV:}status').text = 'HTTP/1.1 ' + status
+            if rd:
+                ET.SubElement(propstat,
+                    '{DAV:}responsedescription').text = responsedescription
+            for prop in props:
+                propstat.append(prop)
+            yield propstat
+
+    def aselement(self):
+        ret = ET.Element('{DAV:}response')
+        ET.SubElement(ret, '{DAV:}href').text = self.href
+        if self.status:
+            ET.SubElement(ret, '{DAV:}status').text = 'HTTP/1.1 ' + self.status
+        if self.error:
+            ET.SubElement(ret, '{DAV:}error').text = self.error
+        if self.responsedescription:
+            ET.SubElement(ret,
+                '{DAV:}responsedescription').text = self.responsedescription
+        if self.propstat is not None:
+            for ps in self._propstat_xml():
+                ret.append(ps)
+        return ret
+
 
 class Endpoint(object):
     """Endpoint."""
@@ -47,6 +119,12 @@ class Endpoint(object):
         else:
             return do(environ, start_response)
 
+
+class DavResource(Endpoint):
+    """A webdav resource."""
+
+    out_encoding = 'utf-8'
+
     def _readXmlBody(self, environ):
         try:
             request_body_size = int(environ['CONTENT_LENGTH'])
@@ -54,10 +132,6 @@ class Endpoint(object):
             return xmlparse(environ['wsgi.input'].read())
         else:
             return xmlparse(environ['wsgi.input'].read(request_body_size))
-
-
-class DavResource(Endpoint):
-    """A webdav resource."""
 
     def proplist(self):
         """List all properties."""
@@ -70,33 +144,80 @@ class DavResource(Endpoint):
         """
         raise NotImplementedError(self.propget)
 
-    def do_PROPFIND(self, environ, start_response):
+    @property
+    def allowed_methods(self):
+        """List of supported methods on this endpoint."""
+        return (super(DavResource, self).allowed_methods +
+                [n[4:] for n in dir(self) if n.startswith('dav_')])
+
+    def _send_xml_body(self, start_response, status, et):
+
+        return body
+
+    def __call__(self, environ, start_response):
+        method = environ['REQUEST_METHOD']
+        try:
+            dav = getattr(self, 'dav_' + method.decode('ascii'))
+        except AttributeError:
+            return super(DavResource, self).__call__(environ, start_response)
+        else:
+            return self._send_dav_responses(start_response, dav(environ))
+
+    def _send_dav_responses(self, start_response, responses):
+        responses = list(responses)
+        if len(responses) == 1:
+            try:
+                (body, body_type) = responses[0].get_single_body(
+                    self.out_encoding)
+            except NeedsMultiStatus:
+                pass
+            else:
+                start_response(responses[0].status, [
+                    ('Content-Type', body_type),
+                    ('Content-Length', str(sum(map(len, body))))])
+                return body
+        ret = ET.Element('{DAV:}multistatus')
+        for response in responses:
+            ret.append(response.aselement())
+        body_type = 'text/xml; charset="%s"' % self.out_encoding
+        body = ET.tostringlist(et, encoding=self.out_encoding)
+        start_response('207 Multi-Status', [
+            ('Content-Type', body_type),
+            ('Content-Length', str(sum(map(len, body))))])
+        return body
+
+    def dav_PROPFIND(self, environ):
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
         et = self._readXmlBody(environ)
         if et.tag != '{DAV:}propfind':
-            print(et.tag)
             # TODO-ERROR(jelmer): What to return here?
-            start_response('500 Internal Error', [])
-            return [b'Expected propfind tag, got ' + et.tag.encode('utf-8')]
-        response = ET.Element('{DAV:}propstat')
+            yield DavStatus(
+                environ['PATH_INFO'], '500 Internal Error',
+                'Expected propfind tag, got ' + et.tag)
+            return
+        propstat = []
         for requested in list(et):
             if requested.tag == '{DAV:}prop':
-                respprop = ET.SubElement(response, '{DAV:}prop')
-                for propreq in requested:
-                    respprop.append(self.propget(propreq.tag))
+                for propreq in list(requested):
+                    propresp = ET.Element('{DAV:}prop')
+                    responsedescription = None
+                    try:
+                        propresp.append(self.propget(propreq.tag))
+                    except KeyError:
+                        statuscode = '404 Not Found'
+                    else:
+                        statuscode = '200 OK'
+                    propstat.append(
+                        PropStatus(statuscode, responsedescription, propresp))
             else:
                 # TODO(jelmer): implement allprop and propname
                 # TODO-ERROR(jelmer): What to return here?
-                start_response('500 Internal Error', [])
-                return [b'Expected prop tag, got ' +
-                        requested.tag.encode('utf-8')]
-        out_encoding = 'utf-8'
-        body = ET.tostringlist(response, encoding=out_encoding)
-        start_response('200 OK', [
-            ('Content-Type', 'text/xml; charset="%s"' % out_encoding),
-            ('Content-Length', str(sum(map(len, body))))])
-        return body
+                yield DavStatus(
+                    environ['PATH_INFO'], '500 Internal Error',
+                    'Expected prop tag, got ' + requested.tag)
+                return
+        yield DavStatus(environ['PATH_INFO'], '200 OK', propstat=propstat)
 
 
 class WellknownEndpoint(DavResource):

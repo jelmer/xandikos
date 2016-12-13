@@ -83,5 +83,6 @@ class WebTests(unittest.TestCase):
 <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
-            '<ns0:propstat xmlns:ns0="DAV:"><ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>')
+            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>')
         self.assertEqual(code, '200 OK')
