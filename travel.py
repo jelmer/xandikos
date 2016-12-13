@@ -10,7 +10,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from dystros import utils
+from dystros import filters, utils
 
 parser = optparse.OptionParser("travel")
 parser.add_option("--format", choices=["text", "html", "now"], default="text", help="Output format")
@@ -21,7 +21,7 @@ parser.add_option("--show-past-cancelled", action="store_true", default=False, h
 parser.add_option("--tense", choices=["past", "future", "all"], default="all", help="Tense")
 opts, args = parser.parse_args()
 
-evs = utils.extract_vevents(utils.gather_icalendars(args))
+evs = filters.extract_vevents(utils.gather_icalendars(args))
 
 TravelEvent = collections.namedtuple("TravelEvent", ["summary", "url", "location", "status", "start", "end"])
 

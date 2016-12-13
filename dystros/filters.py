@@ -17,14 +17,26 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-import unittest
+
+def extract_vevents(calendars):
+    """Filter out vevents from an iterator over calendars.
+
+    :param calendars: Iterator over Calendar objects
+    :return: Iterator over Calendar subcomponents
+    """
+    for calendar in calendars:
+        for component in calendar.subcomponents:
+            if component.name == 'VEVENT':
+                yield component
 
 
-def test_suite():
-    names = [
-        'collection',
-        'filters',
-        ]
-    module_names = ['dystros.tests.test_' + name for name in names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+def extract_vtodos(calendars):
+    """Filter out vtodos from an iterator over calendars.
+
+    :param calendars: Iterator over Calendar objects
+    :return: Iterator over Calendar subcomponents
+    """
+    for calendar in calendars:
+        for component in calendar.subcomponents:
+            if component.name == 'VTODO':
+                yield component

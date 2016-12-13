@@ -24,10 +24,13 @@ from icalendar.cal import Calendar
 import optparse
 import os
 
+from dystros import filters
+
 try:
     DEFAULT_PATH = os.environ['DYSTROSPATH']
 except KeyError:
     DEFAULT_PATH = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer")
+
 
 class CollectionSetOptionGroup(optparse.OptionGroup):
     """Return a optparser OptionGroup.
@@ -56,39 +59,14 @@ class CollectionSet(object):
         return list(gather_icalendars([os.path.join(self._inputdir, kind) for kind in self._kinds]))
 
     def iter_vevents(self):
-        return extract_vevents(self.iter_icalendars())
+        return filters.extract_vevents(self.iter_icalendars())
 
     def iter_vtodos(self):
-        return extract_vtodos(self.iter_icalendars())
+        return filters.extract_vtodos(self.iter_icalendars())
 
     @classmethod
     def from_options(cls, opts):
         return cls(opts.inputdir, opts.kind.split(','))
-
-
-def extract_vevents(calendars):
-    """Extract vevents from an iterator over calendars.
-
-    :param calendars: Iterator over Calendar objects
-    :return: Iterator over Calendar subcomponents
-    """
-    for calendar in calendars:
-        for component in calendar.subcomponents:
-            if component.name == 'VEVENT':
-                yield component
-
-
-def extract_vtodos(calendars):
-    """Extract vtodos from an iterator over calendars.
-
-    :param calendars: Iterator over Calendar objects
-    :return: Iterator over Calendar subcomponents
-    """
-    for calendar in calendars:
-        for component in calendar.subcomponents:
-            if component.name == 'VTODO':
-                yield component
-
 
 
 def statuschar(evstatus):

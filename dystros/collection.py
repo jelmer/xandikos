@@ -42,7 +42,7 @@ def ExtractUID(data):
             return component["UID"]
         except KeyError:
             pass
-    return cal["UID"]
+    raise KeyError
 
 
 class DuplicateUidError(Exception):
