@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from dystros import utils
+from dystros import filters, utils
 
 parser = optparse.OptionParser("travel")
 collection_set_options = utils.CollectionSetOptionGroup(parser)
@@ -15,7 +15,7 @@ parser.add_option_group(collection_set_options)
 opts, args = parser.parse_args()
 
 collections = utils.CollectionSet.from_options(opts)
-vevents = collections.iter_vevents()
+vevents = filters.extract_vevents(collections.iter_icalendars())
 
 out = Calendar()
 freebusy = FreeBusy()

@@ -27,7 +27,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from dystros import utils
+from dystros import filters, utils
 
 parser = optparse.OptionParser("travel")
 collection_set_options = utils.CollectionSetOptionGroup(parser)
@@ -44,7 +44,7 @@ def filter_fn(component):
          return False
     return True
 
-vevents = list(filter(filter_fn, collections.iter_vevents()))
+vevents = list(filter(filter_fn, filters.extract_vevents(collections.iter_icalendars())))
 vevents.sort(key=utils.keyEvent)
 
 for vevent in vevents:

@@ -58,12 +58,6 @@ class CollectionSet(object):
     def iter_icalendars(self):
         return list(gather_icalendars([os.path.join(self._inputdir, kind) for kind in self._kinds]))
 
-    def iter_vevents(self):
-        return filters.extract_vevents(self.iter_icalendars())
-
-    def iter_vtodos(self):
-        return filters.extract_vtodos(self.iter_icalendars())
-
     @classmethod
     def from_options(cls, opts):
         return cls(opts.inputdir, opts.kind.split(','))

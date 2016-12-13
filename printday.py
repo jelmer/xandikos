@@ -28,7 +28,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from dystros import utils
+from dystros import filters, utils
 
 parser = optparse.OptionParser("printday DATE")
 collection_set_options = utils.CollectionSetOptionGroup(parser)
@@ -42,7 +42,7 @@ if len(args) < 1:
 day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
 
 collections = utils.CollectionSet.from_options(opts)
-vevents = list(collections.iter_vevents())
+vevents = list(filters.extract_vevents(collections.iter_icalendars()))
 vevents.sort(key=utils.keyEvent)
 
 for vevent in vevents:

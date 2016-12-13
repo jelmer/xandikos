@@ -85,11 +85,11 @@ class BaseCollectionTest(object):
                 NameExists, gc.import_one, 'foo.ics',
                 EXAMPLE_VCALENDAR2)
 
-    def test_iter_vcalendars(self):
+    def test_iter_icalendars(self):
         gc = self.create_collection()
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
-        ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_vcalendars()}
+        ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_icalendars()}
         self.assertEqual(ret,
             {'bar.ics': (etag2, Calendar.from_ical(EXAMPLE_VCALENDAR2)),
              'foo.ics': (etag1, Calendar.from_ical(EXAMPLE_VCALENDAR1)),

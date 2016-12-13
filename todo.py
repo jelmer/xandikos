@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from dystros import utils
+from dystros import filters, utils
 
 parser = optparse.OptionParser("travel")
 collection_set_options = utils.CollectionSetOptionGroup(parser)
@@ -14,7 +14,7 @@ parser.add_option_group(collection_set_options)
 opts, args = parser.parse_args()
 
 collections = utils.CollectionSet.from_options(opts)
-vtodos = list(collections.iter_vtodos())
+vtodos = list(filters.extract_vtodos(collections.iter_icalendars()))
 
 vtodos.sort(key=utils.keyTodo)
 
