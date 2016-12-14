@@ -30,7 +30,7 @@ class WebTests(unittest.TestCase):
         self.app = DystrosApp()
 
     def delete(self, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': b'DELETE'}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'DELETE'}
         _code = []
         _headers = []
         def start_response(code, headers):
@@ -40,7 +40,7 @@ class WebTests(unittest.TestCase):
         return _code[0], _headers, contents
 
     def get(self, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': b'GET'}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'GET'}
         _code = []
         _headers = []
         def start_response(code, headers):
@@ -52,7 +52,7 @@ class WebTests(unittest.TestCase):
     def propfind(self, path, body):
         environ = {
                 'PATH_INFO': path,
-                'REQUEST_METHOD': b'PROPFIND',
+                'REQUEST_METHOD': 'PROPFIND',
                 'wsgi.input': BytesIO(body)}
         _code = []
         _headers = []

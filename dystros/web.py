@@ -22,6 +22,8 @@
 # TODO(jelmer): Add authorization support
 
 import collections
+import urllib.parse
+
 from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
@@ -117,7 +119,7 @@ class Endpoint(object):
     def __call__(self, environ, start_response):
         method = environ['REQUEST_METHOD']
         try:
-            do = getattr(self, 'do_' + method.decode('ascii'))
+            do = getattr(self, 'do_' + method)
         except AttributeError:
             start_response('405 Method Not Allowed', [
                 ('Allow', ', '.join(self.allowed_methods))])
@@ -126,10 +128,40 @@ class Endpoint(object):
             return do(environ, start_response)
 
 
-class DavResource(Endpoint):
-    """A webdav resource."""
+class DavResource(object):
+    """A WebDAV resource."""
+
+    def get_body(self):
+        """Get resource contents."""
+        raise NotImplementedError(self.get)
+
+    def proplist(self):
+        """List all properties."""
+        return []
+
+    def members(self):
+        """Return all child resources."""
+        raise NotImplementedError(self.members)
+
+    def propget(self, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        if name == '{DAV:}current-user-principal':
+            ret = ET.Element('{DAV:}current-user-principal')
+            ET.SubElement(ret, '{DAV:}href').text = CURRENT_USER_PRINCIPAL
+            return ret
+        raise KeyError(name)
+
+
+class DavEndpoint(Endpoint):
+    """A webdav-enabled endpoint."""
 
     out_encoding = DEFAULT_ENCODING
+
+    def __init__(self, resource):
+        self.resource = resource
 
     def _readXmlBody(self, environ):
         try:
@@ -139,33 +171,18 @@ class DavResource(Endpoint):
         else:
             return xmlparse(environ['wsgi.input'].read(request_body_size))
 
-    def proplist(self):
-        """List all properties."""
-        raise NotImplementedError(self.listprops)
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        raise NotImplementedError(self.propget)
-
     @property
     def allowed_methods(self):
         """List of supported methods on this endpoint."""
-        return (super(DavResource, self).allowed_methods +
+        return (super(DavEndpoint, self).allowed_methods +
                 [n[4:] for n in dir(self) if n.startswith('dav_')])
-
-    def _send_xml_body(self, start_response, status, et):
-
-        return body
 
     def __call__(self, environ, start_response):
         method = environ['REQUEST_METHOD']
         try:
-            dav = getattr(self, 'dav_' + method.decode('ascii'))
+            dav = getattr(self, 'dav_' + method)
         except AttributeError:
-            return super(DavResource, self).__call__(environ, start_response)
+            return super(DavEndpoint, self).__call__(environ, start_response)
         else:
             return self._send_dav_responses(start_response, dav(environ))
 
@@ -186,14 +203,24 @@ class DavResource(Endpoint):
         for response in responses:
             ret.append(response.aselement())
         body_type = 'text/xml; charset="%s"' % self.out_encoding
-        body = ET.tostringlist(et, encoding=self.out_encoding)
+        body = ET.tostringlist(ret, encoding=self.out_encoding)
         start_response('207 Multi-Status', [
             ('Content-Type', body_type),
             ('Content-Length', str(sum(map(len, body))))])
         return body
 
+    def _browse(self, depth, base_href):
+        if depth == "0":
+            return iter([(base_href, self.resource)])
+        elif depth == "1":
+            return iter(
+                [(base_href, self.resource)] +
+                [(urllib.parse.urljoin(base_href+'/', n), m)
+                    for (n, m) in self.resource.members()])
+        raise NotImplementedError
+
     def dav_PROPFIND(self, environ):
-        #TODO(jelmer): Support depth
+        depth = environ.get("HTTP_DEPTH", "0")
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
         et = self._readXmlBody(environ)
@@ -203,14 +230,21 @@ class DavResource(Endpoint):
                 environ['PATH_INFO'], '500 Internal Error',
                 'Expected propfind tag, got ' + et.tag)
             return
-        propstat = []
-        for requested in list(et):
-            if requested.tag == '{DAV:}prop':
+        try:
+            [requested] = et
+        except IndexError:
+            yield DavStatus(
+                environ['PATH_INFO'], '500 Internal Error',
+                'Received more than one element in propfind.')
+            return
+        if requested.tag == '{DAV:}prop':
+            for href, resource in self._browse(depth, environ['PATH_INFO']):
+                propstat = []
                 for propreq in list(requested):
                     propresp = ET.Element('{DAV:}prop')
                     responsedescription = None
                     try:
-                        propresp.append(self.propget(propreq.tag))
+                        propresp.append(resource.propget(propreq.tag))
                     except KeyError:
                         statuscode = '404 Not Found'
                         propresp.append(ET.SubElement(propresp, propreq.tag))
@@ -218,18 +252,22 @@ class DavResource(Endpoint):
                         statuscode = '200 OK'
                     propstat.append(
                         PropStatus(statuscode, responsedescription, propresp))
-            else:
-                # TODO(jelmer): implement allprop and propname
-                # TODO-ERROR(jelmer): What to return here?
-                yield DavStatus(
-                    environ['PATH_INFO'], '500 Internal Error',
-                    'Expected prop tag, got ' + requested.tag)
-                return
-        yield DavStatus(environ['PATH_INFO'], '200 OK', propstat=propstat)
+                yield DavStatus(href, '200 OK', propstat=propstat)
+        else:
+            # TODO(jelmer): implement allprop and propname
+            # TODO-ERROR(jelmer): What to return here?
+            yield DavStatus(
+                environ['PATH_INFO'], '500 Internal Error',
+                'Expected prop tag, got ' + requested.tag)
+            return
+
+    def do_GET(self, environ, start_response):
+        start_response('200 OK', [])
+        return [self.resource.get_body()]
 
 
-class WellknownEndpoint(DavResource):
-    """End point for well known URLs."""
+class WellknownResource(DavResource):
+    """Resource for well known URLs."""
 
     def __init__(self, server_root):
         self.server_root = server_root
@@ -239,19 +277,17 @@ class WellknownEndpoint(DavResource):
 
         :param name: A property name.
         """
-        if name == '{DAV:}current-user-principal':
-            ret = ET.Element('{DAV:}current-user-principal')
-            ET.SubElement(ret, '{DAV:}href').text = CURRENT_USER_PRINCIPAL
-            return ret
-        raise KeyError
+        return super(WellknownResource, self).propget(name)
 
-    def do_GET(self, environ, start_response):
-        start_response('200 OK', [])
-        return [self.server_root.encode(self.out_encoding)]
+    def get_body(self):
+        return self.server_root.encode(DEFAULT_ENCODING)
+
+    def members(self):
+        return []
 
 
-class NonDavEndpoint(DavResource):
-    """End point for a non-DAV endpoint."""
+class NonDavResource(DavResource):
+    """A non-DAV resource that is DAV enabled."""
 
     def propget(self, name):
         """Get property with specified name.
@@ -260,11 +296,15 @@ class NonDavEndpoint(DavResource):
         """
         if name == '{DAV:}resourcetype':
             return ET.Element('{DAV:}resourcetype')
-        raise KeyError
+        else:
+            return super(NonDavResource, self).propget(name)
+
+    def members(self):
+        return []
 
 
-class UserPrincipal(DavResource):
-    """End point for a user principal."""
+class UserPrincipalResource(DavResource):
+    """Resource for a user principal."""
 
     def propget(self, name):
         """Get property with specified name.
@@ -275,17 +315,44 @@ class UserPrincipal(DavResource):
             ret = ET.Element('{urn:ietf:params:xml:ns:caldav}calendar-home-set')
             ET.SubElement(ret, '{DAV:}href').text = CALENDAR_HOME_SET
             return ret
-        raise KeyError
+        else:
+            return super(UserPrincipalResource, self).propget(name)
 
-class CalendarSetEndPoint(DavResource):
-    """End point for calendar sets."""
+
+class Collection(DavResource):
+    """Resource for calendar sets."""
 
     def propget(self, name):
         """Get property with specified name.
 
         :param name: A property name.
         """
-        raise KeyError
+        if name == '{DAV:}resourcetype':
+            ret = ET.Element('{DAV:}resourcetype')
+            ET.SubElement(ret, '{DAV:}collection')
+            return ret
+        return super(Collection, self).propget(name)
+
+    def members(self):
+        return []
+
+
+class CalendarSetResource(DavResource):
+    """Resource for calendar sets."""
+
+    def propget(self, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        if name == '{DAV:}resourcetype':
+            ret = ET.Element('{DAV:}resourcetype')
+            ET.SubElement(ret, '{DAV:}collection')
+            return ret
+        return super(CalendarSetResource, self).propget(name)
+
+    def members(self):
+        return [('foo', Collection())]
 
 
 class DebugEndpoint(Endpoint):
@@ -314,18 +381,19 @@ class DystrosApp(object):
     def __call__(self, environ, start_response):
         p = environ['PATH_INFO']
         if p in WELLKNOWN_DAV_PATHS:
-            ep = WellknownEndpoint(self.server_root)
+            r = WellknownResource(self.server_root)
         elif p == "/":
-            ep = NonDavEndpoint()
+            r = NonDavResource()
         elif p == CURRENT_USER_PRINCIPAL:
-            ep = UserPrincipal()
+            r = UserPrincipalResource()
         elif p == CALENDAR_HOME_SET:
-            ep = CalendarSetEndPoint()
+            r = CalendarSetResource()
         else:
-            ep = None
-        if ep is None:
+            r = None
+        if r is None:
             start_response('404 Not Found', [])
             return [b'Path ' + p.encode(DEFAULT_ENCODING) + b' not found.']
+        ep = DavEndpoint(r)
         return ep(environ, start_response)
 
 
