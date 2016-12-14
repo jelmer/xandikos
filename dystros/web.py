@@ -26,6 +26,12 @@ from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
 
+
+CURRENT_USER_PRINCIPAL = '/user/'
+DEFAULT_ENCODING = 'utf-8'
+
+
+
 WELLKNOWN_DAV_PATHS = set(["/.well-known/caldav", "/.well-known/carddav"])
 
 
@@ -111,7 +117,7 @@ class Endpoint(object):
     def __call__(self, environ, start_response):
         method = environ['REQUEST_METHOD']
         try:
-            do = getattr(self, 'do_' + method.decode('utf-8'))
+            do = getattr(self, 'do_' + method.decode('ascii'))
         except AttributeError:
             start_response('405 Method Not Allowed', [
                 ('Allow', ', '.join(self.allowed_methods))])
@@ -123,7 +129,7 @@ class Endpoint(object):
 class DavResource(Endpoint):
     """A webdav resource."""
 
-    out_encoding = 'utf-8'
+    out_encoding = DEFAULT_ENCODING
 
     def _readXmlBody(self, environ):
         try:
@@ -233,14 +239,18 @@ class WellknownEndpoint(DavResource):
 
         :param name: A property name.
         """
+        if name == '{DAV:}current-user-principal':
+            ret = ET.Element('{DAV:}current-user-principal')
+            ET.SubElement(ret, '{DAV:}href').text = CURRENT_USER_PRINCIPAL
+            return ret
         raise KeyError
 
     def do_GET(self, environ, start_response):
         start_response('200 OK', [])
-        return [self.server_root.encode('utf-8')]
+        return [self.server_root.encode(self.out_encoding)]
 
 
-class RootEndpoint(DavResource):
+class NonDavEndpoint(DavResource):
     """End point for root URL."""
 
     def propget(self, name):
@@ -248,18 +258,20 @@ class RootEndpoint(DavResource):
 
         :param name: A property name.
         """
+        if name == '{DAV:}resourcetype':
+            return ET.Element('{DAV:}resourcetype')
         raise KeyError
 
 
 class DebugEndpoint(Endpoint):
 
     def do_GET(self, environ, start_response):
-        print('GET: ' + environ['PATH_INFO'].decode('utf-8'))
+        print('GET: ' + environ['PATH_INFO'].decode(DEFAULT_ENCODING))
         start_response('200 OK', [])
         return []
 
     def do_PROPFIND(self, environ, start_response):
-        print('PROPFIND: ' + environ['PATH_INFO'].decode('utf-8'))
+        print('PROPFIND: ' + environ['PATH_INFO'].decode(DEFAULT_ENCODING))
         try:
             request_body_size = int(environ['CONTENT_LENGTH'])
         except KeyError:
@@ -279,12 +291,12 @@ class DystrosApp(object):
         if p in WELLKNOWN_DAV_PATHS:
             ep = WellknownEndpoint(self.server_root)
         elif p == "/":
-            ep = RootEndpoint()
+            ep = NonDavEndpoint()
         else:
             ep = None
         if ep is None:
             start_response('404 Not Found', [])
-            return [b'Path ' + p.encode('utf-8') + b' not found.']
+            return [b'Path ' + p.encode(DEFAULT_ENCODING) + b' not found.']
         return ep(environ, start_response)
 
 
