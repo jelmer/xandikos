@@ -26,7 +26,7 @@ from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
 
-
+CALENDAR_HOME_SET = '/user/calendars/'
 CURRENT_USER_PRINCIPAL = '/user/'
 DEFAULT_ENCODING = 'utf-8'
 
@@ -251,7 +251,7 @@ class WellknownEndpoint(DavResource):
 
 
 class NonDavEndpoint(DavResource):
-    """End point for root URL."""
+    """End point for a non-DAV endpoint."""
 
     def propget(self, name):
         """Get property with specified name.
@@ -260,6 +260,31 @@ class NonDavEndpoint(DavResource):
         """
         if name == '{DAV:}resourcetype':
             return ET.Element('{DAV:}resourcetype')
+        raise KeyError
+
+
+class UserPrincipal(DavResource):
+    """End point for a user principal."""
+
+    def propget(self, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        if name == '{urn:ietf:params:xml:ns:caldav}calendar-home-set':
+            ret = ET.Element('{urn:ietf:params:xml:ns:caldav}calendar-home-set')
+            ET.SubElement(ret, '{DAV:}href').text = CALENDAR_HOME_SET
+            return ret
+        raise KeyError
+
+class CalendarSetEndPoint(DavResource):
+    """End point for calendar sets."""
+
+    def propget(self, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
         raise KeyError
 
 
@@ -292,6 +317,10 @@ class DystrosApp(object):
             ep = WellknownEndpoint(self.server_root)
         elif p == "/":
             ep = NonDavEndpoint()
+        elif p == CURRENT_USER_PRINCIPAL:
+            ep = UserPrincipal()
+        elif p == CALENDAR_HOME_SET:
+            ep = CalendarSetEndPoint()
         else:
             ep = None
         if ep is None:
