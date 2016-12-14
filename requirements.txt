@@ -1,3 +1,4 @@
 dulwich
 jinja2
 icalendar
+defusedxml
