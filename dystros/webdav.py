@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""WebDAV server infrastructure.
+"""Abstract WebDAV server implementation..
 
 This module contains an abstract WebDAV server. All caldav/carddav specific
 functionality should live in dystros.caldav/dystros.carddav respectively.
@@ -32,12 +32,8 @@ from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
 
-CALENDAR_HOME_SET = '/user/calendars/'
 CURRENT_USER_PRINCIPAL = '/user/'
 DEFAULT_ENCODING = 'utf-8'
-
-
-WELLKNOWN_DAV_PATHS = set(["/.well-known/caldav", "/.well-known/carddav"])
 
 
 PropStatus = collections.namedtuple(
@@ -270,6 +266,7 @@ class DavEndpoint(Endpoint):
 
 
 class DebugEndpoint(Endpoint):
+    """A simple endpoint implementation that dumps queries to stdout."""
 
     def do_GET(self, environ, start_response):
         print('GET: ' + environ['PATH_INFO'].decode(DEFAULT_ENCODING))
@@ -289,7 +286,12 @@ class DebugEndpoint(Endpoint):
 
 
 class WebDAVApp(object):
+    """A wsgi App that provides a WebDAV server.
 
+    A concrete implementation should provide an implementation of the
+    lookup_resource function that can map a path to a DavResource object
+    (returning None for nonexistant objects).
+    """
     def __init__(self, lookup_resource):
         self.lookup_resource = lookup_resource
 
