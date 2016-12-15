@@ -95,7 +95,7 @@ class BaseCollectionTest(object):
              'foo.ics': (etag1, Calendar.from_ical(EXAMPLE_VCALENDAR1)),
              })
 
-    def delete_one(self):
+    def test_delete_one(self):
         gc = self.create_collection()
         self.assertEqual([], list(gc.iter_with_etag()))
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
@@ -103,7 +103,7 @@ class BaseCollectionTest(object):
         gc.delete_one('foo.ics')
         self.assertEqual([], list(gc.iter_with_etag()))
 
-    def delete_one_with_etag(self):
+    def test_delete_one_with_etag(self):
         gc = self.create_collection()
         self.assertEqual([], list(gc.iter_with_etag()))
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
@@ -111,22 +111,33 @@ class BaseCollectionTest(object):
         gc.delete_one('foo.ics', etag1)
         self.assertEqual([], list(gc.iter_with_etag()))
 
-    def delete_one_nonexistant(self):
+    def test_delete_one_nonexistant(self):
         gc = self.create_collection()
         self.assertRaises(NoSuchItem, gc.delete_one, 'foo.ics')
 
-    def delete_one_invalid_etag(self):
+    def test_delete_one_invalid_etag(self):
         gc = self.create_collection()
         self.assertEqual([], list(gc.iter_with_etag()))
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
         self.assertEqual(
-            [('foo.ics', etag1), ('bar.ics', etag2)],
-            list(gc.iter_with_etag()))
+            set([('foo.ics', etag1), ('bar.ics', etag2)]),
+            set(gc.iter_with_etag()))
         self.assertRaises(InvalidETag, gc.delete_one, 'foo.ics', etag2)
         self.assertEqual(
-            [('foo.ics', etag1), ('bar.ics', etag2)],
-            list(gc.iter_with_etag()))
+            set([('foo.ics', etag1), ('bar.ics', etag2)]),
+            set(gc.iter_with_etag()))
+
+    def test_lookup_uid_nonexistant(self):
+        gc = self.create_collection()
+        self.assertRaises(KeyError, gc.lookup_uid, 'someuid')
+
+    def test_lookup_uid(self):
+        gc = self.create_collection()
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        self.assertEqual(
+            ('foo.ics', etag),
+            gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
 
 
 class BaseGitCollectionTest(BaseCollectionTest):

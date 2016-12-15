@@ -110,6 +110,15 @@ class Collection(object):
         """
         raise NotImplementedError(self.delete_one)
 
+    def lookup_uid(self, uid):
+        """Lookup an item by UID.
+
+        :param uid: UID to look up as string
+        :raise KeyError: if no such uid exists
+        :return: (name, etag) tuple
+        """
+        raise NotImplementedError(self.lookup_uid)
+
 
 class GitCollection(object):
     """A Collection backed by a Git Repository.
@@ -123,10 +132,19 @@ class GitCollection(object):
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
 
-    def _check_duplicate_uid(self, uid):
+    def lookup_uid(self, uid):
+        """Lookup an item by UID.
+
+        :param uid: UID to look up as string
+        :raise KeyError: if no such uid exists
+        :return: (name, etag) tuple
+        """
         self._scan_ids()
+        return self._uid_to_fname[uid]
+
+    def _check_duplicate_uid(self, uid):
         try:
-            raise DuplicateUidError(uid, self._uid_to_fname[uid])
+            raise DuplicateUidError(uid, self.lookup_uid(uid)[0])
         except KeyError:
             pass
 
@@ -153,7 +171,7 @@ class GitCollection(object):
                 continue
             uid = ExtractUID(self.repo.object_store[sha].data)
             self._fname_to_uid[name] = (sha, uid)
-            self._uid_to_fname[uid] = (sha, name)
+            self._uid_to_fname[uid] = (name, sha)
         for name in removed:
             (sha, uid) = self._fname_to_uid[name]
             del self._uid_to_fname[uid]
@@ -275,7 +293,8 @@ class BareGitCollection(GitCollection):
             current_etag = tree[name.encode('utf-8')][1]
             if current_etag != etag:
                 raise InvalidETag(name, etag, current_etag)
-        del tree[name]
+        del tree[name_enc]
+        self.repo.object_store.add_objects([(tree, '')])
         self._commit_tree(tree.id, b"Add " + name_enc)
 
     @classmethod
@@ -338,7 +357,7 @@ class TreeGitCollection(GitCollection):
         if not os.path.exists(p):
             raise NoSuchItem(name)
         if etag is not None:
-            with open(p, 'wb') as f:
+            with open(p, 'rb') as f:
                 current_etag = Blob.from_string(f.read()).id
             if etag != current_etag:
                 raise InvalidETag(name, etag, current_etag)
