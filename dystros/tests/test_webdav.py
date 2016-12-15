@@ -20,7 +20,7 @@
 from io import BytesIO
 import unittest
 
-from dystros.web import DystrosApp
+from dystros.webdav import DystrosApp
 
 
 class WebTests(unittest.TestCase):
