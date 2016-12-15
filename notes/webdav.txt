@@ -1,0 +1,40 @@
+WebDAV implementation
+---------------------
+
+class DavResource(object):
+
+  def get_body(self):
+    """Returns the body of the resource.
+
+    :return: bytes representing contents
+    """
+
+  def set_body(self, body):
+    """Set the body of the resource.
+
+    :param body: body (as bytes)
+    """
+
+  def proplist(self):
+    """Return list of properties.
+
+    :return: List of property names
+    """
+
+  def propupdate(self, updates):
+    """Update properties.
+
+    :param updates: Dictionary mapping names to new values
+    """
+
+  def members(self):
+    """List members.
+
+    :return: List tuples of (name, DavResource)
+    """
+
+  # TODO(jelmer): COPY
+  # TODO(jelmer): MOVE
+  # TODO(jelmer): MKCOL
+  # TODO(jelmer): LOCK/UNLOCK
+  # TODO(jelmer): REPORT
