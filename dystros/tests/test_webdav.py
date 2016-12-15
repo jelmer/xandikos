@@ -19,37 +19,41 @@
 
 from io import BytesIO
 import unittest
+import defusedxml.ElementTree
+from xml.etree import ElementTree as ET
 
-from dystros.webdav import DystrosApp
+from dystros.webdav import (
+    DavResource,
+    WebDAVApp,
+    )
 
 
 class WebTests(unittest.TestCase):
 
-    def setUp(self):
-        super(WebTests, self).setUp()
-        self.app = DystrosApp()
+    def makeApp(self, resources):
+        return WebDAVApp(resources.get)
 
-    def delete(self, path):
+    def delete(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'DELETE'}
         _code = []
         _headers = []
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
-        contents = b''.join(self.app(environ, start_response))
+        contents = b''.join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def get(self, path):
+    def get(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'GET'}
         _code = []
         _headers = []
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
-        contents = b''.join(self.app(environ, start_response))
+        contents = b''.join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def propfind(self, path, body):
+    def propfind(self, app, path, body):
         environ = {
                 'PATH_INFO': path,
                 'REQUEST_METHOD': 'PROPFIND',
@@ -59,27 +63,42 @@ class WebTests(unittest.TestCase):
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
-        contents = b''.join(self.app(environ, start_response))
+        contents = b''.join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def test_wellknown_caldav(self):
-        code, headers, contents = self.get('/.well-known/caldav')
-        self.assertEqual('200 OK', code)
-        self.assertEqual(b'/', contents)
+    def test_not_found(self):
+        app = self.makeApp({})
+        code, headers, contents = self.get(app, '/.well-known/carddav')
+        self.assertEqual('404 Not Found', code)
 
-    def test_wellknown_carddav(self):
-        code, headers, contents = self.get('/.well-known/carddav')
-        self.assertEqual('200 OK', code)
-        self.assertEqual(b'/', contents)
+    def test_get_body(self):
+        class TestResource(DavResource):
 
-    def test_delete_wellknown(self):
-        code, headers, contents = self.delete('/.well-known/carddav')
+            def get_body(self):
+                return b'this is content'
+        app = self.makeApp({'/.well-known/carddav': TestResource()})
+        code, headers, contents = self.get(app, '/.well-known/carddav')
+        self.assertEqual('200 OK', code)
+        self.assertEqual(b'this is content', contents)
+
+    def test_delete_not_allowed(self):
+        # TODO(jelmer): Implement DELETE
+        class TestResource(DavResource):
+            pass
+        app = self.makeApp({'/resource': TestResource()})
+        code, headers, contents = self.delete(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertIn(('Allow', 'GET, PROPFIND'), headers)
         self.assertEqual(b'', contents)
 
-    def test_propfind_wellknown_carddav(self):
-        code, headers, contents = self.propfind('/.well-known/carddav', b"""\
+    def test_propfind_prop_does_not_exist(self):
+        class TestResource(DavResource):
+
+            def propget(self, name):
+                raise KeyError
+
+        app = self.makeApp({'/resource': TestResource()})
+        code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
@@ -87,8 +106,17 @@ class WebTests(unittest.TestCase):
             '<ns0:prop><ns0:resourcetype /><ns0:resourcetype /></ns0:prop></ns0:propstat>')
         self.assertEqual(code, '200 OK')
 
-    def test_current_user_principal(self):
-        code, headers, contents = self.propfind('/.well-known/carddav', b"""\
+    def test_propfind_found(self):
+        class TestResource(DavResource):
+
+            def propget(self, name):
+                if name == '{DAV:}current-user-principal':
+                    ret = ET.Element('{DAV:}current-user-principal')
+                    ET.SubElement(ret, '{DAV:}href').text = '/user/'
+                    return ret
+                raise KeyError
+        app = self.makeApp({'/resource': TestResource()})
+        code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),

@@ -17,7 +17,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Simple CalDAV server."""
+"""WebDAV server infrastructure.
+
+This module contains an abstract WebDAV server. All caldav/carddav specific
+functionality should live in dystros.caldav/dystros.carddav respectively.
+"""
 
 # TODO(jelmer): Add authorization support
 
@@ -31,7 +35,6 @@ from xml.etree import ElementTree as ET
 CALENDAR_HOME_SET = '/user/calendars/'
 CURRENT_USER_PRINCIPAL = '/user/'
 DEFAULT_ENCODING = 'utf-8'
-
 
 
 WELLKNOWN_DAV_PATHS = set(["/.well-known/caldav", "/.well-known/carddav"])
@@ -266,95 +269,6 @@ class DavEndpoint(Endpoint):
         return [self.resource.get_body()]
 
 
-class WellknownResource(DavResource):
-    """Resource for well known URLs."""
-
-    def __init__(self, server_root):
-        self.server_root = server_root
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        return super(WellknownResource, self).propget(name)
-
-    def get_body(self):
-        return self.server_root.encode(DEFAULT_ENCODING)
-
-    def members(self):
-        return []
-
-
-class NonDavResource(DavResource):
-    """A non-DAV resource that is DAV enabled."""
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        if name == '{DAV:}resourcetype':
-            return ET.Element('{DAV:}resourcetype')
-        else:
-            return super(NonDavResource, self).propget(name)
-
-    def members(self):
-        return []
-
-
-class UserPrincipalResource(DavResource):
-    """Resource for a user principal."""
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        if name == '{urn:ietf:params:xml:ns:caldav}calendar-home-set':
-            ret = ET.Element('{urn:ietf:params:xml:ns:caldav}calendar-home-set')
-            ET.SubElement(ret, '{DAV:}href').text = CALENDAR_HOME_SET
-            return ret
-        else:
-            return super(UserPrincipalResource, self).propget(name)
-
-
-class Collection(DavResource):
-    """Resource for calendar sets."""
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        if name == '{DAV:}resourcetype':
-            ret = ET.Element('{DAV:}resourcetype')
-            ET.SubElement(ret, '{DAV:}collection')
-            return ret
-        return super(Collection, self).propget(name)
-
-    def members(self):
-        return []
-
-
-class CalendarSetResource(DavResource):
-    """Resource for calendar sets."""
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        if name == '{DAV:}resourcetype':
-            ret = ET.Element('{DAV:}resourcetype')
-            ET.SubElement(ret, '{DAV:}collection')
-            return ret
-        return super(CalendarSetResource, self).propget(name)
-
-    def members(self):
-        return [('foo', Collection())]
-
-
 class DebugEndpoint(Endpoint):
 
     def do_GET(self, environ, start_response):
@@ -374,42 +288,16 @@ class DebugEndpoint(Endpoint):
         return []
 
 
-class DystrosApp(object):
+class WebDAVApp(object):
 
-    server_root = "/"
+    def __init__(self, lookup_resource):
+        self.lookup_resource = lookup_resource
 
     def __call__(self, environ, start_response):
         p = environ['PATH_INFO']
-        if p in WELLKNOWN_DAV_PATHS:
-            r = WellknownResource(self.server_root)
-        elif p == "/":
-            r = NonDavResource()
-        elif p == CURRENT_USER_PRINCIPAL:
-            r = UserPrincipalResource()
-        elif p == CALENDAR_HOME_SET:
-            r = CalendarSetResource()
-        else:
-            r = None
+        r = self.lookup_resource(p)
         if r is None:
             start_response('404 Not Found', [])
             return [b'Path ' + p.encode(DEFAULT_ENCODING) + b' not found.']
         ep = DavEndpoint(r)
         return ep(environ, start_response)
-
-
-if __name__ == '__main__':
-    import optparse
-    import sys
-    parser = optparse.OptionParser()
-    parser.add_option("-l", "--listen_address", dest="listen_address",
-                      default="localhost",
-                      help="Binding IP address.")
-    parser.add_option("-p", "--port", dest="port", type=int,
-                      default=8000,
-                      help="Port to listen on.")
-    options, args = parser.parse_args(sys.argv)
-
-    from wsgiref.simple_server import make_server
-    app = DystrosApp()
-    server = make_server(options.listen_address, options.port, app)
-    server.serve_forever()
