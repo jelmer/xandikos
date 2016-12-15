@@ -75,7 +75,7 @@ class WebTests(unittest.TestCase):
         class TestResource(DavResource):
 
             def get_body(self):
-                return b'this is content'
+                return [b'this is content']
         app = self.makeApp({'/.well-known/carddav': TestResource()})
         code, headers, contents = self.get(app, '/.well-known/carddav')
         self.assertEqual('200 OK', code)

@@ -131,8 +131,10 @@ class DavResource(object):
     """A WebDAV resource."""
 
     def get_body(self):
-        """Get resource contents."""
-        raise NotImplementedError(self.get)
+        """Get resource contents.
+
+        :return: Iterable over bytestrings."""
+        raise NotImplementedError(self.get_body)
 
     def proplist(self):
         """List all properties."""
@@ -262,7 +264,7 @@ class DavEndpoint(Endpoint):
 
     def do_GET(self, environ, start_response):
         start_response('200 OK', [])
-        return [self.resource.get_body()]
+        return self.resource.get_body()
 
 
 class DebugEndpoint(Endpoint):

@@ -50,7 +50,7 @@ class WellknownResource(DavResource):
         return super(WellknownResource, self).propget(name)
 
     def get_body(self):
-        return self.server_root.encode(DEFAULT_ENCODING)
+        return [self.server_root.encode(DEFAULT_ENCODING)]
 
     def members(self):
         return []
