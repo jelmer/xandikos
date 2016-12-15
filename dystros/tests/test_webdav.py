@@ -117,10 +117,66 @@ class WebTests(unittest.TestCase):
                 raise KeyError
         app = self.makeApp({'/resource': TestResource()})
         code, headers, contents = self.propfind(app, '/resource', b"""\
-<d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>""")
+<d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
+</d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
             '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
             '</ns0:current-user-principal></ns0:prop></ns0:propstat>')
         self.assertEqual(code, '200 OK')
+
+    def test_propfind_found_multi(self):
+        class TestResource(DavResource):
+
+            def propget(self, name):
+                if name == '{DAV:}current-user-principal':
+                    ret = ET.Element('{DAV:}current-user-principal')
+                    ET.SubElement(ret, '{DAV:}href').text = '/user/'
+                    return ret
+                if name == '{DAV:}somethingelse':
+                    ret = ET.Element('{DAV:}somethingelse')
+                    return ret
+                raise KeyError
+        app = self.makeApp({'/resource': TestResource()})
+        code, headers, contents = self.propfind(app, '/resource', b"""\
+<d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
+<d:somethingelse/></d:prop></d:propfind>""")
+        self.maxDiff = None
+        self.assertMultiLineEqual(
+            contents.decode('utf-8'),
+            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
+            '</ns0:current-user-principal></ns0:prop>'
+            '<ns0:prop><ns0:somethingelse /></ns0:prop>'
+            '</ns0:propstat>')
+        self.assertEqual(code, '200 OK')
+
+    def test_propfind_found_multi_status(self):
+        class TestResource(DavResource):
+
+            def propget(self, name):
+                if name == '{DAV:}current-user-principal':
+                    ret = ET.Element('{DAV:}current-user-principal')
+                    ET.SubElement(ret, '{DAV:}href').text = '/user/'
+                    return ret
+                if name == '{DAV:}somethingelse':
+                    raise KeyError
+                raise KeyError
+        app = self.makeApp({'/resource': TestResource()})
+        code, headers, contents = self.propfind(app, '/resource', b"""\
+<d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
+<d:somethingelse/></d:prop></d:propfind>""")
+        self.maxDiff = None
+        self.assertEqual(code, '207 Multi-Status')
+        self.assertMultiLineEqual(
+            contents.decode('utf-8'), """\
+<ns0:multistatus xmlns:ns0="DAV:"><ns0:response><ns0:href>/resource</ns0:href>\
+<ns0:status>HTTP/1.1 200 OK</ns0:status>\
+<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status><ns0:prop>\
+<ns0:current-user-principal><ns0:href>/user/</ns0:href>\
+</ns0:current-user-principal></ns0:prop></ns0:propstat><ns0:propstat>\
+<ns0:status>HTTP/1.1 404 Not Found</ns0:status><ns0:prop>\
+<ns0:somethingelse /><ns0:somethingelse /></ns0:prop></ns0:propstat>\
+</ns0:response>\
+</ns0:multistatus>""")

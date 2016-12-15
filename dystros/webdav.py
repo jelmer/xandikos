@@ -84,7 +84,7 @@ class DavStatus(object):
 
     def _propstat_xml(self):
         bystatus = self._propstat_by_status()
-        for (status, rd), props in bystatus.items():
+        for (status, rd), props in sorted(bystatus.items()):
             propstat = ET.Element('{DAV:}propstat')
             ET.SubElement(propstat,
                 '{DAV:}status').text = 'HTTP/1.1 ' + status
