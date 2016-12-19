@@ -143,14 +143,12 @@ class GitCollection(object):
         self._scan_ids()
         return self._uid_to_fname[uid]
 
-    def _check_duplicate_uid(self, uid):
+    def _check_duplicate(self, uid, name):
+        self._scan_ids()
         try:
             raise DuplicateUidError(uid, self.lookup_uid(uid)[0])
         except KeyError:
             pass
-
-    def _check_duplicate_name(self, name):
-        self._scan_ids()
         if name in self._fname_to_uid:
             raise NameExists(name)
 
@@ -268,14 +266,13 @@ class BareGitCollection(GitCollection):
         :return: etag
         """
         uid = ExtractUID(data)
-        self._check_duplicate_uid(uid)
-        self._check_duplicate_name(name)
+        self._check_duplicate(uid, name)
         # TODO(jelmer): Handle case where the item already exists
         # TODO(jelmer): Verify that 'data' actually represents a valid calendar
         b = Blob.from_string(data)
         tree = self._get_current_tree()
         name_enc = name.encode('utf-8')
-        tree.add(name_enc, 0o644|stat.S_IFREG, b.id)
+        tree[name_enc] = (0o644|stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
         self._commit_tree(tree.id, b"Add " + name_enc)
         return b.id
@@ -336,8 +333,7 @@ class TreeGitCollection(GitCollection):
         :return: etag
         """
         uid = ExtractUID(data)
-        self._check_duplicate_uid(uid)
-        self._check_duplicate_name(name)
+        self._check_duplicate(uid, name)
         # TODO(jelmer): Handle case where the item already exists
         # TODO(jelmer): Verify that 'data' actually represents a valid calendar
         p = os.path.join(self.repo.path, name)
