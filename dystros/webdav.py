@@ -136,6 +136,13 @@ class DavResource(object):
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
+    def set_body(self, body):
+        """Set resouce contents.
+
+        :param body: Iterable over bytestrings
+        """
+        raise NotImplementedError(self.set_body)
+
     def proplist(self):
         """List all properties."""
         return []
@@ -164,13 +171,13 @@ class DavEndpoint(Endpoint):
     def __init__(self, resource):
         self.resource = resource
 
-    def _readXmlBody(self, environ):
+    def _readBody(self, environ):
         try:
             request_body_size = int(environ['CONTENT_LENGTH'])
         except KeyError:
-            return xmlparse(environ['wsgi.input'].read())
+            return environ['wsgi.input'].read()
         else:
-            return xmlparse(environ['wsgi.input'].read(request_body_size))
+            return environ['wsgi.input'].read(request_body_size)
 
     @property
     def allowed_methods(self):
@@ -224,7 +231,7 @@ class DavEndpoint(Endpoint):
         depth = environ.get("HTTP_DEPTH", "0")
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
-        et = self._readXmlBody(environ)
+        et = xmlparse(self._readBody(environ))
         if et.tag != '{DAV:}propfind':
             # TODO-ERROR(jelmer): What to return here?
             yield DavStatus(
@@ -265,6 +272,12 @@ class DavEndpoint(Endpoint):
     def do_GET(self, environ, start_response):
         start_response('200 OK', [])
         return self.resource.get_body()
+
+    def do_PUT(self, environ, start_response):
+        new_contents = self._readBody(environ)
+        start_response('200 OK', [])
+        self.resource.set_body([new_contents])
+        return []
 
 
 class DebugEndpoint(Endpoint):

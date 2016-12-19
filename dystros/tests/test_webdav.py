@@ -53,6 +53,20 @@ class WebTests(unittest.TestCase):
         contents = b''.join(app(environ, start_response))
         return _code[0], _headers, contents
 
+    def put(self, app, path, contents):
+        environ = {
+            'PATH_INFO': path,
+            'REQUEST_METHOD': 'PUT',
+            'wsgi.input': BytesIO(contents),
+            }
+        _code = []
+        _headers = []
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+        list(app(environ, start_response))
+        return _code[0], _headers
+
     def propfind(self, app, path, body):
         environ = {
                 'PATH_INFO': path,
@@ -81,6 +95,18 @@ class WebTests(unittest.TestCase):
         self.assertEqual('200 OK', code)
         self.assertEqual(b'this is content', contents)
 
+    def test_set_body(self):
+        new_body = []
+        class TestResource(DavResource):
+
+            def set_body(self, body):
+                new_body.extend(body)
+        app = self.makeApp({'/.well-known/carddav': TestResource()})
+        code, headers = self.put(
+            app, '/.well-known/carddav', b'New contents')
+        self.assertEqual('200 OK', code)
+        self.assertEqual([b'New contents'], new_body)
+
     def test_delete_not_allowed(self):
         # TODO(jelmer): Implement DELETE
         class TestResource(DavResource):
@@ -88,7 +114,7 @@ class WebTests(unittest.TestCase):
         app = self.makeApp({'/resource': TestResource()})
         code, headers, contents = self.delete(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
-        self.assertIn(('Allow', 'GET, PROPFIND'), headers)
+        self.assertIn(('Allow', 'GET, PUT, PROPFIND'), headers)
         self.assertEqual(b'', contents)
 
     def test_propfind_prop_does_not_exist(self):
