@@ -11,3 +11,7 @@ webdav server:
 - implement DELETE If-Name
 - implement PUT If-Name
 - implement REPORT
+- implement MKCOL
+- implement PROPPATCH
+
+- run caldav tester
