@@ -28,7 +28,7 @@ from dulwich.objects import Blob, Tree
 import dulwich.repo
 
 _DEFAULT_COMMITTER_IDENTITY = b'Dystros <dystros>'
-ICALENDAR_EXTENSION = '.ics'
+ICALENDAR_EXTENSION = b'.ics'
 
 
 def ExtractUID(data):
@@ -160,8 +160,6 @@ class GitCollection(object):
         :yield: (name, Calendar) tuples
         """
         for (name, mode, sha) in self._iterblobs():
-            if not name.endswith(ICALENDAR_EXTENSION):
-                continue
             yield (name, sha, Calendar.from_ical(self.repo.object_store[sha].data))
 
     def _scan_ids(self):
@@ -241,6 +239,8 @@ class BareGitCollection(GitCollection):
     def _iterblobs(self):
         tree = self._get_current_tree()
         for (name, mode, sha) in tree.iteritems():
+            if not name.endswith(ICALENDAR_EXTENSION):
+                continue
             yield (name.decode('utf-8'), mode, sha)
 
     @classmethod
@@ -379,6 +379,8 @@ class TreeGitCollection(GitCollection):
         """
         index = self.repo.open_index()
         for (name, sha, mode) in index.iterblobs():
+            if not name.endswith(ICALENDAR_EXTENSION):
+                continue
             yield (name.decode('utf-8'), mode, sha)
 
 
