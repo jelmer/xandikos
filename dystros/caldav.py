@@ -104,7 +104,7 @@ class Collection(DavResource):
         return super(Collection, self).propget(name)
 
     def members(self):
-        return []
+        raise NotImplementedError(self.members)
 
 
 class CalendarSetResource(DavResource):
