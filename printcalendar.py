@@ -44,7 +44,7 @@ def filter_fn(component):
          return False
     return True
 
-vevents = list(filter(filter_fn, filters.extract_vevents(collections.iter_icalendars())))
+vevents = list(filter(filter_fn, filters.extract_vevents(collections.iter_calendars())))
 vevents.sort(key=utils.keyEvent)
 
 for vevent in vevents:

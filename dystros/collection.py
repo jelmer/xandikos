@@ -154,7 +154,7 @@ class GitCollection(object):
         if name in self._fname_to_uid:
             raise NameExists(name)
 
-    def iter_icalendars(self):
+    def iter_calendars(self):
         """Iterate over all calendars.
 
         :yield: (name, Calendar) tuples

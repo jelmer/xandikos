@@ -10,7 +10,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from dystros import filters, utils
+from dystros import collection, filters, utils
 
 parser = optparse.OptionParser("travel")
 parser.add_option("--format", choices=["text", "html", "now"], default="text", help="Output format")
@@ -21,13 +21,18 @@ parser.add_option("--show-past-cancelled", action="store_true", default=False, h
 parser.add_option("--tense", choices=["past", "future", "all"], default="all", help="Tense")
 opts, args = parser.parse_args()
 
-evs = filters.extract_vevents(utils.gather_icalendars(args))
+def iter_vevents(args):
+    for arg in args:
+        col = collection.open_collection(arg)
+        for ev in filters.extract_vevents([c for (n, s, c) in col.iter_calendars()]):
+            yield ev
+
 
 TravelEvent = collections.namedtuple("TravelEvent", ["summary", "url", "location", "status", "start", "end"])
 
 travelevs = {}
 
-for ev in evs:
+for ev in iter_vevents(args):
     if ev.get('CLASS') not in (None, 'DEFAULT', 'PUBLIC', 'PRIVATE'):
         logging.info('Skipping %s because it is not public (%s)',
             ev['SUMMARY'], ev['CLASS'])

@@ -24,7 +24,7 @@ from icalendar.cal import Calendar
 import optparse
 import os
 
-from dystros import filters
+from dystros import collection, filters
 
 try:
     DEFAULT_PATH = os.environ['DYSTROSPATH']
@@ -55,8 +55,11 @@ class CollectionSet(object):
         self._inputdir = inputdir
         self._kinds = kinds
 
-    def iter_icalendars(self):
-        return list(gather_icalendars([os.path.join(self._inputdir, kind) for kind in self._kinds]))
+    def iter_calendars(self):
+        for bp in [os.path.join(self._inputdir, kind) for kind in self._kinds]:
+            col = collection.open_collection(bp)
+            for n, s, c in col.iter_calendars():
+                yield c
 
     @classmethod
     def from_options(cls, opts):
@@ -86,21 +89,6 @@ def format_daterange(start, end):
             return "%d %s" % (start.day, format_month(start))
         return "%d-%d %s" % (start.day, end.day, format_month(start))
     return "%d %s-%d %s" % (start.day, format_month(start), end.day, format_month(end))
-
-
-def gather_icalendars(dirs):
-    """Find all the ics files in a directory, yield components.
-
-    :param dirs: List of directories to browse
-    :return: Iterator over components found
-    """
-    for bp in dirs:
-        for n in os.listdir(bp):
-            p = os.path.join(bp, n)
-            if not p.endswith(".ics"):
-                continue
-
-            yield Calendar.from_ical(open(p, 'r').read())
 
 
 def asdate(dt):

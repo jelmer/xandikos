@@ -15,7 +15,7 @@ parser.add_option_group(collection_set_options)
 opts, args = parser.parse_args()
 
 collections = utils.CollectionSet.from_options(opts)
-vevents = filters.extract_vevents(collections.iter_icalendars())
+vevents = filters.extract_vevents(collections.iter_calendars())
 
 out = Calendar()
 freebusy = FreeBusy()

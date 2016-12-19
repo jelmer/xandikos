@@ -42,7 +42,7 @@ if len(args) < 1:
 day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
 
 collections = utils.CollectionSet.from_options(opts)
-vevents = list(filters.extract_vevents(collections.iter_icalendars()))
+vevents = list(filters.extract_vevents(collections.iter_calendars()))
 vevents.sort(key=utils.keyEvent)
 
 for vevent in vevents:
