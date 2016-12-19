@@ -28,6 +28,7 @@ from dulwich.objects import Blob, Tree
 import dulwich.repo
 
 _DEFAULT_COMMITTER_IDENTITY = b'Dystros <dystros>'
+ICALENDAR_EXTENSION = '.ics'
 
 
 def ExtractUID(data):
@@ -159,6 +160,8 @@ class GitCollection(object):
         :yield: (name, Calendar) tuples
         """
         for (name, mode, sha) in self._iterblobs():
+            if not name.endswith(ICALENDAR_EXTENSION):
+                continue
             yield (name, sha, Calendar.from_ical(self.repo.object_store[sha].data))
 
     def _scan_ids(self):
@@ -389,3 +392,13 @@ class FilesystemCollectionSet(object):
 
     def __init__(self, path):
         self._path = path
+
+
+def open_collection(location):
+    """Open collection from a location string.
+
+    :param location: Location string to open
+    :return: A `Collection`
+    """
+    # For now, just support opening git collections
+    return GitCollection.open_from_path(location)
