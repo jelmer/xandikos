@@ -17,16 +17,26 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+from dystros.caldav import (
+    WellknownResource,
+    NonDavResource,
+    UserPrincipalResource,
+    CalendarSetResource,
+    )
+
 import unittest
 
 
-def test_suite():
-    names = [
-        'caldav',
-        'collection',
-        'filters',
-        'webdav',
-        ]
-    module_names = ['dystros.tests.test_' + name for name in names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+class WellknownResourceTests(unittest.TestCase):
+
+    def test_get_body(self):
+        r = WellknownResource('/some/root')
+        self.assertEqual(b'/some/root', b''.join(r.get_body()))
+
+    def test_propget(self):
+        r = WellknownResource('/some/root')
+        self.assertRaises(KeyError, r.propget, 'unknown-property')
+
+    def test_members(self):
+        r = WellknownResource('/some/root')
+        self.assertEqual([], r.members())
