@@ -172,8 +172,9 @@ class GitCollection(object):
             if (name in self._fname_to_uid and
                 self._fname_to_uid[name][0] == sha):
                 continue
+            blob = self.repo.object_store[sha]
             try:
-                uid = ExtractUID(self.repo.object_store[sha].data)
+                uid = ExtractUID(blob.data)
             except KeyError:
                 logger.warning('No UID found in file %s', name)
                 uid = None
