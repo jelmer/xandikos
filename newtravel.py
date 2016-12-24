@@ -23,12 +23,12 @@
 
 from dulwich import porcelain
 import datetime
-import hashlib
 import logging
 import optparse
 import os
 import sys
 import time
+import uuid
 from icalendar.cal import Calendar, Event
 from icalendar.prop import vDate, vDuration, vDatetime, vText, vUri
 
@@ -110,17 +110,12 @@ if dtend is not None:
 if duration is not None:
     props['duration'] = vDuration(duration)
 
+uid = str(uuid.uuid1())
+props['UID'] = uid
 ev = Event(**props)
 
 c = Calendar()
 c.add_component(ev)
-
-md5 = hashlib.md5()
-md5.update(c.to_ical())
-
-uid = md5.hexdigest()
-
-props['UID'] = uid
 
 fname = uid + '.ics'
 collection = GitCollection.open_from_path(opts.outputdir)
