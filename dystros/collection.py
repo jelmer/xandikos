@@ -19,6 +19,7 @@
 
 """Collections and collection sets."""
 
+import logging
 import os
 import stat
 
@@ -29,6 +30,9 @@ import dulwich.repo
 
 _DEFAULT_COMMITTER_IDENTITY = b'Dystros <dystros>'
 ICALENDAR_EXTENSION = b'.ics'
+
+
+logger = logging.getLogger(__name__)
 
 
 def ExtractUID(data):
@@ -168,7 +172,11 @@ class GitCollection(object):
             if (name in self._fname_to_uid and
                 self._fname_to_uid[name][0] == sha):
                 continue
-            uid = ExtractUID(self.repo.object_store[sha].data)
+            try:
+                uid = ExtractUID(self.repo.object_store[sha].data)
+            except KeyError:
+                logger.warning('No UID found in file %s', name)
+                uid = None
             self._fname_to_uid[name] = (sha, uid)
             self._uid_to_fname[uid] = (name, sha)
         for name in removed:
