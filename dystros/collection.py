@@ -99,13 +99,21 @@ class Collection(object):
         """
         raise NotImplementedError(self.get_raw)
 
+    def iter_raw(self):
+        """Iterate over raw calendar contents.
+
+        :yield: (name, etag, data) tuples
+        """
+        for (name, etag) in self.iter_with_etag():
+            data = self.get_raw(name, etag)
+            yield (name, etag, data)
+
     def iter_calendars(self):
         """Iterate over all calendars.
 
         :yield: (name, Calendar) tuples
         """
-        for (name, etag) in self.iter_with_etag():
-            data = self.get_raw(name, etag)
+        for (name, etag, data) in self.iter_raw():
             yield (name, etag, Calendar.from_ical(data))
 
     def get_ctag(self):
