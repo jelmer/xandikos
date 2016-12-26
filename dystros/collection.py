@@ -92,19 +92,20 @@ class Collection(object):
         """
         raise NotImplementedError(self.iter_with_etag)
 
-    def iter_raw(self):
-        """Iterate over raw contents of calendars.
+    def get_raw(self, name, etag):
+        """Get the raw contents of a calendar.
 
-        :yield: (name, etag, data) tuples
+        :return: raw contents
         """
-        raise NotImplementedError(self.iter_raw)
+        raise NotImplementedError(self.get_raw)
 
     def iter_calendars(self):
         """Iterate over all calendars.
 
         :yield: (name, Calendar) tuples
         """
-        for (name, etag, data) in self.iter_raw():
+        for (name, etag) in self.iter_with_etag():
+            data = self.get_raw(name, etag)
             yield (name, etag, Calendar.from_ical(data))
 
     def get_ctag(self):
@@ -175,14 +176,13 @@ class GitCollection(Collection):
     def _get_blob(self, sha):
         return self.repo.object_store[sha]
 
-    def iter_raw(self):
-        """Iterate over all raw data.
+    def get_raw(self, name, etag):
+        """Get the raw contents of a calendar.
 
-        :yield: (name, etag, data) tuples
+        :return: raw contents
         """
-        for (name, mode, sha) in self._iterblobs():
-            blob = self._get_blob(sha)
-            yield (name, sha, blob.data)
+        blob = self._get_blob(etag)
+        return blob.data
 
     def _scan_ids(self):
         removed = set(self._fname_to_uid.keys())

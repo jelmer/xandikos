@@ -111,15 +111,19 @@ class BaseCollectionTest(object):
              'foo.ics': (etag1, Calendar.from_ical(EXAMPLE_VCALENDAR1)),
              })
 
-    def test_iter_raw(self):
+    def test_get_raw(self):
         gc = self.create_collection()
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
-        ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_raw()}
-        self.assertEqual(ret,
-            {'bar.ics': (etag2, EXAMPLE_VCALENDAR2),
-             'foo.ics': (etag1, EXAMPLE_VCALENDAR1),
-             })
+        self.assertEqual(
+            EXAMPLE_VCALENDAR1,
+            gc.get_raw('foo.ics', etag1))
+        self.assertEqual(
+            EXAMPLE_VCALENDAR2,
+            gc.get_raw('bar.ics', etag2))
+        self.assertRaises(
+            KeyError,
+            gc.get_raw, 'missing.ics', b'01' * 20)
 
     def test_iter_calendars_extension(self):
         gc = self.create_collection()
