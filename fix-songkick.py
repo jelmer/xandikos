@@ -2,7 +2,7 @@
 # encoding: utf-8
 #
 # Dystros
-# Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016 Jelmer Vernooĳ <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
