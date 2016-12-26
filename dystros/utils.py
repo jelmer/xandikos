@@ -55,11 +55,19 @@ class CollectionSet(object):
         self._inputdir = inputdir
         self._kinds = kinds
 
-    def iter_calendars(self):
+    def iter_collections(self):
         for bp in [os.path.join(self._inputdir, kind) for kind in self._kinds]:
-            col = collection.open_collection(bp)
+            yield collection.open_collection(bp)
+
+    def iter_calendars(self):
+        for col in self.iter_collections():
             for n, s, c in col.iter_calendars():
                 yield c
+
+    def iter_raw(self):
+        for col in self.iter_collections():
+            for n, s, c in col.iter_raw():
+                yield n, s, c
 
     @classmethod
     def from_options(cls, opts):

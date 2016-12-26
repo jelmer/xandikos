@@ -92,6 +92,21 @@ class Collection(object):
         """
         raise NotImplementedError(self.iter_with_etag)
 
+    def iter_raw(self):
+        """Iterate over raw contents of calendars.
+
+        :yield: (name, etag, data) tuples
+        """
+        raise NotImplementedError(self.iter_raw)
+
+    def iter_calendars(self):
+        """Iterate over all calendars.
+
+        :yield: (name, Calendar) tuples
+        """
+        for (name, etag, data) in self.iter_raw():
+            yield (name, etag, Calendar.from_ical(data))
+
     def get_ctag(self):
         """Return the ctag for this collection."""
         raise NotImplementedError(self.get_ctag)
@@ -126,7 +141,7 @@ class Collection(object):
         raise NotImplementedError(self.lookup_uid)
 
 
-class GitCollection(object):
+class GitCollection(Collection):
     """A Collection backed by a Git Repository.
     """
 
@@ -157,13 +172,17 @@ class GitCollection(object):
         if name in self._fname_to_uid:
             raise NameExists(name)
 
-    def iter_calendars(self):
-        """Iterate over all calendars.
+    def _get_blob(self, sha):
+        return self.repo.object_store[sha]
 
-        :yield: (name, Calendar) tuples
+    def iter_raw(self):
+        """Iterate over all raw data.
+
+        :yield: (name, etag, data) tuples
         """
         for (name, mode, sha) in self._iterblobs():
-            yield (name, sha, Calendar.from_ical(self.repo.object_store[sha].data))
+            blob = self._get_blob(sha)
+            yield (name, sha, blob.data)
 
     def _scan_ids(self):
         removed = set(self._fname_to_uid.keys())
@@ -173,7 +192,7 @@ class GitCollection(object):
             if (name in self._fname_to_uid and
                 self._fname_to_uid[name][0] == sha):
                 continue
-            blob = self.repo.object_store[sha]
+            blob = self._get_blob(sha)
             try:
                 uid = ExtractUID(blob.data)
             except KeyError:
