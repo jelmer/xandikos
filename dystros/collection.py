@@ -35,13 +35,14 @@ ICALENDAR_EXTENSION = b'.ics'
 logger = logging.getLogger(__name__)
 
 
-def ExtractUID(data):
+def ExtractUID(cal):
     """Extract the UID from a VCalendar file.
 
-    :param data: Serialized calendar.
+    :param cal: Calendar, possibly serialized.
     :return: UID
     """
-    cal = Calendar.from_ical(data)
+    if type(cal) in (bytes, str):
+        cal = Calendar.from_ical(cal)
     for component in cal.subcomponents:
         try:
             return component["UID"]

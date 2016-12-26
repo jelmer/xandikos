@@ -266,7 +266,18 @@ class TreeGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
 
 class ExtractUIDTests(unittest.TestCase):
 
-    def test_extract(self):
+    def test_extract_str(self):
         self.assertEqual(
             'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
             ExtractUID(EXAMPLE_VCALENDAR1))
+
+    def test_extract_cal(self):
+        cal = Calendar.from_ical(EXAMPLE_VCALENDAR1)
+        self.assertEqual(
+            'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
+            ExtractUID(cal))
+
+    def test_extract_no_uid(self):
+        self.assertRaises(
+            KeyError,
+            ExtractUID, EXAMPLE_VCALENDAR_NO_UID)
