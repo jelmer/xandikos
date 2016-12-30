@@ -137,7 +137,7 @@ class DavResource(object):
         raise NotImplementedError(self.get_body)
 
     def set_body(self, body):
-        """Set resouce contents.
+        """Set resource contents.
 
         :param body: Iterable over bytestrings
         """
@@ -300,6 +300,14 @@ class DebugEndpoint(Endpoint):
         return []
 
 
+
+class DavBackend(object):
+    """WebDAV backend."""
+
+    def get_resoure(self, relpath):
+        raise NotImplementedError(self.get_resource)
+
+
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
@@ -307,12 +315,12 @@ class WebDAVApp(object):
     lookup_resource function that can map a path to a DavResource object
     (returning None for nonexistant objects).
     """
-    def __init__(self, lookup_resource):
-        self.lookup_resource = lookup_resource
+    def __init__(self, backend):
+        self.backend = backend
 
     def __call__(self, environ, start_response):
         p = environ['PATH_INFO']
-        r = self.lookup_resource(p)
+        r = self.backend.get_resource(p)
         if r is None:
             start_response('404 Not Found', [])
             return [b'Path ' + p.encode(DEFAULT_ENCODING) + b' not found.']

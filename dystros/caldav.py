@@ -23,6 +23,7 @@ import defusedxml.ElementTree
 from xml.etree import ElementTree as ET
 
 from dystros.webdav import (
+    DavBackend,
     DavResource,
     WebDAVApp,
     )
@@ -125,17 +126,19 @@ class CalendarSetResource(DavResource):
         return [('foo', Collection())]
 
 
-def lookup_resource(p):
-    if p in WELLKNOWN_DAV_PATHS:
-        r = WellknownResource("/")
-    elif p == "/":
-        return NonDavResource()
-    elif p == CURRENT_USER_PRINCIPAL:
-        return UserPrincipalResource()
-    elif p == CALENDAR_HOME_SET:
-        return CalendarSetResource()
-    else:
-        return None
+class CalDavBackend(DavBackend):
+
+    def get_resource(self, p):
+        if p in WELLKNOWN_DAV_PATHS:
+            r = WellknownResource("/")
+        elif p == "/":
+            return NonDavResource()
+        elif p == CURRENT_USER_PRINCIPAL:
+            return UserPrincipalResource()
+        elif p == CALENDAR_HOME_SET:
+            return CalendarSetResource()
+        else:
+            return None
 
 
 if __name__ == '__main__':
@@ -151,6 +154,6 @@ if __name__ == '__main__':
     options, args = parser.parse_args(sys.argv)
 
     from wsgiref.simple_server import make_server
-    app = WebDAVApp(lookup_resource)
+    app = WebDAVApp(CalDavBackend())
     server = make_server(options.listen_address, options.port, app)
     server.serve_forever()

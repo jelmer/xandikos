@@ -31,7 +31,9 @@ from dystros.webdav import (
 class WebTests(unittest.TestCase):
 
     def makeApp(self, resources):
-        return WebDAVApp(resources.get)
+        class Backend(object):
+            get_resource = resources.get
+        return WebDAVApp(Backend())
 
     def delete(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'DELETE'}
