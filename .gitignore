@@ -2,3 +2,5 @@
 *~
 build/
 .testrepository/
+MANIFEST
+.tox/
