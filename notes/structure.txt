@@ -1,0 +1,37 @@
+Dystros consists of a couple of layers.
+
+The main building blocks are vCard (*.vcf) and ICalendar (*.ics) files. Storage
+happens in GIT repositories.
+
+All items are identified by a UID, which is unique for the store. Items
+can have multiple versions, which are identified by an ETag. Each store
+maps to a single git repository, and can not contain directories. In the future,
+a store could map to a subtree in a Git repository.
+
+Stores are responsible for making sure that:
+
+ * their contents are validly formed calendars/contacts
+ * UIDs are unique
+
+The WebDAV server is a thin app that processes DAV requests and then defers to
+a DAVBackend for the actual implementation.
+
+The actual web implementation calls out to 'webdav' to start the server, then
+provides a DAVBackend that - together with dystros.store and utilities from
+dystros.caldav and dystros.carddav.
+
+class DAVResource(object):
+
+    ...
+
+
+class DAVBackend(object):
+
+    def report(self):
+        # TODO
+
+    def get_resource(self, url):
+        # TODO
+
+    def create_collection(self, url):
+        # TODO
