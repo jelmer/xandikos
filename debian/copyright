@@ -1,0 +1,19 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: dystros
+Upstream-Contact: Jelmer Vernooĳ <jelmer@jelmer.uk>
+Source: https://jelmer.uk/dystros
+Debianized-By: Jelmer Vernooĳ <jelmer@debian.org>
+Debianized-Date: Tue, 13 Jan 2017 16:56:47 +0100
+
+License: GPL-3+
+ On Debian systems the full text of the GNU General Public License version 2
+ can be found in the `/usr/share/common-licenses/GPL-3' file.
+
+Files: *
+Copyright:
+  2015-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>
+License: GPL-3+
+
+Files: debian/*
+Copyright: 2017 Jelmer Vernooĳ <jelmer@debian.org>
+License: GPL-3+

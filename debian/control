@@ -1,0 +1,20 @@
+Source: dystros
+Section: python
+Priority: optional
+Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
+Homepage: https://jelmer.uk/dystros
+Build-Depends: python3-all, debhelper (>= 9), python3-dulwich, dh-python, python3-jinja2, python3-icalendar, python3-defusedxml
+Standards-Version: 3.9.8
+X-Python3-Version: >= 3.2
+Vcs-Git: https://jelmer.uk/code/dystros.git -b unstable
+
+Package: python3-dystros
+Architecture: all
+Depends: ${python:Depends}, ${misc:Depends}, ${shlibs:Depends}, python3-jinja2, python3-icalendar, python3-defusedxml, python3-dulwich
+Breaks: bzr-git (<< 0.6.2)
+Description: Tools for working with calendars and addressbooks
+ Dystros is a set of command-line utilities for working with calendars and
+ addressbooks that are stored as iCalendar and vCard files in a git repository.
+ .
+ Dystros (Δύστρος) takes its name from the name of the February month in the ancient
+ Macedonian calendar, used in Macedon in the first millenium BC.
