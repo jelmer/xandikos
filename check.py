@@ -29,19 +29,19 @@ from icalendar.cal import Calendar
 sys.path.insert(0, os.path.dirname(__file__))
 
 from dystros import utils
-from dystros.collection import ExtractUID
+from dystros.store import ExtractUID
 
 parser = optparse.OptionParser("check")
-collection_set_options = utils.CollectionSetOptionGroup(parser)
-parser.add_option_group(collection_set_options)
+store_set_options = utils.StoreSetOptionGroup(parser)
+parser.add_option_group(store_set_options)
 opts, args = parser.parse_args()
 
-collections = utils.CollectionSet.from_options(opts)
+stores = utils.StoreSet.from_options(opts)
 
 invalid = set()
 uids = {}
 
-for name, etag, data in collections.iter_raw():
+for name, etag, data in stores.iter_raw():
     calendar = Calendar.from_ical(data)
     try:
         uid = ExtractUID(calendar)

@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Collections and collection sets."""
+"""Stores and store sets."""
 
 import logging
 import os
@@ -52,7 +52,7 @@ def ExtractUID(cal):
 
 
 class DuplicateUidError(Exception):
-    """UID already exists in collection."""
+    """UID already exists in store."""
 
     def __init__(self, uid, fname):
         self.uid = uid
@@ -82,11 +82,11 @@ class InvalidETag(Exception):
         self.got_etag = got_etag
 
 
-class Collection(object):
-    """A ICalendar collection."""
+class Store(object):
+    """A ICalendar/vCard store."""
 
     def iter_with_etag(self):
-        """Iterate over all items in the collection with etag.
+        """Iterate over all items in the store with etag.
 
         :yield: (name, etag) tuples
         """
@@ -117,7 +117,7 @@ class Collection(object):
             yield (name, etag, Calendar.from_ical(data))
 
     def get_ctag(self):
-        """Return the ctag for this collection."""
+        """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
 
     def import_one(self, name, data):
@@ -150,8 +150,8 @@ class Collection(object):
         raise NotImplementedError(self.lookup_uid)
 
 
-class GitCollection(Collection):
-    """A Collection backed by a Git Repository.
+class GitStore(Store):
+    """A Store backed by a Git Repository.
     """
 
     def __init__(self, repo, ref=b'refs/heads/master'):
@@ -217,7 +217,7 @@ class GitCollection(Collection):
         raise NotImplementedError(self._iterblobs)
 
     def iter_with_etag(self):
-        """Iterate over all items in the collection with etag.
+        """Iterate over all items in the store with etag.
 
         :yield: (name, etag) tuples
         """
@@ -226,36 +226,36 @@ class GitCollection(Collection):
 
     @classmethod
     def create(cls, path):
-        """Create a new collection backed by a Git repository on disk.
+        """Create a new store backed by a Git repository on disk.
 
-        :return: A `GitCollection`
+        :return: A `GitStore`
         """
         raise NotImplementedError(self.create)
 
     @classmethod
     def open_from_path(cls, path):
-        """Open a GitCollection from a path.
+        """Open a GitStore from a path.
 
         :param path: Path
-        :return: A `GitCollection`
+        :return: A `GitStore`
         """
         return cls.open(dulwich.repo.Repo(path))
 
     @classmethod
     def open(cls, repo):
-        """Open a GitCollection given a Repo object.
+        """Open a GitStore given a Repo object.
 
         :param repo: A Dulwich `Repo`
-        :return: A `GitCollection`
+        :return: A `GitStore`
         """
         if repo.has_index():
-            return TreeGitCollection(repo)
+            return TreeGitStore(repo)
         else:
-            return BareGitCollection(repo)
+            return BareGitStore(repo)
 
 
-class BareGitCollection(GitCollection):
-    """A Collection backed by a bare git repository."""
+class BareGitStore(GitStore):
+    """A Store backed by a bare git repository."""
 
     def _get_current_tree(self):
         try:
@@ -268,7 +268,7 @@ class BareGitCollection(GitCollection):
             return self.repo.object_store[ref_object.tree]
 
     def get_ctag(self):
-        """Return the ctag for this collection."""
+        """Return the ctag for this store."""
         return self._get_current_tree().id
 
     def _iterblobs(self):
@@ -280,9 +280,9 @@ class BareGitCollection(GitCollection):
 
     @classmethod
     def create_memory(cls):
-        """Create a new collection backed by a memory repository.
+        """Create a new store backed by a memory repository.
 
-        :return: A `GitCollection`
+        :return: A `GitStore`
         """
         return cls(dulwich.repo.MemoryRepo())
 
@@ -336,21 +336,21 @@ class BareGitCollection(GitCollection):
 
     @classmethod
     def create(cls, path):
-        """Create a new collection backed by a Git repository on disk.
+        """Create a new store backed by a Git repository on disk.
 
-        :return: A `GitCollection`
+        :return: A `GitStore`
         """
         return cls(dulwich.repo.Repo.init_bare(path))
 
 
-class TreeGitCollection(GitCollection):
-    """A Collection that backs onto a treefull Git repository."""
+class TreeGitStore(GitStore):
+    """A Store that backs onto a treefull Git repository."""
 
     @classmethod
     def create(cls, path, bare=True):
-        """Create a new collection backed by a Git repository on disk.
+        """Create a new store backed by a Git repository on disk.
 
-        :return: A `GitCollection`
+        :return: A `GitStore`
         """
         return cls(dulwich.repo.Repo.init(path))
 
@@ -401,12 +401,12 @@ class TreeGitCollection(GitCollection):
         self.repo.stage(name)
 
     def get_ctag(self):
-        """Return the ctag for this collection."""
+        """Return the ctag for this store."""
         index = self.repo.open_index()
         return index.commit(self.repo.object_store)
 
     def _iterblobs(self):
-        """Iterate over all items in the collection with etag.
+        """Iterate over all items in the store with etag.
 
         :yield: (name, etag) tuples
         """
@@ -417,23 +417,23 @@ class TreeGitCollection(GitCollection):
             yield (name.decode('utf-8'), mode, sha)
 
 
-class CollectionSet(object):
-    """A set of ICalendar collections.
+class StoreSet(object):
+    """A set of ICalendar stores.
     """
 
 
-class FilesystemCollectionSet(object):
-    """A CollectionSet that is backed by a filesystem."""
+class FilesystemStoreSet(object):
+    """A StoreSet that is backed by a filesystem."""
 
     def __init__(self, path):
         self._path = path
 
 
-def open_collection(location):
-    """Open collection from a location string.
+def open_store(location):
+    """Open store from a location string.
 
     :param location: Location string to open
-    :return: A `Collection`
+    :return: A `Store`
     """
-    # For now, just support opening git collections
-    return GitCollection.open_from_path(location)
+    # For now, just support opening git stores
+    return GitStore.open_from_path(location)

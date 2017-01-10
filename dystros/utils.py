@@ -24,7 +24,7 @@ from icalendar.cal import Calendar
 import optparse
 import os
 
-from dystros import collection, filters
+from dystros import store, filters
 
 try:
     DEFAULT_PATH = os.environ['DYSTROSPATH']
@@ -32,7 +32,7 @@ except KeyError:
     DEFAULT_PATH = os.path.join(os.getenv("HOME"), ".config/calypso/collections/jelmer")
 
 
-class CollectionSetOptionGroup(optparse.OptionGroup):
+class StoreSetOptionGroup(optparse.OptionGroup):
     """Return a optparser OptionGroup.
 
     :param parser: An OptionParser
@@ -48,24 +48,24 @@ class CollectionSetOptionGroup(optparse.OptionGroup):
                         default=DEFAULT_PATH)
 
 
-class CollectionSet(object):
-    """Set of iCalendar/vCard collections."""
+class StoreSet(object):
+    """Set of iCalendar/vCard stores."""
 
     def __init__(self, inputdir, kinds):
         self._inputdir = inputdir
         self._kinds = kinds
 
-    def iter_collections(self):
+    def iter_stores(self):
         for bp in [os.path.join(self._inputdir, kind) for kind in self._kinds]:
-            yield collection.open_collection(bp)
+            yield store.open_store(bp)
 
     def iter_calendars(self):
-        for col in self.iter_collections():
+        for col in self.iter_stores():
             for n, s, c in col.iter_calendars():
                 yield c
 
     def iter_raw(self):
-        for col in self.iter_collections():
+        for col in self.iter_stores():
             for n, s, c in col.iter_raw():
                 yield n, s, c
 

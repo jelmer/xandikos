@@ -31,8 +31,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 from dystros import filters, utils
 
 parser = optparse.OptionParser("printday DATE")
-collection_set_options = utils.CollectionSetOptionGroup(parser)
-parser.add_option_group(collection_set_options)
+store_set_options = utils.StoreSetOptionGroup(parser)
+parser.add_option_group(store_set_options)
 opts, args = parser.parse_args()
 
 if len(args) < 1:
@@ -41,8 +41,8 @@ if len(args) < 1:
 
 day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
 
-collections = utils.CollectionSet.from_options(opts)
-vevents = list(filters.extract_vevents(collections.iter_calendars()))
+stores = utils.StoreSet.from_options(opts)
+vevents = list(filters.extract_vevents(stores.iter_calendars()))
 vevents.sort(key=utils.keyEvent)
 
 for vevent in vevents:

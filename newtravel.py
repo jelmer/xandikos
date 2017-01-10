@@ -34,7 +34,7 @@ from icalendar.prop import vDate, vDuration, vDatetime, vText, vUri
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from dystros.collection import GitCollection
+from dystros.store import GitStore
 from dystros import utils
 
 DEFAULT_OUTPUT_DIR = os.path.join(utils.DEFAULT_PATH, "calendar")
@@ -118,6 +118,6 @@ c = Calendar()
 c.add_component(ev)
 
 fname = uid + '.ics'
-collection = GitCollection.open_from_path(opts.outputdir)
-collection.import_one(fname, c.to_ical())
+store = GitStore.open_from_path(opts.outputdir)
+store.import_one(fname, c.to_ical())
 logging.info('Wrote %s', fname)

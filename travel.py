@@ -31,7 +31,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from dystros import collection, filters, utils
+from dystros import filters, utils, store
 
 parser = optparse.OptionParser("travel")
 parser.add_option("--format", choices=["text", "html", "now"], default="text", help="Output format")
@@ -44,7 +44,7 @@ opts, args = parser.parse_args()
 
 def iter_vevents(args):
     for arg in args:
-        col = collection.open_collection(arg)
+        col = store.open_store(arg)
         for ev in filters.extract_vevents([c for (n, s, c) in col.iter_calendars()]):
             yield ev
 
