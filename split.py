@@ -53,8 +53,14 @@ parser.add_option('--category', dest='category', default=None, help="Category to
 parser.add_option('--status', dest='status', type="choice", choices=["", "tentative", "confirmed"], default=None, help="Status to set.")
 opts, args = parser.parse_args()
 
-url = args[0]
-orig = Calendar.from_ical(urllib.request.urlopen(url).read())
+try:
+    url = args[0]
+except IndexError:
+    f = sys.stdin.buffer
+else:
+    f = urllib.request.urlopen(url)
+
+orig = Calendar.from_ical(f.read())
 
 other = []
 items = {}
