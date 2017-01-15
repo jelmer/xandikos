@@ -18,6 +18,32 @@
 # MA  02110-1301, USA.
 
 """CardDAV support.
+
+https://tools.ietf.org/html/rfc6352
 """
+import defusedxml.ElementTree
+from xml.etree import ElementTree as ET
+
+from dystros import webdav
 
 WELLKNOWN_CARDDAV_PATH = "/.well-known/carddav"
+
+NAMESPACE = 'urn:ietf:params:xml:ns:carddav'
+ADDRESSBOOK_RESOURCE_TYPE = '{%s}addressbook' % NAMESPACE
+
+
+class AddressbookHomeSetProperty(webdav.DAVProperty):
+    """addressbook-home-set property
+
+    See https://tools.ietf.org/html/rfc6352, section 7.1.1
+    """
+
+    name = '{%s}addressbook-home-set' % NAMESPACE
+    in_allprops = False
+
+    def __init__(self, addressbook_home_set):
+        super(AddressbookHomeSetProperty, self).__init__()
+        self.addressbook_home_set = addressbook_home_set
+
+    def populate(self, resource, el):
+        ET.SubElement(el, '{DAV:}href').text = self.addressbook_home_set

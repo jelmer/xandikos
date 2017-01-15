@@ -28,6 +28,7 @@ from dystros import caldav, carddav, webdav
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 CALENDAR_HOME_SET = '/user/calendars/'
+ADDRESSBOOK_HOME_SET = '/user/contacts/'
 CURRENT_USER_PRINCIPAL = '/user/'
 
 
@@ -35,12 +36,30 @@ class CalendarResource(webdav.DAVCollection):
 
     resource_types = webdav.DAVCollection.resource_types + [caldav.CALENDAR_RESOURCE_TYPE]
 
+    def get_displayname(self):
+        return "A calendar resource"
+
+
+class AddressbookResource(webdav.DAVCollection):
+
+    resource_types = webdav.DAVCollection.resource_types + [carddav.ADDRESSBOOK_RESOURCE_TYPE]
+
+    def get_displayname(self):
+        return "An addressbook resource"
+
 
 class CalendarSetResource(webdav.DAVCollection):
     """Resource for calendar sets."""
 
     def members(self):
         return [('foo', CalendarResource())]
+
+
+class AddressbookSetResource(webdav.DAVCollection):
+    """Resource for addressbook sets."""
+
+    def members(self):
+        return [('foo', AddressbookResource())]
 
 
 class UserPrincipalResource(webdav.DAVCollection):
@@ -63,6 +82,12 @@ class DystrosBackend(webdav.DAVBackend):
             return UserPrincipalResource()
         elif p == CALENDAR_HOME_SET:
             return CalendarSetResource()
+        elif p == ADDRESSBOOK_HOME_SET:
+            return AddressbookSetResource()
+        elif p == ADDRESSBOOK_HOME_SET + 'foo/':
+            return AddressbookResource()
+        elif p == CALENDAR_HOME_SET + 'foo/':
+            return CalendarResource()
         else:
             return None
 
@@ -76,7 +101,9 @@ class DystrosApp(webdav.WebDAVApp):
         self.register_properties([
             webdav.DAVResourceTypeProperty(),
             webdav.DAVCurrentUserPrincipalProperty(CURRENT_USER_PRINCIPAL),
+            webdav.DAVDisplayNameProperty(),
             caldav.CalendarHomeSetProperty(CALENDAR_HOME_SET),
+            carddav.AddressbookHomeSetProperty(ADDRESSBOOK_HOME_SET),
             ])
 
 

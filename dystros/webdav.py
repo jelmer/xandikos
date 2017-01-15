@@ -156,6 +156,18 @@ class DAVResourceTypeProperty(DAVProperty):
             ET.SubElement(el, rt)
 
 
+class DAVDisplayNameProperty(DAVProperty):
+    """Provides {DAV:}displayname.
+
+    https://tools.ietf.org/html/rfc4918, section 5.2
+    """
+
+    name = '{DAV:}displayname'
+
+    def populate(self, resource, el):
+        el.text = resource.get_displayname()
+
+
 class DAVCurrentUserPrincipalProperty(DAVProperty):
 
     name = '{DAV:}current-user-principal'
@@ -178,6 +190,10 @@ class DAVResource(object):
 
     # A list of resource type names (e.g. '{DAV:}collection')
     resource_types = []
+
+    def get_displayname(self, name):
+        """Get the resource display name."""
+        raise KeyError(name)
 
     def get_body(self):
         """Get resource contents.
