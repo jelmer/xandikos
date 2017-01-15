@@ -25,6 +25,7 @@ from xml.etree import ElementTree as ET
 from dystros.webdav import (
     DavResource,
     WebDAVApp,
+    WellknownResource,
     )
 
 
@@ -208,3 +209,18 @@ class WebTests(unittest.TestCase):
 <ns0:somethingelse /><ns0:somethingelse /></ns0:prop></ns0:propstat>\
 </ns0:response>\
 </ns0:multistatus>""")
+
+
+class WellknownResourceTests(unittest.TestCase):
+
+    def test_get_body(self):
+        r = WellknownResource('/some/root')
+        self.assertEqual(b'/some/root', b''.join(r.get_body()))
+
+    def test_propget(self):
+        r = WellknownResource('/some/root')
+        self.assertRaises(KeyError, r.propget, 'unknown-property')
+
+    def test_members(self):
+        r = WellknownResource('/some/root')
+        self.assertEqual([], r.members())

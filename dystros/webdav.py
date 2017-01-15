@@ -280,6 +280,46 @@ class DavEndpoint(Endpoint):
         return []
 
 
+class WellknownResource(DavResource):
+    """Resource for well known URLs.
+
+    See https://tools.ietf.org/html/rfc6764
+    """
+
+    def __init__(self, server_root):
+        self.server_root = server_root
+
+    def propget(self, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        return super(WellknownResource, self).propget(name)
+
+    def get_body(self):
+        return [self.server_root.encode(DEFAULT_ENCODING)]
+
+    def members(self):
+        return []
+
+
+class NonDavResource(DavResource):
+    """A non-DAV resource that is DAV enabled."""
+
+    def propget(self, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        if name == '{DAV:}resourcetype':
+            return ET.Element('{DAV:}resourcetype')
+        else:
+            return super(NonDavResource, self).propget(name)
+
+    def members(self):
+        return []
+
+
 class DebugEndpoint(Endpoint):
     """A simple endpoint implementation that dumps queries to stdout."""
 
@@ -298,7 +338,6 @@ class DebugEndpoint(Endpoint):
             print(environ['wsgi.input'].read(request_body_size))
         start_response('200 OK', [])
         return []
-
 
 
 class DavBackend(object):

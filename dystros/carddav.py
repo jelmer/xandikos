@@ -17,10 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from dystros.caldav import (
-    UserPrincipalResource,
-    CalendarSetResource,
-    )
+"""CardDAV support.
+"""
 
-import unittest
-
+WELLKNOWN_CARDDAV_PATH = "/.well-known/carddav"

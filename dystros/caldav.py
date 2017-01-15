@@ -29,53 +29,14 @@ from dystros.webdav import (
     )
 
 
-CALENDAR_HOME_SET = '/user/calendars/'
-CURRENT_USER_PRINCIPAL = '/user/'
-DEFAULT_ENCODING = 'utf-8'
-
-
-WELLKNOWN_DAV_PATHS = set(["/.well-known/caldav", "/.well-known/carddav"])
-
-
-class WellknownResource(DavResource):
-    """Resource for well known URLs."""
-
-    def __init__(self, server_root):
-        self.server_root = server_root
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        return super(WellknownResource, self).propget(name)
-
-    def get_body(self):
-        return [self.server_root.encode(DEFAULT_ENCODING)]
-
-    def members(self):
-        return []
-
-
-class NonDavResource(DavResource):
-    """A non-DAV resource that is DAV enabled."""
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        if name == '{DAV:}resourcetype':
-            return ET.Element('{DAV:}resourcetype')
-        else:
-            return super(NonDavResource, self).propget(name)
-
-    def members(self):
-        return []
+WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
 
 
 class UserPrincipalResource(DavResource):
-    """Resource for a user principal."""
+    """Resource for a user principal.
+
+    See https://tools.ietf.org/html/rfc5397
+    """
 
     def propget(self, name):
         """Get property with specified name.
@@ -124,36 +85,3 @@ class CalendarSetResource(DavResource):
 
     def members(self):
         return [('foo', Collection())]
-
-
-class CalDavBackend(DavBackend):
-
-    def get_resource(self, p):
-        if p in WELLKNOWN_DAV_PATHS:
-            r = WellknownResource("/")
-        elif p == "/":
-            return NonDavResource()
-        elif p == CURRENT_USER_PRINCIPAL:
-            return UserPrincipalResource()
-        elif p == CALENDAR_HOME_SET:
-            return CalendarSetResource()
-        else:
-            return None
-
-
-if __name__ == '__main__':
-    import optparse
-    import sys
-    parser = optparse.OptionParser()
-    parser.add_option("-l", "--listen_address", dest="listen_address",
-                      default="localhost",
-                      help="Binding IP address.")
-    parser.add_option("-p", "--port", dest="port", type=int,
-                      default=8000,
-                      help="Port to listen on.")
-    options, args = parser.parse_args(sys.argv)
-
-    from wsgiref.simple_server import make_server
-    app = WebDAVApp(CalDavBackend())
-    server = make_server(options.listen_address, options.port, app)
-    server.serve_forever()
