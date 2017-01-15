@@ -27,6 +27,7 @@ from xml.etree import ElementTree as ET
 
 from dystros.webdav import (
     DAVBackend,
+    DAVCollection,
     DAVProperty,
     DAVResource,
     WebDAVApp,
@@ -43,7 +44,7 @@ NAMESPACE = 'urn:ietf:params:xml:ns:caldav'
 
 class Calendar(DAVCollection):
 
-    resource_types = webdav.DAVCollection.resource_types + [caldav.CALENDAR_RESOURCE_TYPE]
+    resource_types = DAVCollection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self):
         raise NotImplementedError(self.get_calendar_description)
