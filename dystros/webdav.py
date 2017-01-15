@@ -155,6 +155,8 @@ class DAVResourceTypeProperty(DAVProperty):
 
     name = '{DAV:}resourcetype'
 
+    protected = True
+
     def populate(self, resource, el):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
