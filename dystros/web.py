@@ -103,6 +103,8 @@ class DystrosApp(webdav.WebDAVApp):
             webdav.DAVResourceTypeProperty(),
             webdav.DAVCurrentUserPrincipalProperty(CURRENT_USER_PRINCIPAL),
             webdav.DAVDisplayNameProperty(),
+            webdav.DAVGetETagProperty(),
+            webdav.DAVGetContentTypeProperty(),
             caldav.CalendarHomeSetProperty(CALENDAR_HOME_SET),
             carddav.AddressbookHomeSetProperty(ADDRESSBOOK_HOME_SET),
             caldav.CalendarDescriptionProperty(),

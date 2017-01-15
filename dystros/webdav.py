@@ -190,6 +190,19 @@ class DAVGetETagProperty(DAVProperty):
         el.text = resource.get_etag()
 
 
+class DAVGetContentTypeProperty(DAVProperty):
+    """Provides {DAV:}getcontenttype.
+
+    https://tools.ietf.org/html/rfc4918, section 13.5
+    """
+
+    name = '{DAV:}getcontenttype'
+    protected = True
+
+    def populate(self, resource, el):
+        el.text = resource.get_content_type()
+
+
 class DAVCurrentUserPrincipalProperty(DAVProperty):
 
     name = '{DAV:}current-user-principal'
@@ -216,6 +229,13 @@ class DAVResource(object):
     def get_displayname(self):
         """Get the resource display name."""
         raise KeyError(name)
+
+    def get_content_type(self):
+        """Get the content type for the resource.
+
+        This is a mime type like text/plain
+        """
+        raise NotImplementedError(self.get_content_type)
 
     def get_etag(self):
         """Get the etag for this resource.
