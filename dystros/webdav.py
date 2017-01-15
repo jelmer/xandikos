@@ -136,11 +136,12 @@ class DAVProperty(object):
     # https://tools.ietf.org/html/rfc4918, section 14.2
     in_allprops = True
 
-    def propget(self, resource):
+    def populate(self, resource, el):
         """Get property with specified name.
 
         :param resource: Resource for which to retrieve the property
-        :raise
+        :param el: Element to populate
+        :raise KeyError: if this property is not present
         """
         raise KeyError(name)
 
@@ -150,13 +151,9 @@ class DAVResourceTypeProperty(DAVProperty):
 
     name = '{DAV:}resourcetype'
 
-    def propget(self, resource, name):
-        if name != self.name:
-            raise KeyError(name)
-        ret = ET.Element(self.name)
+    def populate(self, resource, el):
         for rt in resource.resource_types:
-            ET.SubElement(ret, rt)
-        return ret
+            ET.SubElement(el, rt)
 
 
 class DAVCurrentUserPrincipalProperty(DAVProperty):
@@ -164,16 +161,12 @@ class DAVCurrentUserPrincipalProperty(DAVProperty):
     name = '{DAV:}current-user-principal'
     in_allprops = False
 
-    def propget(self, resource, name):
+    def populate(self, resource, el):
         """Get property with specified name.
 
         :param name: A property name.
         """
-        if name == self.name:
-            ret = ET.Element(self.name)
-            ET.SubElement(ret, '{DAV:}href').text = CURRENT_USER_PRINCIPAL
-            return ret
-        raise KeyError(name)
+        ET.SubElement(el, '{DAV:}href').text = CURRENT_USER_PRINCIPAL
 
 
 class DAVResource(object):
@@ -208,8 +201,8 @@ class DAVEndpoint(Endpoint):
 
     out_encoding = DEFAULT_ENCODING
 
-    def __init__(self, backend, resource):
-        self.backend = backend
+    def __init__(self, properties, resource):
+        self.properties = properties
         self.resource = resource
 
     def _readBody(self, environ):
@@ -294,11 +287,12 @@ class DAVEndpoint(Endpoint):
                 for propreq in list(requested):
                     propresp = ET.Element('{DAV:}prop')
                     responsedescription = None
+                    ret = ET.SubElement(propresp, propreq.tag)
                     try:
-                        propresp.append(resource.propget(propreq.tag))
+                        prop = self.properties[propreq.tag]
+                        prop.populate(self.resource, ret)
                     except KeyError:
                         statuscode = '404 Not Found'
-                        propresp.append(ET.SubElement(propresp, propreq.tag))
                     else:
                         statuscode = '200 OK'
                     propstat.append(
@@ -390,6 +384,11 @@ class WebDAVApp(object):
     """
     def __init__(self, backend):
         self.backend = backend
+        self.properties = {}
+
+    def register_properties(self, properties):
+        for p in properties:
+            self.properties[p.name] = p
 
     def __call__(self, environ, start_response):
         p = environ['PATH_INFO']
@@ -397,5 +396,5 @@ class WebDAVApp(object):
         if r is None:
             start_response('404 Not Found', [])
             return [b'Path ' + p.encode(DEFAULT_ENCODING) + b' not found.']
-        ep = DAVEndpoint(self.backend, r)
+        ep = DAVEndpoint(self.properties, r)
         return ep(environ, start_response)
