@@ -132,9 +132,13 @@ class DAVProperty(object):
 
     # Property name (e.g. '{DAV:}resourcetype')
     name = None
+
     # Whether to include this property in 'allprop' PROPFIND requests.
     # https://tools.ietf.org/html/rfc4918, section 14.2
     in_allprops = True
+
+    # Whether this property is protected (i.e. read-only)
+    protected = True
 
     def populate(self, resource, el):
         """Get property with specified name.
@@ -167,6 +171,22 @@ class DAVDisplayNameProperty(DAVProperty):
     def populate(self, resource, el):
         el.text = resource.get_displayname()
 
+    # TODO(jelmer): allow modification of this property
+    # protected = True
+
+
+class DAVGetETagProperty(DAVProperty):
+    """Provides {DAV:}getetag.
+
+    https://tools.ietf.org/html/rfc4918, section 15.6
+    """
+
+    name = '{DAV:}getetag'
+    protected = True
+
+    def populate(self, resource, el):
+        el.text = resource.get_etag()
+
 
 class DAVCurrentUserPrincipalProperty(DAVProperty):
 
@@ -191,9 +211,17 @@ class DAVResource(object):
     # A list of resource type names (e.g. '{DAV:}collection')
     resource_types = []
 
-    def get_displayname(self, name):
+    def get_displayname(self):
         """Get the resource display name."""
         raise KeyError(name)
+
+    def get_etag(self):
+        """Get the etag for this resource.
+
+        Contains the ETag header value (from Section 14.19 of [RFC2616]) as it
+        would be returned by a GET without accept headers.
+        """
+        raise NotImplementedError(self.get_etag)
 
     def get_body(self):
         """Get resource contents.
