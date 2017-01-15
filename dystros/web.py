@@ -110,7 +110,7 @@ class AddressbookSetResource(webdav.DAVCollection):
 class UserPrincipalResource(webdav.DAVCollection):
     """Principal user resource."""
 
-    resource_types = webdav.DAVCollection.resource_types + ['{DAV:}principal']
+    resource_types = webdav.DAVCollection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
 
     def members(self):
         return [('calendars', CalendarSetResource())]

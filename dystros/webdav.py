@@ -34,6 +34,7 @@ from xml.etree import ElementTree as ET
 
 DEFAULT_ENCODING = 'utf-8'
 COLLECTION_RESOURCE_TYPE = '{DAV:}collection'
+PRINCIPAL_RESOURCE_TYPE = '{DAV:}principal'
 
 
 PropStatus = collections.namedtuple(
