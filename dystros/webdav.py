@@ -32,8 +32,8 @@ from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
 
-CURRENT_USER_PRINCIPAL = '/user/'
 DEFAULT_ENCODING = 'utf-8'
+COLLECTION_RESOURCE_TYPE = '{DAV:}collection'
 
 
 PropStatus = collections.namedtuple(
@@ -143,7 +143,7 @@ class DAVProperty(object):
         :param el: Element to populate
         :raise KeyError: if this property is not present
         """
-        raise KeyError(name)
+        raise KeyError(self.name)
 
 
 class DAVResourceTypeProperty(DAVProperty):
@@ -161,12 +161,16 @@ class DAVCurrentUserPrincipalProperty(DAVProperty):
     name = '{DAV:}current-user-principal'
     in_allprops = False
 
+    def __init__(self, current_user_principal):
+        super(DAVCurrentUserPrincipalProperty, self).__init__()
+        self.current_user_principal = current_user_principal
+
     def populate(self, resource, el):
         """Get property with specified name.
 
         :param name: A property name.
         """
-        ET.SubElement(el, '{DAV:}href').text = CURRENT_USER_PRINCIPAL
+        ET.SubElement(el, '{DAV:}href').text = self.current_user_principal
 
 
 class DAVResource(object):
@@ -191,6 +195,8 @@ class DAVResource(object):
 
 class DAVCollection(DAVResource):
     """Resource for a WebDAV Collection."""
+
+    resource_types = DAVResource.resource_types + [COLLECTION_RESOURCE_TYPE]
 
     def members(self):
         raise NotImplementedError(self.members)
@@ -257,7 +263,7 @@ class DAVEndpoint(Endpoint):
             return iter([me])
         elif depth == "1":
             ret = [me]
-            if '{DAV:}collection' in self.resource:
+            if COLLECTION_RESOURCE_TYPE in self.resource.resource_types:
                 ret += [(urllib.parse.urljoin(base_href+'/', n), m)
                         for (n, m) in self.resource.members()]
             return iter(ret)
@@ -290,7 +296,7 @@ class DAVEndpoint(Endpoint):
                     ret = ET.SubElement(propresp, propreq.tag)
                     try:
                         prop = self.properties[propreq.tag]
-                        prop.populate(self.resource, ret)
+                        prop.populate(resource, ret)
                     except KeyError:
                         statuscode = '404 Not Found'
                     else:
@@ -335,17 +341,9 @@ class WellknownResource(DAVResource):
 
 
 class NonDAVResource(DAVResource):
-    """A non-DAV resource that is DAV enabled."""
+    """A non-DAV resource."""
 
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        if name == '{DAV:}resourcetype':
-            return ET.Element('{DAV:}resourcetype')
-        else:
-            return super(NonDAVResource, self).propget(name)
+    resource_types = []
 
 
 class DebugEndpoint(Endpoint):

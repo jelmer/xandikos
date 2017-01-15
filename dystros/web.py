@@ -24,35 +24,60 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
-from dystros import caldav, carddav
-from dystros.webdav import DAVBackend, WebDAVApp, NonDAVResource, WellknownResource
+from dystros import caldav, carddav, webdav
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 CALENDAR_HOME_SET = '/user/calendars/'
 CURRENT_USER_PRINCIPAL = '/user/'
 
 
-class DystrosBackend(DAVBackend):
+class CalendarResource(webdav.DAVCollection):
+
+    resource_types = webdav.DAVCollection.resource_types + [caldav.CALENDAR_RESOURCE_TYPE]
+
+
+class CalendarSetResource(webdav.DAVCollection):
+    """Resource for calendar sets."""
+
+    def members(self):
+        return [('foo', CalendarResource())]
+
+
+class UserPrincipalResource(webdav.DAVCollection):
+    """Principal user resource."""
+
+    resource_types = webdav.DAVCollection.resource_types + ['{DAV:}principal']
+
+    def members(self):
+        return [('calendars', CalendarSetResource())]
+
+
+class DystrosBackend(webdav.DAVBackend):
 
     def get_resource(self, p):
         if p in WELLKNOWN_DAV_PATHS:
-            r = WellknownResource("/")
+            return webdav.WellknownResource("/")
         elif p == "/":
-            return NonDAVResource()
+            return webdav.NonDAVResource()
         elif p == CURRENT_USER_PRINCIPAL:
-            return caldav.UserPrincipalResource()
+            return UserPrincipalResource()
         elif p == CALENDAR_HOME_SET:
-            return caldav.CalendarSetResource()
+            return CalendarSetResource()
         else:
             return None
 
 
-class DystrosApp(WebDAVApp):
+class DystrosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Dystros web server.
     """
 
     def __init__(self):
         super(DystrosApp, self).__init__(DystrosBackend())
+        self.register_properties([
+            webdav.DAVResourceTypeProperty(),
+            webdav.DAVCurrentUserPrincipalProperty(CURRENT_USER_PRINCIPAL),
+            caldav.CalendarHomeSetProperty(CALENDAR_HOME_SET),
+            ])
 
 
 if __name__ == '__main__':
