@@ -57,6 +57,7 @@ try:
     url = args[0]
 except IndexError:
     f = sys.stdin.buffer
+    url = None
 else:
     f = urllib.request.urlopen(url)
 
@@ -85,7 +86,8 @@ for (uid, ev) in items.items():
     fname = "%s-%s.ics" % (opts.prefix, uid.replace("/", ""))
     path = os.path.join(opts.outdir, fname)
     out = Calendar()
-    out['X-IMPORTED-FROM-URL'] = vUri(url)
+    if url is not None:
+        out['X-IMPORTED-FROM-URL'] = vUri(url)
     out.update(list(orig.items()))
     for c in other:
         out.add_component(c)
