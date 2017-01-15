@@ -29,6 +29,7 @@ from dystros.webdav import (
     DAVBackend,
     DAVCollection,
     DAVProperty,
+    DAVReporter,
     DAVResource,
     WebDAVApp,
     )
@@ -80,3 +81,11 @@ class CalendarDescriptionProperty(DAVProperty):
 
     # TODO(jelmer): allow modification of this property
     # protected = True
+
+
+class CalendarMultiGetReporter(DAVReporter):
+
+    name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
+
+    def report(self, body, items):
+        import pdb; pdb.set_trace()

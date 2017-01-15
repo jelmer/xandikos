@@ -268,13 +268,57 @@ class DAVCollection(DAVResource):
         raise NotImplementedError(self.members)
 
 
+def resolve_properties(href, resource, properties, requested):
+    """Resolve a set of properties.
+
+    :param href: href for the resource
+    :param resource: DAVResource object
+    :param properties: Dictionary of properties
+    :param requested: XML {DAV:}prop element with properties to look up
+    :return: Iterator over PropStatus items
+    """
+    for propreq in list(requested):
+        propresp = ET.Element('{DAV:}prop')
+        responsedescription = None
+        ret = ET.SubElement(propresp, propreq.tag)
+        try:
+            prop = properties[propreq.tag]
+            prop.populate(resource, ret)
+        except KeyError:
+            statuscode = '404 Not Found'
+        else:
+            statuscode = '200 OK'
+        yield PropStatus(statuscode, responsedescription, propresp)
+
+
+def traverse_resource(resource, depth, base_href):
+    """Traverse a resource.
+
+    :param resource: Resource to traverse from
+    :param depth: Depth ("0", "1", ...)
+    :param base_href: href for base resource
+    :return: Iterator over (URL, Resource) tuples
+    """
+    me = (base_href, resource)
+    if depth == "0":
+        return iter([me])
+    elif depth == "1":
+        ret = [me]
+        if COLLECTION_RESOURCE_TYPE in resource.resource_types:
+            ret += [(urllib.parse.urljoin(base_href+'/', n), m)
+                    for (n, m) in resource.members()]
+        return iter(ret)
+    raise NotImplementedError
+
+
 class DAVEndpoint(Endpoint):
     """A webdav-enabled endpoint."""
 
     out_encoding = DEFAULT_ENCODING
 
-    def __init__(self, properties, resource):
+    def __init__(self, properties, reporters, resource):
         self.properties = properties
+        self.reporters = reporters
         self.resource = resource
 
     def _readBody(self, environ):
@@ -301,15 +345,14 @@ class DAVEndpoint(Endpoint):
             return self._send_dav_responses(start_response, dav(environ))
 
     def _send_dav_responses(self, start_response, responses):
-        responses = list(responses)
-        if len(responses) == 1:
+        if not isinstance(responses, list):
             try:
-                (body, body_type) = responses[0].get_single_body(
+                (body, body_type) = responses.get_single_body(
                     self.out_encoding)
             except NeedsMultiStatus:
-                pass
+                responses = [responses]
             else:
-                start_response(responses[0].status, [
+                start_response(responses.status, [
                     ('Content-Type', body_type),
                     ('Content-Length', str(sum(map(len, body))))])
                 return body
@@ -323,17 +366,14 @@ class DAVEndpoint(Endpoint):
             ('Content-Length', str(sum(map(len, body))))])
         return body
 
-    def _browse(self, depth, base_href):
-        me = (base_href, self.resource)
-        if depth == "0":
-            return iter([me])
-        elif depth == "1":
-            ret = [me]
-            if COLLECTION_RESOURCE_TYPE in self.resource.resource_types:
-                ret += [(urllib.parse.urljoin(base_href+'/', n), m)
-                        for (n, m) in self.resource.members()]
-            return iter(ret)
-        raise NotImplementedError
+    def dav_REPORT(self, environ):
+        # See https://tools.ietf.org/html/rfc3253, section 3.6
+        depth = environ.get("HTTP_DEPTH", "0")
+        #TODO(jelmer): check Content-Type; should be something like
+        # 'text/xml; charset="utf-8"'
+        et = xmlparse(self._readBody(environ))
+        return list(self.reporters[et.tag].report(
+            et, self.properties, environ['PATH_INFO'], self.resource, depth))
 
     def dav_PROPFIND(self, environ):
         depth = environ.get("HTTP_DEPTH", "0")
@@ -342,41 +382,31 @@ class DAVEndpoint(Endpoint):
         et = xmlparse(self._readBody(environ))
         if et.tag != '{DAV:}propfind':
             # TODO-ERROR(jelmer): What to return here?
-            yield DAVStatus(
+            return DAVStatus(
                 environ['PATH_INFO'], '500 Internal Error',
                 'Expected propfind tag, got ' + et.tag)
-            return
         try:
             [requested] = et
         except IndexError:
-            yield DAVStatus(
+            return DAVStatus(
                 environ['PATH_INFO'], '500 Internal Error',
                 'Received more than one element in propfind.')
-            return
         if requested.tag == '{DAV:}prop':
-            for href, resource in self._browse(depth, environ['PATH_INFO']):
-                propstat = []
-                for propreq in list(requested):
-                    propresp = ET.Element('{DAV:}prop')
-                    responsedescription = None
-                    ret = ET.SubElement(propresp, propreq.tag)
-                    try:
-                        prop = self.properties[propreq.tag]
-                        prop.populate(resource, ret)
-                    except KeyError:
-                        statuscode = '404 Not Found'
-                    else:
-                        statuscode = '200 OK'
-                    propstat.append(
-                        PropStatus(statuscode, responsedescription, propresp))
-                yield DAVStatus(href, '200 OK', propstat=propstat)
+            ret = []
+            for href, resource in traverse_resource(
+                    self.resource, depth, environ['PATH_INFO']):
+                propstat = resolve_properties(
+                    href, resource, self.properties, requested)
+                ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
+            if len(ret) == 1:
+                return ret[0]
+            return ret
         else:
             # TODO(jelmer): implement allprop and propname
             # TODO-ERROR(jelmer): What to return here?
-            yield DAVStatus(
+            return DAVStatus(
                 environ['PATH_INFO'], '500 Internal Error',
                 'Expected prop tag, got ' + requested.tag)
-            return
 
     def do_GET(self, environ, start_response):
         start_response('200 OK', [])
@@ -391,6 +421,20 @@ class DAVEndpoint(Endpoint):
 
 class DAVReporter(object):
     """Implementation for DAV REPORT requests."""
+
+    name = None
+
+    def report(self, request_body, properties, href, resource, depth):
+        """Send a report.
+
+        :param request_body: XML Element for request body
+        :param properties: Dictionary mapping names to DAVProperty instances
+        :param href: Base resource href
+        :param resource: Resource to start from
+        :param depth: Depth ("0", "1", ...)
+        :return: Iterator over DAVStatus objects
+        """
+        raise NotImplementedError(self.report)
 
 
 class WellknownResource(DAVResource):
@@ -449,10 +493,15 @@ class WebDAVApp(object):
     def __init__(self, backend):
         self.backend = backend
         self.properties = {}
+        self.reporters = {}
 
     def register_properties(self, properties):
         for p in properties:
             self.properties[p.name] = p
+
+    def register_reporters(self, reporters):
+        for r in reporters:
+            self.reporters[r.name] = r
 
     def __call__(self, environ, start_response):
         p = environ['PATH_INFO']
@@ -460,5 +509,5 @@ class WebDAVApp(object):
         if r is None:
             start_response('404 Not Found', [])
             return [b'Path ' + p.encode(DEFAULT_ENCODING) + b' not found.']
-        ep = DAVEndpoint(self.properties, r)
+        ep = DAVEndpoint(self.properties, self.reporters, r)
         return ep(environ, start_response)

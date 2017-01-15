@@ -120,7 +120,7 @@ class WebTests(unittest.TestCase):
         app = self.makeApp({'/resource': TestResource()}, [])
         code, headers, contents = self.delete(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
-        self.assertIn(('Allow', 'GET, PUT, PROPFIND'), headers)
+        self.assertIn(('Allow', 'GET, PUT, PROPFIND, REPORT'), headers)
         self.assertEqual(b'', contents)
 
     def test_propfind_prop_does_not_exist(self):

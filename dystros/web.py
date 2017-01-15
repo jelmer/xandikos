@@ -131,6 +131,9 @@ class DystrosApp(webdav.WebDAVApp):
             carddav.AddressbookHomeSetProperty(ADDRESSBOOK_HOME_SET),
             caldav.CalendarDescriptionProperty(),
             ])
+        self.register_reporters([
+            caldav.CalendarMultiGetReporter(),
+            carddav.AddressbookMultiGetReporter()])
 
 
 if __name__ == '__main__':

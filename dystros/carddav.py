@@ -22,6 +22,7 @@
 https://tools.ietf.org/html/rfc6352
 """
 import defusedxml.ElementTree
+import urllib.parse
 from xml.etree import ElementTree as ET
 
 from dystros import webdav
@@ -47,3 +48,50 @@ class AddressbookHomeSetProperty(webdav.DAVProperty):
 
     def populate(self, resource, el):
         ET.SubElement(el, '{DAV:}href').text = self.addressbook_home_set
+
+
+class AddressDataProperty(webdav.DAVProperty):
+    """address-data property
+
+    See https://tools.ietf.org/html/rfc6352, section 10.4
+
+    Note that this is not technically a DAV property, and
+    it is thus not registered in the regular webdav server.
+    """
+
+    name = '{%s}address-data' % NAMESPACE
+
+    def populate(self, resource, el):
+        # TODO(jelmer): Support subproperties
+        # TODO(jelmer): Don't hardcode encoding
+        el.text = resource.get_body().decode('utf-8')
+
+
+class AddressbookMultiGetReporter(webdav.DAVReporter):
+
+    name = '{urn:ietf:params:xml:ns:carddav}addressbook-multiget'
+
+    def report(self, body, properties, base_href, resource, depth):
+        # TODO(jelmer): Verify that depth == "0"
+        # TODO(jelmer): Verify that resource is an addressbook
+        requested = None
+        hrefs = []
+        for el in body:
+            if el.tag == '{DAV:}prop':
+                requested = el
+            elif el.tag == '{DAV:}href':
+                hrefs.append(el.text)
+            else:
+                raise NotImplementedError(tag.name)
+        properties = dict(properties)
+        properties[AddressDataProperty.name] = AddressDataProperty()
+        # TODO(jelmer): Do this without traversing all members
+        for name, resource in resource.members():
+            href = urllib.parse.urljoin(base_href+'/', name)
+            if href in hrefs:
+                propstat = webdav.resolve_properties(
+                    href, resource, properties, requested)
+                yield webdav.DAVStatus(href, '200 OK', propstat=list(propstat))
+                hrefs.remove(href)
+        for href in hrefs:
+            yield webdav.DAVStatus(href, '404 Not Found', propstat=[])
