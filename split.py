@@ -107,8 +107,8 @@ for (uid, ev) in items.items():
         porcelain.add(opts.outdir, [str(fname)])
 
 if changed or added:
-    porcelain.commit(opts.outdir, 'Processing %s. Updated: %d, new: %d.' %
-                     (opts.prefix, changed, added))
+    message = 'Processing %s. Updated: %d, new: %d.' % (opts.prefix, changed, added)
+    porcelain.commit(opts.outdir, message.encode('utf-8'))
 
 logger.info('Processed %s. Seen %d, updated %d, new %d', opts.prefix,
              seen, changed, added)
