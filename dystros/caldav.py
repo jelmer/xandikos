@@ -24,6 +24,7 @@ from xml.etree import ElementTree as ET
 
 from dystros.webdav import (
     DAVBackend,
+    DAVProperty,
     DAVResource,
     WebDAVApp,
     )
@@ -32,56 +33,29 @@ from dystros.webdav import (
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
 
 
-class UserPrincipalResource(DAVResource):
-    """Resource for a user principal.
+class CalDAVHomeSetProperty(DAVProperty):
+    """calendar-home-set property
 
-    See https://tools.ietf.org/html/rfc5397
+    See https://www.ietf.org/rfc/rfc4791.txt, section 6.2.1.
     """
 
-    def propget(self, name):
+    name = '{urn:ietf:params:xml:ns:caldav}calendar-home-set'
+    in_allprops = False
+
+    def propget(self, resource, name):
         """Get property with specified name.
 
         :param name: A property name.
         """
-        if name == '{urn:ietf:params:xml:ns:caldav}calendar-home-set':
-            ret = ET.Element('{urn:ietf:params:xml:ns:caldav}calendar-home-set')
+        if name == self.name:
+            ret = ET.Element(self.name)
             ET.SubElement(ret, '{DAV:}href').text = CALENDAR_HOME_SET
             return ret
-        else:
-            return super(UserPrincipalResource, self).propget(name)
-
-
-class Collection(DAVResource):
-    """Resource for calendar sets."""
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        if name == '{DAV:}resourcetype':
-            ret = ET.Element('{DAV:}resourcetype')
-            ET.SubElement(ret, '{DAV:}collection')
-            return ret
-        return super(Collection, self).propget(name)
-
-    def members(self):
-        raise NotImplementedError(self.members)
+        raise KeyError
 
 
 class CalendarSetResource(DAVResource):
     """Resource for calendar sets."""
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        if name == '{DAV:}resourcetype':
-            ret = ET.Element('{DAV:}resourcetype')
-            ET.SubElement(ret, '{DAV:}collection')
-            return ret
-        return super(CalendarSetResource, self).propget(name)
 
     def members(self):
         return [('foo', Collection())]

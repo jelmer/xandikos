@@ -217,10 +217,6 @@ class WellknownResourceTests(unittest.TestCase):
         r = WellknownResource('/some/root')
         self.assertEqual(b'/some/root', b''.join(r.get_body()))
 
-    def test_propget(self):
+    def test_resource_types(self):
         r = WellknownResource('/some/root')
-        self.assertRaises(KeyError, r.propget, 'unknown-property')
-
-    def test_members(self):
-        r = WellknownResource('/some/root')
-        self.assertEqual([], r.members())
+        self.assertEqual([], r.resource_types)

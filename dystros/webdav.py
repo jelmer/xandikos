@@ -127,8 +127,60 @@ class Endpoint(object):
             return do(environ, start_response)
 
 
+class DAVProperty(object):
+    """Handler for listing, retrieving and updating DAV Properties."""
+
+    # Property name (e.g. '{DAV:}resourcetype')
+    name = None
+    # Whether to include this property in 'allprop' PROPFIND requests.
+    # https://tools.ietf.org/html/rfc4918, section 14.2
+    in_allprops = True
+
+    def propget(self, resource):
+        """Get property with specified name.
+
+        :param resource: Resource for which to retrieve the property
+        :raise
+        """
+        raise KeyError(name)
+
+
+class DAVResourceTypeProperty(DAVProperty):
+    """Provides {DAV:}resourcetype."""
+
+    name = '{DAV:}resourcetype'
+
+    def propget(self, resource, name):
+        if name != self.name:
+            raise KeyError(name)
+        ret = ET.Element(self.name)
+        for rt in resource.resource_types:
+            ET.SubElement(ret, rt)
+        return ret
+
+
+class DAVCurrentUserPrincipalProperty(DAVProperty):
+
+    name = '{DAV:}current-user-principal'
+    in_allprops = False
+
+    def propget(self, resource, name):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        if name == self.name:
+            ret = ET.Element(self.name)
+            ET.SubElement(ret, '{DAV:}href').text = CURRENT_USER_PRINCIPAL
+            return ret
+        raise KeyError(name)
+
+
 class DAVResource(object):
     """A WebDAV resource."""
+
+    # A list of resource type names (e.g. '{DAV:}collection')
+    resource_types = []
 
     def get_body(self):
         """Get resource contents.
@@ -143,24 +195,12 @@ class DAVResource(object):
         """
         raise NotImplementedError(self.set_body)
 
-    def proplist(self):
-        """List all properties."""
-        return []
+
+class DAVCollection(DAVResource):
+    """Resource for a WebDAV Collection."""
 
     def members(self):
-        """Return all child resources."""
         raise NotImplementedError(self.members)
-
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        if name == '{DAV:}current-user-principal':
-            ret = ET.Element('{DAV:}current-user-principal')
-            ET.SubElement(ret, '{DAV:}href').text = CURRENT_USER_PRINCIPAL
-            return ret
-        raise KeyError(name)
 
 
 class DAVEndpoint(Endpoint):
@@ -168,7 +208,8 @@ class DAVEndpoint(Endpoint):
 
     out_encoding = DEFAULT_ENCODING
 
-    def __init__(self, resource):
+    def __init__(self, backend, resource):
+        self.backend = backend
         self.resource = resource
 
     def _readBody(self, environ):
@@ -218,13 +259,15 @@ class DAVEndpoint(Endpoint):
         return body
 
     def _browse(self, depth, base_href):
+        me = (base_href, self.resource)
         if depth == "0":
-            return iter([(base_href, self.resource)])
+            return iter([me])
         elif depth == "1":
-            return iter(
-                [(base_href, self.resource)] +
-                [(urllib.parse.urljoin(base_href+'/', n), m)
-                    for (n, m) in self.resource.members()])
+            ret = [me]
+            if '{DAV:}collection' in self.resource:
+                ret += [(urllib.parse.urljoin(base_href+'/', n), m)
+                        for (n, m) in self.resource.members()]
+            return iter(ret)
         raise NotImplementedError
 
     def dav_PROPFIND(self, environ):
@@ -280,6 +323,10 @@ class DAVEndpoint(Endpoint):
         return []
 
 
+class DAVReporter(object):
+    """Implementation for DAV REPORT requests."""
+
+
 class WellknownResource(DAVResource):
     """Resource for well known URLs.
 
@@ -289,18 +336,8 @@ class WellknownResource(DAVResource):
     def __init__(self, server_root):
         self.server_root = server_root
 
-    def propget(self, name):
-        """Get property with specified name.
-
-        :param name: A property name.
-        """
-        return super(WellknownResource, self).propget(name)
-
     def get_body(self):
         return [self.server_root.encode(DEFAULT_ENCODING)]
-
-    def members(self):
-        return []
 
 
 class NonDAVResource(DAVResource):
@@ -315,9 +352,6 @@ class NonDAVResource(DAVResource):
             return ET.Element('{DAV:}resourcetype')
         else:
             return super(NonDAVResource, self).propget(name)
-
-    def members(self):
-        return []
 
 
 class DebugEndpoint(Endpoint):
@@ -363,5 +397,5 @@ class WebDAVApp(object):
         if r is None:
             start_response('404 Not Found', [])
             return [b'Path ' + p.encode(DEFAULT_ENCODING) + b' not found.']
-        ep = DAVEndpoint(r)
+        ep = DAVEndpoint(self.backend, r)
         return ep(environ, start_response)

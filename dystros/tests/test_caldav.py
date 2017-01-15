@@ -18,7 +18,6 @@
 # MA  02110-1301, USA.
 
 from dystros.caldav import (
-    UserPrincipalResource,
     CalendarSetResource,
     )
 
