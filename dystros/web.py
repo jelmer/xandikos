@@ -32,12 +32,13 @@ ADDRESSBOOK_HOME_SET = '/user/contacts/'
 CURRENT_USER_PRINCIPAL = '/user/'
 
 
-class CalendarResource(webdav.DAVCollection):
-
-    resource_types = webdav.DAVCollection.resource_types + [caldav.CALENDAR_RESOURCE_TYPE]
+class CalendarResource(caldav.Calendar):
 
     def get_displayname(self):
         return "A calendar resource"
+
+    def get_calendar_description(self):
+        return "A calendar"
 
 
 class AddressbookResource(webdav.DAVCollection):
@@ -104,6 +105,7 @@ class DystrosApp(webdav.WebDAVApp):
             webdav.DAVDisplayNameProperty(),
             caldav.CalendarHomeSetProperty(CALENDAR_HOME_SET),
             carddav.AddressbookHomeSetProperty(ADDRESSBOOK_HOME_SET),
+            caldav.CalendarDescriptionProperty(),
             ])
 
 

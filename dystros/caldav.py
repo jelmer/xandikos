@@ -38,6 +38,16 @@ WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
 # https://tools.ietf.org/html/rfc4791, section 4.2
 CALENDAR_RESOURCE_TYPE = '{urn:ietf:params:xml:ns:caldav}calendar'
 
+NAMESPACE = 'urn:ietf:params:xml:ns:caldav'
+
+
+class Calendar(DAVCollection):
+
+    resource_types = webdav.DAVCollection.resource_types + [caldav.CALENDAR_RESOURCE_TYPE]
+
+    def get_calendar_description(self):
+        raise NotImplementedError(self.get_calendar_description)
+
 
 class CalendarHomeSetProperty(DAVProperty):
     """calendar-home-set property
@@ -54,3 +64,18 @@ class CalendarHomeSetProperty(DAVProperty):
 
     def populate(self, resource, el):
         ET.SubElement(el, '{DAV:}href').text = self.calendar_home_set
+
+
+class CalendarDescriptionProperty(DAVProperty):
+    """Provides calendar-description property.
+
+    https://tools.ietf.org/html/rfc4791, section 5.2.1
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}calendar-description'
+
+    def populate(self, resource, el):
+        el.text = resource.get_calendar_description()
+
+    # TODO(jelmer): allow modification of this property
+    # protected = True
