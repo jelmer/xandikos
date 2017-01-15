@@ -4,3 +4,4 @@ build/
 .testrepository/
 MANIFEST
 .tox/
+.*.sw?
