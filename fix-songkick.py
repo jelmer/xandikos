@@ -41,8 +41,14 @@ logger.addHandler(ch)
 parser = optparse.OptionParser("fix-songkick")
 opts, args = parser.parse_args()
 
-url = args[0]
-orig = Calendar.from_ical(urllib.request.urlopen(url).read())
+try:
+    url = args[0]
+except IndexError:
+    f = sys.stdin.buffer
+else:
+    f = urllib.request.urlopen(url)
+
+orig = Calendar.from_ical(f.read())
 
 TRACKING_PREFIX = "You’re tracking this event.\n\n"
 GOING_PREFIX = "You’re going.\n\n"
@@ -70,4 +76,4 @@ for component in orig.subcomponents:
         component = fix_vevent(component)
     out.add_component(component)
 
-sys.stdout.write(out.to_ical())
+sys.stdout.buffer.write(out.to_ical())
