@@ -32,6 +32,19 @@ ADDRESSBOOK_HOME_SET = '/user/contacts/'
 CURRENT_USER_PRINCIPAL = '/user/'
 
 
+class AddressbookObjectResource(webdav.DAVResource):
+
+    def get_body(self):
+        return b"bla"
+
+    def get_content_type(self):
+        return "text/vcard"
+
+    def get_etag(self):
+        import hashlib
+        return hashlib.md5(self.get_body()).hexdigest()
+
+
 class CalendarResource(caldav.Calendar):
 
     def get_displayname(self):
@@ -45,8 +58,17 @@ class AddressbookResource(webdav.DAVCollection):
 
     resource_types = webdav.DAVCollection.resource_types + [carddav.ADDRESSBOOK_RESOURCE_TYPE]
 
+    def get_content_type(self):
+        raise KeyError
+
+    def get_etag(self):
+        raise KeyError
+
     def get_displayname(self):
         return "An addressbook resource"
+
+    def members(self):
+        return [("foo.vcf", AddressbookObjectResource())]
 
 
 class CalendarSetResource(webdav.DAVCollection):
