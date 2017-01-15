@@ -23,7 +23,7 @@ import defusedxml.ElementTree
 from xml.etree import ElementTree as ET
 
 from dystros.webdav import (
-    DavResource,
+    DAVResource,
     WebDAVApp,
     WellknownResource,
     )
@@ -89,7 +89,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual('404 Not Found', code)
 
     def test_get_body(self):
-        class TestResource(DavResource):
+        class TestResource(DAVResource):
 
             def get_body(self):
                 return [b'this is content']
@@ -100,7 +100,7 @@ class WebTests(unittest.TestCase):
 
     def test_set_body(self):
         new_body = []
-        class TestResource(DavResource):
+        class TestResource(DAVResource):
 
             def set_body(self, body):
                 new_body.extend(body)
@@ -112,7 +112,7 @@ class WebTests(unittest.TestCase):
 
     def test_delete_not_allowed(self):
         # TODO(jelmer): Implement DELETE
-        class TestResource(DavResource):
+        class TestResource(DAVResource):
             pass
         app = self.makeApp({'/resource': TestResource()})
         code, headers, contents = self.delete(app, '/resource')
@@ -121,7 +121,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(b'', contents)
 
     def test_propfind_prop_does_not_exist(self):
-        class TestResource(DavResource):
+        class TestResource(DAVResource):
 
             def propget(self, name):
                 raise KeyError
@@ -136,7 +136,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(code, '200 OK')
 
     def test_propfind_found(self):
-        class TestResource(DavResource):
+        class TestResource(DAVResource):
 
             def propget(self, name):
                 if name == '{DAV:}current-user-principal':
@@ -156,7 +156,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(code, '200 OK')
 
     def test_propfind_found_multi(self):
-        class TestResource(DavResource):
+        class TestResource(DAVResource):
 
             def propget(self, name):
                 if name == '{DAV:}current-user-principal':
@@ -182,7 +182,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(code, '200 OK')
 
     def test_propfind_found_multi_status(self):
-        class TestResource(DavResource):
+        class TestResource(DAVResource):
 
             def propget(self, name):
                 if name == '{DAV:}current-user-principal':

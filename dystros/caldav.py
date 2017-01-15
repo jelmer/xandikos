@@ -23,8 +23,8 @@ import defusedxml.ElementTree
 from xml.etree import ElementTree as ET
 
 from dystros.webdav import (
-    DavBackend,
-    DavResource,
+    DAVBackend,
+    DAVResource,
     WebDAVApp,
     )
 
@@ -32,7 +32,7 @@ from dystros.webdav import (
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
 
 
-class UserPrincipalResource(DavResource):
+class UserPrincipalResource(DAVResource):
     """Resource for a user principal.
 
     See https://tools.ietf.org/html/rfc5397
@@ -51,7 +51,7 @@ class UserPrincipalResource(DavResource):
             return super(UserPrincipalResource, self).propget(name)
 
 
-class Collection(DavResource):
+class Collection(DAVResource):
     """Resource for calendar sets."""
 
     def propget(self, name):
@@ -69,7 +69,7 @@ class Collection(DavResource):
         raise NotImplementedError(self.members)
 
 
-class CalendarSetResource(DavResource):
+class CalendarSetResource(DAVResource):
     """Resource for calendar sets."""
 
     def propget(self, name):

@@ -44,7 +44,7 @@ class NeedsMultiStatus(Exception):
     """Raised when a response needs multi-status (e.g. for propstat)."""
 
 
-class DavStatus(object):
+class DAVStatus(object):
     """A DAV response that can be used in multi-status."""
 
     def __init__(self, href, status, error=None, responsedescription=None,
@@ -127,7 +127,7 @@ class Endpoint(object):
             return do(environ, start_response)
 
 
-class DavResource(object):
+class DAVResource(object):
     """A WebDAV resource."""
 
     def get_body(self):
@@ -163,7 +163,7 @@ class DavResource(object):
         raise KeyError(name)
 
 
-class DavEndpoint(Endpoint):
+class DAVEndpoint(Endpoint):
     """A webdav-enabled endpoint."""
 
     out_encoding = DEFAULT_ENCODING
@@ -182,7 +182,7 @@ class DavEndpoint(Endpoint):
     @property
     def allowed_methods(self):
         """List of supported methods on this endpoint."""
-        return (super(DavEndpoint, self).allowed_methods +
+        return (super(DAVEndpoint, self).allowed_methods +
                 [n[4:] for n in dir(self) if n.startswith('dav_')])
 
     def __call__(self, environ, start_response):
@@ -190,7 +190,7 @@ class DavEndpoint(Endpoint):
         try:
             dav = getattr(self, 'dav_' + method)
         except AttributeError:
-            return super(DavEndpoint, self).__call__(environ, start_response)
+            return super(DAVEndpoint, self).__call__(environ, start_response)
         else:
             return self._send_dav_responses(start_response, dav(environ))
 
@@ -234,14 +234,14 @@ class DavEndpoint(Endpoint):
         et = xmlparse(self._readBody(environ))
         if et.tag != '{DAV:}propfind':
             # TODO-ERROR(jelmer): What to return here?
-            yield DavStatus(
+            yield DAVStatus(
                 environ['PATH_INFO'], '500 Internal Error',
                 'Expected propfind tag, got ' + et.tag)
             return
         try:
             [requested] = et
         except IndexError:
-            yield DavStatus(
+            yield DAVStatus(
                 environ['PATH_INFO'], '500 Internal Error',
                 'Received more than one element in propfind.')
             return
@@ -260,11 +260,11 @@ class DavEndpoint(Endpoint):
                         statuscode = '200 OK'
                     propstat.append(
                         PropStatus(statuscode, responsedescription, propresp))
-                yield DavStatus(href, '200 OK', propstat=propstat)
+                yield DAVStatus(href, '200 OK', propstat=propstat)
         else:
             # TODO(jelmer): implement allprop and propname
             # TODO-ERROR(jelmer): What to return here?
-            yield DavStatus(
+            yield DAVStatus(
                 environ['PATH_INFO'], '500 Internal Error',
                 'Expected prop tag, got ' + requested.tag)
             return
@@ -280,7 +280,7 @@ class DavEndpoint(Endpoint):
         return []
 
 
-class WellknownResource(DavResource):
+class WellknownResource(DAVResource):
     """Resource for well known URLs.
 
     See https://tools.ietf.org/html/rfc6764
@@ -303,7 +303,7 @@ class WellknownResource(DavResource):
         return []
 
 
-class NonDavResource(DavResource):
+class NonDAVResource(DAVResource):
     """A non-DAV resource that is DAV enabled."""
 
     def propget(self, name):
@@ -314,7 +314,7 @@ class NonDavResource(DavResource):
         if name == '{DAV:}resourcetype':
             return ET.Element('{DAV:}resourcetype')
         else:
-            return super(NonDavResource, self).propget(name)
+            return super(NonDAVResource, self).propget(name)
 
     def members(self):
         return []
@@ -340,7 +340,7 @@ class DebugEndpoint(Endpoint):
         return []
 
 
-class DavBackend(object):
+class DAVBackend(object):
     """WebDAV backend."""
 
     def get_resoure(self, relpath):
@@ -351,7 +351,7 @@ class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
     A concrete implementation should provide an implementation of the
-    lookup_resource function that can map a path to a DavResource object
+    lookup_resource function that can map a path to a DAVResource object
     (returning None for nonexistant objects).
     """
     def __init__(self, backend):
@@ -363,5 +363,5 @@ class WebDAVApp(object):
         if r is None:
             start_response('404 Not Found', [])
             return [b'Path ' + p.encode(DEFAULT_ENCODING) + b' not found.']
-        ep = DavEndpoint(r)
+        ep = DAVEndpoint(r)
         return ep(environ, start_response)

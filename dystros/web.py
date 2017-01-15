@@ -25,20 +25,20 @@ the carddav support, the caldav support and the DAV store.
 """
 
 from dystros import caldav, carddav
-from dystros.webdav import DavBackend, WebDAVApp, NonDavResource, WellknownResource
+from dystros.webdav import DAVBackend, WebDAVApp, NonDAVResource, WellknownResource
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 CALENDAR_HOME_SET = '/user/calendars/'
 CURRENT_USER_PRINCIPAL = '/user/'
 
 
-class DystrosBackend(DavBackend):
+class DystrosBackend(DAVBackend):
 
     def get_resource(self, p):
         if p in WELLKNOWN_DAV_PATHS:
             r = WellknownResource("/")
         elif p == "/":
-            return NonDavResource()
+            return NonDAVResource()
         elif p == CURRENT_USER_PRINCIPAL:
             return caldav.UserPrincipalResource()
         elif p == CALENDAR_HOME_SET:
