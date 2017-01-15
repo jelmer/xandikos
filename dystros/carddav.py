@@ -22,10 +22,9 @@
 https://tools.ietf.org/html/rfc6352
 """
 import defusedxml.ElementTree
-import urllib.parse
 from xml.etree import ElementTree as ET
 
-from dystros import webdav
+from dystros import davcommon, webdav
 
 WELLKNOWN_CARDDAV_PATH = "/.well-known/carddav"
 
@@ -67,31 +66,9 @@ class AddressDataProperty(webdav.DAVProperty):
         el.text = resource.get_body().decode('utf-8')
 
 
-class AddressbookMultiGetReporter(webdav.DAVReporter):
+class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
 
     name = '{urn:ietf:params:xml:ns:carddav}addressbook-multiget'
 
-    def report(self, body, properties, base_href, resource, depth):
-        # TODO(jelmer): Verify that depth == "0"
-        # TODO(jelmer): Verify that resource is an addressbook
-        requested = None
-        hrefs = []
-        for el in body:
-            if el.tag == '{DAV:}prop':
-                requested = el
-            elif el.tag == '{DAV:}href':
-                hrefs.append(el.text)
-            else:
-                raise NotImplementedError(tag.name)
-        properties = dict(properties)
-        properties[AddressDataProperty.name] = AddressDataProperty()
-        # TODO(jelmer): Do this without traversing all members
-        for name, resource in resource.members():
-            href = urllib.parse.urljoin(base_href+'/', name)
-            if href in hrefs:
-                propstat = webdav.resolve_properties(
-                    href, resource, properties, requested)
-                yield webdav.DAVStatus(href, '200 OK', propstat=list(propstat))
-                hrefs.remove(href)
-        for href in hrefs:
-            yield webdav.DAVStatus(href, '404 Not Found', propstat=[])
+    data_property_kls = AddressDataProperty
+

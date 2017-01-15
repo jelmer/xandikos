@@ -345,7 +345,7 @@ class DAVEndpoint(Endpoint):
             return self._send_dav_responses(start_response, dav(environ))
 
     def _send_dav_responses(self, start_response, responses):
-        if not isinstance(responses, list):
+        if isinstance(responses, DAVStatus):
             try:
                 (body, body_type) = responses.get_single_body(
                     self.out_encoding)
@@ -372,8 +372,8 @@ class DAVEndpoint(Endpoint):
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
         et = xmlparse(self._readBody(environ))
-        return list(self.reporters[et.tag].report(
-            et, self.properties, environ['PATH_INFO'], self.resource, depth))
+        return self.reporters[et.tag].report(
+            et, self.properties, environ['PATH_INFO'], self.resource, depth)
 
     def dav_PROPFIND(self, environ):
         depth = environ.get("HTTP_DEPTH", "0")
@@ -399,6 +399,7 @@ class DAVEndpoint(Endpoint):
                     href, resource, self.properties, requested)
                 ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
             if len(ret) == 1:
+                # Allow non-207 responses
                 return ret[0]
             return ret
         else:

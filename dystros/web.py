@@ -45,6 +45,19 @@ class AddressbookObjectResource(webdav.DAVResource):
         return hashlib.md5(self.get_body()).hexdigest()
 
 
+class CalendarObjectResource(webdav.DAVResource):
+
+    def get_body(self):
+        return b"bla"
+
+    def get_content_type(self):
+        return "text/calendar"
+
+    def get_etag(self):
+        import hashlib
+        return hashlib.md5(self.get_body()).hexdigest()
+
+
 class CalendarResource(caldav.Calendar):
 
     def get_displayname(self):
@@ -52,6 +65,15 @@ class CalendarResource(caldav.Calendar):
 
     def get_calendar_description(self):
         return "A calendar"
+
+    def get_content_type(self):
+        raise KeyError
+
+    def get_etag(self):
+        raise KeyError
+
+    def members(self):
+        return [('foo.ics', CalendarObjectResource())]
 
 
 class AddressbookResource(webdav.DAVCollection):

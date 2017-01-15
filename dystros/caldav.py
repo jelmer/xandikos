@@ -25,6 +25,7 @@ https://tools.ietf.org/html/rfc4791
 import defusedxml.ElementTree
 from xml.etree import ElementTree as ET
 
+from dystros import davcommon
 from dystros.webdav import (
     DAVBackend,
     DAVCollection,
@@ -85,7 +86,30 @@ class CalendarDescriptionProperty(DAVProperty):
 
 class CalendarMultiGetReporter(DAVReporter):
 
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
 
     def report(self, body, items):
         import pdb; pdb.set_trace()
+
+
+class CalendarDataProperty(DAVProperty):
+    """calendar-data property
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.4
+
+    Note that this is not technically a DAV property, and
+    it is thus not registered in the regular webdav server.
+    """
+
+    name = '{%s}calendar-data' % NAMESPACE
+
+    def populate(self, resource, el):
+        # TODO(jelmer): Support subproperties
+        # TODO(jelmer): Don't hardcode encoding
+        el.text = resource.get_body().decode('utf-8')
+
+
+class CalendarMultiGetReporter(davcommon.MultiGetReporter):
+
+    name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
+
+    data_property_kls = CalendarDataProperty
