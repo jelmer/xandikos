@@ -24,8 +24,16 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
-from dystros import caldav, carddav, webdav
-from dystros.store import GitStore
+import os
+
+from dystros import caldav, carddav, utils, webdav
+from dystros.store import (
+    GitStore,
+    NotStoreError,
+    STORE_TYPE_ADDRESSBOOK,
+    STORE_TYPE_CALENDAR,
+    STORE_TYPE_OTHER,
+    )
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 CALENDAR_HOME_SET = '/user/calendars/'
@@ -36,12 +44,15 @@ CURRENT_USER_PRINCIPAL = '/user/'
 class AddressbookObjectResource(webdav.DAVResource):
 
     def get_body(self):
+        # TODO
         return b"bla"
 
     def get_content_type(self):
+        # TODO
         return "text/vcard"
 
     def get_etag(self):
+        # TODO
         import hashlib
         return hashlib.md5(self.get_body()).hexdigest()
 
@@ -49,14 +60,24 @@ class AddressbookObjectResource(webdav.DAVResource):
 class CalendarObjectResource(webdav.DAVResource):
 
     def get_body(self):
+        # TODO
         return b"bla"
 
     def get_content_type(self):
+        # TODO
         return "text/calendar"
 
     def get_etag(self):
+        # TODO
         import hashlib
         return hashlib.md5(self.get_body()).hexdigest()
+
+
+class Collection(caldav.Calendar):
+    """A generic WebDAV collection."""
+
+    def __init__(self, store):
+        self.store = store
 
 
 class CalendarResource(caldav.Calendar):
@@ -65,18 +86,23 @@ class CalendarResource(caldav.Calendar):
         self.store = store
 
     def get_displayname(self):
+        # TODO
         return "A calendar resource"
 
     def get_calendar_description(self):
+        # TODO
         return "A calendar"
 
     def get_content_type(self):
+        # TODO
         raise KeyError
 
     def get_etag(self):
+        # TODO
         raise KeyError
 
     def members(self):
+        # TODO
         return [('foo.ics', CalendarObjectResource())]
 
 
@@ -88,16 +114,39 @@ class AddressbookResource(webdav.DAVCollection):
         self.store = store
 
     def get_content_type(self):
+        # TODO
         raise KeyError
 
     def get_etag(self):
+        # TODO
         raise KeyError
 
     def get_displayname(self):
+        # TODO
         return "An addressbook resource"
 
     def members(self):
+        # TODO
         return [("foo.vcf", AddressbookObjectResource())]
+
+
+def open_from_path(p):
+    """Open a WebDAV collection from a file path.
+
+    :param p: Absolute filesystem path
+    :return: A Resource object, or None
+    """
+    try:
+        store = GitStore.open_from_path(p)
+    except NotStoreError:
+        return CollectionSetResource(p)
+    else:
+        if store.get_type() == STORE_TYPE_ADDRESSBOOK:
+            return AddressbookResource(store)
+        elif store.get_type() == STORE_TYPE_CALENDAR:
+            return CalendarResource(store)
+        else:
+            return Collection(store)
 
 
 class CollectionSetResource(webdav.DAVCollection):
@@ -110,25 +159,15 @@ class CollectionSetResource(webdav.DAVCollection):
         ret = []
         for name in os.listdir(self.path):
             p = os.path.join(self.path, name)
-            try:
-                store = GitStore.open_from_path(p)
-            except NotStoreError:
-                resource = CollectionSetResource(p)
-            else:
-                resource = AddressbookResource(store)
+            resource = open_from_path(p)
             ret.append((name, resource))
         return ret
 
 
-class UserPrincipalResource(webdav.DAVCollection):
+class UserPrincipalResource(CollectionSetResource):
     """Principal user resource."""
 
     resource_types = webdav.DAVCollection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
-
-    def members(self):
-        return [
-            ('calendars', CalendarSetResource()),
-            ('contacts', AddressbookSetResource())]
 
 
 class DystrosBackend(webdav.DAVBackend):
@@ -136,31 +175,25 @@ class DystrosBackend(webdav.DAVBackend):
     def __init__(self, path):
         self.path = path
 
-    def get_resource(self, p):
-        if p in WELLKNOWN_DAV_PATHS:
-            return webdav.WellknownResource("/")
-        elif p == "/":
+    def get_resource(self, relpath):
+        if relpath in WELLKNOWN_DAV_PATHS:
+            return webdav.WellknownResource('/')
+        elif relpath == '/':
             return webdav.NonDAVResource()
-        elif p == CURRENT_USER_PRINCIPAL:
-            return UserPrincipalResource()
-        elif p == CALENDAR_HOME_SET:
-            return CalendarSetResource()
-        elif p == ADDRESSBOOK_HOME_SET:
-            return AddressbookSetResource()
-        elif p == ADDRESSBOOK_HOME_SET + 'foo/':
-            return AddressbookResource()
-        elif p == CALENDAR_HOME_SET + 'foo/':
-            return CalendarResource()
         else:
-            return None
+            p = os.path.join(self.path, relpath.lstrip('/'))
+            try:
+                return open_from_path(p)
+            except NotStoreError:
+                return None
 
 
 class DystrosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Dystros web server.
     """
 
-    def __init__(self):
-        super(DystrosApp, self).__init__(DystrosBackend())
+    def __init__(self, path):
+        super(DystrosApp, self).__init__(DystrosBackend(path))
         self.register_properties([
             webdav.DAVResourceTypeProperty(),
             webdav.DAVCurrentUserPrincipalProperty(CURRENT_USER_PRINCIPAL),
@@ -183,12 +216,15 @@ if __name__ == '__main__':
     parser.add_option("-l", "--listen_address", dest="listen_address",
                       default="localhost",
                       help="Binding IP address.")
+    parser.add_option("-d", "--directory", dest="directory",
+                      default=utils.DEFAULT_PATH,
+                      help="Default path to serve from.")
     parser.add_option("-p", "--port", dest="port", type=int,
                       default=8000,
                       help="Port to listen on.")
     options, args = parser.parse_args(sys.argv)
 
     from wsgiref.simple_server import make_server
-    app = DystrosApp()
+    app = DystrosApp(options.directory)
     server = make_server(options.listen_address, options.port, app)
     server.serve_forever()

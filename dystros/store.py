@@ -30,6 +30,14 @@ import dulwich.repo
 
 _DEFAULT_COMMITTER_IDENTITY = b'Dystros <dystros>'
 ICALENDAR_EXTENSION = b'.ics'
+VCARD_EXTENSION = b'.vcf'
+
+STORE_TYPE_ADDRESSBOOK = 'addressbook'
+STORE_TYPE_CALENDAR = 'calendar'
+STORE_TYPE_OTHER = 'other'
+
+
+DEFAULT_ENCODING = 'utf-8'
 
 
 logger = logging.getLogger(__name__)
@@ -155,6 +163,19 @@ class Store(object):
         :return: (name, etag) tuple
         """
         raise NotImplementedError(self.lookup_uid)
+
+    def get_type(self):
+        """Get type of this store.
+
+        :return: one of [STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR, STORE_TYPE_OTHER]
+        """
+        ret = STORE_TYPE_OTHER
+        for (name, etag) in self.iter_with_etag():
+            if name.endswith(ICALENDAR_EXTENSION):
+                ret = STORE_TYPE_CALENDAR
+            elif name.endswith(VCARD_EXTENSION):
+                ret = STORE_TYPE_ADDRESSBOOK
+        return ret
 
 
 class GitStore(Store):
@@ -286,7 +307,7 @@ class BareGitStore(GitStore):
         for (name, mode, sha) in tree.iteritems():
             if not name.endswith(ICALENDAR_EXTENSION):
                 continue
-            yield (name.decode('utf-8'), mode, sha)
+            yield (name.decode(DEFAULT_ENCODING), mode, sha)
 
     @classmethod
     def create_memory(cls):
@@ -318,7 +339,7 @@ class BareGitStore(GitStore):
         # TODO(jelmer): Verify that 'data' actually represents a valid calendar
         b = Blob.from_string(data)
         tree = self._get_current_tree()
-        name_enc = name.encode('utf-8')
+        name_enc = name.encode(DEFAULT_ENCODING)
         tree[name_enc] = (0o644|stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
         self._commit_tree(tree.id, b"Add " + name_enc)
@@ -333,11 +354,11 @@ class BareGitStore(GitStore):
         :raise InvalidETag: If the specified ETag doesn't match the curren
         """
         tree = self._get_current_tree()
-        name_enc = name.encode('utf-8')
+        name_enc = name.encode(DEFAULT_ENCODING)
         if not name_enc in tree:
             raise NoSuchItem(name)
         if etag is not None:
-            current_etag = tree[name.encode('utf-8')][1]
+            current_etag = tree[name.encode(DEFAULT_ENCODING)][1]
             if current_etag != etag:
                 raise InvalidETag(name, etag, current_etag)
         del tree[name_enc]
@@ -387,8 +408,8 @@ class TreeGitStore(GitStore):
         with open(p, 'wb') as f:
             f.write(data)
         self.repo.stage(name)
-        etag = self.repo.open_index()[name.encode('utf-8')].sha
-        message = b'Add ' + name.encode('utf-8')
+        etag = self.repo.open_index()[name.encode(DEFAULT_ENCODING)].sha
+        message = b'Add ' + name.encode(DEFAULT_ENCODING)
         return etag
 
     def delete_one(self, name, etag=None):
@@ -424,7 +445,7 @@ class TreeGitStore(GitStore):
         for (name, sha, mode) in index.iterblobs():
             if not name.endswith(ICALENDAR_EXTENSION):
                 continue
-            yield (name.decode('utf-8'), mode, sha)
+            yield (name.decode(DEFAULT_ENCODING), mode, sha)
 
 
 class StoreSet(object):
