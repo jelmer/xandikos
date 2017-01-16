@@ -82,6 +82,13 @@ class InvalidETag(Exception):
         self.got_etag = got_etag
 
 
+class NotStoreError(Exception):
+    """Not a store."""
+
+    def __init__(self, path):
+        self.path = path
+
+
 class Store(object):
     """A ICalendar/vCard store."""
 
@@ -239,7 +246,10 @@ class GitStore(Store):
         :param path: Path
         :return: A `GitStore`
         """
-        return cls.open(dulwich.repo.Repo(path))
+        try:
+            return cls.open(dulwich.repo.Repo(path))
+        except dulwich.repo.NotGitRepository:
+            raise NotStoreError(path)
 
     @classmethod
     def open(cls, repo):

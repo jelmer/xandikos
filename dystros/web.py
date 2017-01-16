@@ -25,6 +25,7 @@ the carddav support, the caldav support and the DAV store.
 """
 
 from dystros import caldav, carddav, webdav
+from dystros.store import GitStore
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 CALENDAR_HOME_SET = '/user/calendars/'
@@ -60,6 +61,9 @@ class CalendarObjectResource(webdav.DAVResource):
 
 class CalendarResource(caldav.Calendar):
 
+    def __init__(self, store):
+        self.store = store
+
     def get_displayname(self):
         return "A calendar resource"
 
@@ -80,6 +84,9 @@ class AddressbookResource(webdav.DAVCollection):
 
     resource_types = webdav.DAVCollection.resource_types + [carddav.ADDRESSBOOK_RESOURCE_TYPE]
 
+    def __init__(self, store):
+        self.store = store
+
     def get_content_type(self):
         raise KeyError
 
@@ -93,18 +100,24 @@ class AddressbookResource(webdav.DAVCollection):
         return [("foo.vcf", AddressbookObjectResource())]
 
 
-class CalendarSetResource(webdav.DAVCollection):
+class CollectionSetResource(webdav.DAVCollection):
     """Resource for calendar sets."""
 
-    def members(self):
-        return [('foo', CalendarResource())]
-
-
-class AddressbookSetResource(webdav.DAVCollection):
-    """Resource for addressbook sets."""
+    def __init__(self, path):
+        self.path = path
 
     def members(self):
-        return [('foo', AddressbookResource())]
+        ret = []
+        for name in os.listdir(self.path):
+            p = os.path.join(self.path, name)
+            try:
+                store = GitStore.open_from_path(p)
+            except NotStoreError:
+                resource = CollectionSetResource(p)
+            else:
+                resource = AddressbookResource(store)
+            ret.append((name, resource))
+        return ret
 
 
 class UserPrincipalResource(webdav.DAVCollection):
@@ -113,10 +126,15 @@ class UserPrincipalResource(webdav.DAVCollection):
     resource_types = webdav.DAVCollection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
 
     def members(self):
-        return [('calendars', CalendarSetResource())]
+        return [
+            ('calendars', CalendarSetResource()),
+            ('contacts', AddressbookSetResource())]
 
 
 class DystrosBackend(webdav.DAVBackend):
+
+    def __init__(self, path):
+        self.path = path
 
     def get_resource(self, p):
         if p in WELLKNOWN_DAV_PATHS:
