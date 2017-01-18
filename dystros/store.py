@@ -29,8 +29,8 @@ from dulwich.objects import Blob, Tree
 import dulwich.repo
 
 _DEFAULT_COMMITTER_IDENTITY = b'Dystros <dystros>'
-ICALENDAR_EXTENSION = b'.ics'
-VCARD_EXTENSION = b'.vcf'
+ICALENDAR_EXTENSION = '.ics'
+VCARD_EXTENSION = '.vcf'
 
 STORE_TYPE_ADDRESSBOOK = 'addressbook'
 STORE_TYPE_CALENDAR = 'calendar'
@@ -305,9 +305,10 @@ class BareGitStore(GitStore):
     def _iterblobs(self):
         tree = self._get_current_tree()
         for (name, mode, sha) in tree.iteritems():
+            name = name.decode(DEFAULT_ENCODING)
             if not name.endswith(ICALENDAR_EXTENSION):
                 continue
-            yield (name.decode(DEFAULT_ENCODING), mode, sha)
+            yield (name, mode, sha)
 
     @classmethod
     def create_memory(cls):
@@ -443,9 +444,10 @@ class TreeGitStore(GitStore):
         """
         index = self.repo.open_index()
         for (name, sha, mode) in index.iterblobs():
+            name = name.decode(DEFAULT_ENCODING)
             if not name.endswith(ICALENDAR_EXTENSION):
                 continue
-            yield (name.decode(DEFAULT_ENCODING), mode, sha)
+            yield (name, mode, sha)
 
 
 class StoreSet(object):
