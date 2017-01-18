@@ -72,3 +72,12 @@ class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
 
     data_property_kls = AddressDataProperty
 
+
+class Addressbook(webdav.DAVCollection):
+
+    resource_types = (
+        webdav.DAVCollection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE])
+
+    def get_addressbook_description(self):
+        raise NotImplementedError(self.get_addressbook_description)
+

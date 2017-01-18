@@ -106,7 +106,7 @@ class CalendarResource(caldav.Calendar):
         return [('foo.ics', CalendarObjectResource())]
 
 
-class AddressbookResource(webdav.DAVCollection):
+class AddressbookResource(carddav.Addressbook):
 
     resource_types = webdav.DAVCollection.resource_types + [carddav.ADDRESSBOOK_RESOURCE_TYPE]
 
@@ -124,6 +124,10 @@ class AddressbookResource(webdav.DAVCollection):
     def get_displayname(self):
         # TODO
         return "An addressbook resource"
+
+    def get_addressbook_description(self):
+        # TODO
+        raise KeyError
 
     def members(self):
         # TODO

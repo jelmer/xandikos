@@ -84,13 +84,6 @@ class CalendarDescriptionProperty(DAVProperty):
     # protected = True
 
 
-class CalendarMultiGetReporter(DAVReporter):
-
-
-    def report(self, body, items):
-        import pdb; pdb.set_trace()
-
-
 class CalendarDataProperty(DAVProperty):
     """calendar-data property
 
