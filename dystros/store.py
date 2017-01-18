@@ -210,7 +210,7 @@ class GitStore(Store):
             raise NameExists(name)
 
     def _get_blob(self, sha):
-        return self.repo.object_store[sha]
+        return self.repo.object_store[sha.encode('ascii')]
 
     def get_raw(self, name, etag):
         """Get the raw contents of a calendar.
@@ -223,21 +223,22 @@ class GitStore(Store):
     def _scan_ids(self):
         removed = set(self._fname_to_uid.keys())
         for (name, mode, sha) in self._iterblobs():
+            etag = sha.decode('ascii')
             if name in removed:
                 removed.remove(name)
             if (name in self._fname_to_uid and
-                self._fname_to_uid[name][0] == sha):
+                self._fname_to_uid[name][0] == etag):
                 continue
-            blob = self._get_blob(sha)
+            blob = self._get_blob(etag)
             try:
                 uid = ExtractUID(blob.data)
             except KeyError:
                 logger.warning('No UID found in file %s', name)
                 uid = None
-            self._fname_to_uid[name] = (sha, uid)
-            self._uid_to_fname[uid] = (name, sha)
+            self._fname_to_uid[name] = (etag, uid)
+            self._uid_to_fname[uid] = (name, etag)
         for name in removed:
-            (sha, uid) = self._fname_to_uid[name]
+            (unused_etag, uid) = self._fname_to_uid[name]
             del self._uid_to_fname[uid]
             del self._fname_to_uid[name]
 
@@ -250,7 +251,7 @@ class GitStore(Store):
         :yield: (name, etag) tuples
         """
         for (name, mode, sha) in self._iterblobs():
-            yield (name, sha)
+            yield (name, sha.decode('ascii'))
 
     @classmethod
     def create(cls, path):
@@ -300,7 +301,7 @@ class BareGitStore(GitStore):
 
     def get_ctag(self):
         """Return the ctag for this store."""
-        return self._get_current_tree().id
+        return self._get_current_tree().id.decode('ascii')
 
     def _iterblobs(self):
         tree = self._get_current_tree()
@@ -344,7 +345,7 @@ class BareGitStore(GitStore):
         tree[name_enc] = (0o644|stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
         self._commit_tree(tree.id, b"Add " + name_enc)
-        return b.id
+        return b.id.decode('ascii')
 
     def delete_one(self, name, etag=None):
         """Delete an item.
@@ -359,9 +360,9 @@ class BareGitStore(GitStore):
         if not name_enc in tree:
             raise NoSuchItem(name)
         if etag is not None:
-            current_etag = tree[name.encode(DEFAULT_ENCODING)][1]
-            if current_etag != etag:
-                raise InvalidETag(name, etag, current_etag)
+            current_sha = tree[name.encode(DEFAULT_ENCODING)][1]
+            if current_sha != etag.encode('ascii'):
+                raise InvalidETag(name, etag, current_sha.decode('ascii'))
         del tree[name_enc]
         self.repo.object_store.add_objects([(tree, '')])
         self._commit_tree(tree.id, b"Add " + name_enc)
@@ -411,7 +412,7 @@ class TreeGitStore(GitStore):
         self.repo.stage(name)
         etag = self.repo.open_index()[name.encode(DEFAULT_ENCODING)].sha
         message = b'Add ' + name.encode(DEFAULT_ENCODING)
-        return etag
+        return etag.decode('ascii')
 
     def delete_one(self, name, etag=None):
         """Delete an item.
@@ -427,15 +428,15 @@ class TreeGitStore(GitStore):
         if etag is not None:
             with open(p, 'rb') as f:
                 current_etag = Blob.from_string(f.read()).id
-            if etag != current_etag:
-                raise InvalidETag(name, etag, current_etag)
+            if etag.encode('ascii') != current_etag:
+                raise InvalidETag(name, etag, current_etag.decode('ascii'))
         os.unlink(p)
         self.repo.stage(name)
 
     def get_ctag(self):
         """Return the ctag for this store."""
         index = self.repo.open_index()
-        return index.commit(self.repo.object_store)
+        return index.commit(self.repo.object_store).decode('ascii')
 
     def _iterblobs(self):
         """Iterate over all items in the store with etag.

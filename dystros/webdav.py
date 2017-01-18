@@ -26,6 +26,7 @@ functionality should live in dystros.caldav/dystros.carddav respectively.
 # TODO(jelmer): Add authorization support
 
 import collections
+import logging
 import urllib.parse
 
 from defusedxml.ElementTree import fromstring as xmlparse
@@ -284,11 +285,18 @@ def resolve_properties(href, resource, properties, requested):
         ret = ET.SubElement(propresp, propreq.tag)
         try:
             prop = properties[propreq.tag]
-            prop.populate(resource, ret)
         except KeyError:
             statuscode = '404 Not Found'
+            logging.warning(
+                'Client requested unknown property %s',
+                propreq.tag)
         else:
-            statuscode = '200 OK'
+            try:
+                prop.populate(resource, ret)
+            except KeyError:
+                statuscode = '404 Not Found'
+            else:
+                statuscode = '200 OK'
         yield PropStatus(statuscode, responsedescription, propresp)
 
 
@@ -341,9 +349,10 @@ class DAVEndpoint(Endpoint):
         try:
             dav = getattr(self, 'dav_' + method)
         except AttributeError:
-            return super(DAVEndpoint, self).__call__(environ, start_response)
+            pass
         else:
             return self._send_dav_responses(start_response, dav(environ))
+        return super(DAVEndpoint, self).__call__(environ, start_response)
 
     def _send_dav_responses(self, start_response, responses):
         if isinstance(responses, DAVStatus):

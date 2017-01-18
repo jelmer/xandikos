@@ -41,36 +41,25 @@ ADDRESSBOOK_HOME_SET = '/user/contacts/'
 CURRENT_USER_PRINCIPAL = '/user/'
 
 
-class AddressbookObjectResource(webdav.DAVResource):
+class ObjectResource(webdav.DAVResource):
+    """Object resource."""
+
+    def __init__(self, data, etag, content_type):
+        self.data = data
+        self.etag = etag
+        self.content_type = content_type
 
     def get_body(self):
-        # TODO
-        return b"bla"
+        return self.data
+
+    def set_body(self, data):
+        pass # TODO
 
     def get_content_type(self):
-        # TODO
-        return "text/vcard"
+        return self.content_type
 
     def get_etag(self):
-        # TODO
-        import hashlib
-        return hashlib.md5(self.get_body()).hexdigest()
-
-
-class CalendarObjectResource(webdav.DAVResource):
-
-    def get_body(self):
-        # TODO
-        return b"bla"
-
-    def get_content_type(self):
-        # TODO
-        return "text/calendar"
-
-    def get_etag(self):
-        # TODO
-        import hashlib
-        return hashlib.md5(self.get_body()).hexdigest()
+        return self.etag
 
 
 class Collection(caldav.Calendar):
@@ -95,15 +84,16 @@ class CalendarResource(caldav.Calendar):
 
     def get_content_type(self):
         # TODO
-        raise KeyError
+        return 'text/calendar'
 
     def get_etag(self):
-        # TODO
-        raise KeyError
+        return self.store.get_ctag()
 
     def members(self):
-        # TODO
-        return [('foo.ics', CalendarObjectResource())]
+        ret = []
+        for (name, etag, data) in self.store.iter_raw():
+            ret.append((name, ObjectResource(data, etag, 'text/calendar')))
+        return ret
 
 
 class AddressbookResource(carddav.Addressbook):
@@ -118,8 +108,7 @@ class AddressbookResource(carddav.Addressbook):
         raise KeyError
 
     def get_etag(self):
-        # TODO
-        raise KeyError
+        return self.store.get_ctag()
 
     def get_displayname(self):
         # TODO
@@ -130,8 +119,10 @@ class AddressbookResource(carddav.Addressbook):
         raise KeyError
 
     def members(self):
-        # TODO
-        return [("foo.vcf", AddressbookObjectResource())]
+        ret = []
+        for (name, etag, data) in self.store.iter_raw():
+            ret.append((name, ObjectResource(data, etag, 'text/vcard')))
+        return ret
 
 
 def open_from_path(p):
@@ -140,17 +131,25 @@ def open_from_path(p):
     :param p: Absolute filesystem path
     :return: A Resource object, or None
     """
-    try:
-        store = GitStore.open_from_path(p)
-    except NotStoreError:
-        return CollectionSetResource(p)
-    else:
-        if store.get_type() == STORE_TYPE_ADDRESSBOOK:
-            return AddressbookResource(store)
-        elif store.get_type() == STORE_TYPE_CALENDAR:
-            return CalendarResource(store)
+    if os.path.isdir(p):
+        try:
+            store = GitStore.open_from_path(p)
+        except NotStoreError:
+            return CollectionSetResource(p)
         else:
-            return Collection(store)
+            if store.get_type() == STORE_TYPE_ADDRESSBOOK:
+                return AddressbookResource(store)
+            elif store.get_type() == STORE_TYPE_CALENDAR:
+                return CalendarResource(store)
+            else:
+                return Collection(store)
+    else:
+        store = open_from_path(os.path.dirname(p))
+        for name, resource in store.members():
+            if name == os.path.basename(p):
+                return resource
+        else:
+            return None
 
 
 class CollectionSetResource(webdav.DAVCollection):

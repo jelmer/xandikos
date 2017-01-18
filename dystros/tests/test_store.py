@@ -84,7 +84,7 @@ class BaseStoreTest(object):
     def test_import_one(self):
         gc = self.create_store()
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertIsInstance(etag, bytes)
+        self.assertIsInstance(etag, str)
         self.assertEqual([('foo.ics', etag)], list(gc.iter_with_etag()))
 
     def test_import_one_duplicate_uid(self):
@@ -133,7 +133,7 @@ class BaseStoreTest(object):
             gc.get_raw('bar.ics', etag2))
         self.assertRaises(
             KeyError,
-            gc.get_raw, 'missing.ics', b'01' * 20)
+            gc.get_raw, 'missing.ics', '01' * 20)
 
     def test_iter_calendars_extension(self):
         gc = self.create_store()
@@ -218,7 +218,8 @@ class BaseGitStoreTest(BaseStoreTest):
         bid = self.add_blob(gc, 'foo.ics', EXAMPLE_VCALENDAR1)
         self.assertEqual([('foo.ics', bid)], list(gc.iter_with_etag()))
         self.assertEqual(
-            ('foo.ics', bid), gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
+            ('foo.ics', bid),
+            gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
 
 
 class GitStoreTest(unittest.TestCase):
@@ -263,13 +264,15 @@ class BareGitStoreTest(BaseGitStoreTest,unittest.TestCase):
         c.message = b'do something'
         gc.repo.object_store.add_objects([(b, None), (t, None), (c, None)])
         gc.repo[gc.ref] = c.id
-        return b.id
+        return b.id.decode('ascii')
 
     def test_get_ctag(self):
         gc = self.create_store()
-        self.assertEqual(Tree().id, gc.get_ctag())
+        self.assertEqual(Tree().id.decode('ascii'), gc.get_ctag())
         self.add_blob(gc, 'foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertEqual(gc._get_current_tree().id, gc.get_ctag())
+        self.assertEqual(
+            gc._get_current_tree().id.decode('ascii'),
+            gc.get_ctag())
 
 
 class TreeGitStoreTest(BaseGitStoreTest,unittest.TestCase):
@@ -285,7 +288,7 @@ class TreeGitStoreTest(BaseGitStoreTest,unittest.TestCase):
         with open(os.path.join(gc.repo.path, name), 'wb') as f:
             f.write(contents)
         gc.repo.stage(name.encode('utf-8'))
-        return Blob.from_string(contents).id
+        return Blob.from_string(contents).id.decode('ascii')
 
 
 class ExtractUIDTests(unittest.TestCase):

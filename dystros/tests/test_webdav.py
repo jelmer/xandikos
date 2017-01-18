@@ -18,6 +18,7 @@
 # MA  02110-1301, USA.
 
 from io import BytesIO
+import logging
 import unittest
 import defusedxml.ElementTree
 from xml.etree import ElementTree as ET
@@ -31,6 +32,11 @@ from dystros.webdav import (
 
 
 class WebTests(unittest.TestCase):
+
+    def setUp(self):
+        super(WebTests, self).setUp()
+        logging.disable(logging.WARNING)
+        self.addCleanup(logging.disable, logging.NOTSET)
 
     def makeApp(self, resources, properties):
         class Backend(object):
