@@ -24,6 +24,7 @@ import defusedxml.ElementTree
 from xml.etree import ElementTree as ET
 
 from dystros.webdav import (
+    DAVCollection,
     DAVProperty,
     DAVResource,
     WebDAVApp,
@@ -44,6 +45,16 @@ class WebTests(unittest.TestCase):
         app = WebDAVApp(Backend())
         app.register_properties(properties)
         return app
+
+    def mkcol(self, app, path):
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL'}
+        _code = []
+        _headers = []
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+        contents = b''.join(app(environ, start_response))
+        return _code[0], _headers, contents
 
     def delete(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'DELETE'}
@@ -119,15 +130,33 @@ class WebTests(unittest.TestCase):
         self.assertEqual('200 OK', code)
         self.assertEqual([b'New contents'], new_body)
 
-    def test_delete_not_allowed(self):
-        # TODO(jelmer): Implement DELETE
+    def test_mkcol_not_allowed(self):
         class TestResource(DAVResource):
             pass
         app = self.makeApp({'/resource': TestResource()}, [])
-        code, headers, contents = self.delete(app, '/resource')
+        code, headers, contents = self.mkcol(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
-        self.assertIn(('Allow', 'GET, PUT, PROPFIND, REPORT'), headers)
+        self.assertIn(('Allow', 'DELETE, GET, PUT, PROPFIND, REPORT'), headers)
         self.assertEqual(b'', contents)
+
+    def test_delete(self):
+        class TestResource(DAVCollection):
+
+            def delete_member(unused_self, name):
+                self.assertEqual(name, 'resource')
+        app = self.makeApp({'/': TestResource()}, [])
+        code, headers, contents = self.delete(app, '/resource')
+        self.assertEqual('200 OK', code)
+        self.assertEqual(b'', contents)
+
+    def test_delete_not_found(self):
+        class TestResource(DAVCollection):
+            pass
+
+        app = self.makeApp({'/resource': TestResource()}, [])
+        code, headers, contents = self.delete(app, '/resource')
+        self.assertEqual('404 Not Found', code)
+        self.assertEqual(b'Path /resource not found.', contents)
 
     def test_propfind_prop_does_not_exist(self):
         app = self.makeApp({'/resource': DAVResource()}, [])

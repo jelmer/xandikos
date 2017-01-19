@@ -95,6 +95,9 @@ class CalendarResource(caldav.Calendar):
             ret.append((name, ObjectResource(data, etag, 'text/calendar')))
         return ret
 
+    def delete_member(self, name, etag=None):
+        self.store.delete_one(name, etag)
+
 
 class AddressbookResource(carddav.Addressbook):
 
@@ -123,6 +126,9 @@ class AddressbookResource(carddav.Addressbook):
         for (name, etag, data) in self.store.iter_raw():
             ret.append((name, ObjectResource(data, etag, 'text/vcard')))
         return ret
+
+    def delete_member(self, name, etag=None):
+        self.store.delete_one(name, etag)
 
 
 def open_from_path(p):

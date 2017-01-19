@@ -27,6 +27,7 @@ functionality should live in dystros.caldav/dystros.carddav respectively.
 
 import collections
 import logging
+import posixpath
 import urllib.parse
 
 from defusedxml.ElementTree import fromstring as xmlparse
@@ -249,6 +250,15 @@ class DAVCollection(DAVResource):
     def members(self):
         raise NotImplementedError(self.members)
 
+    def delete_member(self, name, etag=None):
+        """Delete a member with a specific name.
+
+        :param name: Member name
+        :param etag: Optional required etag
+        :raise KeyError: when the item doesn't exist
+        """
+        raise NotImplementedError(self.delete_member)
+
 
 def resolve_properties(href, resource, properties, requested):
     """Resolve a set of properties.
@@ -389,12 +399,21 @@ class WebDAVApp(object):
         start_response('200 OK', [])
         return r.get_body()
 
+    def do_DELETE(self, environ, start_response):
+        container_path, item_name = posixpath.split(environ['PATH_INFO'])
+        r = self.backend.get_resource(container_path)
+        if r is None:
+            return self._send_not_found(environ, start_response)
+        r.delete_member(item_name)
+        start_response('200 OK', [])
+        return []
+
     def do_PUT(self, environ, start_response):
         new_contents = self._readBody(environ)
-        start_response('200 OK', [])
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
             return self._send_not_found(environ, start_response)
+        start_response('200 OK', [])
         r.set_body([new_contents])
         return []
 
