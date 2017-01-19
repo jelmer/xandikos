@@ -300,118 +300,6 @@ def traverse_resource(resource, depth, base_href):
     raise NotImplementedError
 
 
-class DAVEndpoint(object):
-    """A webdav-enabled endpoint."""
-
-    out_encoding = DEFAULT_ENCODING
-
-    def __init__(self, properties, reporters, resource):
-        self.properties = properties
-        self.reporters = reporters
-        self.resource = resource
-
-    @property
-    def allowed_methods(self):
-        """List of supported methods on this endpoint."""
-        return ([n[3:] for n in dir(self) if n.startswith('do_')] +
-                [n[4:] for n in dir(self) if n.startswith('dav_')])
-
-    def _readBody(self, environ):
-        try:
-            request_body_size = int(environ['CONTENT_LENGTH'])
-        except KeyError:
-            return environ['wsgi.input'].read()
-        else:
-            return environ['wsgi.input'].read(request_body_size)
-
-    def __call__(self, environ, start_response):
-        method = environ['REQUEST_METHOD']
-        dav = getattr(self, 'dav_' + method, None)
-        if dav is not None:
-            return self._send_dav_responses(start_response, dav(environ))
-        do = getattr(self, 'do_' + method, None)
-        if do is not None:
-            return do(environ, start_response)
-        start_response('405 Method Not Allowed', [
-            ('Allow', ', '.join(self.allowed_methods))])
-        return []
-
-    def _send_dav_responses(self, start_response, responses):
-        if isinstance(responses, DAVStatus):
-            try:
-                (body, body_type) = responses.get_single_body(
-                    self.out_encoding)
-            except NeedsMultiStatus:
-                responses = [responses]
-            else:
-                start_response(responses.status, [
-                    ('Content-Type', body_type),
-                    ('Content-Length', str(sum(map(len, body))))])
-                return body
-        ret = ET.Element('{DAV:}multistatus')
-        for response in responses:
-            ret.append(response.aselement())
-        body_type = 'text/xml; charset="%s"' % self.out_encoding
-        body = ET.tostringlist(ret, encoding=self.out_encoding)
-        start_response('207 Multi-Status', [
-            ('Content-Type', body_type),
-            ('Content-Length', str(sum(map(len, body))))])
-        return body
-
-    def dav_REPORT(self, environ):
-        # See https://tools.ietf.org/html/rfc3253, section 3.6
-        depth = environ.get("HTTP_DEPTH", "0")
-        #TODO(jelmer): check Content-Type; should be something like
-        # 'text/xml; charset="utf-8"'
-        et = xmlparse(self._readBody(environ))
-        return self.reporters[et.tag].report(
-            et, self.properties, environ['PATH_INFO'], self.resource, depth)
-
-    def dav_PROPFIND(self, environ):
-        depth = environ.get("HTTP_DEPTH", "0")
-        #TODO(jelmer): check Content-Type; should be something like
-        # 'text/xml; charset="utf-8"'
-        et = xmlparse(self._readBody(environ))
-        if et.tag != '{DAV:}propfind':
-            # TODO-ERROR(jelmer): What to return here?
-            return DAVStatus(
-                environ['PATH_INFO'], '500 Internal Error',
-                'Expected propfind tag, got ' + et.tag)
-        try:
-            [requested] = et
-        except IndexError:
-            return DAVStatus(
-                environ['PATH_INFO'], '500 Internal Error',
-                'Received more than one element in propfind.')
-        if requested.tag == '{DAV:}prop':
-            ret = []
-            for href, resource in traverse_resource(
-                    self.resource, depth, environ['PATH_INFO']):
-                propstat = resolve_properties(
-                    href, resource, self.properties, requested)
-                ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
-            if len(ret) == 1:
-                # Allow non-207 responses
-                return ret[0]
-            return ret
-        else:
-            # TODO(jelmer): implement allprop and propname
-            # TODO-ERROR(jelmer): What to return here?
-            return DAVStatus(
-                environ['PATH_INFO'], '500 Internal Error',
-                'Expected prop tag, got ' + requested.tag)
-
-    def do_GET(self, environ, start_response):
-        start_response('200 OK', [])
-        return self.resource.get_body()
-
-    def do_PUT(self, environ, start_response):
-        new_contents = self._readBody(environ)
-        start_response('200 OK', [])
-        self.resource.set_body([new_contents])
-        return []
-
-
 class DAVReporter(object):
     """Implementation for DAV REPORT requests."""
 
@@ -463,6 +351,9 @@ class WebDAVApp(object):
     lookup_resource function that can map a path to a DAVResource object
     (returning None for nonexistant objects).
     """
+
+    out_encoding = DEFAULT_ENCODING
+
     def __init__(self, backend):
         self.backend = backend
         self.properties = {}
@@ -476,11 +367,123 @@ class WebDAVApp(object):
         for r in reporters:
             self.reporters[r.name] = r
 
+    def _get_allowed_methods(self, environ):
+        """List of supported methods on this endpoint."""
+        return ([n[3:] for n in dir(self) if n.startswith('do_')] +
+                [n[4:] for n in dir(self) if n.startswith('dav_')])
+
+    def _send_not_found(self, environ, start_response):
+        path = environ['PATH_INFO']
+        start_response('404 Not Found', [])
+        return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
+
+    def _send_method_not_allowed(self, environ, start_response):
+        start_response('405 Method Not Allowed', [
+            ('Allow', ', '.join(self._get_allowed_methods(environ)))])
+        return []
+
+    def do_GET(self, environ, start_response):
+        r = self.backend.get_resource(environ['PATH_INFO'])
+        if r is None:
+            return self._send_not_found(environ, start_response)
+        start_response('200 OK', [])
+        return r.get_body()
+
+    def do_PUT(self, environ, start_response):
+        new_contents = self._readBody(environ)
+        start_response('200 OK', [])
+        r = self.backend.get_resource(environ['PATH_INFO'])
+        if r is None:
+            return self._send_not_found(environ, start_response)
+        r.set_body([new_contents])
+        return []
+
+    def _readBody(self, environ):
+        try:
+            request_body_size = int(environ['CONTENT_LENGTH'])
+        except KeyError:
+            return environ['wsgi.input'].read()
+        else:
+            return environ['wsgi.input'].read(request_body_size)
+
+    def _send_dav_responses(self, start_response, responses):
+        if isinstance(responses, DAVStatus):
+            try:
+                (body, body_type) = responses.get_single_body(
+                    self.out_encoding)
+            except NeedsMultiStatus:
+                responses = [responses]
+            else:
+                start_response(responses.status, [
+                    ('Content-Type', body_type),
+                    ('Content-Length', str(sum(map(len, body))))])
+                return body
+        ret = ET.Element('{DAV:}multistatus')
+        for response in responses:
+            ret.append(response.aselement())
+        body_type = 'text/xml; charset="%s"' % self.out_encoding
+        body = ET.tostringlist(ret, encoding=self.out_encoding)
+        start_response('207 Multi-Status', [
+            ('Content-Type', body_type),
+            ('Content-Length', str(sum(map(len, body))))])
+        return body
+
+    def dav_REPORT(self, environ):
+        # See https://tools.ietf.org/html/rfc3253, section 3.6
+        r = self.backend.get_resource(environ['PATH_INFO'])
+        if r is None:
+            return self._send_not_found(environ, start_response)
+        depth = environ.get("HTTP_DEPTH", "0")
+        #TODO(jelmer): check Content-Type; should be something like
+        # 'text/xml; charset="utf-8"'
+        et = xmlparse(self._readBody(environ))
+        return self.reporters[et.tag].report(
+            et, self.properties, environ['PATH_INFO'], r, depth)
+
+    def dav_PROPFIND(self, environ):
+        base_resource = self.backend.get_resource(environ['PATH_INFO'])
+        if base_resource is None:
+            return self._send_not_found(environ, start_response)
+        depth = environ.get("HTTP_DEPTH", "0")
+        #TODO(jelmer): check Content-Type; should be something like
+        # 'text/xml; charset="utf-8"'
+        et = xmlparse(self._readBody(environ))
+        if et.tag != '{DAV:}propfind':
+            # TODO-ERROR(jelmer): What to return here?
+            return DAVStatus(
+                environ['PATH_INFO'], '500 Internal Error',
+                'Expected propfind tag, got ' + et.tag)
+        try:
+            [requested] = et
+        except IndexError:
+            return DAVStatus(
+                environ['PATH_INFO'], '500 Internal Error',
+                'Received more than one element in propfind.')
+        if requested.tag == '{DAV:}prop':
+            ret = []
+            for href, resource in traverse_resource(
+                    base_resource, depth, environ['PATH_INFO']):
+                propstat = resolve_properties(
+                    href, resource, self.properties, requested)
+                ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
+            if len(ret) == 1:
+                # Allow non-207 responses
+                return ret[0]
+            return ret
+        else:
+            # TODO(jelmer): implement allprop and propname
+            # TODO-ERROR(jelmer): What to return here?
+            return DAVStatus(
+                environ['PATH_INFO'], '500 Internal Error',
+                'Expected prop tag, got ' + requested.tag)
+
     def __call__(self, environ, start_response):
         p = environ['PATH_INFO']
-        r = self.backend.get_resource(p)
-        if r is None:
-            start_response('404 Not Found', [])
-            return [b'Path ' + p.encode(DEFAULT_ENCODING) + b' not found.']
-        ep = DAVEndpoint(self.properties, self.reporters, r)
-        return ep(environ, start_response)
+        method = environ['REQUEST_METHOD']
+        dav = getattr(self, 'dav_' + method, None)
+        if dav is not None:
+            return self._send_dav_responses(start_response, dav(environ))
+        do = getattr(self, 'do_' + method, None)
+        if do is not None:
+            return do(environ, start_response)
+        return self._send_method_not_allowed(environ, start_response)
