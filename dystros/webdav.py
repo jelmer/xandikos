@@ -109,26 +109,6 @@ class DAVStatus(object):
         return ret
 
 
-class Endpoint(object):
-    """Endpoint."""
-
-    @property
-    def allowed_methods(self):
-        """List of supported methods on this endpoint."""
-        return [n[3:] for n in dir(self) if n.startswith('do_')]
-
-    def __call__(self, environ, start_response):
-        method = environ['REQUEST_METHOD']
-        try:
-            do = getattr(self, 'do_' + method)
-        except AttributeError:
-            start_response('405 Method Not Allowed', [
-                ('Allow', ', '.join(self.allowed_methods))])
-            return []
-        else:
-            return do(environ, start_response)
-
-
 class DAVProperty(object):
     """Handler for listing, retrieving and updating DAV Properties."""
 
@@ -320,7 +300,7 @@ def traverse_resource(resource, depth, base_href):
     raise NotImplementedError
 
 
-class DAVEndpoint(Endpoint):
+class DAVEndpoint(object):
     """A webdav-enabled endpoint."""
 
     out_encoding = DEFAULT_ENCODING
@@ -330,6 +310,12 @@ class DAVEndpoint(Endpoint):
         self.reporters = reporters
         self.resource = resource
 
+    @property
+    def allowed_methods(self):
+        """List of supported methods on this endpoint."""
+        return ([n[3:] for n in dir(self) if n.startswith('do_')] +
+                [n[4:] for n in dir(self) if n.startswith('dav_')])
+
     def _readBody(self, environ):
         try:
             request_body_size = int(environ['CONTENT_LENGTH'])
@@ -338,21 +324,17 @@ class DAVEndpoint(Endpoint):
         else:
             return environ['wsgi.input'].read(request_body_size)
 
-    @property
-    def allowed_methods(self):
-        """List of supported methods on this endpoint."""
-        return (super(DAVEndpoint, self).allowed_methods +
-                [n[4:] for n in dir(self) if n.startswith('dav_')])
-
     def __call__(self, environ, start_response):
         method = environ['REQUEST_METHOD']
-        try:
-            dav = getattr(self, 'dav_' + method)
-        except AttributeError:
-            pass
-        else:
+        dav = getattr(self, 'dav_' + method, None)
+        if dav is not None:
             return self._send_dav_responses(start_response, dav(environ))
-        return super(DAVEndpoint, self).__call__(environ, start_response)
+        do = getattr(self, 'do_' + method, None)
+        if do is not None:
+            return do(environ, start_response)
+        start_response('405 Method Not Allowed', [
+            ('Allow', ', '.join(self.allowed_methods))])
+        return []
 
     def _send_dav_responses(self, start_response, responses):
         if isinstance(responses, DAVStatus):
@@ -465,26 +447,6 @@ class NonDAVResource(DAVResource):
     """A non-DAV resource."""
 
     resource_types = []
-
-
-class DebugEndpoint(Endpoint):
-    """A simple endpoint implementation that dumps queries to stdout."""
-
-    def do_GET(self, environ, start_response):
-        print('GET: ' + environ['PATH_INFO'].decode(DEFAULT_ENCODING))
-        start_response('200 OK', [])
-        return []
-
-    def do_PROPFIND(self, environ, start_response):
-        print('PROPFIND: ' + environ['PATH_INFO'].decode(DEFAULT_ENCODING))
-        try:
-            request_body_size = int(environ['CONTENT_LENGTH'])
-        except KeyError:
-            print(environ['wsgi.input'].read())
-        else:
-            print(environ['wsgi.input'].read(request_body_size))
-        start_response('200 OK', [])
-        return []
 
 
 class DAVBackend(object):
