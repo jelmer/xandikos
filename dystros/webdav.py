@@ -259,6 +259,14 @@ class DAVCollection(DAVResource):
         """
         raise NotImplementedError(self.delete_member)
 
+    def create_member(self, name, contents):
+        """Create a new member with specified name and contents.
+
+        :param name: Member name
+        :param etag: Optional required etag
+        """
+        raise NotImplementedError(self.create_member)
+
 
 def resolve_properties(href, resource, properties, requested):
     """Resolve a set of properties.
@@ -379,6 +387,7 @@ class WebDAVApp(object):
 
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
+        # TODO(jelmer): Look up resource to determine supported methods.
         return ([n[3:] for n in dir(self) if n.startswith('do_')] +
                 [n[4:] for n in dir(self) if n.startswith('dav_')])
 
@@ -410,12 +419,20 @@ class WebDAVApp(object):
 
     def do_PUT(self, environ, start_response):
         new_contents = self._readBody(environ)
-        r = self.backend.get_resource(environ['PATH_INFO'])
-        if r is None:
-            return self._send_not_found(environ, start_response)
-        start_response('200 OK', [])
-        r.set_body([new_contents])
-        return []
+        path = environ['PATH_INFO']
+        r = self.backend.get_resource(path)
+        if r is not None:
+            start_response('200 OK', [])
+            # TODO(jelmer): Pass etag
+            r.set_body([new_contents])
+            return []
+        container_path, name = posixpath.split(path)
+        r = self.backend.get_resource(container_path)
+        if r is not None:
+            start_response('200 OK', [])
+            r.create_member(name, [new_contents])
+            return []
+        return self._send_not_found(environ, start_response)
 
     def _readBody(self, environ):
         try:
@@ -497,7 +514,6 @@ class WebDAVApp(object):
                 'Expected prop tag, got ' + requested.tag)
 
     def __call__(self, environ, start_response):
-        p = environ['PATH_INFO']
         method = environ['REQUEST_METHOD']
         dav = getattr(self, 'dav_' + method, None)
         if dav is not None:

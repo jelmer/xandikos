@@ -98,6 +98,9 @@ class CalendarResource(caldav.Calendar):
     def delete_member(self, name, etag=None):
         self.store.delete_one(name, etag)
 
+    def create_member(self, name, contents):
+        self.store.import_one(name, b''.join(contents))
+
 
 class AddressbookResource(carddav.Addressbook):
 
@@ -129,6 +132,9 @@ class AddressbookResource(carddav.Addressbook):
 
     def delete_member(self, name, etag=None):
         self.store.delete_one(name, etag)
+
+    def create_member(self, name, contents):
+        self.store.import_one(name, b''.join(contents))
 
 
 def open_from_path(p):
