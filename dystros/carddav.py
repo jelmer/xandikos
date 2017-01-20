@@ -39,14 +39,12 @@ class AddressbookHomeSetProperty(webdav.DAVProperty):
     """
 
     name = '{%s}addressbook-home-set' % NAMESPACE
+    resource_type = '{DAV:}principal'
     in_allprops = False
 
-    def __init__(self, addressbook_home_set):
-        super(AddressbookHomeSetProperty, self).__init__()
-        self.addressbook_home_set = addressbook_home_set
-
     def populate(self, resource, el):
-        ET.SubElement(el, '{DAV:}href').text = self.addressbook_home_set
+        for href in resource.get_addressbook_home_set():
+            ET.SubElement(el, '{DAV:}href').text = href
 
 
 class AddressDataProperty(webdav.DAVProperty):
@@ -73,6 +71,7 @@ class AddressbookDescriptionProperty(webdav.DAVProperty):
     """
 
     name = '{%s}addressbook-description' % NAMESPACE
+    resource_type = ADDRESSBOOK_RESOURCE_TYPE
 
     def populate(self, resource, el):
         el.text = resource.get_addressbook_description()
@@ -97,6 +96,21 @@ class Addressbook(webdav.DAVCollection):
         raise NotImplementedError(self.get_addressbook_description)
 
 
+class PrincipalExtensions:
+    """Extensions to webdav.Principal."""
+
+    def get_addressbook_home_set(self):
+        """Return set of addressbook home URLs.
+
+        :return: set of URLs
+        """
+        raise NotImplementedError(self.get_addressbook_home_set)
+
+    def get_principal_address(self):
+        """Return URL to principal address vCard."""
+        raise NotImplementedError(self.get_principal_address)
+
+
 class PrincipalAddressProperty(webdav.DAVProperty):
     """Provides the principal-address property.
 
@@ -104,6 +118,7 @@ class PrincipalAddressProperty(webdav.DAVProperty):
     """
 
     name = '{%s}principal-address' % NAMESPACE
+    resource_type = '{DAV:}principal'
     in_allprops = False
 
     def populate(self, resource, el):

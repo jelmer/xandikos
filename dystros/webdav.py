@@ -124,6 +124,10 @@ class DAVProperty(object):
     # Whether this property is protected (i.e. read-only)
     protected = True
 
+    # Resource type this property belongs to. If None, populate()
+    # will always be called.
+    resource_type = None
+
     def populate(self, resource, el):
         """Get property with specified name.
 
@@ -141,6 +145,8 @@ class DAVResourceTypeProperty(DAVProperty):
 
     protected = True
 
+    resource_type = None
+
     def populate(self, resource, el):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
@@ -153,6 +159,7 @@ class DAVDisplayNameProperty(DAVProperty):
     """
 
     name = '{DAV:}displayname'
+    resource_type = None
 
     def populate(self, resource, el):
         el.text = resource.get_displayname()
@@ -168,6 +175,7 @@ class DAVGetETagProperty(DAVProperty):
     """
 
     name = '{DAV:}getetag'
+    resource_type = None
     protected = True
 
     def populate(self, resource, el):
@@ -181,6 +189,7 @@ class DAVGetContentTypeProperty(DAVProperty):
     """
 
     name = '{DAV:}getcontenttype'
+    resource_type = None
     protected = True
 
     def populate(self, resource, el):
@@ -194,6 +203,7 @@ class DAVCurrentUserPrincipalProperty(DAVProperty):
     """
 
     name = '{DAV:}current-user-principal'
+    resource_type = None
     in_allprops = False
 
     def __init__(self, current_user_principal):
@@ -211,6 +221,7 @@ class DAVCurrentUserPrincipalProperty(DAVProperty):
 class DAVPrincipalURLProperty(DAVProperty):
 
     name = '{DAV:}principal-URL'
+    resource_type = '{DAV:}principal'
     in_allprops = True
 
     def populate(self, resource, el):
@@ -333,6 +344,9 @@ def resolve_properties(href, resource, properties, requested):
                 propreq.tag)
         else:
             try:
+                if (prop.resource_type is not None and
+                    prop.resource_type not in resource.resource_types):
+                    raise KeyError
                 prop.populate(resource, ret)
             except KeyError:
                 statuscode = '404 Not Found'

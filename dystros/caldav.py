@@ -51,6 +51,34 @@ class Calendar(DAVCollection):
     def get_calendar_description(self):
         raise NotImplementedError(self.get_calendar_description)
 
+    def get_calendar_color(self):
+        raise NotImplementedError(self.get_calendar_color)
+
+    def get_supported_calendar_components(self):
+        """Return set of supported calendar components in this calendar.
+
+        :return: iterable over component names
+        """
+        raise NotImplementedError(self.get_supported_calendar_components)
+
+
+class PrincipalExtensions:
+    """CalDAV-specific extensions to DAVPrincipal."""
+
+    def get_calendar_home_set(self):
+        """Get the calendar home set.
+
+        :return: a set of URLs
+        """
+        raise NotImplementedError(self.get_calendar_home_set)
+
+    def get_calendar_user_address_set(self):
+        """Get the calendar user address set.
+
+        :return: a set of URLs (usually mailto:...)
+        """
+        raise NotImplementedError(self.get_calendar_user_address_set)
+
 
 class CalendarHomeSetProperty(DAVProperty):
     """calendar-home-set property
@@ -59,14 +87,27 @@ class CalendarHomeSetProperty(DAVProperty):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-home-set'
+    resource_type = '{DAV:}principal'
     in_allprops = False
 
-    def __init__(self, calendar_home_set):
-        super(CalendarHomeSetProperty, self).__init__()
-        self.calendar_home_set = calendar_home_set
+    def populate(self, resource, el):
+        for href in resource.get_calendar_home_set():
+            ET.SubElement(el, '{DAV:}href').text = href
+
+
+class CalendarUserAddressSetProperty(DAVProperty):
+    """calendar-user-address-set property
+
+    See https://tools.ietf.org/html/rfc6638, section 2.4.1
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}calendar-user-address-set'
+    resource_type = '{DAV:}principal'
+    in_allprops = False
 
     def populate(self, resource, el):
-        ET.SubElement(el, '{DAV:}href').text = self.calendar_home_set
+        for href in resource.get_calendar_user_address_set():
+            ET.SubElement(el, '{DAV:}href').text = href
 
 
 class CalendarDescriptionProperty(DAVProperty):
@@ -76,6 +117,7 @@ class CalendarDescriptionProperty(DAVProperty):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-description'
+    resource_type = CALENDAR_RESOURCE_TYPE
 
     def populate(self, resource, el):
         el.text = resource.get_calendar_description()
@@ -106,3 +148,35 @@ class CalendarMultiGetReporter(davcommon.MultiGetReporter):
     name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
 
     data_property_kls = CalendarDataProperty
+
+
+class CalendarColorProperty(DAVProperty):
+    """calendar-color property
+
+    This contains a HTML #RRGGBB color code, as CDATA.
+    """
+
+    name = '{http://apple.com/ns/ical/}calendar-color'
+    resource_type = CALENDAR_RESOURCE_TYPE
+
+    def populate(self, resource, el):
+        el.text = resource.get_calendar_color()
+
+
+class SupportedCalendarComponentSetProperty(DAVProperty):
+    """supported-calendar-component-set property
+
+    Set of supported calendar components by this calendar.
+
+    See https://www.ietf.org/rfc/rfc4791.txt, section 5.2.3
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    protected = True
+
+    def populate(self, resource, el):
+        for component in resource.get_supported_calendar_components():
+            subel = ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}comp')
+            subel.set('name', component)

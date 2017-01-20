@@ -38,10 +38,11 @@ from dystros.store import (
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 
 # TODO(jelmer): Make these configurable/dynamic
-CALENDAR_HOME_SET = '/user/calendars/'
-ADDRESSBOOK_HOME_SET = '/user/contacts/'
+CALENDAR_HOME_SET = ['/user/calendars/']
+ADDRESSBOOK_HOME_SET = ['/user/contacts/']
 CURRENT_USER_PRINCIPAL = '/user/'
 PRINCIPAL_URL = 'http://localhost/user/'
+USER_ADDRESS_SET = 'mailto:jelmer@jelmer.uk'
 
 
 class ObjectResource(webdav.DAVResource):
@@ -100,6 +101,8 @@ class StoreBasedCollection(object):
 class Collection(StoreBasedCollection,caldav.Calendar):
     """A generic WebDAV collection."""
 
+    _object_content_type = 'application/unknown'
+
     def __init__(self, store):
         self.store = store
 
@@ -115,6 +118,13 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
     def get_calendar_description(self):
         # TODO
         return "A calendar"
+
+    def get_calendar_color(self):
+        # TODO
+        return "#112233"
+
+    def get_supported_calendar_components(self):
+        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
 
     def get_content_type(self):
         # TODO
@@ -145,6 +155,8 @@ def open_from_path(p):
     :return: A Resource object, or None
     """
     if os.path.isdir(p):
+        if p.endswith('/user/'):
+            return Principal(p)
         try:
             store = GitStore.open_from_path(p)
         except NotStoreError:
@@ -183,13 +195,22 @@ class CollectionSetResource(webdav.DAVCollection):
         return resource
 
 
-class UserPrincipalResource(CollectionSetResource):
+class Principal(CollectionSetResource):
     """Principal user resource."""
 
     resource_types = webdav.DAVCollection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
 
     def get_principal_url(self):
         return PRINCIPAL_URL
+
+    def get_calendar_home_set(self):
+        return CALENDAR_HOME_SET
+
+    def get_addressbook_home_set(self):
+        return ADDRESSBOOK_HOME_SET
+
+    def get_calendar_user_address_set(self):
+        return USER_ADDRESS_SET
 
 
 class DystrosBackend(webdav.DAVBackend):
@@ -223,9 +244,12 @@ class DystrosApp(webdav.WebDAVApp):
             webdav.DAVDisplayNameProperty(),
             webdav.DAVGetETagProperty(),
             webdav.DAVGetContentTypeProperty(),
-            caldav.CalendarHomeSetProperty(CALENDAR_HOME_SET),
-            carddav.AddressbookHomeSetProperty(ADDRESSBOOK_HOME_SET),
+            caldav.CalendarHomeSetProperty(),
+            caldav.CalendarUserAddressSetProperty(),
+            carddav.AddressbookHomeSetProperty(),
             caldav.CalendarDescriptionProperty(),
+            caldav.CalendarColorProperty(),
+            caldav.SupportedCalendarComponentSetProperty(),
             carddav.AddressbookDescriptionProperty(),
             carddav.PrincipalAddressProperty(),
             ])
