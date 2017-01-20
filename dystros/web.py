@@ -45,7 +45,7 @@ PRINCIPAL_URL = 'http://localhost/user/'
 USER_ADDRESS_SET = 'mailto:jelmer@jelmer.uk'
 
 
-class NonDAVResource(DAVResource):
+class NonDAVResource(webdav.DAVResource):
     """A non-DAV resource."""
 
     resource_types = []
