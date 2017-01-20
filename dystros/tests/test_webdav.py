@@ -139,7 +139,7 @@ class WebTests(unittest.TestCase):
         app = self.makeApp({'/resource': TestResource()}, [])
         code, headers, contents = self.mkcol(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
-        self.assertIn(('Allow', 'DELETE, GET, PUT, PROPFIND, REPORT'), headers)
+        self.assertIn(('Allow', 'DELETE, GET, OPTIONS, PUT, PROPFIND, REPORT'), headers)
         self.assertEqual(b'', contents)
 
     def test_delete(self):

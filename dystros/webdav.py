@@ -577,6 +577,12 @@ class WebDAVApp(object):
                 environ['PATH_INFO'], '500 Internal Error',
                 'Expected prop tag, got ' + requested.tag)
 
+    def do_OPTIONS(self, environ, start_response):
+        start_response('200 OK', [
+            ('DAV', '1, 2'),
+            ('Allow', ', '.join(self._get_allowed_methods(environ)))])
+        return []
+
     def __call__(self, environ, start_response):
         method = environ['REQUEST_METHOD']
         dav = getattr(self, 'dav_' + method, None)
