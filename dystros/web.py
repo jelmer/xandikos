@@ -45,6 +45,18 @@ PRINCIPAL_URL = 'http://localhost/user/'
 USER_ADDRESS_SET = 'mailto:jelmer@jelmer.uk'
 
 
+class NonDAVResource(DAVResource):
+    """A non-DAV resource."""
+
+    resource_types = []
+
+    def get_body(self):
+        return []
+
+    def get_etag(self):
+        return "empty"
+
+
 class ObjectResource(webdav.DAVResource):
     """Object resource."""
 
@@ -225,7 +237,7 @@ class DystrosBackend(webdav.DAVBackend):
         if relpath in WELLKNOWN_DAV_PATHS:
             return webdav.WellknownResource('/')
         elif relpath == '/':
-            return webdav.NonDAVResource()
+            return NonDAVResource()
         else:
             p = os.path.join(self.path, relpath.lstrip('/'))
             try:

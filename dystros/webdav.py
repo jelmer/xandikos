@@ -409,12 +409,6 @@ class WellknownResource(DAVResource):
         return [self.server_root.encode(DEFAULT_ENCODING)]
 
 
-class NonDAVResource(DAVResource):
-    """A non-DAV resource."""
-
-    resource_types = []
-
-
 class DAVBackend(object):
     """WebDAV backend."""
 
