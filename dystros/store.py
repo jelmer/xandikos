@@ -98,7 +98,7 @@ class NotStoreError(Exception):
 
 
 class Store(object):
-    """A ICalendar/vCard store."""
+    """A object store."""
 
     def iter_with_etag(self):
         """Iterate over all items in the store with etag.
@@ -108,14 +108,14 @@ class Store(object):
         raise NotImplementedError(self.iter_with_etag)
 
     def get_raw(self, name, etag):
-        """Get the raw contents of a calendar.
+        """Get the raw contents of an object.
 
         :return: raw contents
         """
         raise NotImplementedError(self.get_raw)
 
     def iter_raw(self):
-        """Iterate over raw calendar contents.
+        """Iterate over raw object contents.
 
         :yield: (name, etag, data) tuples
         """
@@ -129,6 +129,8 @@ class Store(object):
         :yield: (name, Calendar) tuples
         """
         for (name, etag, data) in self.iter_raw():
+            if not name.endswith(ICALENDAR_EXTENSION):
+                continue
             yield (name, etag, Calendar.from_ical(data))
 
     def get_ctag(self):
@@ -139,7 +141,7 @@ class Store(object):
         """Import a single object.
 
         :param name: Name of the object
-        :param data: serialized vcalendar as bytes
+        :param data: serialized object as bytes
         :param replace_etag: Etag to replace
         :raise NameExists: when the name already exists
         :raise DuplicateUidError: when the uid already exists
@@ -192,6 +194,9 @@ class GitStore(Store):
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
 
+    def __repr__(self):
+        return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
+
     def lookup_uid(self, uid):
         """Lookup an item by UID.
 
@@ -215,7 +220,7 @@ class GitStore(Store):
         return self.repo.object_store[sha.encode('ascii')]
 
     def get_raw(self, name, etag):
-        """Get the raw contents of a calendar.
+        """Get the raw contents of an object.
 
         :return: raw contents
         """
@@ -309,8 +314,6 @@ class BareGitStore(GitStore):
         tree = self._get_current_tree()
         for (name, mode, sha) in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
-            if not name.endswith(ICALENDAR_EXTENSION):
-                continue
             yield (name, mode, sha)
 
     @classmethod
@@ -330,10 +333,10 @@ class BareGitStore(GitStore):
                 ref=self.ref, committer=committer)
 
     def import_one(self, name, data, replace_etag=None):
-        """Import a single VCalendar object.
+        """Import a single object.
 
         :param name: Name of the object
-        :param data: serialized vcalendar as bytes
+        :param data: serialized object as bytes
         :param etag: optional etag of object to replace
         :raise NameExists: when the name already exists
         :raise DuplicateUidError: when the uid already exists
@@ -342,7 +345,7 @@ class BareGitStore(GitStore):
         uid = ExtractUID(data)
         self._check_duplicate(uid, name)
         # TODO(jelmer): Handle case where the item already exists
-        # TODO(jelmer): Verify that 'data' actually represents a valid calendar
+        # TODO(jelmer): Verify that 'data' actually represents a valid object
         b = Blob.from_string(data)
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
@@ -402,7 +405,7 @@ class TreeGitStore(GitStore):
         """Import a single object.
 
         :param name: name of the object
-        :param data: serialized vcalendar as bytes
+        :param data: serialized object as bytes
         :param replace_etag: optional etag of object to replace
         :raise NameExists: when the name already exists
         :raise DuplicateUidError: when the uid already exists
@@ -411,7 +414,7 @@ class TreeGitStore(GitStore):
         uid = ExtractUID(data)
         self._check_duplicate(uid, name)
         # TODO(jelmer): Handle case where the item already exists
-        # TODO(jelmer): Verify that 'data' actually represents a valid calendar
+        # TODO(jelmer): Verify that 'data' actually represents a valid object
         p = os.path.join(self.repo.path, name)
         with open(p, 'wb') as f:
             f.write(data)
@@ -452,13 +455,11 @@ class TreeGitStore(GitStore):
         index = self.repo.open_index()
         for (name, sha, mode) in index.iterblobs():
             name = name.decode(DEFAULT_ENCODING)
-            if not name.endswith(ICALENDAR_EXTENSION):
-                continue
             yield (name, mode, sha)
 
 
 class StoreSet(object):
-    """A set of ICalendar stores.
+    """A set of object stores.
     """
 
 

@@ -53,8 +53,8 @@ class ObjectResource(webdav.DAVResource):
     def get_body(self):
         return self.store.get_raw(self.name, self.etag)
 
-    def set_body(self, data):
-        self.store.import_one(self.name, b''.join(data), self.etag)
+    def set_body(self, data, replace_etag=None):
+        self.store.import_one(self.name, b''.join(data), replace_etag)
 
     def get_content_type(self):
         return self.content_type
@@ -147,12 +147,9 @@ def open_from_path(p):
         except NotStoreError:
             return CollectionSetResource(p)
         else:
-            if store.get_type() == STORE_TYPE_ADDRESSBOOK:
-                return AddressbookResource(store)
-            elif store.get_type() == STORE_TYPE_CALENDAR:
-                return CalendarResource(store)
-            else:
-                return Collection(store)
+            return {STORE_TYPE_CALENDAR: CalendarResource,
+                    STORE_TYPE_ADDRESSBOOK: AddressbookResource,
+                    STORE_TYPE_OTHER: Collection}[store.get_type()](store)
     else:
         (basepath, name) = os.path.split(p)
         store = open_from_path(basepath)
@@ -171,10 +168,16 @@ class CollectionSetResource(webdav.DAVCollection):
     def members(self):
         ret = []
         for name in os.listdir(self.path):
-            p = os.path.join(self.path, name)
-            resource = open_from_path(p)
+            resource = self.get_member(name)
             ret.append((name, resource))
         return ret
+
+    def get_member(self, name):
+        p = os.path.join(self.path, name)
+        resource = open_from_path(p)
+        if resource is None:
+            raise KeyError(name)
+        return resource
 
 
 class UserPrincipalResource(CollectionSetResource):

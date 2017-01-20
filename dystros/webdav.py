@@ -26,6 +26,7 @@ functionality should live in dystros.caldav/dystros.carddav respectively.
 # TODO(jelmer): Add authorization support
 
 import collections
+import hashlib
 import logging
 import posixpath
 import urllib.parse
@@ -234,7 +235,7 @@ class DAVResource(object):
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
-    def set_body(self, body):
+    def set_body(self, body, replace_etag=None):
         """Set resource contents.
 
         :param body: Iterable over bytestrings
@@ -357,6 +358,9 @@ class WellknownResource(DAVResource):
     def __init__(self, server_root):
         self.server_root = server_root
 
+    def get_etag(self):
+        return hashlib.md5(b''.join(self.get_body())).hexdigest()
+
     def get_body(self):
         return [self.server_root.encode(DEFAULT_ENCODING)]
 
@@ -417,7 +421,12 @@ class WebDAVApp(object):
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
             return self._send_not_found(environ, start_response)
-        start_response('200 OK', [])
+        current_etag = r.get_etag()
+        requested_etag = environ.get('HTTP_IF_NONE_MATCH', None)
+        if requested_etag == current_etag:
+            start_response('304 Not Modified', [])
+            return []
+        start_response('200 OK', [('ETag', current_etag)])
         return r.get_body()
 
     def do_DELETE(self, environ, start_response):
@@ -425,7 +434,7 @@ class WebDAVApp(object):
         r = self.backend.get_resource(container_path)
         if r is None:
             return self._send_not_found(environ, start_response)
-        r.delete_member(item_name)
+        r.delete_member(item_name, environ.get('HTTP_IF_MATCH', None))
         start_response('200 OK', [])
         return []
 
@@ -435,8 +444,7 @@ class WebDAVApp(object):
         r = self.backend.get_resource(path)
         if r is not None:
             start_response('200 OK', [])
-            # TODO(jelmer): Pass etag
-            r.set_body([new_contents])
+            r.set_body([new_contents], environ.get('HTTP_IF_MATCH', None))
             return []
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)

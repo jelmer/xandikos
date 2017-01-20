@@ -113,6 +113,9 @@ class WebTests(unittest.TestCase):
 
             def get_body(self):
                 return [b'this is content']
+
+            def get_etag(self):
+                return "myetag"
         app = self.makeApp({'/.well-known/carddav': TestResource()}, [])
         code, headers, contents = self.get(app, '/.well-known/carddav')
         self.assertEqual('200 OK', code)
@@ -122,7 +125,7 @@ class WebTests(unittest.TestCase):
         new_body = []
         class TestResource(DAVResource):
 
-            def set_body(self, body):
+            def set_body(self, body, replace_etag=None):
                 new_body.extend(body)
         app = self.makeApp({'/.well-known/carddav': TestResource()}, [])
         code, headers = self.put(
@@ -142,7 +145,7 @@ class WebTests(unittest.TestCase):
     def test_delete(self):
         class TestResource(DAVCollection):
 
-            def delete_member(unused_self, name):
+            def delete_member(unused_self, name, etag=None):
                 self.assertEqual(name, 'resource')
         app = self.makeApp({'/': TestResource()}, [])
         code, headers, contents = self.delete(app, '/resource')
