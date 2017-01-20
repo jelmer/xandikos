@@ -43,7 +43,7 @@ DEFAULT_ENCODING = 'utf-8'
 logger = logging.getLogger(__name__)
 
 
-def ExtractUID(cal):
+def ExtractCalendarUID(cal):
     """Extract the UID from a VCalendar file.
 
     :param cal: Calendar, possibly serialized.
@@ -57,6 +57,16 @@ def ExtractUID(cal):
         except KeyError:
             pass
     raise KeyError
+
+
+def ExtractUID(name, data):
+    """Extract UID from a file.
+
+    :param name: Name of the file
+    :param data: Data (possibly serialized)
+    :return: UID
+    """
+    return ExtractCalendarUID(data)
 
 
 class DuplicateUidError(Exception):
@@ -244,7 +254,7 @@ class GitStore(Store):
                 continue
             blob = self._get_blob(etag)
             try:
-                uid = ExtractUID(blob.data)
+                uid = ExtractUID(name, blob.data)
             except KeyError:
                 logger.warning('No UID found in file %s', name)
                 uid = None
@@ -348,7 +358,7 @@ class BareGitStore(GitStore):
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
-        uid = ExtractUID(data)
+        uid = ExtractUID(name, data)
         self._check_duplicate(uid, name)
         # TODO(jelmer): Handle case where the item already exists
         # TODO(jelmer): Verify that 'data' actually represents a valid object
@@ -417,7 +427,7 @@ class TreeGitStore(GitStore):
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
-        uid = ExtractUID(data)
+        uid = ExtractUID(name, data)
         self._check_duplicate(uid, name)
         # TODO(jelmer): Handle case where the item already exists
         # TODO(jelmer): Verify that 'data' actually represents a valid object

@@ -255,6 +255,7 @@ class DystrosApp(webdav.WebDAVApp):
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
+            caldav.CalendarQueryReporter(),
             carddav.AddressbookMultiGetReporter()])
 
 

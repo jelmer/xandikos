@@ -61,7 +61,7 @@ class AddressDataProperty(webdav.DAVProperty):
     def populate(self, resource, el):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
-        el.text = resource.get_body().decode('utf-8')
+        el.text = b''.join(resource.get_body()).decode('utf-8')
 
 
 class AddressbookDescriptionProperty(webdav.DAVProperty):

@@ -31,7 +31,7 @@ from dulwich.repo import Repo
 
 from dystros.store import (
     GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
-    ExtractUID, NameExists, InvalidETag, NoSuchItem,
+    ExtractCalendarUID, NameExists, InvalidETag, NoSuchItem,
     logger as store_logger)
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -291,20 +291,20 @@ class TreeGitStoreTest(BaseGitStoreTest,unittest.TestCase):
         return Blob.from_string(contents).id.decode('ascii')
 
 
-class ExtractUIDTests(unittest.TestCase):
+class ExtractCalendarUIDTests(unittest.TestCase):
 
     def test_extract_str(self):
         self.assertEqual(
             'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ExtractUID(EXAMPLE_VCALENDAR1))
+            ExtractCalendarUID(EXAMPLE_VCALENDAR1))
 
     def test_extract_cal(self):
         cal = Calendar.from_ical(EXAMPLE_VCALENDAR1)
         self.assertEqual(
             'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ExtractUID(cal))
+            ExtractCalendarUID(cal))
 
     def test_extract_no_uid(self):
         self.assertRaises(
             KeyError,
-            ExtractUID, EXAMPLE_VCALENDAR_NO_UID)
+            ExtractCalendarUID, EXAMPLE_VCALENDAR_NO_UID)

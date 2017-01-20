@@ -32,7 +32,10 @@ from dystros.webdav import (
     DAVProperty,
     DAVReporter,
     DAVResource,
+    DAVStatus,
     WebDAVApp,
+    resolve_properties,
+    traverse_resource,
     )
 
 
@@ -140,7 +143,7 @@ class CalendarDataProperty(DAVProperty):
     def populate(self, resource, el):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
-        el.text = resource.get_body().decode('utf-8')
+        el.text = b''.join(resource.get_body()).decode('utf-8')
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
@@ -148,6 +151,31 @@ class CalendarMultiGetReporter(davcommon.MultiGetReporter):
     name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
 
     data_property_kls = CalendarDataProperty
+
+
+class CalendarQueryReporter(DAVReporter):
+
+    name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
+
+    def report(self, body, properties, base_href, base_resource, depth):
+        # TODO(jelmer): Verify that resource is an addressbook
+        requested = None
+        filter = None
+        for el in body:
+            if el.tag == '{DAV:}prop':
+                requested = el
+            elif el.tag == '{urn:ietf:params:xml:ns:caldav}filter':
+                filter = el
+            else:
+                raise NotImplementedError(tag.name)
+        properties = dict(properties)
+        properties[CalendarDataProperty.name] = CalendarDataProperty()
+        for (href, resource) in traverse_resource(
+                base_resource, depth, base_href):
+            # TODO: apply filter
+            propstat = resolve_properties(
+                href, resource, properties, requested)
+            yield DAVStatus(href, '200 OK', propstat=list(propstat))
 
 
 class CalendarColorProperty(DAVProperty):

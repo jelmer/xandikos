@@ -445,6 +445,9 @@ class WebDAVApp(object):
         for r in reporters:
             self.reporters[r.name] = r
 
+    def _get_dav_features(self, environ):
+        return ['1', '2', 'calendar-access']
+
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
         # TODO(jelmer): Look up resource to determine supported methods.
@@ -579,7 +582,7 @@ class WebDAVApp(object):
 
     def do_OPTIONS(self, environ, start_response):
         start_response('200 OK', [
-            ('DAV', '1, 2'),
+            ('DAV', ', '.join(self._get_dav_features(environ))),
             ('Allow', ', '.join(self._get_allowed_methods(environ)))])
         return []
 
