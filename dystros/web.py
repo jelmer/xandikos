@@ -55,7 +55,7 @@ class ObjectResource(webdav.DAVResource):
         self.content_type = content_type
 
     def get_body(self):
-        return self.store.get_raw(self.name, self.etag)
+        return [self.store.get_raw(self.name, self.etag)]
 
     def set_body(self, data, replace_etag=None):
         self.store.import_one(self.name, b''.join(data), replace_etag)

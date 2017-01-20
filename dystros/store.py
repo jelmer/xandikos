@@ -219,11 +219,17 @@ class GitStore(Store):
     def _get_blob(self, sha):
         return self.repo.object_store[sha.encode('ascii')]
 
-    def get_raw(self, name, etag):
+    def get_raw(self, name, etag=None):
         """Get the raw contents of an object.
 
+        :param name: Name of the item
+        :param etag: Optional etag
         :return: raw contents
         """
+        if etag is None:
+            tree = self._get_current_tree()
+            name = name.encode(DEFAULT_ENCODING)
+            etag = tree[name][1]
         blob = self._get_blob(etag)
         return blob.data
 
