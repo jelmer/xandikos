@@ -36,9 +36,12 @@ from dystros.store import (
     )
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
+
+# TODO(jelmer): Make these configurable/dynamic
 CALENDAR_HOME_SET = '/user/calendars/'
 ADDRESSBOOK_HOME_SET = '/user/contacts/'
 CURRENT_USER_PRINCIPAL = '/user/'
+PRINCIPAL_URL = 'http://localhost/user/'
 
 
 class ObjectResource(webdav.DAVResource):
@@ -185,6 +188,9 @@ class UserPrincipalResource(CollectionSetResource):
 
     resource_types = webdav.DAVCollection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
 
+    def get_principal_url(self):
+        return PRINCIPAL_URL
+
 
 class DystrosBackend(webdav.DAVBackend):
 
@@ -213,12 +219,15 @@ class DystrosApp(webdav.WebDAVApp):
         self.register_properties([
             webdav.DAVResourceTypeProperty(),
             webdav.DAVCurrentUserPrincipalProperty(CURRENT_USER_PRINCIPAL),
+            webdav.DAVPrincipalURLProperty(),
             webdav.DAVDisplayNameProperty(),
             webdav.DAVGetETagProperty(),
             webdav.DAVGetContentTypeProperty(),
             caldav.CalendarHomeSetProperty(CALENDAR_HOME_SET),
             carddav.AddressbookHomeSetProperty(ADDRESSBOOK_HOME_SET),
             caldav.CalendarDescriptionProperty(),
+            carddav.AddressbookDescriptionProperty(),
+            carddav.PrincipalAddressProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

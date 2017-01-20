@@ -188,6 +188,10 @@ class DAVGetContentTypeProperty(DAVProperty):
 
 
 class DAVCurrentUserPrincipalProperty(DAVProperty):
+    """Provides {DAV:}current-user-principal.
+
+    See https://tools.ietf.org/html/rfc5397
+    """
 
     name = '{DAV:}current-user-principal'
     in_allprops = False
@@ -204,6 +208,19 @@ class DAVCurrentUserPrincipalProperty(DAVProperty):
         ET.SubElement(el, '{DAV:}href').text = self.current_user_principal
 
 
+class DAVPrincipalURLProperty(DAVProperty):
+
+    name = '{DAV:}principal-URL'
+    in_allprops = True
+
+    def populate(self, resource, el):
+        """Get property with specified name.
+
+        :param name: A property name.
+        """
+        ET.SubElement(el, '{DAV:}href').text = resource.get_principal_url()
+
+
 class DAVResource(object):
     """A WebDAV resource."""
 
@@ -212,7 +229,7 @@ class DAVResource(object):
 
     def get_displayname(self):
         """Get the resource display name."""
-        raise KeyError(name)
+        raise KeyError
 
     def get_content_type(self):
         """Get the content type for the resource.
@@ -279,6 +296,19 @@ class DAVCollection(DAVResource):
         :param etag: Optional required etag
         """
         raise NotImplementedError(self.create_member)
+
+
+class DAVPrincipal(DAVResource):
+    """Resource for a DAV Principal."""
+
+    resource_Types = DAVResource.resource_types + [PRINCIPAL_RESOURCE_TYPE]
+
+    def get_principal_url(self):
+        """Return the principal URL for this principal.
+
+        :return: A URL identifying this principal.
+        """
+        raise NotImplementedError(self.get_principal_url)
 
 
 def resolve_properties(href, resource, properties, requested):

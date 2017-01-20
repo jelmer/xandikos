@@ -66,9 +66,24 @@ class AddressDataProperty(webdav.DAVProperty):
         el.text = resource.get_body().decode('utf-8')
 
 
+class AddressbookDescriptionProperty(webdav.DAVProperty):
+    """Provides calendar-description property.
+
+    https://tools.ietf.org/html/rfc6352, section 6.2.1
+    """
+
+    name = '{%s}addressbook-description' % NAMESPACE
+
+    def populate(self, resource, el):
+        el.text = resource.get_addressbook_description()
+
+    # TODO(jelmer): allow modification of this property
+    # protected = True
+
+
 class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
 
-    name = '{urn:ietf:params:xml:ns:carddav}addressbook-multiget'
+    name = '{%s}addressbook-multiget' % NAMESPACE
 
     data_property_kls = AddressDataProperty
 
@@ -81,3 +96,15 @@ class Addressbook(webdav.DAVCollection):
     def get_addressbook_description(self):
         raise NotImplementedError(self.get_addressbook_description)
 
+
+class PrincipalAddressProperty(webdav.DAVProperty):
+    """Provides the principal-address property.
+
+    https://tools.ietf.org/html/rfc6352, section 7.1.2
+    """
+
+    name = '{%s}principal-address' % NAMESPACE
+    in_allprops = False
+
+    def populate(self, resource, el):
+        ET.SubElement(el, '{DAV:}href').text = resource.get_principal_address()
