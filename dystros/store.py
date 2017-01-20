@@ -135,10 +135,12 @@ class Store(object):
         """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
 
-    def import_one(self, name, data):
-        """Import a single VCalendar object.
+    def import_one(self, name, data, replace_etag=None):
+        """Import a single object.
 
+        :param name: Name of the object
         :param data: serialized vcalendar as bytes
+        :param replace_etag: Etag to replace
         :raise NameExists: when the name already exists
         :raise DuplicateUidError: when the uid already exists
         :return: etag
@@ -327,10 +329,12 @@ class BareGitStore(GitStore):
         return self.repo.do_commit(message=message, tree=tree_id,
                 ref=self.ref, committer=committer)
 
-    def import_one(self, name, data):
+    def import_one(self, name, data, replace_etag=None):
         """Import a single VCalendar object.
 
+        :param name: Name of the object
         :param data: serialized vcalendar as bytes
+        :param etag: optional etag of object to replace
         :raise NameExists: when the name already exists
         :raise DuplicateUidError: when the uid already exists
         :return: etag
@@ -394,10 +398,12 @@ class TreeGitStore(GitStore):
             committer = _DEFAULT_COMMITTER_IDENTITY
         return self.repo.do_commit(message=message, committer=committer)
 
-    def import_one(self, name, data):
-        """Import a single VCalendar object.
+    def import_one(self, name, data, replace_etag=None):
+        """Import a single object.
 
+        :param name: name of the object
         :param data: serialized vcalendar as bytes
+        :param replace_etag: optional etag of object to replace
         :raise NameExists: when the name already exists
         :raise DuplicateUidError: when the uid already exists
         :return: etag

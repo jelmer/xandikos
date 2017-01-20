@@ -248,7 +248,19 @@ class DAVCollection(DAVResource):
     resource_types = DAVResource.resource_types + [COLLECTION_RESOURCE_TYPE]
 
     def members(self):
+        """List all members.
+
+        :return: List of (name, DAVResource) tuples
+        """
         raise NotImplementedError(self.members)
+
+    def get_member(self, name):
+        """Retrieve a member by name.
+
+        :param name: Name of member to retrieve
+        :return: A DAVResource
+        """
+        raise NotImplementedError(self.get_member)
 
     def delete_member(self, name, etag=None):
         """Delete a member with a specific name.

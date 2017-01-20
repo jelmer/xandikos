@@ -44,16 +44,17 @@ CURRENT_USER_PRINCIPAL = '/user/'
 class ObjectResource(webdav.DAVResource):
     """Object resource."""
 
-    def __init__(self, data, etag, content_type):
-        self.data = data
+    def __init__(self, store, name, etag, content_type):
+        self.store = store
+        self.name = name
         self.etag = etag
         self.content_type = content_type
 
     def get_body(self):
-        return self.data
+        return self.store.get_raw(self.name, self.etag)
 
     def set_body(self, data):
-        pass # TODO
+        self.store.import_one(self.name, b''.join(data), self.etag)
 
     def get_content_type(self):
         return self.content_type
@@ -62,17 +63,47 @@ class ObjectResource(webdav.DAVResource):
         return self.etag
 
 
-class Collection(caldav.Calendar):
+class StoreBasedCollection(object):
+
+    def __init__(self, store):
+        self.store = store
+
+    def get_etag(self):
+        return self.store.get_ctag()
+
+    def members(self):
+        ret = []
+        for (name, etag) in self.store.iter_with_etag():
+            resource = ObjectResource(
+                self.store, name, etag, self._object_content_type)
+            ret.append((name, resource))
+        return ret
+
+    def get_member(self, name):
+        for (fname, fetag) in self.store.iter_with_etag():
+            if name == fname:
+                return ObjectResource(
+                    self.store, name, fetag, self._object_content_type)
+        else:
+            raise KeyError(name)
+
+    def delete_member(self, name, etag=None):
+        self.store.delete_one(name, etag)
+
+    def create_member(self, name, contents):
+        self.store.import_one(name, b''.join(contents))
+
+
+class Collection(StoreBasedCollection,caldav.Calendar):
     """A generic WebDAV collection."""
 
     def __init__(self, store):
         self.store = store
 
 
-class CalendarResource(caldav.Calendar):
+class CalendarResource(StoreBasedCollection,caldav.Calendar):
 
-    def __init__(self, store):
-        self.store = store
+    _object_content_type = 'text/calendar'
 
     def get_displayname(self):
         # TODO
@@ -86,35 +117,14 @@ class CalendarResource(caldav.Calendar):
         # TODO
         return 'text/calendar'
 
-    def get_etag(self):
-        return self.store.get_ctag()
 
-    def members(self):
-        ret = []
-        for (name, etag, data) in self.store.iter_raw():
-            ret.append((name, ObjectResource(data, etag, 'text/calendar')))
-        return ret
+class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
 
-    def delete_member(self, name, etag=None):
-        self.store.delete_one(name, etag)
-
-    def create_member(self, name, contents):
-        self.store.import_one(name, b''.join(contents))
-
-
-class AddressbookResource(carddav.Addressbook):
-
-    resource_types = webdav.DAVCollection.resource_types + [carddav.ADDRESSBOOK_RESOURCE_TYPE]
-
-    def __init__(self, store):
-        self.store = store
+    _object_content_type = 'text/vcard'
 
     def get_content_type(self):
         # TODO
         raise KeyError
-
-    def get_etag(self):
-        return self.store.get_ctag()
 
     def get_displayname(self):
         # TODO
@@ -123,18 +133,6 @@ class AddressbookResource(carddav.Addressbook):
     def get_addressbook_description(self):
         # TODO
         raise KeyError
-
-    def members(self):
-        ret = []
-        for (name, etag, data) in self.store.iter_raw():
-            ret.append((name, ObjectResource(data, etag, 'text/vcard')))
-        return ret
-
-    def delete_member(self, name, etag=None):
-        self.store.delete_one(name, etag)
-
-    def create_member(self, name, contents):
-        self.store.import_one(name, b''.join(contents))
 
 
 def open_from_path(p):
@@ -156,11 +154,11 @@ def open_from_path(p):
             else:
                 return Collection(store)
     else:
-        store = open_from_path(os.path.dirname(p))
-        for name, resource in store.members():
-            if name == os.path.basename(p):
-                return resource
-        else:
+        (basepath, name) = os.path.split(p)
+        store = open_from_path(basepath)
+        try:
+            return store.get_member(name)
+        except KeyError:
             return None
 
 
