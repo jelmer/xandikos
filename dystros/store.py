@@ -66,7 +66,10 @@ def ExtractUID(name, data):
     :param data: Data (possibly serialized)
     :return: UID
     """
-    return ExtractCalendarUID(data)
+    if name.endswith(ICALENDAR_EXTENSION):
+        return ExtractCalendarUID(data)
+    else:
+        return None
 
 
 class DuplicateUidError(Exception):

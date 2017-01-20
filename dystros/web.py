@@ -113,11 +113,11 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
 
     def get_displayname(self):
         # TODO
-        return "A calendar resource"
+        return os.path.basename(self.store.repo.path)
 
     def get_calendar_description(self):
         # TODO
-        return "A calendar"
+        return "A calendar resource"
 
     def get_calendar_color(self):
         # TODO
@@ -130,6 +130,9 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
         # TODO
         return 'text/calendar'
 
+    def get_ctag(self):
+        return self.store.get_ctag()
+
 
 class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
 
@@ -141,11 +144,11 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
 
     def get_displayname(self):
         # TODO
-        return "An addressbook resource"
+        return os.path.basename(self.store.repo.path)
 
     def get_addressbook_description(self):
         # TODO
-        raise KeyError
+        return "An addressbook resource"
 
 
 def open_from_path(p):
@@ -252,6 +255,7 @@ class DystrosApp(webdav.WebDAVApp):
             caldav.SupportedCalendarComponentSetProperty(),
             carddav.AddressbookDescriptionProperty(),
             carddav.PrincipalAddressProperty(),
+            caldav.GetCTagProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
