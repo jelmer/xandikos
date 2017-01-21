@@ -21,6 +21,7 @@ from io import BytesIO
 import logging
 import unittest
 import defusedxml.ElementTree
+from wsgiref.util import setup_testing_defaults
 from xml.etree import ElementTree as ET
 
 from dystros.webdav import (
@@ -47,7 +48,9 @@ class WebTests(unittest.TestCase):
         return app
 
     def mkcol(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL'}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL',
+                   'SCRIPT_NAME': ''}
+        setup_testing_defaults(environ)
         _code = []
         _headers = []
         def start_response(code, headers):
@@ -57,7 +60,9 @@ class WebTests(unittest.TestCase):
         return _code[0], _headers, contents
 
     def delete(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'DELETE'}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'DELETE',
+                   'SCRIPT_NAME': ''}
+        setup_testing_defaults(environ)
         _code = []
         _headers = []
         def start_response(code, headers):
@@ -67,7 +72,9 @@ class WebTests(unittest.TestCase):
         return _code[0], _headers, contents
 
     def get(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'GET'}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'GET',
+                   'SCRIPT_NAME': ''}
+        setup_testing_defaults(environ)
         _code = []
         _headers = []
         def start_response(code, headers):
@@ -81,7 +88,9 @@ class WebTests(unittest.TestCase):
             'PATH_INFO': path,
             'REQUEST_METHOD': 'PUT',
             'wsgi.input': BytesIO(contents),
+            'SCRIPT_NAME': '',
             }
+        setup_testing_defaults(environ)
         _code = []
         _headers = []
         def start_response(code, headers):
@@ -94,7 +103,9 @@ class WebTests(unittest.TestCase):
         environ = {
                 'PATH_INFO': path,
                 'REQUEST_METHOD': 'PROPFIND',
-                'wsgi.input': BytesIO(body)}
+                'wsgi.input': BytesIO(body),
+                'SCRIPT_NAME': ''}
+        setup_testing_defaults(environ)
         _code = []
         _headers = []
         def start_response(code, headers):
@@ -159,7 +170,7 @@ class WebTests(unittest.TestCase):
         app = self.makeApp({'/resource': TestResource()}, [])
         code, headers, contents = self.delete(app, '/resource')
         self.assertEqual('404 Not Found', code)
-        self.assertEqual(b'Path /resource not found.', contents)
+        self.assertTrue(contents.endswith(b'/resource not found.'))
 
     def test_propfind_prop_does_not_exist(self):
         app = self.makeApp({'/resource': DAVResource()}, [])

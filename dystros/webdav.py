@@ -30,7 +30,7 @@ import hashlib
 import logging
 import posixpath
 import urllib.parse
-from wsgiref.util import application_uri, request_uri
+from wsgiref.util import request_uri
 
 from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
@@ -450,7 +450,7 @@ class WebDAVApp(object):
                 [n[4:] for n in dir(self) if n.startswith('dav_')])
 
     def _send_not_found(self, environ, start_response):
-        path = request_uri(environ, include_query=False)
+        path = request_uri(environ)
         start_response('404 Not Found', [])
         return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
 
@@ -536,14 +536,13 @@ class WebDAVApp(object):
         # 'text/xml; charset="utf-8"'
         et = xmlparse(self._readBody(environ))
         return self.reporters[et.tag].report(
-            et, self.properties, request_uri(environ, include_query=False),
+            et, self.properties, environ['SCRIPT_NAME'] + environ['PATH_INFO'],
             r, depth)
 
     def dav_PROPFIND(self, environ):
         base_resource = self.backend.get_resource(environ['PATH_INFO'])
         if base_resource is None:
-            return DAVStatus(request_uri(environ, include_query=False),
-                             '404 Not Found')
+            return DAVStatus(request_uri(environ), '404 Not Found')
         depth = environ.get("HTTP_DEPTH", "0")
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
@@ -556,13 +555,12 @@ class WebDAVApp(object):
         try:
             [requested] = et
         except IndexError:
-            return DAVStatus(
-                request_uri(environ), '500 Internal Error',
+            return DAVStatus(request_uri(environ), '500 Internal Error',
                 'Received more than one element in propfind.')
         if requested.tag == '{DAV:}prop':
             ret = []
             for href, resource in traverse_resource(
-                    base_resource, depth, request_uri(environ, include_query=False)):
+                    base_resource, depth, environ['SCRIPT_NAME'] + environ['PATH_INFO']):
                 propstat = resolve_properties(
                     href, resource, self.properties, requested)
                 ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
@@ -574,7 +572,7 @@ class WebDAVApp(object):
             # TODO(jelmer): implement allprop and propname
             # TODO-ERROR(jelmer): What to return here?
             return DAVStatus(
-                request_uri(environ), '500 Internal Error',
+                environ['PATH_INFO'], '500 Internal Error',
                 'Expected prop tag, got ' + requested.tag)
 
     def do_OPTIONS(self, environ, start_response):
