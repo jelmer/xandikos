@@ -21,7 +21,7 @@ from io import BytesIO
 import logging
 import unittest
 import defusedxml.ElementTree
-from wsgiref.util import setup_testing_defaults
+from wsgiref.util import request_uri, setup_testing_defaults
 from xml.etree import ElementTree as ET
 
 from dystros.webdav import (
@@ -251,7 +251,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(code, '207 Multi-Status')
         self.assertMultiLineEqual(
             contents.decode('utf-8'), """\
-<ns0:multistatus xmlns:ns0="DAV:"><ns0:response><ns0:href>/resource</ns0:href>\
+<ns0:multistatus xmlns:ns0="DAV:"><ns0:response><ns0:href>http://127.0.0.1/resource</ns0:href>\
 <ns0:status>HTTP/1.1 200 OK</ns0:status>\
 <ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status><ns0:prop>\
 <ns0:current-user-principal><ns0:href>/user/</ns0:href>\
