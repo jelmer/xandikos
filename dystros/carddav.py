@@ -145,6 +145,6 @@ class SupportedAddressDataProperty(webdav.DAVProperty):
 
     def populate(self, resource, el):
         for (content_type, version) in resource.get_supported_address_data_types():
-            subel = ET.SubElement(el, '{%s}content-type')
+            subel = ET.SubElement(el, '{%s}content-type' % NAMESPACE)
             subel.set('content-type', content_type)
             subel.set('version', version)
