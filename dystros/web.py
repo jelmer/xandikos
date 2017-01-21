@@ -209,7 +209,7 @@ class DystrosBackend(webdav.DAVBackend):
     def get_resource(self, relpath):
         if relpath in WELLKNOWN_DAV_PATHS:
             return webdav.WellknownResource('/')
-        elif relpath == '/':
+        elif relpath.strip('/') == '':
             return NonDAVResource()
         elif relpath == self.current_user_principal:
             return Principal()
@@ -224,10 +224,11 @@ class DystrosBackend(webdav.DAVBackend):
                         STORE_TYPE_ADDRESSBOOK: AddressbookResource,
                         STORE_TYPE_OTHER: Collection}[store.get_type()](store)
         else:
-            (basepath, name) = os.path.split(relpath)
-            assert name != ''
+            (basepath, name) = os.path.split(relpath.rstrip('/'))
+            assert name != '', 'path is %r' % relpath
             store = self.get_resource(basepath.rstrip('/'))
-            if store is None:
+            if (store is None or
+                webdav.COLLECTION_RESOURCE_TYPE not in store.resource_types):
                 return None
             try:
                 return store.get_member(name)
