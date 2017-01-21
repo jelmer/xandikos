@@ -16,6 +16,12 @@ webdav server:
 
 - run caldav tester
 
+- implement filters in calendar-query
+
 - properties:
  - calendar-timezone
  - current-user-privilege-set
+ - supported-address-data
+
+- properly handle well-known URLs:
+ - 302 to SCRIPT_NAME

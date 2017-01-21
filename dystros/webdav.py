@@ -441,7 +441,7 @@ class WebDAVApp(object):
             self.reporters[r.name] = r
 
     def _get_dav_features(self, environ):
-        return ['1', '2', 'calendar-access']
+        return ['1', '2', '3', 'calendar-access', 'addressbook']
 
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
