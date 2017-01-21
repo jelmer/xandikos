@@ -540,7 +540,7 @@ class WebDAVApp(object):
     def dav_PROPFIND(self, environ):
         base_resource = self.backend.get_resource(environ['PATH_INFO'])
         if base_resource is None:
-            return self._send_not_found(environ, start_response)
+            return DAVStatus(environ['PATH_INFO'], '404 Not Found')
         depth = environ.get("HTTP_DEPTH", "0")
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
