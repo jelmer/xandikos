@@ -365,14 +365,13 @@ class GitStore(Store):
         try:
             store_type = config.get('dystros', 'type')
         except KeyError:
-            return None
+            return super(GitStore, self).get_type()
         else:
             if store_type not in VALID_STORE_TYPES:
                 logging.warning(
                     'Invalid store type %s set for %r.',
                     store_type, self.repo)
             return store_type
-        return super(GitStore, self).get_type()
 
 
 class BareGitStore(GitStore):
