@@ -164,11 +164,13 @@ class CollectionSetResource(webdav.DAVCollection):
     """Resource for calendar sets."""
 
     def __init__(self, backend, relpath):
+        self.backend = backend
         self.relpath = relpath
 
     def members(self):
         ret = []
-        for name in os.listdir(os.path.join(self.backend.path, self.relpath)):
+        p = self.backend._map_to_file_path(self.relpath)
+        for name in os.listdir(p):
             resource = self.get_member(name)
             ret.append((name, resource))
         return ret
@@ -176,7 +178,7 @@ class CollectionSetResource(webdav.DAVCollection):
     def get_member(self, name):
         assert name != ''
         relpath = posixpath.join(self.relpath, name)
-        p = os.path.join(self.backend.path, relpath)
+        p = self.backend._map_to_file_path(relpath)
         if not os.path.isdir(p):
             raise KeyError(name)
         return self.backend.get_resource(relpath)
@@ -209,22 +211,28 @@ class DystrosBackend(webdav.DAVBackend):
         self.base_prefix = base_prefix
         self.current_user_principal = current_user_principal
 
+    def _map_to_file_path(self, relpath):
+        if (self.base_prefix is not None and
+            not relpath.startswith(self.base_prefix)):
+            return None
+        relpath = relpath[len(self.base_prefix):]
+        return os.path.join(self.path, relpath.lstrip('/'))
+
     def get_resource(self, relpath):
         if relpath in WELLKNOWN_DAV_PATHS:
             return webdav.WellknownResource('/')
         elif relpath.strip('/') == '':
             return NonDAVResource()
         elif relpath == self.current_user_principal:
-            return Principal()
-        if (self.base_prefix is not None and
-            not self.path.startswith(self.base_prefix)):
-            relpath = relpath[len(self.base_prefix):]
-        p = os.path.join(self.path, relpath.lstrip('/'))
+            return Principal(self, relpath)
+        p = self._map_to_file_path(relpath)
+        if p is None:
+            return None
         if os.path.isdir(p):
             try:
                 store = GitStore.open_from_path(p)
             except NotStoreError:
-                return CollectionSetResource(p)
+                return CollectionSetResource(self, relpath)
             else:
                 return {STORE_TYPE_CALENDAR: CalendarResource,
                         STORE_TYPE_ADDRESSBOOK: AddressbookResource,
