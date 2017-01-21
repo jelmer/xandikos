@@ -27,4 +27,4 @@ from dystros.web import DystrosApp
 app = DystrosApp(
         path=os.environ['DYSTROSPATH'],
         current_user_principal=os.environ.get('CURRENT_USER_PRINCIPAL', '/user/'),
-        base_prefix=os.environ.get('BASE_PREFIX')))
+        base_prefix=os.environ.get('BASE_PREFIX'))
