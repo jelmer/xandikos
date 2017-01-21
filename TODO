@@ -15,3 +15,7 @@ webdav server:
 - implement PROPPATCH
 
 - run caldav tester
+
+- properties:
+ - calendar-timezone
+ - current-user-privilege-set
