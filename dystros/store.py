@@ -79,16 +79,10 @@ def ExtractUID(name, data):
 class DuplicateUidError(Exception):
     """UID already exists in store."""
 
-    def __init__(self, uid, fname):
+    def __init__(self, uid, existing_name, new_name):
         self.uid = uid
-        self.fname = fname
-
-
-class NameExists(Exception):
-    """Name exists."""
-
-    def __init__(self, name):
-        self.name = name
+        self.existing_name = existing_name
+        self.new_name = new_name
 
 
 class NoSuchItem(Exception):
@@ -240,14 +234,22 @@ class GitStore(Store):
         self._scan_ids()
         return self._uid_to_fname[uid]
 
-    def _check_duplicate(self, uid, name):
+    def _check_duplicate(self, uid, name, replace_etag):
         self._scan_ids()
         try:
-            raise DuplicateUidError(uid, self.lookup_uid(uid)[0])
+            (existing_name, existing_etag) = self.lookup_uid(uid)
         except KeyError:
             pass
-        if name in self._fname_to_uid:
-            raise NameExists(name)
+        else:
+            if existing_name != name:
+                raise DuplicateUidError(uid, existing_name, name)
+
+        try:
+            (etag, uid) = self._fname_to_uid[name]
+        except KeyError:
+            etag = 'nonexistant'
+        if replace_etag is not None and etag != replace_etag:
+            raise InvalidETag(name, etag, replace_etag)
 
     def _get_blob(self, sha):
         return self.repo.object_store[sha.encode('ascii')]
@@ -419,13 +421,12 @@ class BareGitStore(GitStore):
         :param name: Name of the object
         :param data: serialized object as bytes
         :param etag: optional etag of object to replace
-        :raise NameExists: when the name already exists
+        :raise InvalidETag: when the name already exists but with different etag
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
         uid = ExtractUID(name, data)
-        self._check_duplicate(uid, name)
-        # TODO(jelmer): Handle case where the item already exists
+        self._check_duplicate(uid, name, replace_etag)
         # TODO(jelmer): Verify that 'data' actually represents a valid object
         b = Blob.from_string(data)
         tree = self._get_current_tree()
@@ -488,13 +489,12 @@ class TreeGitStore(GitStore):
         :param name: name of the object
         :param data: serialized object as bytes
         :param replace_etag: optional etag of object to replace
-        :raise NameExists: when the name already exists
+        :raise InvalidETag: when the name already exists but with different etag
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
         uid = ExtractUID(name, data)
-        self._check_duplicate(uid, name)
-        # TODO(jelmer): Handle case where the item already exists
+        self._check_duplicate(uid, name, replace_etag)
         # TODO(jelmer): Verify that 'data' actually represents a valid object
         p = os.path.join(self.repo.path, name)
         with open(p, 'wb') as f:

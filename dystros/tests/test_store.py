@@ -31,7 +31,7 @@ from dulwich.repo import Repo
 
 from dystros.store import (
     GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
-    ExtractCalendarUID, NameExists, InvalidETag, NoSuchItem,
+    ExtractCalendarUID, InvalidETag, NoSuchItem,
     logger as store_logger)
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -97,9 +97,10 @@ class BaseStoreTest(object):
     def test_import_one_duplicate_name(self):
         gc = self.create_store()
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertRaises(
-                NameExists, gc.import_one, 'foo.ics',
-                EXAMPLE_VCALENDAR2)
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR2, etag)
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        self.assertRaises(InvalidETag, gc.import_one, 'foo.ics',
+                EXAMPLE_VCALENDAR2, 'invalidetag')
 
     def test_iter_calendars(self):
         gc = self.create_store()
