@@ -35,6 +35,10 @@ VCARD_EXTENSION = '.vcf'
 STORE_TYPE_ADDRESSBOOK = 'addressbook'
 STORE_TYPE_CALENDAR = 'calendar'
 STORE_TYPE_OTHER = 'other'
+VALID_STORE_TYPES = (
+    STORE_TYPE_ADDRESSBOOK,
+    STORE_TYPE_CALENDAR,
+    STORE_TYPE_OTHER)
 
 
 DEFAULT_ENCODING = 'utf-8'
@@ -351,6 +355,24 @@ class GitStore(Store):
             return config.get('dystros', 'color')
         except KeyError:
             return None
+
+    def get_type(self):
+        """Get store type.
+
+        This looks in git config first, then falls back to guessing.
+        """
+        config = self.repo.get_config()
+        try:
+            store_type = config.get('dystros', 'type')
+        except KeyError:
+            return None
+        else:
+            if store_type not in VALID_STORE_TYPES:
+                logging.warning(
+                    'Invalid store type %s set for %r.',
+                    store_type, self.repo)
+            return store_type
+        return super(GitStore, self).get_type()
 
 
 class BareGitStore(GitStore):
