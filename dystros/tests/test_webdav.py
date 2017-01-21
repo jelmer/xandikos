@@ -234,8 +234,7 @@ class WebTests(unittest.TestCase):
             contents.decode('utf-8'),
             '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
-            '</ns0:current-user-principal></ns0:prop>'
-            '<ns0:prop><ns0:somethingelse /></ns0:prop>'
+            '</ns0:current-user-principal><ns0:somethingelse /></ns0:prop>'
             '</ns0:propstat>')
         self.assertEqual(code, '200 OK')
 

@@ -92,8 +92,9 @@ class DAVStatus(object):
             if rd:
                 ET.SubElement(propstat,
                     '{DAV:}responsedescription').text = responsedescription
+            propresp = ET.SubElement(propstat, '{DAV:}prop')
             for prop in props:
-                propstat.append(prop)
+                propresp.append(prop)
             yield propstat
 
     def aselement(self):
@@ -333,9 +334,8 @@ def resolve_properties(href, resource, properties, requested):
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        propresp = ET.Element('{DAV:}prop')
         responsedescription = None
-        ret = ET.SubElement(propresp, propreq.tag)
+        ret = ET.Element(propreq.tag)
         try:
             prop = properties[propreq.tag]
         except KeyError:
@@ -353,7 +353,7 @@ def resolve_properties(href, resource, properties, requested):
                 statuscode = '404 Not Found'
             else:
                 statuscode = '200 OK'
-        yield PropStatus(statuscode, responsedescription, propresp)
+        yield PropStatus(statuscode, responsedescription, ret)
 
 
 def traverse_resource(resource, depth, base_href):
