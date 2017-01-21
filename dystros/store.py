@@ -194,6 +194,22 @@ class Store(object):
                 ret = STORE_TYPE_ADDRESSBOOK
         return ret
 
+    def set_description(self, description):
+        """Set the extended description of this store.
+
+        :param description: String with description
+        """
+        raise NotImplementedError(self.set_description)
+
+    def get_description(self):
+        """Get the extended description of this store.
+        """
+        raise NotImplementedError(self.get_description)
+
+    def get_color(Self):
+        """Get the color code for this store."""
+        raise NotImplementedError(self.get_color)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository.
@@ -310,6 +326,31 @@ class GitStore(Store):
             return TreeGitStore(repo)
         else:
             return BareGitStore(repo)
+
+    def get_description(self):
+        """Get extended description.
+
+        :return: repository description as string
+        """
+        return self.repo.get_description().decode(DEFAULT_ENCODING)
+
+    def set_description(self, description):
+        """Set extended description.
+
+        :param description: repository description as string
+        """
+        return self.repo.set_description(description.encode(DEFAULT_ENCODING))
+
+    def get_color(self):
+        """Get color.
+
+        :return: A Color code, or None
+        """
+        config = self.repo.get_config()
+        try:
+            return config.get('dystros', 'color')
+        except KeyError:
+            return None
 
 
 class BareGitStore(GitStore):

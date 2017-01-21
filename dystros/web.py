@@ -128,12 +128,10 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
         return os.path.basename(self.store.repo.path)
 
     def get_calendar_description(self):
-        # TODO
-        return "A calendar resource"
+        return self.store.get_description()
 
     def get_calendar_color(self):
-        # TODO
-        return "#112233"
+        return self.store.get_color()
 
     def get_supported_calendar_components(self):
         return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
@@ -159,8 +157,7 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
         return os.path.basename(self.store.repo.path)
 
     def get_addressbook_description(self):
-        # TODO
-        return "An addressbook resource"
+        return self.store.get_description()
 
 
 class CollectionSetResource(webdav.DAVCollection):
