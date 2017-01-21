@@ -206,22 +206,23 @@ class DystrosBackend(webdav.DAVBackend):
 
     def __init__(self, path, current_user_principal, base_prefix=None):
         self.path = path
-        if base_prefix and base_prefix[-1] != '/':
-            base_prefix += '/'
+        if base_prefix:
+            base_prefix = posixpath.normpath(base_prefix)
         self.base_prefix = base_prefix
-        self.current_user_principal = current_user_principal
+        self.current_user_principal = posixpath.normpath(current_user_principal)
 
     def _map_to_file_path(self, relpath):
         if (self.base_prefix is not None and
-            not relpath.startswith(self.base_prefix)):
+            not relpath.startswith(self.base_prefix+'/')):
             return None
         relpath = relpath[len(self.base_prefix):]
         return os.path.join(self.path, relpath.lstrip('/'))
 
     def get_resource(self, relpath):
+        relpath = posixpath.normpath(relpath)
         if relpath in WELLKNOWN_DAV_PATHS:
             return webdav.WellknownResource('/')
-        elif relpath.strip('/') == '':
+        elif relpath == '/':
             return NonDAVResource()
         elif relpath == self.current_user_principal:
             return Principal(self, relpath)
@@ -238,9 +239,9 @@ class DystrosBackend(webdav.DAVBackend):
                         STORE_TYPE_ADDRESSBOOK: AddressbookResource,
                         STORE_TYPE_OTHER: Collection}[store.get_type()](store)
         else:
-            (basepath, name) = os.path.split(relpath.rstrip('/'))
+            (basepath, name) = os.path.split(relpath)
             assert name != '', 'path is %r' % relpath
-            store = self.get_resource(basepath.rstrip('/'))
+            store = self.get_resource(basepath)
             if (store is None or
                 webdav.COLLECTION_RESOURCE_TYPE not in store.resource_types):
                 return None
