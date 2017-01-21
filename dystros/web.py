@@ -204,24 +204,17 @@ class Principal(CollectionSetResource):
 
 class DystrosBackend(webdav.DAVBackend):
 
-    def __init__(self, path, current_user_principal, base_prefix=None):
+    def __init__(self, path, current_user_principal):
         self.path = path
-        if base_prefix:
-            base_prefix = posixpath.normpath(base_prefix)
-        self.base_prefix = base_prefix
         self.current_user_principal = posixpath.normpath(current_user_principal)
 
     def _map_to_file_path(self, relpath):
-        if (self.base_prefix is not None and
-            not relpath.startswith(self.base_prefix+'/')):
-            return None
-        relpath = relpath[len(self.base_prefix):]
         return os.path.join(self.path, relpath.lstrip('/'))
 
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
         if relpath in WELLKNOWN_DAV_PATHS:
-            return webdav.WellknownResource('/')
+            return webdav.WellknownResource(self.current_user_principal)
         elif relpath == '/':
             return NonDAVResource()
         elif relpath == self.current_user_principal:
@@ -255,9 +248,9 @@ class DystrosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Dystros web server.
     """
 
-    def __init__(self, path, current_user_principal, base_prefix=None):
+    def __init__(self, path, current_user_principal):
         super(DystrosApp, self).__init__(DystrosBackend(
-            path, current_user_principal, base_prefix=base_prefix))
+            path, current_user_principal))
         self.register_properties([
             webdav.DAVResourceTypeProperty(),
             webdav.DAVCurrentUserPrincipalProperty(
@@ -299,15 +292,11 @@ if __name__ == '__main__':
     parser.add_option("--current-user-principal",
                       default="/user/",
                       help="Path to current user principal.")
-    parser.add_option("--base-prefix",
-                      default="",
-                      help="Base prefix for service.")
     options, args = parser.parse_args(sys.argv)
 
     from wsgiref.simple_server import make_server
     app = DystrosApp(
         options.directory,
-        current_user_principal=options.current_user_principal,
-        base_prefix=options.base_prefix)
+        current_user_principal=options.current_user_principal)
     server = make_server(options.listen_address, options.port, app)
     server.serve_forever()

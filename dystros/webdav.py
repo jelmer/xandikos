@@ -30,6 +30,7 @@ import hashlib
 import logging
 import posixpath
 import urllib.parse
+from wsgiref.util import application_uri, request_uri
 
 from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
@@ -449,7 +450,7 @@ class WebDAVApp(object):
                 [n[4:] for n in dir(self) if n.startswith('dav_')])
 
     def _send_not_found(self, environ, start_response):
-        path = environ['PATH_INFO']
+        path = request_uri(environ, include_query=False)
         start_response('404 Not Found', [])
         return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
 
@@ -535,12 +536,14 @@ class WebDAVApp(object):
         # 'text/xml; charset="utf-8"'
         et = xmlparse(self._readBody(environ))
         return self.reporters[et.tag].report(
-            et, self.properties, environ['PATH_INFO'], r, depth)
+            et, self.properties, request_uri(environ, include_query=False),
+            r, depth)
 
     def dav_PROPFIND(self, environ):
         base_resource = self.backend.get_resource(environ['PATH_INFO'])
         if base_resource is None:
-            return DAVStatus(environ['PATH_INFO'], '404 Not Found')
+            return DAVStatus(request_uri(environ, include_query=False),
+                             '404 Not Found')
         depth = environ.get("HTTP_DEPTH", "0")
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
@@ -548,13 +551,13 @@ class WebDAVApp(object):
         if et.tag != '{DAV:}propfind':
             # TODO-ERROR(jelmer): What to return here?
             return DAVStatus(
-                environ['PATH_INFO'], '500 Internal Error',
+                request_uri(environ, include_query=False), '500 Internal Error',
                 'Expected propfind tag, got ' + et.tag)
         try:
             [requested] = et
         except IndexError:
             return DAVStatus(
-                environ['PATH_INFO'], '500 Internal Error',
+                request_uri(environ, include_query=False), '500 Internal Error',
                 'Received more than one element in propfind.')
         if requested.tag == '{DAV:}prop':
             ret = []
