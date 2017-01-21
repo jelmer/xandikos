@@ -95,6 +95,13 @@ class Addressbook(webdav.DAVCollection):
     def get_addressbook_description(self):
         raise NotImplementedError(self.get_addressbook_description)
 
+    def get_supported_address_data_types(self):
+        """Get list of supported data types.
+
+        :return: List of tuples with content type and version
+        """
+        raise NotImplementedError(self.get_supported_address_data_types)
+
 
 class PrincipalExtensions:
     """Extensions to webdav.Principal."""
@@ -123,3 +130,21 @@ class PrincipalAddressProperty(webdav.DAVProperty):
 
     def populate(self, resource, el):
         ET.SubElement(el, '{DAV:}href').text = resource.get_principal_address()
+
+
+class SupportedAddressDataProperty(webdav.DAVProperty):
+    """Provides the supported-address-data property.
+
+    https://tools.ietf.org/html/rfc6352, section 6.2.2
+    """
+
+    name = '{%s}supported-address-data' % NAMESPACE
+    resource_type = ADDRESSBOOK_RESOURCE_TYPE
+    in_allprops = False
+    protected = True
+
+    def populate(self, resource, el):
+        for (content_type, version) in resource.get_supported_address_data_types():
+            subel = ET.SubElement(el, '{%s}content-type')
+            subel.set('content-type', content_type)
+            subel.set('version', version)

@@ -159,6 +159,9 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
     def get_addressbook_description(self):
         return self.store.get_description()
 
+    def get_supported_address_data_types(self):
+        return [('text/vcard', '3.0')]
+
 
 class CollectionSetResource(webdav.DAVCollection):
     """Resource for calendar sets."""
@@ -268,6 +271,7 @@ class DystrosApp(webdav.WebDAVApp):
             carddav.AddressbookDescriptionProperty(),
             carddav.PrincipalAddressProperty(),
             caldav.GetCTagProperty(),
+            carddav.SupportedAddressDataProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
