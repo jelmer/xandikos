@@ -25,5 +25,5 @@ import os
 from dystros.web import DystrosApp
 
 app = DystrosApp(
-        directory=os.environ['DYSTROSPATH'],
+        path=os.environ['DYSTROSPATH'],
         current_user_principal=os.environ.get('CURRENT_USER_PRINCIPAL', '/user/'))
