@@ -27,7 +27,7 @@ the carddav support, the caldav support and the DAV store.
 import os
 import posixpath
 
-from dystros import caldav, carddav, utils, webdav
+from dystros import caldav, carddav, webdav
 from dystros.store import (
     GitStore,
     NotStoreError,
@@ -282,6 +282,7 @@ class DystrosApp(webdav.WebDAVApp):
 
 
 if __name__ == '__main__':
+    from dystros import utils
     import optparse
     import sys
     parser = optparse.OptionParser()
