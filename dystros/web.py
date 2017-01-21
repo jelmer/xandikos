@@ -83,6 +83,10 @@ class StoreBasedCollection(object):
     def __init__(self, store):
         self.store = store
 
+    def get_displayname(self):
+        # TODO
+        return os.path.basename(self.store.repo.path)
+
     def get_etag(self):
         return self.store.get_ctag()
 
@@ -123,10 +127,6 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
 
     _object_content_type = 'text/calendar'
 
-    def get_displayname(self):
-        # TODO
-        return os.path.basename(self.store.repo.path)
-
     def get_calendar_description(self):
         return self.store.get_description()
 
@@ -152,10 +152,6 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
         # TODO
         raise KeyError
 
-    def get_displayname(self):
-        # TODO
-        return os.path.basename(self.store.repo.path)
-
     def get_addressbook_description(self):
         return self.store.get_description()
 
@@ -169,6 +165,9 @@ class CollectionSetResource(webdav.DAVCollection):
     def __init__(self, backend, relpath):
         self.backend = backend
         self.relpath = relpath
+
+    def get_displayname(self):
+        return posixpath.basename(self.relpath)
 
     def members(self):
         ret = []

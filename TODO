@@ -21,7 +21,10 @@ webdav server:
 - properties:
  - calendar-timezone
  - current-user-privilege-set
- - supported-address-data
+ - group-membership
+ - calendar-timezone
+ - calendar-proxy-read-for
+ - calendar-proxy-write-for
 
 - properly handle well-known URLs:
  - 302 to SCRIPT_NAME
