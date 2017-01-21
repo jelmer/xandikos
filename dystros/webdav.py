@@ -551,18 +551,18 @@ class WebDAVApp(object):
         if et.tag != '{DAV:}propfind':
             # TODO-ERROR(jelmer): What to return here?
             return DAVStatus(
-                request_uri(environ, include_query=False), '500 Internal Error',
+                request_uri(environ), '500 Internal Error',
                 'Expected propfind tag, got ' + et.tag)
         try:
             [requested] = et
         except IndexError:
             return DAVStatus(
-                request_uri(environ, include_query=False), '500 Internal Error',
+                request_uri(environ), '500 Internal Error',
                 'Received more than one element in propfind.')
         if requested.tag == '{DAV:}prop':
             ret = []
             for href, resource in traverse_resource(
-                    base_resource, depth, environ['PATH_INFO']):
+                    base_resource, depth, request_uri(environ, include_query=False)):
                 propstat = resolve_properties(
                     href, resource, self.properties, requested)
                 ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
@@ -574,7 +574,7 @@ class WebDAVApp(object):
             # TODO(jelmer): implement allprop and propname
             # TODO-ERROR(jelmer): What to return here?
             return DAVStatus(
-                environ['PATH_INFO'], '500 Internal Error',
+                request_uri(environ), '500 Internal Error',
                 'Expected prop tag, got ' + requested.tag)
 
     def do_OPTIONS(self, environ, start_response):
