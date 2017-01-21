@@ -202,8 +202,11 @@ class Principal(CollectionSetResource):
 
 class DystrosBackend(webdav.DAVBackend):
 
-    def __init__(self, path, current_user_principal):
+    def __init__(self, path, current_user_principal, base_prefix=None):
         self.path = path
+        if base_prefix and base_prefix[-1] != '/':
+            base_prefix += '/'
+        self.base_prefix = base_prefix
         self.current_user_principal = current_user_principal
 
     def get_resource(self, relpath):
@@ -213,6 +216,9 @@ class DystrosBackend(webdav.DAVBackend):
             return NonDAVResource()
         elif relpath == self.current_user_principal:
             return Principal()
+        if (self.base_prefix is not None and
+            not self.path.startswith(self.base_prefix)):
+            relpath = relpath[len(self.base_prefix):]
         p = os.path.join(self.path, relpath.lstrip('/'))
         if os.path.isdir(p):
             try:
@@ -240,9 +246,9 @@ class DystrosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Dystros web server.
     """
 
-    def __init__(self, path, current_user_principal):
+    def __init__(self, path, current_user_principal, base_prefix=None):
         super(DystrosApp, self).__init__(DystrosBackend(
-            path, current_user_principal))
+            path, current_user_principal, base_prefix=base_prefix))
         self.register_properties([
             webdav.DAVResourceTypeProperty(),
             webdav.DAVCurrentUserPrincipalProperty(
@@ -283,9 +289,15 @@ if __name__ == '__main__':
     parser.add_option("--current-user-principal",
                       default="/user/",
                       help="Path to current user principal.")
+    parser.add_option("--base-prefix",
+                      default="",
+                      help="Base prefix for service.")
     options, args = parser.parse_args(sys.argv)
 
     from wsgiref.simple_server import make_server
-    app = DystrosApp(options.directory, options.current_user_principal)
+    app = DystrosApp(
+        options.directory,
+        current_user_principal=options.current_user_principal,
+        base_prefix=options.base_prefix)
     server = make_server(options.listen_address, options.port, app)
     server.serve_forever()
