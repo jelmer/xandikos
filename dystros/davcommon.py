@@ -48,6 +48,7 @@ class MultiGetReporter(webdav.DAVReporter):
         for name, resource in resource.members():
             href = urllib.parse.urljoin(base_href+'/', name)
             if href in hrefs:
+                # TODO(jelmer): Allow e.g. non-canonical URLs to be specified.
                 propstat = webdav.resolve_properties(
                     href, resource, properties, requested)
                 yield webdav.DAVStatus(href, '200 OK', propstat=list(propstat))

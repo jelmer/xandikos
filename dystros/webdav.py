@@ -432,6 +432,10 @@ class WebDAVApp(object):
         self.properties = {}
         self.reporters = {}
 
+    def _request_href(self, environ):
+        """Returns a href that can be used externally."""
+        return environ['SCRIPT_NAME'] + environ['PATH_INFO']
+
     def register_properties(self, properties):
         for p in properties:
             self.properties[p.name] = p
@@ -536,7 +540,7 @@ class WebDAVApp(object):
         # 'text/xml; charset="utf-8"'
         et = xmlparse(self._readBody(environ))
         return self.reporters[et.tag].report(
-            et, self.properties, request_uri(environ, include_query=False),
+            et, self.properties, self._request_href(environ),
             r, depth)
 
     def dav_PROPFIND(self, environ):
@@ -560,7 +564,7 @@ class WebDAVApp(object):
         if requested.tag == '{DAV:}prop':
             ret = []
             for href, resource in traverse_resource(
-                    base_resource, depth, request_uri(environ, include_query=False)):
+                    base_resource, depth, self._request_href(environ)):
                 propstat = resolve_properties(
                     href, resource, self.properties, requested)
                 ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))

@@ -131,7 +131,10 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
         return self.store.get_description()
 
     def get_calendar_color(self):
-        return self.store.get_color()
+        color = self.store.get_color()
+        if color and color[0] != '#':
+            color = '#' + color
+        return color
 
     def get_supported_calendar_components(self):
         return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
