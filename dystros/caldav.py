@@ -160,7 +160,8 @@ class CalendarQueryReporter(DAVReporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
 
-    def report(self, body, properties, base_href, base_resource, depth):
+    def report(self, body, resource_by_href, properties, base_href,
+               base_resource, depth):
         # TODO(jelmer): Verify that resource is an addressbook
         requested = None
         filter = None
@@ -177,7 +178,7 @@ class CalendarQueryReporter(DAVReporter):
                 base_resource, depth, base_href):
             # TODO: apply filter
             propstat = resolve_properties(
-                href, resource, properties, requested)
+                resource, properties, requested)
             yield DAVStatus(href, '200 OK', propstat=list(propstat))
 
 

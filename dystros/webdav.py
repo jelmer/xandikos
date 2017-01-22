@@ -344,37 +344,46 @@ class DAVPrincipal(DAVResource):
         raise NotImplementedError(self.get_principal_url)
 
 
-def resolve_properties(href, resource, properties, requested):
+def resolve_property(resource, properties, name):
+    """Resolve a single property on a resource.
+
+    :param resource: DAVResource object
+    :param properties: Dictionary of properties
+    :param name: name of property to resolve
+    :return: PropStatus items
+    """
+    responsedescription = None
+    ret = ET.Element(name)
+    try:
+        prop = properties[name]
+    except KeyError:
+        statuscode = '404 Not Found'
+        logging.warning(
+            'Client requested unknown property %s',
+            name)
+    else:
+        try:
+            if (prop.resource_type is not None and
+                prop.resource_type not in resource.resource_types):
+                raise KeyError
+            prop.populate(resource, ret)
+        except KeyError:
+            statuscode = '404 Not Found'
+        else:
+            statuscode = '200 OK'
+    return PropStatus(statuscode, responsedescription, ret)
+
+
+def resolve_properties(resource, properties, requested):
     """Resolve a set of properties.
 
-    :param href: href for the resource
     :param resource: DAVResource object
     :param properties: Dictionary of properties
     :param requested: XML {DAV:}prop element with properties to look up
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        responsedescription = None
-        ret = ET.Element(propreq.tag)
-        try:
-            prop = properties[propreq.tag]
-        except KeyError:
-            statuscode = '404 Not Found'
-            logging.warning(
-                'Client requested unknown property %s',
-                propreq.tag)
-        else:
-            try:
-                if (prop.resource_type is not None and
-                    prop.resource_type not in resource.resource_types):
-                    raise KeyError
-                prop.populate(resource, ret)
-            except KeyError:
-                statuscode = '404 Not Found'
-            else:
-                statuscode = '200 OK'
-        yield PropStatus(statuscode, responsedescription, ret)
-
+        yield resolve_property(resource, properties, propreq.tag)
 
 def traverse_resource(resource, depth, base_href):
     """Traverse a resource.
@@ -401,10 +410,12 @@ class DAVReporter(object):
 
     name = None
 
-    def report(self, request_body, properties, href, resource, depth):
+    def report(self, request_body, resource_by_href, properties, href,
+               resource, depth):
         """Send a report.
 
         :param request_body: XML Element for request body
+        :param resource_by_href: Function for retrieving resource by HREF
         :param properties: Dictionary mapping names to DAVProperty instances
         :param href: Base resource href
         :param resource: Resource to start from
@@ -412,6 +423,52 @@ class DAVReporter(object):
         :return: Iterator over DAVStatus objects
         """
         raise NotImplementedError(self.report)
+
+
+class DAVExpandPropertyReporter(DAVReporter):
+    """A expand-property reporter.
+
+    See https://tools.ietf.org/html/rfc3253, section 3.8
+    """
+
+    name = '{DAV:}expand-property'
+
+    def _populate(self, prop_list, resource_by_href, properties, href, resource):
+        """Expand properties for a resource.
+
+        :param prop_list: DAV:property elements to retrieve and expand
+        :param resource_by_href: Resolve resource by HREF
+        :param properties: Available properties
+        :param href: href for current resource
+        :param resource: current resource
+        :return: DAVSstatus object
+        """
+        ret = []
+        for prop in prop_list:
+            prop_name = prop.get('name')
+            # FIXME: Resolve prop_name on resource
+            propstat = resolve_property(resource, properties, prop_name)
+            new_prop = []
+            for prop_child in propstat.prop:
+                if prop_child.tag != '{DAV:}href':
+                    new_prop.append(prop_child)
+                else:
+                    child_href = prop_child.text
+                    try:
+                        child_resource = resource_by_href(child_href)
+                    except KeyError:
+                        # FIXME: What to do if the referenced href is invalid?
+                        # For now, let's just keep the unresolved href around
+                        new_prop.append(prop_child)
+                    else:
+                        response = self._populate(prop, properties, child_href, child_resource)
+                        new_prop.append(response.aselement())
+            propstat.prop = new_prop
+            ret.append(propstat)
+        return DAVStatus(href, '200 OK', propstat=ret)
+
+    def report(self, request_body, resource_by_href, properties, href, resource, depth):
+        return self._populate(request_body, resource_by_href, properties, href, resource)
 
 
 class WellknownResource(DAVResource):
@@ -572,6 +629,16 @@ class WebDAVApp(object):
             ('Content-Length', str(sum(map(len, body))))])
         return body
 
+    def _get_resource_by_href(self, href):
+        """Retrieve a resource by a href.
+
+        For the moment, just looks up paths.
+        """
+        r = self.backend.get_resource(href)
+        if r is None:
+            raise KeyError(href)
+        return r
+
     def dav_REPORT(self, environ):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         r = self.backend.get_resource(environ['PATH_INFO'])
@@ -582,8 +649,8 @@ class WebDAVApp(object):
         # 'text/xml; charset="utf-8"'
         et = xmlparse(self._readBody(environ))
         return self.reporters[et.tag].report(
-            et, self.properties, self._request_href(environ),
-            r, depth)
+            et, self._get_resource_by_href, self.properties,
+            self._request_href(environ), r, depth)
 
     def dav_PROPFIND(self, environ):
         base_resource = self.backend.get_resource(environ['PATH_INFO'])
@@ -608,7 +675,7 @@ class WebDAVApp(object):
             for href, resource in traverse_resource(
                     base_resource, depth, self._request_href(environ)):
                 propstat = resolve_properties(
-                    href, resource, self.properties, requested)
+                    resource, self.properties, requested)
                 ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
             if len(ret) == 1:
                 # Allow non-207 responses

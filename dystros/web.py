@@ -314,7 +314,9 @@ class DystrosApp(webdav.WebDAVApp):
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
             caldav.CalendarQueryReporter(),
-            carddav.AddressbookMultiGetReporter()])
+            carddav.AddressbookMultiGetReporter(),
+            webdav.DAVExpandPropertyReporter(),
+            ])
 
 
 if __name__ == '__main__':
