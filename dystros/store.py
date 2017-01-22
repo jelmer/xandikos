@@ -256,9 +256,6 @@ class GitStore(Store):
         if replace_etag is not None and etag != replace_etag:
             raise InvalidETag(name, etag, replace_etag)
 
-    def _get_blob(self, sha):
-        return self.repo.object_store[sha.encode('ascii')]
-
     def get_raw(self, name, etag=None):
         """Get the raw contents of an object.
 
@@ -270,7 +267,9 @@ class GitStore(Store):
             tree = self._get_current_tree()
             name = name.encode(DEFAULT_ENCODING)
             etag = tree[name][1]
-        blob = self._get_blob(etag)
+        else:
+            etag = etag.encode('ascii')
+        blob = self.repo.object_store[etag]
         return blob.data
 
     def _scan_ids(self):
@@ -282,7 +281,7 @@ class GitStore(Store):
             if (name in self._fname_to_uid and
                 self._fname_to_uid[name][0] == etag):
                 continue
-            blob = self._get_blob(etag)
+            blob = self.repo.object_store[sha]
             try:
                 uid = ExtractUID(name, blob.data)
             except KeyError:
