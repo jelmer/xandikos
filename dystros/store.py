@@ -242,7 +242,7 @@ class GitStore(Store):
         self._scan_ids()
         if uid is not None:
             try:
-                (existing_name, existing_etag) = self.lookup_uid(uid)
+                (existing_name, _) = self.lookup_uid(uid)
             except KeyError:
                 pass
             else:
@@ -250,11 +250,16 @@ class GitStore(Store):
                     raise DuplicateUidError(uid, existing_name, name)
 
         try:
-            (etag, uid) = self._fname_to_uid[name]
+            etag = self._get_etag(name)
         except KeyError:
-            etag = 'nonexistant'
+            etag = None
         if replace_etag is not None and etag != replace_etag:
             raise InvalidETag(name, etag, replace_etag)
+
+    def _get_etag(self, name):
+        tree = self._get_current_tree()
+        name = name.encode(DEFAULT_ENCODING)
+        return tree[name][1]
 
     def get_raw(self, name, etag=None):
         """Get the raw contents of an object.
@@ -264,9 +269,7 @@ class GitStore(Store):
         :return: raw contents
         """
         if etag is None:
-            tree = self._get_current_tree()
-            name = name.encode(DEFAULT_ENCODING)
-            etag = tree[name][1]
+            etag = self._get_etag(name)
         else:
             etag = etag.encode('ascii')
         blob = self.repo.object_store[etag]
