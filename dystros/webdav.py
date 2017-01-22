@@ -448,7 +448,7 @@ class DAVExpandPropertyReporter(DAVReporter):
             prop_name = prop.get('name')
             # FIXME: Resolve prop_name on resource
             propstat = resolve_property(resource, properties, prop_name)
-            new_prop = []
+            new_prop = ET.Element(propstat.prop.tag)
             for prop_child in propstat.prop:
                 if prop_child.tag != '{DAV:}href':
                     new_prop.append(prop_child)
@@ -463,7 +463,8 @@ class DAVExpandPropertyReporter(DAVReporter):
                     else:
                         response = self._populate(prop, properties, child_href, child_resource)
                         new_prop.append(response.aselement())
-            propstat.prop = new_prop
+            propstat = PropStatus(
+                propstat.statuscode, propstat.responsedescription, prop=new_prop)
             ret.append(propstat)
         return DAVStatus(href, '200 OK', propstat=ret)
 
