@@ -17,7 +17,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Stores and store sets."""
+"""Stores and store sets.
+
+ETags (https://en.wikipedia.org/wiki/HTTP_ETag) used in this file
+are always strong, and should be returned without wrapping quotes.
+"""
 
 import logging
 import os
@@ -454,7 +458,7 @@ class BareGitStore(GitStore):
                 raise InvalidETag(name, etag, current_sha.decode('ascii'))
         del tree[name_enc]
         self.repo.object_store.add_objects([(tree, '')])
-        self._commit_tree(tree.id, b"Add " + name_enc)
+        self._commit_tree(tree.id, b"Delete " + name_enc)
 
     @classmethod
     def create(cls, path):

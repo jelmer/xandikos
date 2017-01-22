@@ -45,6 +45,24 @@ PropStatus = collections.namedtuple(
     'PropStatus', ['statuscode', 'responsedescription', 'prop'])
 
 
+def etag_matches(condition, actual_etag):
+    """Check if an etag matches an If-Matches condition.
+
+    :param condition: Condition (e.g. '*', '"foo"' or '"foo", "bar"'
+    :param actual_etag: ETag to compare to. None nonexistant
+    :return: bool indicating whether condition matches
+    """
+    if actual_etag is None and condition:
+        return False
+    if condition == "*":
+        return True
+    for etag in condition.split(','):
+        if etag == current_etag:
+            return True
+    else:
+        return False
+
+
 class NeedsMultiStatus(Exception):
     """Raised when a response needs multi-status (e.g. for propstat)."""
 
@@ -404,7 +422,7 @@ class WellknownResource(DAVResource):
         self.server_root = server_root
 
     def get_etag(self):
-        return hashlib.md5(b''.join(self.get_body())).hexdigest()
+        return '"%s"' % hashlib.md5(b''.join(self.get_body())).hexdigest()
 
     def get_body(self):
         return [self.server_root.encode(DEFAULT_ENCODING)]
@@ -445,6 +463,7 @@ class WebDAVApp(object):
             self.reporters[r.name] = r
 
     def _get_dav_features(self, environ):
+        # TODO(jelmer): Support access-control
         return ['1', '2', '3', 'calendar-access', 'addressbook']
 
     def _get_allowed_methods(self, environ):
@@ -468,19 +487,27 @@ class WebDAVApp(object):
         if r is None:
             return self._send_not_found(environ, start_response)
         current_etag = r.get_etag()
-        requested_etag = environ.get('HTTP_IF_NONE_MATCH', None)
-        if requested_etag == current_etag:
+        if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
+        if if_none_match and etag_matches(if_none_match, current_etag):
             start_response('304 Not Modified', [])
             return []
         start_response('200 OK', [('ETag', current_etag)])
         return r.get_body()
 
     def do_DELETE(self, environ, start_response):
-        container_path, item_name = posixpath.split(environ['PATH_INFO'])
-        r = self.backend.get_resource(container_path)
+        r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
             return self._send_not_found(environ, start_response)
-        r.delete_member(item_name, environ.get('HTTP_IF_MATCH', None))
+        container_path, item_name = posixpath.split(environ['PATH_INFO'])
+        pr = self.backend.get_resource(container_path)
+        if pr is None:
+            return self._send_not_found(environ, start_response)
+        current_etag = r.get_etag()
+        if_match = environ.get('HTTP_IF_MATCH', None)
+        if if_match is not None and not etag_matches(if_match, current_etag):
+            start_response('412 Precondition Failed', [])
+            return []
+        r.delete_member(item_name, current_etag)
         start_response('200 OK', [])
         return []
 
@@ -489,8 +516,16 @@ class WebDAVApp(object):
         path = environ['PATH_INFO']
         r = self.backend.get_resource(path)
         if r is not None:
+            current_etag = r.get_etag()
+        else:
+            current_etag = None
+        if_match = environ.get('HTTP_IF_MATCH', None)
+        if if_match is not None and not etag_matches(if_match, current_etag):
+            start_response('412 Precondition Failed', [])
+            return []
+        if r is not None:
             start_response('200 OK', [])
-            r.set_body([new_contents], environ.get('HTTP_IF_MATCH', None))
+            r.set_body([new_contents], current_etag)
             return []
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)

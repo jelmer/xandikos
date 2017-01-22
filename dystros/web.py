@@ -44,6 +44,22 @@ ADDRESSBOOK_HOME = 'contacts'
 USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 
 
+def create_strong_etag(etag):
+    """Create strong etags.
+
+    :param etag: basic etag
+    :return: A strong etag
+    """
+    return '"' + etag + '"'
+
+
+def extract_strong_etag(etag):
+    """Extract a strong etag from a string."""
+    if etag is None:
+        return etag
+    return etag.strip('"')
+
+
 class NonDAVResource(webdav.DAVResource):
     """A non-DAV resource."""
 
@@ -53,7 +69,7 @@ class NonDAVResource(webdav.DAVResource):
         return []
 
     def get_etag(self):
-        return "empty"
+        return '"empty"'
 
 
 class ObjectResource(webdav.DAVResource):
@@ -69,13 +85,14 @@ class ObjectResource(webdav.DAVResource):
         return [self.store.get_raw(self.name, self.etag)]
 
     def set_body(self, data, replace_etag=None):
-        self.store.import_one(self.name, b''.join(data), replace_etag)
+        self.store.import_one(
+            self.name, b''.join(data), extract_strong_etag(replace_etag))
 
     def get_content_type(self):
         return self.content_type
 
     def get_etag(self):
-        return self.etag
+        return create_strong_etag(self.etag)
 
 
 class StoreBasedCollection(object):
@@ -88,7 +105,7 @@ class StoreBasedCollection(object):
         return os.path.basename(self.store.repo.path)
 
     def get_etag(self):
-        return self.store.get_ctag()
+        return create_strong_etag(self.store.get_ctag())
 
     def members(self):
         ret = []
@@ -108,7 +125,7 @@ class StoreBasedCollection(object):
             raise KeyError(name)
 
     def delete_member(self, name, etag=None):
-        self.store.delete_one(name, etag)
+        self.store.delete_one(name, extract_strong_etag(etag))
 
     def create_member(self, name, contents):
         self.store.import_one(name, b''.join(contents))
