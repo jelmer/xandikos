@@ -54,10 +54,10 @@ def etag_matches(condition, actual_etag):
     """
     if actual_etag is None and condition:
         return False
-    if condition == "*":
-        return True
     for etag in condition.split(','):
-        if etag == current_etag:
+        if etag.strip(' ') == '*':
+            return True
+        if etag.strip(' ') == actual_etag:
             return True
     else:
         return False
@@ -287,6 +287,7 @@ class DAVResource(object):
         """Set resource contents.
 
         :param body: Iterable over bytestrings
+        :return: New ETag
         """
         raise NotImplementedError(self.set_body)
 
@@ -325,6 +326,7 @@ class DAVCollection(DAVResource):
 
         :param name: Member name
         :param etag: Optional required etag
+        :return: ETag for the new member
         """
         raise NotImplementedError(self.create_member)
 
@@ -524,14 +526,16 @@ class WebDAVApp(object):
             start_response('412 Precondition Failed', [])
             return []
         if r is not None:
-            start_response('200 OK', [])
-            r.set_body([new_contents], current_etag)
+            new_etag = r.set_body([new_contents], current_etag)
+            start_response('204 No Content', [
+                ('ETag', new_etag)])
             return []
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)
         if r is not None:
-            start_response('200 OK', [])
-            r.create_member(name, [new_contents])
+            etag = r.create_member(name, [new_contents])
+            start_response('204 No Content', [
+                ('ETag', new_etag)])
             return []
         return self._send_not_found(environ, start_response)
 
@@ -615,7 +619,7 @@ class WebDAVApp(object):
                 'Expected prop tag, got ' + requested.tag)
 
     def do_OPTIONS(self, environ, start_response):
-        start_response('200 OK', [
+        start_response('204 No Content', [
             ('DAV', ', '.join(self._get_dav_features(environ))),
             ('Allow', ', '.join(self._get_allowed_methods(environ)))])
         return []

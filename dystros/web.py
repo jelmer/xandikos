@@ -85,8 +85,9 @@ class ObjectResource(webdav.DAVResource):
         return [self.store.get_raw(self.name, self.etag)]
 
     def set_body(self, data, replace_etag=None):
-        self.store.import_one(
+        etag = self.store.import_one(
             self.name, b''.join(data), extract_strong_etag(replace_etag))
+        return create_strong_etag(etag)
 
     def get_content_type(self):
         return self.content_type
@@ -128,7 +129,8 @@ class StoreBasedCollection(object):
         self.store.delete_one(name, extract_strong_etag(etag))
 
     def create_member(self, name, contents):
-        self.store.import_one(name, b''.join(contents))
+        etag = self.store.import_one(name, b''.join(contents))
+        return create_strong_etag(etag)
 
 
 class Collection(StoreBasedCollection,caldav.Calendar):
