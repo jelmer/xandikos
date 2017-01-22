@@ -78,3 +78,17 @@ class SyncCollectionReporter(webdav.DAVReporter):
             yield webdav.DAVstatus(
                 urllib.parse.urljoin(href+'/', name), propstat=propstat,
                 sync_token=new_token)
+
+
+class SyncTokenProperty(webdav.DAVProperty):
+    """sync-token property.
+
+    See https://tools.ietf.org/html/rfc6578, section 4
+    """
+
+    name = '{DAV:}sync-token'
+    protected = True
+    in_allprops = False
+
+    def _populate(self, resource, el):
+        el.text = resource.get_sync_token()

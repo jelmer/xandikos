@@ -1,4 +1,4 @@
-l Dystros
+# Dystros
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or

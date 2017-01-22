@@ -119,6 +119,9 @@ class StoreBasedCollection(object):
         # TODO
         return os.path.basename(self.store.repo.path)
 
+    def get_sync_token(self):
+        return self.store.get_ctag()
+
     def get_etag(self):
         return create_strong_etag(self.store.get_ctag())
 
@@ -326,6 +329,7 @@ class DystrosApp(webdav.WebDAVApp):
             caldav.GetCTagProperty(),
             carddav.SupportedAddressDataProperty(),
             webdav.DAVSupportedReportSetProperty(self.reporters),
+            sync.SyncTokenProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

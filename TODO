@@ -27,7 +27,6 @@ webdav server:
  - calendar-proxy-write-for
  - {http://inf-it.com/ns/dav/}settings
  - {DAV:}supportedlock
- - {DAV:}sync-token
  - {http://inf-it.com/ns/dav/}headervalue
  - {http://inf-it.com/ns/ab/}addressbook-color
  - {urn:ietf:params:xml:ns:carddav}max-image-size

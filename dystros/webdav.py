@@ -344,6 +344,11 @@ class DAVCollection(DAVResource):
         """
         raise NotImplementedError(self.create_member)
 
+    def get_sync_token(self):
+        """Get sync-token for the current state of this collection.
+        """
+        raise NotImplementedError(self.get_sync_token)
+
     def iter_differences_since(self, old_token, new_token):
         """Iterate over differences in this collection.
 
