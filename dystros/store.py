@@ -356,9 +356,11 @@ class GitStore(Store):
         """
         config = self.repo.get_config()
         try:
-            return config.get('dystros', 'color')
+            color = config.get('dystros', 'color')
         except KeyError:
             return None
+        else:
+            return color
 
     def get_type(self):
         """Get store type.

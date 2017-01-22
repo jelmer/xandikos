@@ -153,6 +153,8 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
 
     def get_calendar_color(self):
         color = self.store.get_color()
+        if not color:
+            raise KeyError
         if color and color[0] != '#':
             color = '#' + color
         return color

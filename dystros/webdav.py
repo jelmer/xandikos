@@ -510,7 +510,7 @@ class WebDAVApp(object):
             start_response('412 Precondition Failed', [])
             return []
         pr.delete_member(item_name, current_etag)
-        start_response('200 OK', [])
+        start_response('204 No Content', [])
         return []
 
     def do_PUT(self, environ, start_response):
