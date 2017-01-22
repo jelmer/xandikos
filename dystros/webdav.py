@@ -121,7 +121,7 @@ class DAVStatus(object):
         if self.status:
             ET.SubElement(ret, '{DAV:}status').text = 'HTTP/1.1 ' + self.status
         if self.error:
-            ET.SubElement(ret, '{DAV:}error').text = self.error
+            ET.SubElement(ret, '{DAV:}error').append(self.error)
         if self.responsedescription:
             ET.SubElement(ret,
                 '{DAV:}responsedescription').text = self.responsedescription
@@ -250,6 +250,20 @@ class DAVPrincipalURLProperty(DAVProperty):
         :param name: A property name.
         """
         ET.SubElement(el, '{DAV:}href').text = resource.get_principal_url()
+
+
+class DAVSupportedReportSetProperty(DAVProperty):
+
+    name = '{DAV:}supported-report-set'
+    resource_type = '{DAV:}collection'
+    in_allprops = False
+
+    def __init__(self, reporters):
+        self._reporters = reporters
+
+    def populate(self, resource, el):
+        for name in self._reporters:
+            ET.SubElement(el, name)
 
 
 class DAVResource(object):
@@ -649,7 +663,11 @@ class WebDAVApp(object):
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
         et = xmlparse(self._readBody(environ))
-        return self.reporters[et.tag].report(
+        try:
+            reporter = self.reporters[et.tag]
+        except KeyError:
+            return DAVStatus(href, '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
+        return reporter.report(
             et, self._get_resource_by_href, self.properties,
             self._request_href(environ), r, depth)
 

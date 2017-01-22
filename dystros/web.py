@@ -310,6 +310,7 @@ class DystrosApp(webdav.WebDAVApp):
             carddav.PrincipalAddressProperty(),
             caldav.GetCTagProperty(),
             carddav.SupportedAddressDataProperty(),
+            webdav.DAVSupportedReportSetProperty(self.reporters),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
