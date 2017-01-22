@@ -24,6 +24,7 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
+import functools
 import os
 import posixpath
 
@@ -38,6 +39,7 @@ from dystros.store import (
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 
+RESOURCE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
 CALENDAR_HOME = 'calendars'
 ADDRESSBOOK_HOME = 'contacts'
@@ -235,6 +237,7 @@ class DystrosBackend(webdav.DAVBackend):
     def _map_to_file_path(self, relpath):
         return os.path.join(self.path, relpath.lstrip('/'))
 
+    @functools.lru_cache(maxsize=RESOURCE_CACHE_SIZE)
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
         if relpath in WELLKNOWN_DAV_PATHS:
