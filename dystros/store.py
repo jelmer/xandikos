@@ -356,11 +356,11 @@ class GitStore(Store):
         """
         config = self.repo.get_config()
         try:
-            color = config.get('dystros', 'color')
+            color = config.get(b'dystros', b'color')
         except KeyError:
             return None
         else:
-            return color
+            return color.decode(DEFAULT_ENCODING)
 
     def get_type(self):
         """Get store type.
@@ -369,10 +369,11 @@ class GitStore(Store):
         """
         config = self.repo.get_config()
         try:
-            store_type = config.get('dystros', 'type')
+            store_type = config.get(b'dystros', b'type')
         except KeyError:
             return super(GitStore, self).get_type()
         else:
+            store_type = store_type.decode(DEFAULT_ENCODING)
             if store_type not in VALID_STORE_TYPES:
                 logging.warning(
                     'Invalid store type %s set for %r.',

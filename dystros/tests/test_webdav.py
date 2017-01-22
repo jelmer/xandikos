@@ -166,7 +166,7 @@ class WebTests(unittest.TestCase):
                 self.assertEqual(name, 'resource')
         app = self.makeApp({'/': TestResource(), '/resource': TestResource()}, [])
         code, headers, contents = self.delete(app, '/resource')
-        self.assertEqual('200 OK', code)
+        self.assertEqual('204 No Content', code)
         self.assertEqual(b'', contents)
 
     def test_delete_not_found(self):
