@@ -509,7 +509,7 @@ class WebDAVApp(object):
         if if_match is not None and not etag_matches(if_match, current_etag):
             start_response('412 Precondition Failed', [])
             return []
-        r.delete_member(item_name, current_etag)
+        pr.delete_member(item_name, current_etag)
         start_response('200 OK', [])
         return []
 
