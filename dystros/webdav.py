@@ -720,6 +720,9 @@ class WebDAVApp(object):
                 propstat = resolve_properties(
                     resource, self.properties, requested)
                 ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
+            # TODO(jelmer): Some servers don't seem to understand non-MultiStatus responses
+            if len(ret) == 1:
+                return ret[0]
             return ret
         else:
             # TODO(jelmer): implement allprop and propname
