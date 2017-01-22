@@ -176,7 +176,7 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
 
     def get_content_type(self):
         # TODO
-        return 'text/calendar'
+        raise KeyError
 
     def get_ctag(self):
         return self.store.get_ctag()

@@ -144,6 +144,9 @@ class CalendarDataProperty(DAVProperty):
     name = '{%s}calendar-data' % NAMESPACE
 
     def populate(self, resource, el):
+        # TODO(jelmer): Support other kinds of calendar
+        if resource.get_content_type() != 'text/calendar':
+            raise KeyError
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
         el.text = b''.join(resource.get_body()).decode('utf-8')
