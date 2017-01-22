@@ -586,7 +586,7 @@ class TreeGitStore(GitStore):
         :yield: (name, etag) tuples
         """
         if ctag is not None:
-            self.repo.object_store[ctag.encode('ascii')]
+            tree = self.repo.object_store[ctag.encode('ascii')]
             for (name, mode, sha) in tree.iteritems():
                 name = name.decode(DEFAULT_ENCODING)
                 yield (name, mode, sha)

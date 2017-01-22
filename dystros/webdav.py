@@ -720,9 +720,6 @@ class WebDAVApp(object):
                 propstat = resolve_properties(
                     resource, self.properties, requested)
                 ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
-            if len(ret) == 1:
-                # Allow non-207 responses
-                return ret[0]
             return ret
         else:
             # TODO(jelmer): implement allprop and propname

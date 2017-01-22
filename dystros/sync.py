@@ -22,6 +22,8 @@
 See https://tools.ietf.org/html/rfc6578
 """
 
+import urllib.parse
+
 from dystros import webdav
 
 
@@ -35,24 +37,26 @@ class SyncCollectionReporter(webdav.DAVReporter):
 
     def report(self, request_body, resource_by_href, properties, href,
                resource, depth):
-        sync_token = None
+        old_token = None
         sync_level = None
         limit = None
         requested = None
         for el in request_body:
-            if el.tag == 'sync-token':
-                sync_token = el.text
-            elif el.tag == 'sync-level':
+            if el.tag == '{DAV:}sync-token':
+                old_token = el.text
+            elif el.tag == '{DAV:}sync-level':
                 sync_level = el.text
-            elif el.tag == 'limit':
+            elif el.tag == '{DAV:}limit':
                 limit = el.text
-            elif el.tag == 'prop':
+            elif el.tag == '{DAV:}prop':
                 requested = list(el)
-        assert sync_level in ("1", "infinite")
+            else:
+                assert 'unknown tag %s', el.tag
+        assert sync_level in ("1", "infinite"), "sync level is %r" % sync_level
         # TODO(jelmer): Implement sync_level infinite
         # TODO(jelmer): Support limit
 
-        new_token = resource.get_ctag()
+        new_token = resource.get_sync_token()
         try:
             diff_iter = resource.iter_differences_since(old_token, new_token)
         except NotImplementedError:
@@ -69,15 +73,18 @@ class SyncCollectionReporter(webdav.DAVReporter):
             else:
                 for prop in requested:
                     if old_resource is not None:
-                        old_propstat = resolve_property(old_resource, properties, prop.tag)
+                        old_propstat = webdav.resolve_property(
+                            old_resource, properties, prop.tag)
                     else:
                         old_propstat = None
-                    new_propstat = resolve_property(new_resource, properties, prop.tag)
+                    new_propstat = webdav.resolve_property(
+                            new_resource, properties, prop.tag)
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
-            yield webdav.DAVstatus(
-                urllib.parse.urljoin(href+'/', name), propstat=propstat,
-                sync_token=new_token)
+            yield webdav.DAVStatus(
+                urllib.parse.urljoin(href+'/', name), propstat=propstat)
+
+        # TODO(jelmer): Return sync_token
 
 
 class SyncTokenProperty(webdav.DAVProperty):
