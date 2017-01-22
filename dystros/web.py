@@ -45,7 +45,7 @@ CALENDAR_HOME = 'calendars'
 ADDRESSBOOK_HOME = 'contacts'
 USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 
-ROOT_PAGE_CONTENTS = """\
+ROOT_PAGE_CONTENTS = b"""\
 <html>
   <body>
     This is a Dystros WebDAV server. See
@@ -78,6 +78,9 @@ class RootPage(webdav.DAVResource):
 
     def get_body(self):
         return [ROOT_PAGE_CONTENTS]
+
+    def get_content_type(self):
+        return 'text/html'
 
     def get_etag(self):
         return '"root-page"'

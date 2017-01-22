@@ -127,6 +127,9 @@ class WebTests(unittest.TestCase):
 
             def get_etag(self):
                 return "myetag"
+
+            def get_content_type(self):
+                return 'text/plain'
         app = self.makeApp({'/.well-known/carddav': TestResource()}, [])
         code, headers, contents = self.get(app, '/.well-known/carddav')
         self.assertEqual('200 OK', code)

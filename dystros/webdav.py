@@ -493,7 +493,10 @@ class WebDAVApp(object):
         if if_none_match and etag_matches(if_none_match, current_etag):
             start_response('304 Not Modified', [])
             return []
-        start_response('200 OK', [('ETag', current_etag)])
+        start_response('200 OK', [
+            ('ETag', current_etag),
+            ('Content-Type', r.get_content_type())
+        ])
         return r.get_body()
 
     def do_DELETE(self, environ, start_response):
