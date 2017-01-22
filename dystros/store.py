@@ -514,6 +514,7 @@ class TreeGitStore(GitStore):
         self.repo.stage(name)
         etag = self.repo.open_index()[name.encode(DEFAULT_ENCODING)].sha
         message = b'Add ' + name.encode(DEFAULT_ENCODING)
+        self._commit_tree(message)
         return etag.decode('ascii')
 
     def delete_one(self, name, etag=None):
@@ -534,6 +535,8 @@ class TreeGitStore(GitStore):
                 raise InvalidETag(name, etag, current_etag.decode('ascii'))
         os.unlink(p)
         self.repo.stage(name)
+        message = b'Delete ' + name.encode(DEFAULT_ENCODING)
+        self._commit_tree(message)
 
     def get_ctag(self):
         """Return the ctag for this store."""
