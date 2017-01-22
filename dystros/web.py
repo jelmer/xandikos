@@ -45,6 +45,15 @@ CALENDAR_HOME = 'calendars'
 ADDRESSBOOK_HOME = 'contacts'
 USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 
+ROOT_PAGE_CONTENTS = """\
+<html>
+  <body>
+    This is a Dystros WebDAV server. See
+    <a href="https://github.com/jelmer/dystros">
+    https://github.com/jelmer/dystros</a>.
+  </body>
+</html>"""
+
 
 def create_strong_etag(etag):
     """Create strong etags.
@@ -62,16 +71,16 @@ def extract_strong_etag(etag):
     return etag.strip('"')
 
 
-class NonDAVResource(webdav.DAVResource):
+class RootPage(webdav.DAVResource):
     """A non-DAV resource."""
 
     resource_types = []
 
     def get_body(self):
-        return []
+        return [ROOT_PAGE_CONTENTS]
 
     def get_etag(self):
-        return '"empty"'
+        return '"root-page"'
 
 
 class ObjectResource(webdav.DAVResource):
@@ -245,7 +254,7 @@ class DystrosBackend(webdav.DAVBackend):
         if relpath in WELLKNOWN_DAV_PATHS:
             return webdav.WellknownResource(self.current_user_principal)
         elif relpath == '/':
-            return NonDAVResource()
+            return RootPage()
         elif relpath == self.current_user_principal:
             return Principal(self, relpath)
         p = self._map_to_file_path(relpath)
