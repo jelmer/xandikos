@@ -408,7 +408,7 @@ class GitStore(Store):
                 yield (name, old_etag, new_etag)
             if old_etag is not None:
                 del previous[name]
-        for (name, old_etag) in previous:
+        for (name, old_etag) in previous.items():
             yield (name, old_etag, None)
 
 

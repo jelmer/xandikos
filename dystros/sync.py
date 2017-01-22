@@ -83,8 +83,15 @@ class SyncCollectionReporter(webdav.DAVReporter):
                         propstat.append(new_propstat)
             yield webdav.DAVStatus(
                 urllib.parse.urljoin(href+'/', name), propstat=propstat)
-
-        # TODO(jelmer): Return sync_token
+        class SyncToken(object):
+            def __init__(self, token):
+                self.token = token
+            def aselement(self):
+                ret = ET.Element('{DAV:}sync-token')
+                ret.text = self.token
+                return ret
+        # TODO(jelmer): This is a bit of a hack..
+        return SyncToken(new_token)
 
 
 class SyncTokenProperty(webdav.DAVProperty):
