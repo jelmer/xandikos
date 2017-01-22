@@ -256,11 +256,6 @@ class GitStore(Store):
         if replace_etag is not None and etag != replace_etag:
             raise InvalidETag(name, etag, replace_etag)
 
-    def _get_etag(self, name):
-        tree = self._get_current_tree()
-        name = name.encode(DEFAULT_ENCODING)
-        return tree[name][1]
-
     def get_raw(self, name, etag=None):
         """Get the raw contents of an object.
 
@@ -270,9 +265,7 @@ class GitStore(Store):
         """
         if etag is None:
             etag = self._get_etag(name)
-        else:
-            etag = etag.encode('ascii')
-        blob = self.repo.object_store[etag]
+        blob = self.repo.object_store[etag.encode('ascii')]
         return blob.data
 
     def _scan_ids(self):
@@ -398,6 +391,11 @@ class BareGitStore(GitStore):
         else:
             return self.repo.object_store[ref_object.tree]
 
+    def _get_etag(self, name):
+        tree = self._get_current_tree()
+        name = name.encode(DEFAULT_ENCODING)
+        return tree[name][1].decode('ascii')
+
     def get_ctag(self):
         """Return the ctag for this store."""
         return self._get_current_tree().id.decode('ascii')
@@ -484,6 +482,11 @@ class TreeGitStore(GitStore):
         :return: A `GitStore`
         """
         return cls(dulwich.repo.Repo.init(path))
+
+    def _get_etag(self, name):
+        index = self.repo.open_index()
+        name = name.encode(DEFAULT_ENCODING)
+        return index[name].sha.decode('ascii')
 
     def _commit_tree(self, message):
         try:
