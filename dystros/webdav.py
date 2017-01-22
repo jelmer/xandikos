@@ -70,7 +70,7 @@ class NeedsMultiStatus(Exception):
 class DAVStatus(object):
     """A DAV response that can be used in multi-status."""
 
-    def __init__(self, href, status, error=None, responsedescription=None,
+    def __init__(self, href, status=None, error=None, responsedescription=None,
                  propstat=None):
         self.href = href
         self.status = status
@@ -344,6 +344,20 @@ class DAVCollection(DAVResource):
         """
         raise NotImplementedError(self.create_member)
 
+    def iter_differences_since(self, old_token, new_token):
+        """Iterate over differences in this collection.
+
+        Should return an iterator over (name, old resource, new resource) tuples.
+        If one of the two didn't exist previously or now, they should be None.
+
+        If old_token is None, this should return full contents of the
+        collection.
+
+        May raise NotImplementedError if iterating differences is not
+        supported.
+        """
+        raise NotImplementedError(self.iter_differences_since)
+
 
 class DAVPrincipal(DAVResource):
     """Resource for a DAV Principal."""
@@ -398,6 +412,7 @@ def resolve_properties(resource, properties, requested):
     """
     for propreq in list(requested):
         yield resolve_property(resource, properties, propreq.tag)
+
 
 def traverse_resource(resource, depth, base_href):
     """Traverse a resource.
@@ -602,7 +617,7 @@ class WebDAVApp(object):
             return []
         if r is not None:
             new_etag = r.set_body([new_contents], current_etag)
-            start_response('204 No Content', [
+            start_response('201 Created', [
                 ('ETag', new_etag)])
             return []
         container_path, name = posixpath.split(path)

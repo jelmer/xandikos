@@ -1,4 +1,4 @@
-# Dystros
+l Dystros
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -18,8 +18,6 @@
 # MA  02110-1301, USA.
 
 """Common functions for DAV implementations."""
-
-import urllib.parse
 
 from dystros import webdav
 

@@ -28,7 +28,7 @@ import functools
 import os
 import posixpath
 
-from dystros import caldav, carddav, webdav
+from dystros import caldav, carddav, sync, webdav
 from dystros.store import (
     GitStore,
     NotStoreError,
@@ -145,6 +145,21 @@ class StoreBasedCollection(object):
     def create_member(self, name, contents):
         etag = self.store.import_one(name, b''.join(contents))
         return create_strong_etag(etag)
+
+    def iter_differences_since(self, old_token, new_token):
+        for (name, old_etag, new_etag) in self.store.iter_changes(
+                old_token, new_token):
+            if old_etag is not None:
+                old_resource = ObjectResource(
+                    self.store, name, old_etag, self._object_content_type)
+            else:
+                old_resource = None
+            if new_etag is not None:
+                new_resource = ObjectResource(
+                    self.store, name, new_etag, self._object_content_type)
+            else:
+                new_resource = None
+            yield (name, old_resource, new_resource)
 
 
 class Collection(StoreBasedCollection,caldav.Calendar):
@@ -317,6 +332,7 @@ class DystrosApp(webdav.WebDAVApp):
             caldav.CalendarQueryReporter(),
             carddav.AddressbookMultiGetReporter(),
             webdav.DAVExpandPropertyReporter(),
+            sync.SyncCollectionReporter(),
             ])
 
 

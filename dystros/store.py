@@ -212,6 +212,15 @@ class Store(object):
         """Get the color code for this store."""
         raise NotImplementedError(self.get_color)
 
+    def iter_changes(self, old_ctag, new_ctag):
+        """Get changes between two versions of this store.
+
+        :param old_ctag: Old ctag (None for empty Store)
+        :param new_ctag: New ctag
+        :return: Iterator over (name, old_etag, new_etag)
+        """
+        raise NotImplementedError(self.iter_changes)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository.
@@ -292,15 +301,16 @@ class GitStore(Store):
                 del self._uid_to_fname[uid]
             del self._fname_to_uid[name]
 
-    def _iterblobs(self):
+    def _iterblobs(self, ctag=None):
         raise NotImplementedError(self._iterblobs)
 
-    def iter_with_etag(self):
+    def iter_with_etag(self, ctag=None):
         """Iterate over all items in the store with etag.
 
+        :param ctag: Ctag to iterate for
         :yield: (name, etag) tuples
         """
-        for (name, mode, sha) in self._iterblobs():
+        for (name, mode, sha) in self._iterblobs(ctag):
             yield (name, sha.decode('ascii'))
 
     @classmethod
@@ -380,6 +390,27 @@ class GitStore(Store):
                     store_type, self.repo)
             return store_type
 
+    def iter_changes(self, old_ctag, new_ctag):
+        """Get changes between two versions of this store.
+
+        :param old_ctag: Old ctag (None for empty Store)
+        :param new_ctag: New ctag
+        :return: Iterator over (name, old_etag, new_etag)
+        """
+        if old_ctag is None:
+            t = Tree()
+            self.repo.object_store.add_object(t)
+            old_ctag = t.id.decode('ascii')
+        previous = dict(self.iter_with_etag(old_ctag))
+        for (name, new_etag) in self.iter_with_etag(new_ctag):
+            old_etag = previous.get(name)
+            if old_etag != new_etag:
+                yield (name, old_etag, new_etag)
+            if old_etag is not None:
+                del previous[name]
+        for (name, old_etag) in previous:
+            yield (name, old_etag, None)
+
 
 class BareGitStore(GitStore):
     """A Store backed by a bare git repository."""
@@ -403,8 +434,11 @@ class BareGitStore(GitStore):
         """Return the ctag for this store."""
         return self._get_current_tree().id.decode('ascii')
 
-    def _iterblobs(self):
-        tree = self._get_current_tree()
+    def _iterblobs(self, ctag=None):
+        if ctag is None:
+            tree = self._get_current_tree()
+        else:
+            tree = self.repo.object_store[ctag.encode('ascii')]
         for (name, mode, sha) in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
             yield (name, mode, sha)
@@ -546,15 +580,21 @@ class TreeGitStore(GitStore):
         index = self.repo.open_index()
         return index.commit(self.repo.object_store).decode('ascii')
 
-    def _iterblobs(self):
+    def _iterblobs(self, ctag=None):
         """Iterate over all items in the store with etag.
 
         :yield: (name, etag) tuples
         """
-        index = self.repo.open_index()
-        for (name, sha, mode) in index.iterblobs():
-            name = name.decode(DEFAULT_ENCODING)
-            yield (name, mode, sha)
+        if ctag is not None:
+            self.repo.object_store[ctag.encode('ascii')]
+            for (name, mode, sha) in tree.iteritems():
+                name = name.decode(DEFAULT_ENCODING)
+                yield (name, mode, sha)
+        else:
+            index = self.repo.open_index()
+            for (name, sha, mode) in index.iterblobs():
+                name = name.decode(DEFAULT_ENCODING)
+                yield (name, mode, sha)
 
 
 class StoreSet(object):
