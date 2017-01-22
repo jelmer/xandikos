@@ -666,7 +666,11 @@ class WebDAVApp(object):
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
-            return DAVStatus(href, '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
+            logging.warning(
+                'Client requested unkown REPORT %s',
+                et.tag)
+            return DAVStatus(request_uri(environ), '403 Forbidden',
+                error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
             et, self._get_resource_by_href, self.properties,
             self._request_href(environ), r, depth)
