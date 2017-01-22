@@ -240,13 +240,14 @@ class GitStore(Store):
 
     def _check_duplicate(self, uid, name, replace_etag):
         self._scan_ids()
-        try:
-            (existing_name, existing_etag) = self.lookup_uid(uid)
-        except KeyError:
-            pass
-        else:
-            if existing_name != name:
-                raise DuplicateUidError(uid, existing_name, name)
+        if uid is not None:
+            try:
+                (existing_name, existing_etag) = self.lookup_uid(uid)
+            except KeyError:
+                pass
+            else:
+                if existing_name != name:
+                    raise DuplicateUidError(uid, existing_name, name)
 
         try:
             (etag, uid) = self._fname_to_uid[name]
@@ -288,10 +289,12 @@ class GitStore(Store):
                 logger.warning('No UID found in file %s', name)
                 uid = None
             self._fname_to_uid[name] = (etag, uid)
-            self._uid_to_fname[uid] = (name, etag)
+            if uid is not None:
+                self._uid_to_fname[uid] = (name, etag)
         for name in removed:
             (unused_etag, uid) = self._fname_to_uid[name]
-            del self._uid_to_fname[uid]
+            if uid is not None:
+                del self._uid_to_fname[uid]
             del self._fname_to_uid[name]
 
     def _iterblobs(self):
