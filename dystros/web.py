@@ -71,21 +71,6 @@ def extract_strong_etag(etag):
     return etag.strip('"')
 
 
-class RootPage(webdav.DAVResource):
-    """A non-DAV resource."""
-
-    resource_types = []
-
-    def get_body(self):
-        return [ROOT_PAGE_CONTENTS]
-
-    def get_content_type(self):
-        return 'text/html'
-
-    def get_etag(self):
-        return '"root-page"'
-
-
 class ObjectResource(webdav.DAVResource):
     """Object resource."""
 
@@ -247,6 +232,21 @@ class CollectionSetResource(webdav.DAVCollection):
         if not os.path.isdir(p):
             raise KeyError(name)
         return self.backend.get_resource(relpath)
+
+
+class RootPage(webdav.DAVResource):
+    """A non-DAV resource."""
+
+    resource_types = []
+
+    def get_body(self):
+        return [ROOT_PAGE_CONTENTS]
+
+    def get_content_type(self):
+        return 'text/html'
+
+    def get_etag(self):
+        return '"root-page"'
 
 
 class Principal(CollectionSetResource):
