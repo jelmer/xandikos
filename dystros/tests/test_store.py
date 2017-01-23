@@ -224,7 +224,10 @@ class BaseGitStoreTest(BaseStoreTest):
 
     def test_get_description(self):
         gc = self.create_store()
-        gc.repo.set_description(b'a repo description')
+        try:
+            gc.repo.set_description(b'a repo description')
+        except NotImplementedError:
+            self.skipTest('old dulwich version without MemoryRepo.set_description')
         self.assertEqual(gc.get_description(), 'a repo description')
 
     def test_displayname(self):
