@@ -34,7 +34,7 @@ from dystros.webdav import (
     DAVResource,
     DAVStatus,
     WebDAVApp,
-    resolve_properties,
+    get_properties,
     traverse_resource,
     )
 
@@ -96,7 +96,7 @@ class CalendarHomeSetProperty(DAVProperty):
     resource_type = '{DAV:}principal'
     in_allprops = False
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         for href in resource.get_calendar_home_set():
             ET.SubElement(el, '{DAV:}href').text = href
 
@@ -111,7 +111,7 @@ class CalendarUserAddressSetProperty(DAVProperty):
     resource_type = '{DAV:}principal'
     in_allprops = False
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         for href in resource.get_calendar_user_address_set():
             ET.SubElement(el, '{DAV:}href').text = href
 
@@ -125,7 +125,7 @@ class CalendarDescriptionProperty(DAVProperty):
     name = '{urn:ietf:params:xml:ns:caldav}calendar-description'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         el.text = resource.get_calendar_description()
 
     # TODO(jelmer): allow modification of this property
@@ -143,7 +143,7 @@ class CalendarDataProperty(DAVProperty):
 
     name = '{%s}calendar-data' % NAMESPACE
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         # TODO(jelmer): Support other kinds of calendar
         if resource.get_content_type() != 'text/calendar':
             raise KeyError
@@ -180,7 +180,7 @@ class CalendarQueryReporter(DAVReporter):
         for (href, resource) in traverse_resource(
                 base_resource, depth, base_href):
             # TODO: apply filter
-            propstat = resolve_properties(
+            propstat = get_properties(
                 resource, properties, requested)
             yield DAVStatus(href, '200 OK', propstat=list(propstat))
 
@@ -194,7 +194,7 @@ class CalendarColorProperty(DAVProperty):
     name = '{http://apple.com/ns/ical/}calendar-color'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         el.text = resource.get_calendar_color()
 
 
@@ -211,7 +211,7 @@ class SupportedCalendarComponentSetProperty(DAVProperty):
     in_allprops = False
     protected = True
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         for component in resource.get_supported_calendar_components():
             subel = ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}comp')
             subel.set('name', component)
@@ -227,5 +227,5 @@ class GetCTagProperty(DAVProperty):
     in_allprops = False
     protected = True
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         el.text = resource.get_ctag()

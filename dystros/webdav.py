@@ -144,11 +144,11 @@ class DAVProperty(object):
     # Whether this property is protected (i.e. read-only)
     protected = True
 
-    # Resource type this property belongs to. If None, populate()
+    # Resource type this property belongs to. If None, get_value()
     # will always be called.
     resource_type = None
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         """Get property with specified name.
 
         :param resource: Resource for which to retrieve the property
@@ -156,6 +156,21 @@ class DAVProperty(object):
         :raise KeyError: if this property is not present
         """
         raise KeyError(self.name)
+
+    def set_value(self, resource, el):
+        """Set property.
+
+        :param resource: Resource to modify
+        :param el: Element to get new value from
+        """
+        raise NotImplementedError(self.set_value)
+
+    def remove(self, resource):
+        """Remove property.
+
+        :param resource: Resource to modify
+        """
+        raise NotImplementedError(self.remove)
 
 
 class DAVResourceTypeProperty(DAVProperty):
@@ -167,7 +182,7 @@ class DAVResourceTypeProperty(DAVProperty):
 
     resource_type = None
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
 
@@ -181,7 +196,7 @@ class DAVDisplayNameProperty(DAVProperty):
     name = '{DAV:}displayname'
     resource_type = None
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         el.text = resource.get_displayname()
 
     # TODO(jelmer): allow modification of this property
@@ -198,7 +213,7 @@ class DAVGetETagProperty(DAVProperty):
     resource_type = None
     protected = True
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         el.text = resource.get_etag()
 
 
@@ -212,7 +227,7 @@ class DAVGetContentTypeProperty(DAVProperty):
     resource_type = None
     protected = True
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         el.text = resource.get_content_type()
 
 
@@ -230,7 +245,7 @@ class DAVCurrentUserPrincipalProperty(DAVProperty):
         super(DAVCurrentUserPrincipalProperty, self).__init__()
         self.current_user_principal = current_user_principal
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         """Get property with specified name.
 
         :param name: A property name.
@@ -244,7 +259,7 @@ class DAVPrincipalURLProperty(DAVProperty):
     resource_type = '{DAV:}principal'
     in_allprops = True
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         """Get property with specified name.
 
         :param name: A property name.
@@ -261,7 +276,7 @@ class DAVSupportedReportSetProperty(DAVProperty):
     def __init__(self, reporters):
         self._reporters = reporters
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         for name in self._reporters:
             ET.SubElement(el, name)
 
@@ -377,8 +392,8 @@ class DAVPrincipal(DAVResource):
         raise NotImplementedError(self.get_principal_url)
 
 
-def resolve_property(resource, properties, name):
-    """Resolve a single property on a resource.
+def get_property(resource, properties, name):
+    """Get a single property on a resource.
 
     :param resource: DAVResource object
     :param properties: Dictionary of properties
@@ -399,7 +414,7 @@ def resolve_property(resource, properties, name):
             if (prop.resource_type is not None and
                 prop.resource_type not in resource.resource_types):
                 raise KeyError
-            prop.populate(resource, ret)
+            prop.get_value(resource, ret)
         except KeyError:
             statuscode = '404 Not Found'
         else:
@@ -407,8 +422,8 @@ def resolve_property(resource, properties, name):
     return PropStatus(statuscode, responsedescription, ret)
 
 
-def resolve_properties(resource, properties, requested):
-    """Resolve a set of properties.
+def get_properties(resource, properties, requested):
+    """Get a set of properties.
 
     :param resource: DAVResource object
     :param properties: Dictionary of properties
@@ -416,7 +431,7 @@ def resolve_properties(resource, properties, requested):
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        yield resolve_property(resource, properties, propreq.tag)
+        yield get_property(resource, properties, propreq.tag)
 
 
 def traverse_resource(resource, depth, base_href):
@@ -482,7 +497,7 @@ class DAVExpandPropertyReporter(DAVReporter):
         for prop in prop_list:
             prop_name = prop.get('name')
             # FIXME: Resolve prop_name on resource
-            propstat = resolve_property(resource, properties, prop_name)
+            propstat = get_property(resource, properties, prop_name)
             new_prop = ET.Element(propstat.prop.tag)
             child_hrefs = [prop_child.text for prop_child in propstat.prop
                            if prop_child.tag == '{DAV:}href']
@@ -720,7 +735,7 @@ class WebDAVApp(object):
             ret = []
             for href, resource in traverse_resource(
                     base_resource, depth, self._request_href(environ)):
-                propstat = resolve_properties(
+                propstat = get_properties(
                     resource, self.properties, requested)
                 ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
             # TODO(jelmer): Some servers don't seem to understand non-MultiStatus responses
@@ -731,8 +746,60 @@ class WebDAVApp(object):
             # TODO(jelmer): implement allprop and propname
             # TODO-ERROR(jelmer): What to return here?
             return DAVStatus(
-                environ['PATH_INFO'], '500 Internal Error',
+                request_uri(environ), '500 Internal Error',
                 'Expected prop tag, got ' + requested.tag)
+
+    def dav_PROPPATCH(self, environ):
+        resource = self.backend.get_resource(environ['PATH_INFO'])
+        if resource is None:
+            return DAVStatus(request_uri(environ), '404 Not Found')
+        if et.tag != '{DAV:}propertyupdate':
+            # TODO-ERROR(jelmer): What to return here?
+            return DAVStatus(
+                request_uri(environ), '500 Internal Error',
+                'Expected properyupdate tag, got ' + et.tag)
+        propstat = []
+        for el in et:
+            if el.tag not in ('{DAV:}set', '{DAV:}remove'):
+                return DAVStatus(request_uri(environ), '500 Internal Error',
+                    'Unknown tag %s in propertyupdate' % el.tag)
+            try:
+                [requested] = el
+            except IndexError:
+                return DAVStatus(request_uri(environ), '500 Internal Error',
+                    'Received more than one element in propertyupdate/set.')
+            if requested.tag != '{DAV:}prop':
+                return DAVStatus(
+                    request_uri(environ), '500 Internal Error',
+                    'Expected prop tag, got ' + requested.tag)
+            for propel in requested:
+                try:
+                    handler = self.properties[propel.tag]
+                except KeyError:
+                    logging.warning(
+                        'client attempted to modify unknown property %r',
+                        propel.tag)
+                    propstat.append(
+                        PropStatus('404 Not Found', None,
+                            ET.Element(propel.tag)))
+                else:
+                    if handler.protected:
+                        # TODO(jelmer): Signal
+                        # {DAV:}cannot-modify-protected-property error
+                        statuscode = '409 Conflict'
+                    elif el.tag == '{DAV:}remove':
+                        handler.remove(resource)
+                        statuscode = '200 OK'
+                    elif el.tag == '{DAV:}set':
+                        handler.set_value(resource, propel)
+                        statuscode = '200 OK'
+                    propstat.append(
+                        PropStatus(statuscode, None, ET.Element(propel.tag)))
+
+        return DAVStatus(
+            request_uri(environ), propstat=propstat)
+
+
 
     def do_OPTIONS(self, environ, start_response):
         start_response('204 No Content', [

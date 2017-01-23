@@ -156,7 +156,9 @@ class WebTests(unittest.TestCase):
         app = self.makeApp({'/resource': TestResource()}, [])
         code, headers, contents = self.mkcol(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
-        self.assertIn(('Allow', 'DELETE, GET, OPTIONS, PUT, PROPFIND, REPORT'), headers)
+        self.assertIn(
+            ('Allow', 'DELETE, GET, OPTIONS, PUT, PROPFIND, PROPPATCH, REPORT'),
+            headers)
         self.assertEqual(b'', contents)
 
     def test_delete(self):
@@ -195,7 +197,7 @@ class WebTests(unittest.TestCase):
         class TestProperty(DAVProperty):
             name = '{DAV:}current-user-principal'
 
-            def populate(self, resource, ret):
+            def get_value(self, resource, ret):
                 raise KeyError
         app = self.makeApp({'/resource': DAVResource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -210,7 +212,7 @@ class WebTests(unittest.TestCase):
         class TestProperty(DAVProperty):
             name = '{DAV:}current-user-principal'
 
-            def populate(self, resource, ret):
+            def get_value(self, resource, ret):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': DAVResource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -226,11 +228,11 @@ class WebTests(unittest.TestCase):
     def test_propfind_found_multi(self):
         class TestProperty1(DAVProperty):
             name = '{DAV:}current-user-principal'
-            def populate(self, resource, el):
+            def get_value(self, resource, el):
                 ET.SubElement(el, '{DAV:}href').text = '/user/'
         class TestProperty2(DAVProperty):
             name = '{DAV:}somethingelse'
-            def populate(self, resource, el):
+            def get_value(self, resource, el):
                 pass
         app = self.makeApp(
                 {'/resource': DAVResource()},
@@ -250,7 +252,7 @@ class WebTests(unittest.TestCase):
     def test_propfind_found_multi_status(self):
         class TestProperty(DAVProperty):
             name = '{DAV:}current-user-principal'
-            def populate(self, resource, ret):
+            def get_value(self, resource, ret):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': DAVResource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\

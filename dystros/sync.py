@@ -27,6 +27,18 @@ import urllib.parse
 from dystros import webdav
 
 
+class SyncToken(object):
+    """A sync token wrapper."""
+
+    def __init__(self, token):
+        self.token = token
+
+    def aselement(self):
+        ret = ET.Element('{DAV:}sync-token')
+        ret.text = self.token
+        return ret
+
+
 class SyncCollectionReporter(webdav.DAVReporter):
     """sync-collection reporter implementation.
 
@@ -69,29 +81,23 @@ class SyncCollectionReporter(webdav.DAVReporter):
             if new_resource is None:
                 for prop in requested:
                     propstat.append(
-                        webdav.PropStatus('404 Not Found', None, ET.Element(prop.tag)))
+                        webdav.PropStatus('404 Not Found', None,
+                            ET.Element(prop.tag)))
             else:
                 for prop in requested:
                     if old_resource is not None:
-                        old_propstat = webdav.resolve_property(
+                        old_propstat = webdav.get_property(
                             old_resource, properties, prop.tag)
                     else:
                         old_propstat = None
-                    new_propstat = webdav.resolve_property(
+                    new_propstat = webdav.get_property(
                             new_resource, properties, prop.tag)
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
             yield webdav.DAVStatus(
                 urllib.parse.urljoin(href+'/', name), propstat=propstat)
-        class SyncToken(object):
-            def __init__(self, token):
-                self.token = token
-            def aselement(self):
-                ret = ET.Element('{DAV:}sync-token')
-                ret.text = self.token
-                return ret
         # TODO(jelmer): This is a bit of a hack..
-        return SyncToken(new_token)
+        yield SyncToken(new_token)
 
 
 class SyncTokenProperty(webdav.DAVProperty):
@@ -104,5 +110,5 @@ class SyncTokenProperty(webdav.DAVProperty):
     protected = True
     in_allprops = False
 
-    def _populate(self, resource, el):
+    def get_value(self, resource, el):
         el.text = resource.get_sync_token()

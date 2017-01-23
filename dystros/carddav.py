@@ -42,7 +42,7 @@ class AddressbookHomeSetProperty(webdav.DAVProperty):
     resource_type = '{DAV:}principal'
     in_allprops = False
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         for href in resource.get_addressbook_home_set():
             ET.SubElement(el, '{DAV:}href').text = href
 
@@ -58,7 +58,7 @@ class AddressDataProperty(webdav.DAVProperty):
 
     name = '{%s}address-data' % NAMESPACE
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
         el.text = b''.join(resource.get_body()).decode('utf-8')
@@ -73,7 +73,7 @@ class AddressbookDescriptionProperty(webdav.DAVProperty):
     name = '{%s}addressbook-description' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         el.text = resource.get_addressbook_description()
 
     # TODO(jelmer): allow modification of this property
@@ -128,7 +128,7 @@ class PrincipalAddressProperty(webdav.DAVProperty):
     resource_type = '{DAV:}principal'
     in_allprops = False
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         ET.SubElement(el, '{DAV:}href').text = resource.get_principal_address()
 
 
@@ -143,7 +143,7 @@ class SupportedAddressDataProperty(webdav.DAVProperty):
     in_allprops = False
     protected = True
 
-    def populate(self, resource, el):
+    def get_value(self, resource, el):
         for (content_type, version) in resource.get_supported_address_data_types():
             subel = ET.SubElement(el, '{%s}content-type' % NAMESPACE)
             subel.set('content-type', content_type)

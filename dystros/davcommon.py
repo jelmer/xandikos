@@ -47,6 +47,6 @@ class MultiGetReporter(webdav.DAVReporter):
             if resource is None:
                 yield webdav.DAVStatus(href, '404 Not Found', propstat=[])
             else:
-                propstat = webdav.resolve_properties(
+                propstat = webdav.get_properties(
                     resource, properties, requested)
                 yield webdav.DAVStatus(href, '200 OK', propstat=list(propstat))
