@@ -33,3 +33,5 @@ webdav server:
 
 - properly handle well-known URLs:
  - 302 to SCRIPT_NAME
+
+- coverage

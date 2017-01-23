@@ -125,8 +125,10 @@ class StoreBasedCollection(object):
             self.store, name, etag, self._object_content_type)
 
     def get_displayname(self):
-        # TODO
-        return os.path.basename(self.store.repo.path)
+        try:
+            return self.store.get_displayname()
+        except KeyError:
+            return os.path.basename(self.store.repo.path)
 
     def get_sync_token(self):
         return self.store.get_ctag()

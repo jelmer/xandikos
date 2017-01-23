@@ -208,6 +208,11 @@ class Store(object):
         """
         raise NotImplementedError(self.get_description)
 
+    def get_displayname(self):
+        """Get the display name of this store.
+        """
+        raise NotImplementedError(self.get_displayname)
+
     def get_color(Self):
         """Get the color code for this store."""
         raise NotImplementedError(self.get_color)
@@ -371,6 +376,16 @@ class GitStore(Store):
             return None
         else:
             return color.decode(DEFAULT_ENCODING)
+
+    def get_displayname(self):
+        """Get display name.
+
+        :return: The display name
+        :raise KeyError: when no display name is set.
+        """
+        config = self.repo.get_config()
+        displayname = config.get(b'dystros', b'displayname')
+        return displayname.decode(DEFAULT_ENCODING)
 
     def get_type(self):
         """Get store type.
