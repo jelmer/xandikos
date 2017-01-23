@@ -355,7 +355,10 @@ class GitStore(Store):
 
         :return: repository description as string
         """
-        return self.repo.get_description().decode(DEFAULT_ENCODING)
+        desc = self.repo.get_description()
+        if desc is not None:
+            desc = desc.decode(DEFAULT_ENCODING)
+        return desc
 
     def set_description(self, description):
         """Set extended description.
@@ -380,12 +383,15 @@ class GitStore(Store):
     def get_displayname(self):
         """Get display name.
 
-        :return: The display name
-        :raise KeyError: when no display name is set.
+        :return: The display name, or None if not set
         """
         config = self.repo.get_config()
-        displayname = config.get(b'dystros', b'displayname')
-        return displayname.decode(DEFAULT_ENCODING)
+        try:
+            displayname = config.get(b'dystros', b'displayname')
+        except KeyError:
+            return None
+        else:
+            return displayname.decode(DEFAULT_ENCODING)
 
     def get_type(self):
         """Get store type.

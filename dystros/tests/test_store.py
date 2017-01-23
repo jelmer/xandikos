@@ -222,6 +222,29 @@ class BaseGitStoreTest(BaseStoreTest):
             ('foo.ics', bid),
             gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
 
+    def test_get_description(self):
+        gc = self.create_store()
+        gc.repo.set_description(b'a repo description')
+        self.assertEqual(gc.get_description(), 'a repo description')
+
+    def test_displayname(self):
+        gc = self.create_store()
+        self.assertIs(None, gc.get_color())
+        c = gc.repo.get_config()
+        c.set(b'dystros', b'displayname', b'a name')
+        if getattr(c, 'path', None):
+            c.write_to_path()
+        self.assertEqual('a name', gc.get_displayname())
+
+    def test_get_color(self):
+        gc = self.create_store()
+        self.assertIs(None, gc.get_color())
+        c = gc.repo.get_config()
+        c.set(b'dystros', b'color', b'334433')
+        if getattr(c, 'path', None):
+            c.write_to_path()
+        self.assertEqual('334433', gc.get_color())
+
 
 class GitStoreTest(unittest.TestCase):
 
