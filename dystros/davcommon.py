@@ -28,7 +28,8 @@ class MultiGetReporter(webdav.DAVReporter):
 
     data_property_kls = None
 
-    def report(self, body, resource_by_href, properties, base_href, resource, depth):
+    def report(self, body, resources_by_hrefs, properties, base_href, resource,
+               depth):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an addressbook
         requested = None
@@ -42,10 +43,8 @@ class MultiGetReporter(webdav.DAVReporter):
                 raise NotImplementedError(tag.name)
         properties = dict(properties)
         properties[self.data_property_kls.name] = self.data_property_kls()
-        for href in hrefs:
-            try:
-                resource = resource_by_href(href)
-            except KeyError:
+        for (href, resource) in resources_by_hrefs(hrefs):
+            if resource is None:
                 yield webdav.DAVStatus(href, '404 Not Found', propstat=[])
             else:
                 propstat = webdav.resolve_properties(

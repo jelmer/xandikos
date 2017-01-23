@@ -35,7 +35,7 @@ class SyncCollectionReporter(webdav.DAVReporter):
 
     name = '{DAV:}sync-collection'
 
-    def report(self, request_body, resource_by_href, properties, href,
+    def report(self, request_body, resources_by_hrefs, properties, href,
                resource, depth):
         old_token = None
         sync_level = None

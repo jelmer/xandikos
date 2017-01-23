@@ -163,7 +163,7 @@ class CalendarQueryReporter(DAVReporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
 
-    def report(self, body, resource_by_href, properties, base_href,
+    def report(self, body, resources_by_hrefs, properties, base_href,
                base_resource, depth):
         # TODO(jelmer): Verify that resource is an addressbook
         requested = None

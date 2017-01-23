@@ -444,12 +444,12 @@ class DAVReporter(object):
 
     name = None
 
-    def report(self, request_body, resource_by_href, properties, href,
+    def report(self, request_body, resources_by_hrefs, properties, href,
                resource, depth):
         """Send a report.
 
         :param request_body: XML Element for request body
-        :param resource_by_href: Function for retrieving resource by HREF
+        :param resources_by_hrefs: Function for retrieving resource by HREF
         :param properties: Dictionary mapping names to DAVProperty instances
         :param href: Base resource href
         :param resource: Resource to start from
@@ -467,11 +467,12 @@ class DAVExpandPropertyReporter(DAVReporter):
 
     name = '{DAV:}expand-property'
 
-    def _populate(self, prop_list, resource_by_href, properties, href, resource):
+    def _populate(self, prop_list, resources_by_hrefs, properties, href,
+                  resource):
         """Expand properties for a resource.
 
         :param prop_list: DAV:property elements to retrieve and expand
-        :param resource_by_href: Resolve resource by HREF
+        :param resources_by_hrefs: Resolve resource by HREF
         :param properties: Available properties
         :param href: href for current resource
         :param resource: current resource
@@ -483,27 +484,31 @@ class DAVExpandPropertyReporter(DAVReporter):
             # FIXME: Resolve prop_name on resource
             propstat = resolve_property(resource, properties, prop_name)
             new_prop = ET.Element(propstat.prop.tag)
+            child_hrefs = [prop_child.text for prop_child in propstat.prop
+                           if prop_child.tag == '{DAV:}href']
+            child_resources = resources_by_hrefs(child_hrefs)
             for prop_child in propstat.prop:
                 if prop_child.tag != '{DAV:}href':
                     new_prop.append(prop_child)
                 else:
-                    child_href = prop_child.text
-                    try:
-                        child_resource = resource_by_href(child_href)
-                    except KeyError:
+                    child_resource = child_resources[prop_child.text]
+                    if child_resource is None:
                         # FIXME: What to do if the referenced href is invalid?
                         # For now, let's just keep the unresolved href around
                         new_prop.append(prop_child)
                     else:
-                        response = self._populate(prop, properties, child_href, child_resource)
+                        response = self._populate(
+                            prop, properties, prop_child.text, child_resource)
                         new_prop.append(response.aselement())
             propstat = PropStatus(
                 propstat.statuscode, propstat.responsedescription, prop=new_prop)
             ret.append(propstat)
         return DAVStatus(href, '200 OK', propstat=ret)
 
-    def report(self, request_body, resource_by_href, properties, href, resource, depth):
-        return self._populate(request_body, resource_by_href, properties, href, resource)
+    def report(self, request_body, resources_by_hrefs, properties, href,
+               resource, depth):
+        return self._populate(request_body, resources_by_hrefs, properties,
+                              href, resource)
 
 
 class WellknownResource(DAVResource):
@@ -664,15 +669,13 @@ class WebDAVApp(object):
             ('Content-Length', str(sum(map(len, body))))])
         return body
 
-    def _get_resource_by_href(self, href):
-        """Retrieve a resource by a href.
-
-        For the moment, just looks up paths.
+    def _get_resources_by_hrefs(self, hrefs):
+        """Retrieve multiple resources by href.
         """
-        r = self.backend.get_resource(href)
-        if r is None:
-            raise KeyError(href)
-        return r
+        # TODO(jelmer): Bulk query hrefs in a more efficient manner
+        for href in hrefs:
+            resource = self.backend.get_resource(href)
+            yield (href, resource)
 
     def dav_REPORT(self, environ):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
@@ -692,7 +695,7 @@ class WebDAVApp(object):
             return DAVStatus(request_uri(environ), '403 Forbidden',
                 error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
-            et, self._get_resource_by_href, self.properties,
+            et, self._get_resources_by_hrefs, self.properties,
             self._request_href(environ), r, depth)
 
     def dav_PROPFIND(self, environ):
