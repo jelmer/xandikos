@@ -8,11 +8,8 @@
 
 webdav server:
 - add support for authorization
-- implement DELETE If-Name
-- implement PUT If-Name
-- implement REPORT
 - implement MKCOL
-- implement PROPPATCH
+- implement MKCALENDAR
 
 - run caldav tester
 

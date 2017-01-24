@@ -23,6 +23,7 @@ See https://tools.ietf.org/html/rfc6578
 """
 
 import urllib.parse
+from xml.etree import ElementTree as ET
 
 from dystros import webdav
 

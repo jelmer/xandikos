@@ -113,10 +113,10 @@ class StoreBasedCollection(object):
             self.store, name, etag, self._object_content_type)
 
     def get_displayname(self):
-        try:
-            return self.store.get_displayname()
-        except KeyError:
+        displayname = self.store.get_displayname()
+        if displayname is None:
             return os.path.basename(self.store.repo.path)
+        return displayname
 
     def get_sync_token(self):
         return self.store.get_ctag()
@@ -223,6 +223,9 @@ class CollectionSetResource(webdav.DAVCollection):
 
     def get_displayname(self):
         return posixpath.basename(self.relpath)
+
+    def get_sync_token(self):
+        raise KeyError
 
     def members(self):
         ret = []

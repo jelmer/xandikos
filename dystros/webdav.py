@@ -757,6 +757,7 @@ class WebDAVApp(object):
         resource = self.backend.get_resource(environ['PATH_INFO'])
         if resource is None:
             return DAVStatus(request_uri(environ), '404 Not Found')
+        et = xmlparse(self._readBody(environ))
         if et.tag != '{DAV:}propertyupdate':
             # TODO-ERROR(jelmer): What to return here?
             return DAVStatus(
@@ -800,10 +801,8 @@ class WebDAVApp(object):
                     propstat.append(
                         PropStatus(statuscode, None, ET.Element(propel.tag)))
 
-        return DAVStatus(
-            request_uri(environ), propstat=propstat)
-
-
+        return [DAVStatus(
+            request_uri(environ), propstat=propstat)]
 
     def do_OPTIONS(self, environ, start_response):
         start_response('204 No Content', [
