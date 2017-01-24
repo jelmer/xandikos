@@ -18,9 +18,7 @@ webdav server:
 - implement filters in calendar-query
 
 - properties:
- - current-user-privilege-set
  - group-membership
- - calendar-timezone
  - calendar-proxy-read-for
  - calendar-proxy-write-for
  - {http://inf-it.com/ns/dav/}settings
@@ -36,3 +34,5 @@ webdav server:
  - 302 to SCRIPT_NAME
 
 - coverage
+
+- split out server

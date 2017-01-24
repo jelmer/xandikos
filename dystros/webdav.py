@@ -692,12 +692,16 @@ class WebDAVApp(object):
             ('Content-Length', str(sum(map(len, body))))])
         return body
 
-    def _get_resources_by_hrefs(self, hrefs):
+    def _get_resources_by_hrefs(self, environ, hrefs):
         """Retrieve multiple resources by href.
         """
         # TODO(jelmer): Bulk query hrefs in a more efficient manner
         for href in hrefs:
-            resource = self.backend.get_resource(href)
+            if not href.startswith(environ['SCRIPT_NAME']):
+                resource = None
+            else:
+                href = href[len(environ['SCRIPT_NAME'])]
+                resource = self.backend.get_resource(href)
             yield (href, resource)
 
     def dav_REPORT(self, environ):
@@ -718,8 +722,8 @@ class WebDAVApp(object):
             return DAVStatus(request_uri(environ), '403 Forbidden',
                 error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
-            et, self._get_resources_by_hrefs, self.properties,
-            self._request_href(environ), r, depth)
+            et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
+            self.properties, self._request_href(environ), r, depth)
 
     def dav_PROPFIND(self, environ):
         base_resource = self.backend.get_resource(environ['PATH_INFO'])

@@ -102,6 +102,13 @@ class Addressbook(webdav.DAVCollection):
         """
         raise NotImplementedError(self.get_supported_address_data_types)
 
+    def get_max_resource_size(self):
+        """Get maximum object size this address book will store (in bytes)
+
+        Absence indicates no maximum.
+        """
+        raise NotImplementedError(self.get_max_resource_size)
+
 
 class PrincipalExtensions:
     """Extensions to webdav.Principal."""
@@ -148,3 +155,19 @@ class SupportedAddressDataProperty(webdav.DAVProperty):
             subel = ET.SubElement(el, '{%s}content-type' % NAMESPACE)
             subel.set('content-type', content_type)
             subel.set('version', version)
+
+
+class MaxResourceSizeProperty(webdav.DAVProperty):
+    """Provides the max-resource-size property.
+
+    See https://tools.ietf.org/html/rfc6352, section 6.2.3.
+    """
+
+    name = '{%s}-max-resource-size' % NAMESPACE
+    resource_type = ADDRESSBOOK_RESOURCE_TYPE
+    in_allprops = False
+    protected = True
+
+    def get_value(self, resource, el):
+        el.text = str(resource.get_max_resource_size())
+

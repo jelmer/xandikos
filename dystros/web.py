@@ -28,7 +28,7 @@ import functools
 import os
 import posixpath
 
-from dystros import caldav, carddav, sync, webdav
+from dystros import access, caldav, carddav, sync, webdav
 from dystros.store import (
     GitStore,
     NotStoreError,
@@ -226,6 +226,10 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
     def get_supported_address_data_types(self):
         return [('text/vcard', '3.0')]
 
+    def get_max_resource_size(self):
+        # No resource limit
+        raise KeyError
+
 
 class CollectionSetResource(webdav.DAVCollection):
     """Resource for calendar sets."""
@@ -371,6 +375,8 @@ class DystrosApp(webdav.WebDAVApp):
             caldav.CalendarTimezoneProperty(),
             caldav.MinDateTimeProperty(),
             caldav.MaxDateTimeProperty(),
+            carddav.MaxResourceSizeProperty(),
+            access.CurrentUserPrivilegeSetProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
