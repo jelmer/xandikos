@@ -21,7 +21,6 @@
 
 
 
-from dulwich import porcelain
 import hashlib
 import logging
 import optparse
@@ -63,6 +62,10 @@ else:
 
 orig = Calendar.from_ical(f.read())
 
+from dystros.store import open_store
+
+store = open_store(opts.outdir)
+
 other = []
 items = {}
 for component in orig.subcomponents:
@@ -77,14 +80,15 @@ for component in orig.subcomponents:
     else:
         other.append(component)
 
-changed = 0
-added = 0
-seen = 0
-
 for (uid, ev) in items.items():
     seen += 1
-    fname = "%s-%s.ics" % (opts.prefix, uid.replace("/", ""))
-    path = os.path.join(opts.outdir, fname)
+    try:
+        (fname, etag) = store.lookup_uid(uid)
+    except KeyError:
+        fname = "%s-%s.ics" % (opts.prefix, uid.replace("/", ""))
+        old = None
+    else:
+        old = Calendar.from_ical(store.get_raw(fname, etag))
     out = Calendar()
     if url is not None:
         out['X-IMPORTED-FROM-URL'] = vUri(url)
@@ -98,25 +102,13 @@ for (uid, ev) in items.items():
     if opts.status and not 'status' in ev:
         ev['status'] = opts.status.upper()
     out.add_component(ev)
-    try:
-        old = Calendar.from_ical(open(path, 'rb').read())
-    except IOError:
-        old = None
-        write = True
-    else:
-        write = hasChanged(old, out)
+    write = hasChanged(old, out)
     if write:
-        if not os.path.exists(path):
+        if old is NOne:
            added += 1
         else:
            changed += 1
-        with open(path, 'wb') as f:
-            f.write(out.to_ical())
-        porcelain.add(opts.outdir, [str(fname)])
-
-if changed or added:
-    message = 'Processing %s. Updated: %d, new: %d.' % (opts.prefix, changed, added)
-    porcelain.commit(opts.outdir, message.encode('utf-8'))
+        store.import_one(fname, out.to_ical())
 
 logger.info('Processed %s. Seen %d, updated %d, new %d', opts.prefix,
              seen, changed, added)
