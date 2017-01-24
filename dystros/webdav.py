@@ -359,6 +359,13 @@ class DAVCollection(DAVResource):
         """
         raise NotImplementedError(self.create_member)
 
+    def create_collection(self, name):
+        """Create a subcollection with the specified name.
+
+        :param name: Subcollection name
+        """
+        raise NotImplementedError(self.create_collection)
+
     def get_sync_token(self):
         """Get sync-token for the current state of this collection.
         """
@@ -811,6 +818,21 @@ class WebDAVApp(object):
 
         return [DAVStatus(
             request_uri(environ), propstat=propstat)]
+
+    def do_MKCOL(self, environ, start_response):
+        # TODO(jelmer): Implement extended-mkcol - https://tools.ietf.org/html/rfc5689
+        resource = self.backend.get_resource(environ['PATH_INFO'])
+        if resource is not None:
+            start_response('405 Method Not Allowed', [])
+            return []
+        container_path, item_name = posixpath.split(environ['PATH_INFO'])
+        pr = self.backend.get_resource(container_path)
+        if pr is None:
+            start_response('409 Conflict', [])
+            return []
+        pr.create_collection(item_name)
+        start_response('201 Created', [])
+        return []
 
     def do_OPTIONS(self, environ, start_response):
         start_response('204 No Content', [

@@ -30,6 +30,7 @@ import posixpath
 
 from dystros import access, caldav, carddav, sync, webdav
 from dystros.store import (
+    BareGitStore,
     GitStore,
     NotStoreError,
     STORE_TYPE_ADDRESSBOOK,
@@ -251,6 +252,12 @@ class CollectionSetResource(webdav.DAVCollection):
             resource = self.get_member(name)
             ret.append((name, resource))
         return ret
+
+    def create_collection(self, name):
+        relpath = posixpath.join(self.relpath, name)
+        p = self.backend._map_to_file_path(relpath)
+        # Why bare store, not a tree store?
+        return BareGitStore.create(p)
 
     def get_member(self, name):
         assert name != ''

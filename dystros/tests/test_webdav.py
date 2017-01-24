@@ -47,6 +47,21 @@ class WebTests(unittest.TestCase):
         app.register_properties(properties)
         return app
 
+    def _method(self, app, method, path):
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': method,
+                   'SCRIPT_NAME': ''}
+        setup_testing_defaults(environ)
+        _code = []
+        _headers = []
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+        contents = b''.join(app(environ, start_response))
+        return _code[0], _headers, contents
+
+    def lock(self, app, path):
+        return self._method(app, 'LOCK', path)
+
     def mkcol(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL',
                    'SCRIPT_NAME': ''}
@@ -153,15 +168,32 @@ class WebTests(unittest.TestCase):
         self.assertEqual('204 No Content', code)
         self.assertEqual([b'New contents'], new_body)
 
-    def test_mkcol_not_allowed(self):
-        class TestResource(DAVResource):
-            pass
-        app = self.makeApp({'/resource': TestResource()}, [])
-        code, headers, contents = self.mkcol(app, '/resource')
+    def test_lock_not_allowed(self):
+        app = self.makeApp({}, [])
+        code, headers, contents = self.lock(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertIn(
-            ('Allow', 'DELETE, GET, OPTIONS, PUT, PROPFIND, PROPPATCH, REPORT'),
+            ('Allow', 'DELETE, GET, MKCOL, OPTIONS, PUT, PROPFIND, PROPPATCH, REPORT'),
             headers)
+        self.assertEqual(b'', contents)
+
+    def test_mkcol_not_allowed(self):
+        class TestResource(DAVResource):
+
+            def create_collection(self, name):
+                pass
+
+        app = self.makeApp({'/resource': TestResource()}, [])
+        code, headers, contents = self.mkcol(app, '/resource/bla')
+        self.assertEqual('201 Created', code)
+        self.assertEqual(b'', contents)
+
+    def test_mkcol_exists(self):
+        app = self.makeApp({
+            '/resource': DAVResource(),
+            '/resource/bla': DAVResource()}, [])
+        code, headers, contents = self.mkcol(app, '/resource/bla')
+        self.assertEqual('405 Method Not Allowed', code)
         self.assertEqual(b'', contents)
 
     def test_delete(self):
