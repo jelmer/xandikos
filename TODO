@@ -10,6 +10,8 @@ webdav server:
 - add support for authorization
 - implement MKCOL
 - implement MKCALENDAR
+- implement COPY
+- implement MOVE
 
 - run caldav tester
 

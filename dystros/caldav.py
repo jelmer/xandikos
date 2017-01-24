@@ -60,6 +60,22 @@ class Calendar(DAVCollection):
     def get_calendar_color(self):
         raise NotImplementedError(self.get_calendar_color)
 
+    def get_calendar_timezone(self):
+        """Return calendar timezone property.
+
+        This should be an iCalendar object with exactly one
+        VTIMEZONE component.
+        """
+        raise NotImplementedError(self.get_calendar_timezone)
+
+    def set_calendar_timezone(self):
+        """Set calendar timezone property.
+
+        This should be an iCalendar object with exactly one
+        VTIMEZONE component.
+        """
+        raise NotImplementedError(self.set_calendar_timezone)
+
     def get_supported_calendar_components(self):
         """Return set of supported calendar components in this calendar.
 
@@ -256,3 +272,20 @@ class SupportedCalendarDataProperty(DAVProperty):
                     el, '{urn:ietf:params:xml:ns:caldav}calendar-data')
             subel.set('content-type', content_type)
             subel.set('version', version)
+
+
+class CalendarTimezoneProperty(DAVProperty):
+    """calendar-timezone property.
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.2
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}calendar-timezone'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+
+    def get_value(self, resource, el):
+        el.text = resource.get_calendar_timezone()
+
+    def set_value(self, resource, el):
+        resource.set_calendar_timezone(el.text)

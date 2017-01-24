@@ -184,6 +184,13 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
             color = '#' + color
         return color
 
+    def get_calendar_timezone(self):
+        # TODO(jelmer): Read a magic file from the store?
+        raise KeyError
+
+    def set_calendar_timezone(self, content):
+        raise NotImplementedError(self.set_calendar_timezone)
+
     def get_supported_calendar_components(self):
         return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
 
@@ -351,6 +358,7 @@ class DystrosApp(webdav.WebDAVApp):
             webdav.DAVSupportedReportSetProperty(self.reporters),
             sync.SyncTokenProperty(),
             caldav.SupportedCalendarDataProperty(),
+            caldav.CalendarTimezoneProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
