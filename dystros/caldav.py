@@ -438,7 +438,7 @@ class CalendarQueryReporter(DAVReporter):
             except KeyError:
                 # TODO(jelmer): Or perhaps the servers' local timezone?
                 tzid = 'UTC'
-        tzify = lambda dt: as_tz_aware_ts(dt, tzid)
+        tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
         properties = dict(properties)
         properties[CalendarDataProperty.name] = CalendarDataProperty()
         for (href, resource) in traverse_resource(
