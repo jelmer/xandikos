@@ -122,6 +122,9 @@ class StoreBasedCollection(object):
     def get_sync_token(self):
         return self.store.get_ctag()
 
+    def get_ctag(self):
+        return self.store.get_ctag()
+
     def get_etag(self):
         return create_strong_etag(self.store.get_ctag())
 
@@ -202,9 +205,6 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
     def get_content_type(self):
         # TODO
         raise KeyError
-
-    def get_ctag(self):
-        return self.store.get_ctag()
 
     def get_max_date_time(self):
         return "99991231T235959Z"
@@ -374,7 +374,7 @@ class DystrosApp(webdav.WebDAVApp):
             caldav.SupportedCalendarComponentSetProperty(),
             carddav.AddressbookDescriptionProperty(),
             carddav.PrincipalAddressProperty(),
-            caldav.GetCTagProperty(),
+            webdav.GetCTagProperty(),
             carddav.SupportedAddressDataProperty(),
             webdav.DAVSupportedReportSetProperty(self.reporters),
             sync.SyncTokenProperty(),

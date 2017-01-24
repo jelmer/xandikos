@@ -281,6 +281,20 @@ class DAVSupportedReportSetProperty(DAVProperty):
             ET.SubElement(el, name)
 
 
+class GetCTagProperty(DAVProperty):
+    """getctag property
+
+    """
+
+    name = '{http://calendarserver.org/ns/}getctag'
+    resource_type = COLLECTION_RESOURCE_TYPE
+    in_allprops = False
+    protected = True
+
+    def get_value(self, resource, el):
+        el.text = resource.get_ctag()
+
+
 class DAVResource(object):
     """A WebDAV resource."""
 
@@ -384,6 +398,9 @@ class DAVCollection(DAVResource):
         supported.
         """
         raise NotImplementedError(self.iter_differences_since)
+
+    def get_ctag(self):
+        raise NotImplementedError(self.getctag)
 
 
 class DAVPrincipal(DAVResource):

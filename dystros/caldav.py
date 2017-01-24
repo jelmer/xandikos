@@ -56,9 +56,6 @@ class Calendar(DAVCollection):
 
     resource_types = DAVCollection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
-    def get_ctag(self):
-        raise NotImplementedError(self.getctag)
-
     def get_calendar_description(self):
         raise NotImplementedError(self.get_calendar_description)
 
@@ -481,20 +478,6 @@ class SupportedCalendarComponentSetProperty(DAVProperty):
         for component in resource.get_supported_calendar_components():
             subel = ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}comp')
             subel.set('name', component)
-
-
-class GetCTagProperty(DAVProperty):
-    """getctag property
-
-    """
-
-    name = '{http://calendarserver.org/ns/}getctag'
-    resource_type = CALENDAR_RESOURCE_TYPE
-    in_allprops = False
-    protected = True
-
-    def get_value(self, resource, el):
-        el.text = resource.get_ctag()
 
 
 class SupportedCalendarDataProperty(DAVProperty):
