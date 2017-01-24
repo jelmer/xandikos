@@ -67,6 +67,13 @@ class Calendar(DAVCollection):
         """
         raise NotImplementedError(self.get_supported_calendar_components)
 
+    def get_supported_calendar_data_types(self):
+        """Return supported calendar data types.
+
+        :return: iterable over (content_type, version) tuples
+        """
+        raise NotImplementedError(self.get_supported_calendar_data_types)
+
 
 class PrincipalExtensions:
     """CalDAV-specific extensions to DAVPrincipal."""
@@ -229,3 +236,23 @@ class GetCTagProperty(DAVProperty):
 
     def get_value(self, resource, el):
         el.text = resource.get_ctag()
+
+
+class SupportedCalendarDataProperty(DAVProperty):
+    """supported-calendar-data property.
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.4
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-data'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    protected = True
+
+    def get_value(self, resource, el):
+        for (content_type, version) in (
+                resource.get_supported_calendar_data_types()):
+            subel = ET.SubElement(
+                    el, '{urn:ietf:params:xml:ns:caldav}calendar-data')
+            subel.set('content-type', content_type)
+            subel.set('version', version)

@@ -187,6 +187,10 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
     def get_supported_calendar_components(self):
         return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
 
+    def get_supported_calendar_data_types(self):
+        return [('text/calendar', '1.0'),
+                ('text/calendar', '2.0')]
+
     def get_content_type(self):
         # TODO
         raise KeyError
@@ -343,6 +347,7 @@ class DystrosApp(webdav.WebDAVApp):
             carddav.SupportedAddressDataProperty(),
             webdav.DAVSupportedReportSetProperty(self.reporters),
             sync.SyncTokenProperty(),
+            caldav.SupportedCalendarDataProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
