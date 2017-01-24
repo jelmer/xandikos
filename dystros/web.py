@@ -96,6 +96,9 @@ class ObjectResource(webdav.DAVResource):
     def get_content_type(self):
         return self.content_type
 
+    def get_content_length(self):
+        return len(b''.join(self.get_body()))
+
     def get_etag(self):
         return create_strong_etag(self.etag)
 
@@ -241,6 +244,9 @@ class RootPage(webdav.DAVResource):
 
     def get_body(self):
         return [ROOT_PAGE_CONTENTS]
+
+    def get_content_length(self):
+        return len(b''.join(self.get_body()))
 
     def get_content_type(self):
         return 'text/html'

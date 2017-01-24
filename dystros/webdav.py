@@ -538,6 +538,9 @@ class WellknownResource(DAVResource):
     def get_etag(self):
         return '"%s"' % hashlib.md5(b''.join(self.get_body())).hexdigest()
 
+    def get_content_length(self):
+        return len(b''.join(self.get_body()))
+
     def get_body(self):
         return [self.server_root.encode(DEFAULT_ENCODING)]
 
@@ -607,7 +610,8 @@ class WebDAVApp(object):
             return []
         start_response('200 OK', [
             ('ETag', current_etag),
-            ('Content-Type', r.get_content_type())
+            ('Content-Type', r.get_content_type()),
+            ('Content-Length', r.get_content_length()),
         ])
         return r.get_body()
 

@@ -125,6 +125,9 @@ class WebTests(unittest.TestCase):
             def get_body(self):
                 return [b'this is content']
 
+            def get_content_length(self):
+                return len('this is content')
+
             def get_etag(self):
                 return "myetag"
 
