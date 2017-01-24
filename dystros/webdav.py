@@ -434,22 +434,26 @@ def get_properties(resource, properties, requested):
         yield get_property(resource, properties, propreq.tag)
 
 
-def traverse_resource(resource, depth, base_href):
+def traverse_resource(base_resource, depth, base_href):
     """Traverse a resource.
 
-    :param resource: Resource to traverse from
+    :param base_resource: Resource to traverse from
     :param depth: Depth ("0", "1", ...)
     :param base_href: href for base resource
     :return: Iterator over (URL, Resource) tuples
     """
-    me = (base_href, resource)
+    me = (base_href, base_resource)
     if depth == "0":
         return iter([me])
     elif depth == "1":
         ret = [me]
-        if COLLECTION_RESOURCE_TYPE in resource.resource_types:
-            ret += [(urllib.parse.urljoin(base_href+'/', n), m)
-                    for (n, m) in resource.members()]
+        if COLLECTION_RESOURCE_TYPE in base_resource.resource_types:
+            for (name, resource) in base_resource.members():
+                href = urllib.parse.urljoin(base_href+'/', name)
+                if COLLECTION_RESOURCE_TYPE in resource.resource_types:
+                    # caldavzap/carddavmate require this
+                    href += '/'
+                ret.append((href, resource))
         return iter(ret)
     raise NotImplementedError
 
@@ -611,7 +615,7 @@ class WebDAVApp(object):
         start_response('200 OK', [
             ('ETag', current_etag),
             ('Content-Type', r.get_content_type()),
-            ('Content-Length', r.get_content_length()),
+            ('Content-Length', str(r.get_content_length())),
         ])
         return r.get_body()
 
@@ -646,14 +650,14 @@ class WebDAVApp(object):
             return []
         if r is not None:
             new_etag = r.set_body([new_contents], current_etag)
-            start_response('201 Created', [
+            start_response('204 No Content', [
                 ('ETag', new_etag)])
             return []
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)
         if r is not None:
-            etag = r.create_member(name, [new_contents])
-            start_response('204 No Content', [
+            new_etag = r.create_member(name, [new_contents])
+            start_response('201 Created', [
                 ('ETag', new_etag)])
             return []
         return self._send_not_found(environ, start_response)

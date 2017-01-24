@@ -282,7 +282,8 @@ def apply_time_range_vevent(start, end, comp, tzify):
         return False
 
     if 'DTEND' in comp:
-        assert tzify(comp['DTEND'].dt) >= tzify(comp['DTSTART'].dt)
+        if tzify(comp['DTEND'].dt) < tzify(comp['DTSTART'].dt):
+            logging.debug('Invalid DTEND < DTSTART')
         return (start < tzify(comp['DTEND'].dt))
 
     if 'DURATION' in comp:
