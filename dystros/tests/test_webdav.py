@@ -150,7 +150,7 @@ class WebTests(unittest.TestCase):
         app = self.makeApp({'/.well-known/carddav': TestResource()}, [])
         code, headers = self.put(
             app, '/.well-known/carddav', b'New contents')
-        self.assertEqual('201 Created', code)
+        self.assertEqual('204 No Content', code)
         self.assertEqual([b'New contents'], new_body)
 
     def test_mkcol_not_allowed(self):
