@@ -202,9 +202,9 @@ class BaseGitStoreTest(BaseStoreTest):
     def test_create(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
-        gc = self.kls.create(d)
+        gc = self.kls.create(os.path.join(d, 'store'))
         self.assertIsInstance(gc, GitStore)
-        self.assertEqual(gc.repo.path, d)
+        self.assertEqual(gc.repo.path, os.path.join(d, 'store'))
 
     def test_iter_with_etag_missing_uid(self):
         logging.getLogger('').setLevel(logging.ERROR)
@@ -309,7 +309,7 @@ class TreeGitStoreTest(BaseGitStoreTest,unittest.TestCase):
     def create_store(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
-        return self.kls.create(d)
+        return self.kls.create(os.path.join(d, 'store'))
 
     def add_blob(self, gc, name, contents):
         with open(os.path.join(gc.repo.path, name), 'wb') as f:
