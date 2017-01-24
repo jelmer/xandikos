@@ -25,6 +25,8 @@ https://tools.ietf.org/html/rfc4791
 import defusedxml.ElementTree
 from xml.etree import ElementTree as ET
 
+from icalendar.cal import Calendar
+
 from dystros import davcommon
 from dystros.webdav import (
     DAVBackend,
@@ -182,6 +184,112 @@ class CalendarMultiGetReporter(davcommon.MultiGetReporter):
     data_property_kls = CalendarDataProperty
 
 
+def apply_prop_filter(el, comp):
+    name = el.get('name')
+    # From https://tools.ietf.org/html/rfc4791, 9.7.2:
+    # A CALDAV:comp-filter is said to match if:
+
+    # The CALDAV:prop-filter XML element contains a CALDAV:is-not-defined XML
+    # element and no property of the type specified by the "name" attribute
+    # exists in the enclosing calendar component;
+    if list(el)[0].tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+        return name not in comp
+
+    try:
+        val = comp[name]
+    except KeyError:
+        return False
+
+    for subel in el:
+        if subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
+            if not apply_time_range(subel, val):
+                return False
+        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
+            if not apply_text_match(subel, val):
+                return False
+        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}param-filter':
+            if not apply_param_filter(subel, val):
+                return False
+    return True
+
+
+def apply_text_match(el, value):
+    raise NotImplementedError(apply_text_match)
+
+
+def apply_param_filter(el, value):
+    raise NotImplementedError(apply_param_filter)
+
+
+def apply_time_range_comp(el, comp):
+    # According to https://tools.ietf.org/html/rfc4791, section 9.9 these are
+    # the properties to check.
+    TIME_RANGE_PROPERTIES = [
+        'COMPLETED', 'CREATED', 'DTEND', 'DTSTAMP', 'DTSTART',
+        'DUE', 'LAST-MODIFIED']
+    raise NotImplementedError(apply_time_range_comp)
+
+
+def apply_time_range(el, val):
+    start = el.get('start')
+    end = el.get('end')
+    if start is None:
+        start = "00010101T000000Z"
+    if end is None:
+        end = "99991231T235959Z"
+    raise NotImplementedError(apply_time_range)
+
+
+def apply_comp_filter(el, comp):
+    """Compile a comp-filter element into a Python function.
+    """
+    name = el.get('name')
+    # From https://tools.ietf.org/html/rfc4791, 9.7.1:
+    # A CALDAV:comp-filter is said to match if:
+
+    # 2. The CALDAV:comp-filter XML element contains a CALDAV:is-not-defined XML
+    # element and the calendar object or calendar component type specified by
+    # the "name" attribute does not exist in the current scope;
+    if list(el)[0].tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+        return comp.name != name
+
+    # 1: The CALDAV:comp-filter XML element is empty and the calendar object or
+    # calendar component type specified by the "name" attribute exists in the
+    # current scope;
+    if comp.name != name:
+        return False
+
+    # 3. The CALDAV:comp-filter XML element contains a CALDAV:time-range XML
+    # element and at least one recurrence instance in the targeted calendar
+    # component is scheduled to overlap the specified time range, and all
+    # specified CALDAV:prop-filter and CALDAV:comp-filter child XML elements
+    # also match the targeted calendar component;
+    subchecks = []
+    for subel in el:
+        if subel.tag == '{urn:ietf:params:xml:ns:caldav}comp-filter':
+            if not any(apply_comp_filter(subel, c) for c in comp.subcomponents):
+                return False
+        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}prop-filter':
+            if not apply_prop_filter(subel, comp):
+                return False
+        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
+            if not apply_time_range_comp(subel, comp):
+                return False
+        else:
+            raise AssertionError('unknown filter tag %r' % subel.tag)
+    return True
+
+
+def apply_filter(el):
+    """Compile a filter element into a Python function.
+    """
+    if el is None:
+        # Empty filter, let's not bother parsing
+        return lambda x: True
+    c = Calendar.from_ical(b''.join(x.get_body()))
+    return apply_comp_filter(list(el)[0], c)
+
+
 class CalendarQueryReporter(DAVReporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
@@ -190,19 +298,21 @@ class CalendarQueryReporter(DAVReporter):
                base_resource, depth):
         # TODO(jelmer): Verify that resource is an addressbook
         requested = None
-        filter = None
+        filter_el = None
         for el in body:
             if el.tag == '{DAV:}prop':
                 requested = el
             elif el.tag == '{urn:ietf:params:xml:ns:caldav}filter':
-                filter = el
+                filter_el = el
             else:
                 raise NotImplementedError(tag.name)
+        filter_fn = compile_filter(filter_el)
         properties = dict(properties)
         properties[CalendarDataProperty.name] = CalendarDataProperty()
         for (href, resource) in traverse_resource(
                 base_resource, depth, base_href):
-            # TODO: apply filter
+            if not filter_fn(resource):
+                continue
             propstat = get_properties(
                 resource, properties, requested)
             yield DAVStatus(href, '200 OK', propstat=list(propstat))

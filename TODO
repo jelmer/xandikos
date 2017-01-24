@@ -18,7 +18,6 @@ webdav server:
 - implement filters in calendar-query
 
 - properties:
- - calendar-timezone
  - current-user-privilege-set
  - group-membership
  - calendar-timezone
@@ -29,6 +28,9 @@ webdav server:
  - {http://inf-it.com/ns/dav/}headervalue
  - {http://inf-it.com/ns/ab/}addressbook-color
  - {urn:ietf:params:xml:ns:carddav}max-image-size
+
+- reporters:
+ - free-busy-query
 
 - properly handle well-known URLs:
  - 302 to SCRIPT_NAME
