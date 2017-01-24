@@ -293,6 +293,11 @@ class Principal(CollectionSetResource):
         return USER_ADDRESS_SET
 
 
+@functools.lru_cache(maxsize=RESOURCE_CACHE_SIZE)
+def open_store_from_path(path):
+    return GitStore.open_from_path(path)
+
+
 class DystrosBackend(webdav.DAVBackend):
 
     def __init__(self, path, current_user_principal):
@@ -302,7 +307,6 @@ class DystrosBackend(webdav.DAVBackend):
     def _map_to_file_path(self, relpath):
         return os.path.join(self.path, relpath.lstrip('/'))
 
-    @functools.lru_cache(maxsize=RESOURCE_CACHE_SIZE)
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
         if relpath in WELLKNOWN_DAV_PATHS:
@@ -316,7 +320,7 @@ class DystrosBackend(webdav.DAVBackend):
             return None
         if os.path.isdir(p):
             try:
-                store = GitStore.open_from_path(p)
+                store = open_store_from_path(p)
             except NotStoreError:
                 return CollectionSetResource(self, relpath)
             else:
