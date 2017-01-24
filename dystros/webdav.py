@@ -647,7 +647,7 @@ class WebDAVApp(object):
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
             return self._send_not_found(environ, start_response)
-        container_path, item_name = posixpath.split(environ['PATH_INFO'])
+        container_path, item_name = posixpath.split(posixpath.normpath(environ['PATH_INFO']))
         pr = self.backend.get_resource(container_path)
         if pr is None:
             return self._send_not_found(environ, start_response)
@@ -662,7 +662,7 @@ class WebDAVApp(object):
 
     def do_PUT(self, environ, start_response):
         new_contents = self._readBody(environ)
-        path = environ['PATH_INFO']
+        path = posixpath.normpath(environ['PATH_INFO'])
         r = self.backend.get_resource(path)
         if r is not None:
             current_etag = r.get_etag()
@@ -842,7 +842,7 @@ class WebDAVApp(object):
         if resource is not None:
             start_response('405 Method Not Allowed', [])
             return []
-        container_path, item_name = posixpath.split(environ['PATH_INFO'])
+        container_path, item_name = posixpath.split(posixpath.normpath(environ['PATH_INFO']))
         pr = self.backend.get_resource(container_path)
         if pr is None:
             start_response('409 Conflict', [])

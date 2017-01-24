@@ -527,6 +527,7 @@ class BareGitStore(GitStore):
 
         :return: A `GitStore`
         """
+        os.mkdir(path)
         return cls(dulwich.repo.Repo.init_bare(path))
 
 
@@ -539,6 +540,7 @@ class TreeGitStore(GitStore):
 
         :return: A `GitStore`
         """
+        os.mkdir(path)
         return cls(dulwich.repo.Repo.init(path))
 
     def _get_etag(self, name):

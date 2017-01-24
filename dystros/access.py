@@ -22,12 +22,13 @@
 See http://www.webdav.org/specs/rfc3744.html
 """
 
+from defusedxml.ElementTree import fromstring as xmlparse
 from xml.etree import ElementTree as ET
 
 from dystros import webdav
 
 
-class CurrentUserPrivilegeSet(webdav.DAVProperty):
+class CurrentUserPrivilegeSetProperty(webdav.DAVProperty):
     """current-user-privilege-set property
 
     See http://www.webdav.org/specs/rfc3744.html, section 3.7
