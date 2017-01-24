@@ -92,6 +92,16 @@ class Calendar(DAVCollection):
         """
         raise NotImplementedError(self.get_supported_calendar_data_types)
 
+    def get_min_date_time(self):
+        """Return minimum datetime property.
+        """
+        raise NotImplementedError(self.get_min_date_time)
+
+    def get_max_date_time(self):
+        """Return maximum datetime property.
+        """
+        raise NotImplementedError(self.get_min_date_time)
+
 
 class PrincipalExtensions:
     """CalDAV-specific extensions to DAVPrincipal."""
@@ -399,3 +409,33 @@ class CalendarTimezoneProperty(DAVProperty):
 
     def set_value(self, resource, el):
         resource.set_calendar_timezone(el.text)
+
+
+class MinDateTimeProperty(DAVProperty):
+    """min-date-time property.
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.6
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}min-date-time'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    protected = True
+
+    def get_value(self, resource, el):
+        el.text = resource.get_min_date_time()
+
+
+class MaxDateTimeProperty(DAVProperty):
+    """max-date-time property.
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.7
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}max-date-time'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    protected = True
+
+    def get_value(self, resource, el):
+        el.text = resource.get_max_date_time()

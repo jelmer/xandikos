@@ -205,6 +205,12 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
     def get_ctag(self):
         return self.store.get_ctag()
 
+    def get_max_date_time(self):
+        return "99991231T235959Z"
+
+    def get_min_date_time(self):
+        return "00010101T000000Z"
+
 
 class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
 
@@ -359,6 +365,8 @@ class DystrosApp(webdav.WebDAVApp):
             sync.SyncTokenProperty(),
             caldav.SupportedCalendarDataProperty(),
             caldav.CalendarTimezoneProperty(),
+            caldav.MinDateTimeProperty(),
+            caldav.MaxDateTimeProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
