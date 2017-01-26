@@ -1,0 +1,177 @@
+<p>This document aims to document the compliance with various RFCs.</p>
+<h1>rfc4918.txt (Core WebDAV) (obsoletes rfc2518)</h1>
+<h2>HTTP Methods</h2>
+<ul>
+<li>PROPFIND [supported, with 'propfind' but not 'allprop' or 'propname']</li>
+<li>PROPPATCH [supported]</li>
+<li>MKCOL [supported]</li>
+<li>DELETE [supported]</li>
+<li>PUT [supported]</li>
+<li>COPY [not implemented]</li>
+<li>MOVE [not implemented]</li>
+<li>LOCK [not implemented]</li>
+<li>UNLOCK [not implemented]</li>
+</ul>
+<h2>HTTP Headers</h2>
+<ul>
+<li>(9.1) Dav [supported]</li>
+<li>(9.2) Depth ['0 and '1' supported, 'infinity' is not]</li>
+<li>(9.3) Destination [only used with COPY/MOVE, which are not supported]</li>
+<li>(9.4) If [not supported]</li>
+<li>(9.5) Lock-Token [not supported]</li>
+<li>(9.6) Overwrite [only used with COPY/MOVE, which are not supported]</li>
+<li>(9.7) Status-URI [not supported]</li>
+<li>(9.8) Timeout [not supported, only used for locks]</li>
+</ul>
+<h2>DAV Properties</h2>
+<ul>
+<li>(15.1) creationdate [supported]</li>
+<li>(15.2) displayname [supported]</li>
+<li>(15.3) getcontentlanguage [not supported]</li>
+<li>(15.4) getcontentlength [supported]</li>
+<li>(15.5) getcontenttype [supported]</li>
+<li>(15.6) getetag [supported]</li>
+<li>(15.7) getlastmodified [not supported]</li>
+<li>(15.8) lockdiscovery [not supported]</li>
+<li>(15.9) resourcetype [supported]</li>
+<li>(15.10) supportedlock [not supported]</li>
+<li>(RFC2518 ONLY - 13.10) source [not supported]</li>
+</ul>
+<h1>rfc3253.txt (Versioning Extensions)</h1>
+<p>Broadly speaking, only features related to the REPORT method are supported.</p>
+<h2>HTTP Methods</h2>
+<ul>
+<li>REPORT [supported]</li>
+<li>CHECKOUT [not supported]</li>
+<li>CHECKIN [not supported]</li>
+<li>UNCHECKOUT [not supported]</li>
+<li>MKWORKSPACE [not supported]</li>
+<li>UPDATE [not supported]</li>
+<li>LABEL [not supported]</li>
+<li>MERGE [not supported]</li>
+<li>VERSION-CONTROL [not supported]</li>
+<li>BASELINE-CONTROL [not supported]</li>
+<li>MKACTIVITY [not supported]</li>
+</ul>
+<h2>DAV Properties</h2>
+<ul>
+<li>DAV:comment [not supported]</li>
+<li>DAV:creator-displayname [not supported]</li>
+<li>DAV:supported-method-set [not supported]</li>
+<li>DAV:supported-live-property-set [not supported]</li>
+<li>DAV:supported-report-set [supported]</li>
+<li>DAV:predecessor-set [not supported]</li>
+<li>DAV:successor-set [not supported]</li>
+<li>DAV:checkout-set [not supported]</li>
+<li>DAV:version-name [not supported]</li>
+<li>DAV:checked-out [not supported]</li>
+<li>DAV:chcked-in [not supported]</li>
+<li>DAV:auto-version [not supported]</li>
+</ul>
+<h2>DAV Reports</h2>
+<ul>
+<li>DAV:expand-property [supported]</li>
+<li>DAV:version-tree [not supported]</li>
+</ul>
+<h1>rfc5323.txt (WebDAV "SEARCH")</h1>
+<p>Not supported</p>
+<h2>HTTP Methods</h2>
+<ul>
+<li>SEARCH [not supported]</li>
+</ul>
+<h2>DAV Properties</h2>
+<ul>
+<li>DAV:datatype [not supported]</li>
+<li>DAV:searchable [not supported]</li>
+<li>DAV:selectable [not supported]</li>
+<li>DAV:sortable [not supported]</li>
+<li>DAV:caseless [not supported]</li>
+<li>DAV:operators [not supported]</li>
+</ul>
+<h1>rfc3744.txt (WebDAV access control)</h1>
+<p>Not really supported</p>
+<h2>DAV Properties</h2>
+<ul>
+<li>DAV:alternate-uri-set [not supported]</li>
+<li>DAV:principal-URL [supported]</li>
+<li>DAV:group-member-set [not supported]</li>
+<li>DAV:group-membership [not supported]</li>
+<li>DAV:owner [not supported]</li>
+<li>DAV:group [not supported]</li>
+<li>DAV:current-user-privilege-set [supported]</li>
+<li>DAV:supported-privilege-set [not supported]</li>
+<li>DAV:acl [not supported]</li>
+<li>DAV:acl-restrictions [not supported]</li>
+<li>DAV:inherited-acl-set [not supported]</li>
+<li>DAV:principal-collection-set [not supported]</li>
+</ul>
+<h2>DAV Reports</h2>
+<ul>
+<li>DAV:acl-principal-prop-set [not supported]</li>
+<li>DAV:principal-match [not supported]</li>
+<li>DAV:principal-property-search [not supported]</li>
+<li>DAV:principal-search-property-set [not supported]</li>
+</ul>
+<h1>rfc4791.txt (CalDAV)</h1>
+<h2>DAV Properties</h2>
+<ul>
+<li>CALDAV:calendar-description [supported]</li>
+<li>CALDAV:calendar-home-set [supported]</li>
+<li>CALDAV:calendar-timezone [supported]</li>
+<li>CALDAV:supported-calendar-component-set [supported]</li>
+<li>CALDAV:supported-calendar-data [supported]</li>
+<li>CALDAV:max-resource-size [supported]</li>
+<li>CALDAV:min-date-time [supported]</li>
+<li>CALDAV:max-date-time [supported]</li>
+<li>CALDAV:max-instances [not supported]</li>
+<li>CALDAV:max-atendees-per-instance [not supported]</li>
+</ul>
+<h2>HTTP Methods</h2>
+<ul>
+<li>
+<p>MKCALENDAR [not supported]</p>
+</li>
+<li>
+<p>DAV Reports</p>
+</li>
+<li>CALDAV:calendar-query [supported]</li>
+<li>CALDAV:calendar-multiget [supported]</li>
+<li>CALDAV:free-busy-query [not supported]</li>
+</ul>
+<h1>rfc6352.txt (CardDAV)</h1>
+<h2>DAV Properties</h2>
+<ul>
+<li>CARDDAV:addressbook-description [supported]</li>
+<li>CARDDAV:supported-address-data [supported]</li>
+<li>CARDDAV:max-resource-size [supported]</li>
+<li>CARDDAV:addressbook-home-set [supported]</li>
+<li>CARDDAV:princial-address [supported]</li>
+</ul>
+<h2>DAV Reports</h2>
+<ul>
+<li>CARDDAV:addressbook-query [supported]</li>
+<li>CARDDAV:addressbook-multiget [supported]</li>
+</ul>
+<h1>rfc6638.txt (CardDAV scheduling extensions)</h1>
+<h2>DAV Properties</h2>
+<ul>
+<li>CALDAV:schedule-outbox-URL [not supported]</li>
+<li>CALDAV:schedule-inbox-URL [not supported]</li>
+<li>CALDAV:calendar-user-address-set [supported]</li>
+<li>CALDAV:calendar-user-type [not supported]</li>
+</ul>
+<h1>rfc6764.txt (Locating groupware services)</h1>
+<p>Most of this is outside of the scope of dystros, but it does support
+DAV:current-user-principal</p>
+<h1>rfc7809.txt (CalDAV Time Zone Extensions)</h1>
+<p>Not supported</p>
+<h2>DAV Properties</h2>
+<ul>
+<li>CALDAV:timezone-service-set [not suported]</li>
+<li>CALDAV:calendar-timezone-id [not supported]</li>
+</ul>
+<h1>rfc5397.txt (WebDV Current Principal Extension)</h1>
+<h2>DAV Properties</h2>
+<ul>
+<li>CALDAV:current-user-principal [supported]</li>
+</ul>
