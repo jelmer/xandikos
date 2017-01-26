@@ -1,0 +1,731 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                          C. Daboo
+Request for Comments: 7809                                         Apple
+Updates: 4791                                                 March 2016
+Category: Standards Track
+ISSN: 2070-1721
+
+
+   Calendaring Extensions to WebDAV (CalDAV): Time Zones by Reference
+
+Abstract
+
+   This document defines an update to the Calendaring Extensions to
+   WebDAV (CalDAV) calendar access protocol (RFC 4791) to allow clients
+   and servers to exchange iCalendar data without the need to send full
+   time zone data.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7809.
+
+Copyright Notice
+
+   Copyright (c) 2016 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+
+
+
+Daboo                        Standards Track                    [Page 1]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.  Conventions Used in This Document . . . . . . . . . . . . . .   3
+   3.  Time Zones by Reference . . . . . . . . . . . . . . . . . . .   3
+     3.1.  New Server Behavior . . . . . . . . . . . . . . . . . . .   4
+   4.  New Client Behavior . . . . . . . . . . . . . . . . . . . . .   7
+   5.  New WebDAV Properties . . . . . . . . . . . . . . . . . . . .   8
+     5.1.  CALDAV:timezone-service-set . . . . . . . . . . . . . . .   8
+     5.2.  CALDAV:calendar-timezone-id . . . . . . . . . . . . . . .   9
+   6.  XML Element Definitions . . . . . . . . . . . . . . . . . . .   9
+     6.1.  CALDAV:calendar-query XML Element . . . . . . . . . . . .   9
+     6.2.  CALDAV:timezone-id XML Element  . . . . . . . . . . . . .  10
+   7.  Additional Message Header Fields  . . . . . . . . . . . . . .  10
+     7.1.  CalDAV-Timezones Request Header Field . . . . . . . . . .  10
+   8.  Security Considerations . . . . . . . . . . . . . . . . . . .  11
+   9.  Privacy Considerations  . . . . . . . . . . . . . . . . . . .  11
+   10. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  11
+     10.1.  CalDAV-Timezones . . . . . . . . . . . . . . . . . . . .  11
+   11. References  . . . . . . . . . . . . . . . . . . . . . . . . .  12
+     11.1.  Normative References . . . . . . . . . . . . . . . . . .  12
+     11.2.  Informative References . . . . . . . . . . . . . . . . .  12
+   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .  13
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  13
+
+1.  Introduction
+
+   The CalDAV [RFC4791] calendar access protocol allows clients to
+   access calendar data stored on a server in the iCalendar [RFC5545]
+   data format.  In iCalendar, calendar data that uses local time in any
+   of its date and/or time values is specified as a date-time value in
+   combination with a time zone identifier ("TZID" property parameter).
+   The time zone identifier refers to a time zone definition (a
+   "VTIMEZONE" component) that has all of the rules required to
+   determine local-time UTC offsets for the corresponding time zone.  In
+   many cases, these "VTIMEZONE" components can be larger, octet-wise,
+   than the events or tasks that make use of them.  However, iCalendar
+   currently requires all iCalendar objects ("VCALENDAR" components)
+   that refer to a time zone via its identifier to also include the
+   corresponding "VTIMEZONE" component.  This leads to inefficiencies in
+   the CalDAV protocol because large amounts of "VTIMEZONE" data are
+   continuously being exchanged, and for the most part these time zone
+   definitions are unchanging.  This is particularly problematic for
+   mobile or limited devices, with limited network bandwidth, CPU, and
+   energy resources.
+
+
+
+
+
+
+Daboo                        Standards Track                    [Page 2]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+   A set of standard time zone definitions are available at the IANA-
+   hosted time zone database [RFC6557].  That database provides the
+   "raw" data for time zone definitions, and those can be converted into
+   iCalendar "VTIMEZONE" components for use in iCalendar applications,
+   as well as converted into other formats for use by other applications
+   (e.g., "zoneinfo" files often found on Unix-based operating systems).
+   A new time zone data distribution service protocol [RFC7808] is
+   available that allows iCalendar applications to retrieve these
+   standard time zone definitions in a timely and accurate fashion,
+   instead of relying on possibly infrequent system updates of time zone
+   data that frequently result in mismatched calendar data and thus
+   missed meetings between calendar users.  Another benefit of the time
+   zone data distribution service is that it provides a single
+   "reference" for standard time zone data that CalDAV clients and
+   servers can make use of to "agree" on standard time zone definitions,
+   and thus eliminate the need to exchange the data for those.
+
+   This specification defines a new mode of operation for CalDAV clients
+   and servers that allows them to exchange iCalendar data without the
+   need to send "VTIMEZONE" components for known, standard time zone
+   definitions.  This can significantly reduce the amount of data that
+   needs to be sent between client and server, giving rise to
+   performance and efficiency improvements for each of them.
+
+2.  Conventions Used in This Document
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   [RFC2119].
+
+   Other notations used in this memo are as in [RFC4791].
+
+3.  Time Zones by Reference
+
+   Note that this specification only defines changes to iCalendar data
+   sent or received via the CalDAV protocol (both [RFC4791] and
+   [RFC6638], and extensions).  These changes do not apply to other
+   means of exchanging calendar data, such as scheduling mechanisms
+   based on the iCalendar Transport-Independent Interoperability
+   Protocol (iTIP) [RFC5546], e.g., the iCalendar Message-Based
+   Interoperability Protocol (iMIP) [RFC6047], or other methods.
+
+
+
+
+
+
+
+
+
+Daboo                        Standards Track                    [Page 3]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+3.1.  New Server Behavior
+
+3.1.1.  Server Advertised Capability
+
+   A server that supports this specification MUST include "calendar-no-
+   timezone" as a field in the DAV response header field from an
+   "OPTIONS" request on a calendar home collection (see Section 6.2.1 of
+   [RFC4791]) or calendar collection (see Section 4.2 of [RFC4791]).
+   Clients MUST check for the presence of that field in the DAV response
+   header field before changing their behavior as per Section 4.
+
+3.1.2.  Associated Time Zone Data Distribution Service
+
+   A CalDAV server supporting this specification MUST have one or more
+   associated time zone distribution services [RFC7808] that provide
+   data for the set of time zones known to the server and expected to be
+   used by clients.  A CalDAV server advertises the set of time zone
+   distribution services it makes use of via a CALDAV:timezone-service-
+   set WebDAV property (see Section 5.1) defined on calendar home
+   collections.  Clients can use the time zone data distribution
+   services listed in this property to fetch current time zone
+   definitions for the time zone identifiers in iCalendar data retrieved
+   from the server.  This allows clients to keep their "built-in" time
+   zone definitions up to date.  It also allows clients to use an "on-
+   demand" model for populating their local time zone definition cache,
+   only fetching a time zone definition when it is first seen in
+   calendar data, potentially allowing for savings on storage space by
+   eliminating the need to store time zone data that is not currently
+   being used.
+
+   When making use of the time zone data distribution services
+   advertised by a CalDAV server, clients MUST follow all the
+   requirements of the time zone data distribution service protocol
+   [RFC7808], taking care to refresh time zone data in a timely fashion.
+
+3.1.3.  Time Zones in CalDAV Responses
+
+   Servers MUST support the HTTP "CalDAV-Timezones" request header field
+   (see Section 7.1).  If the "CalDAV-Timezones" request header field
+   has the value "T" on any HTTP request that returns iCalendar data,
+   then the server MUST include all the appropriate "VTIMEZONE"
+   components in the iCalendar data (all the ones that are referenced by
+   "TZID" property parameters).  If the "CalDAV-Timezones" request
+   header field has the value "F" on any HTTP request that returns
+   iCalendar data, then the server MUST NOT return any "VTIMEZONE"
+   components if the time zone identifier matches one provided by any of
+   the advertised time zone distribution servers (see Section 3.1.2).
+   However, the server MUST return the appropriate "VTIMEZONE" component
+
+
+
+Daboo                        Standards Track                    [Page 4]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+   for each time zone with an identifier not available on the advertised
+   time zone distribution servers.  This behavior applies to all HTTP
+   requests on CalDAV resources that return iCalendar data either
+   directly (such as a "GET" request on a calendar object resource), or
+   embedded in a "structured" response such as a DAV:multistatus
+   returned by a "REPORT" or "PROPFIND" request.
+
+   Observation and experiments have shown that, in the vast majority of
+   cases, CalDAV clients have typically ignored time zone definitions in
+   data received from servers, and instead make use of their own "built-
+   in" definitions for the corresponding time zone identifier.  This
+   means that it is reasonable for CalDAV servers to unilaterally decide
+   not to send "VTIMEZONE" components for standard time zones that
+   clients are expected to have "built-in" (i.e., IANA time zones).
+   Thus, in the absence of a "CalDAV-Timezones" request header field,
+   servers advertising the "calendar-no-timezone" capability MAY opt to
+   not send standard "VTIMEZONE" components.  Servers that do that will
+   need to provide an administrator configuration setting to override
+   the new default behavior based on client "User-Agent" request header
+   field values, or other suitable means of identifying the client
+   software in use.
+
+3.1.4.  Time Zones in CalDAV Requests
+
+   In addition to servers not sending time zone definitions to clients
+   in iCalendar data, this specification also allows clients to not
+   include time zone definitions when sending iCalendar data to the
+   server, as per Section 4.  This behavior applies to all HTTP requests
+   on CalDAV resources that include iCalendar data either directly in
+   the request body (such as a "PUT" request on a calendar object
+   resource) or embedded in a "structured" request body such as a one
+   used by a "PROPPATCH" request.
+
+   Note that, as per Section 4, clients might send time zone definitions
+   for time zones that are not advertised by any of the time zone
+   services associated with the server.  In that case, servers have
+   various choices:
+
+   1.  Servers can preserve the original time zone definitions in the
+       iCalendar data sent by the client, so that those can be returned
+       to that client or other clients who subsequently request
+       iCalendar data.
+
+   2.  Servers can refuse to accept any unknown/nonstandard time zones
+       -- in which case, they MUST reject the HTTP request containing
+       such data using a WebDAV precondition code of
+       CALDAV:valid-timezone.
+
+
+
+
+Daboo                        Standards Track                    [Page 5]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+   3.  Servers can, with appropriate knowledge, map the unknown/
+       nonstandard time zone to a standard time zone definition that
+       accurately matches the one supplied by the client.  In doing so,
+       servers will need to rewrite the iCalendar data to make use of
+       the new standard time zone identifier chosen by the mapping
+       procedure.  Any subsequent request to fetch the calendar data
+       would see the new time zone identifier in the calendar data.
+       Note there is one important situation where this remapping is not
+       appropriate: an attendee's copy of an event.  In that case, the
+       original time zone definition needs to be preserved as the
+       organizer's calendar user agent will expect to see that in any
+       iTIP [RFC5546] replies sent by the attendee.
+
+3.1.5.  Support of Time Zone Identifiers in WebDAV Properties
+
+   CalDAV defines a CALDAV:calendar-timezone WebDAV property that is
+   used by clients to set a default time zone for the server to use when
+   doing time-based queries on calendar data (see Section 5.3.2 of
+   [RFC4791]).  The content of that WebDAV property is an iCalendar
+   "VTIMEZONE" component.  This specification defines a new
+   CALDAV:calendar-timezone-id WebDAV property that allows the default
+   time zone to be set via its time zone identifier, rather than
+   providing the full "VTIMEZONE" component (see Section 5.2).  This
+   WebDAV property MUST be present on all resources that also support
+   the CALDAV:calendar-timezone WebDAV property.  Its value MUST match
+   the value of the "TZID" iCalendar property in the "VTIMEZONE"
+   component in the CALDAV:calendar-timezone WebDAV property on the same
+   resource.  The server MUST accept clients that set either the
+   CALDAV:calendar-timezone or the CALDAV:calendar-timezone-id, and it
+   MUST adjust the value of the alternate property to reflect any
+   changes.  That is, if a client sets the CALDAV:calendar-timezone-id
+   WebDAV property value to "America/New_York", then the server will
+   return the full "VTIMEZONE" data for that time zone in the
+   CALDAV:calendar-timezone WebDAV property.
+
+   If a client attempts to update the CALDAV:calendar-timezone-id with a
+   value that does not correspond to a time zone that is known to the
+   server, the server MUST reject the property update using a
+   CALDAV:valid-timezone pre-condition error.  In such cases, clients
+   MAY repeat the request using the CALDAV:calendar-timezone instead,
+   and provide the full iCalendar data for the time zone being set.
+
+3.1.6.  Support of Time Zone Identifiers in CALDAV:calendar-query REPORT
+
+   CalDAV calendar query reports support a CALDAV:timezone XML element
+   that is used by clients to set a specific time zone for the server to
+   use when doing time-based queries on calendar data (see Sections 7.3
+   and 9.8 of [RFC4791]).  The content of that XML element is an
+
+
+
+Daboo                        Standards Track                    [Page 6]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+   iCalendar "VTIMEZONE" component.  This specification defines a new
+   CALDAV:timezone-id XML element that can be used as an alternative to
+   the CALDAV:timezone XML element; it allows a specific time zone to be
+   set via its time zone identifier, rather than providing the full
+   "VTIMEZONE" component (see Section 6.2).  Servers MUST support a
+   client's ability to provide a time zone identifier for use in a
+   calendar query "REPORT" using this new element.
+
+   If a client attempts use of a CALDAV:timezone-id XML element with a
+   value that does not correspond to a time zone that is known to the
+   server, the server MUST reject the request with a CALDAV:valid-
+   timezone precondition error.  In such cases, clients MAY repeat the
+   request using the CALDAV:timezone XML element instead, and provide
+   the full iCalendar data for the time zone being used.
+
+4.  New Client Behavior
+
+   When a server advertises the "calendar-no-timezone" field in a DAV
+   response header field (as per Section 3.1.1):
+
+   1.  Clients SHOULD include an HTTP "CalDAV-Timezones" request header
+       field with a value of "F" to ensure that the CalDAV server does
+       not include "VTIMEZONE" components in any iCalendar data returned
+       in a response (see Section 3.1.3), for those time zones whose
+       identifier is one provided by any of the advertised time zone
+       distribution servers (see Section 3.1.2).  In this case, clients
+       will have to retrieve the missing standard time zone definitions
+       either from their own cache of standard time zones or from the
+       set of time zone distribution servers advertised by the CalDAV
+       server (see Section 3.1.2).
+
+   2.  Clients can include an HTTP "CalDAV-Timezones" request header
+       field with a value of "T" to ensure that the CalDAV server does
+       include all "VTIMEZONE" components in any iCalendar data returned
+       in a response (see Section 3.1.3).
+
+   3.  Clients can expect servers not to include standard time zone
+       definitions in any iCalendar data they receive from the server,
+       if there is no "CalDAV-Timezones" request header field in the
+       HTTP request.  Clients MUST retrieve standard time zone
+       definitions either from its own cache of standard time zones or
+       from the set of time zone distribution servers advertised by the
+       CalDAV server (see Section 3.1.2).
+
+
+
+
+
+
+
+
+Daboo                        Standards Track                    [Page 7]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+   4.  Clients SHOULD remove standard time zone definitions from
+       iCalendar data they send to the server, provided the
+       corresponding time zone identifier is one available on any of the
+       server's advertised time zone distribution servers (see
+       Section 3.1.2).
+
+   5.  Clients MUST send time zone definitions in iCalendar data for any
+       time zone identifiers not available via any of the server's
+       advertised time zone distribution servers.  Clients MUST be
+       prepared for the server to reject such data or map the time zone
+       to one in the set of standard time zones provided by the server's
+       associated time zone services (as per Section 3.1.4).
+
+   6.  Clients SHOULD make use of the CALDAV:calendar-timezone-id WebDAV
+       property (see Section 3.1.5) and CalDAV:timezone-id XML element
+       (see Section 3.1.6) for specifying default and specific time
+       zones to use in calendar queries executed by the server.
+
+5.  New WebDAV Properties
+
+5.1.  CALDAV:timezone-service-set
+
+   Name:  timezone-service-set
+
+   Namespace:  urn:ietf:params:xml:ns:caldav
+
+   Purpose:  Specifies one or more time zone data distribution servers
+      being used by the CalDAV server to provide standard time zone
+      data.
+
+   Conformance:  This property SHOULD be defined on CalDAV calendar home
+      collection resources.  If defined, it SHOULD NOT be returned by a
+      "PROPFIND" DAV:allprop request (as defined in Section 14.2 of
+      [RFC4918]).
+
+   Description:  The CALDAV:timezone-service-set property lists one or
+      more time zone data distribution servers that the CalDAV server is
+      using to provide its set of time zone data.  See Section 3.1.2 for
+      more details.
+
+   Definition:
+
+   <!ELEMENT timezone-service-set (DAV:href+)>
+   DAV:href value: URI of a time zone data distribution service
+   as defined by this specification.
+
+
+
+
+
+
+Daboo                        Standards Track                    [Page 8]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+   Example:
+
+   <C:timezone-service-set
+       xmlns:D="DAV:"
+       xmlns:C="urn:ietf:params:xml:ns:caldav">
+     <D:href>https://timezones.example.com</D:href>
+   </C:timezone-service-set>
+
+5.2.  CALDAV:calendar-timezone-id
+
+   Name:  calendar-timezone-id
+
+   Namespace:  urn:ietf:params:xml:ns:caldav
+
+   Purpose:  Specifies a time zone identifier for a calendar collection.
+
+   Conformance:  This property SHOULD be defined on all resources where
+      the CALDAV:calendar-timezone property is also defined.  If
+      defined, it SHOULD NOT be returned by a "PROPFIND" DAV:allprop
+      request (as defined in Section 14.2 of [RFC4918]).
+
+   Description:  The CALDAV:calendar-timezone-id property is used as an
+      alternative to the CALDAV:calendar-timezone property (see
+      Section 5.3.2 of [RFC4791]).  It allows clients to set the default
+      time zone using only a time zone identifier.  It also indicates to
+      the client the time zone identifier of the current default time
+      zone.  See Section 3.1.5 for more details.
+
+   Definition:
+
+   <!ELEMENT calendar-timezone-id (#PCDATA)>
+   PCDATA value: a time zone identifier.
+
+   Example:
+
+   <C:calendar-timezone-id
+       xmlns:C="urn:ietf:params:xml:ns:caldav">US-Eastern<
+   /C:calendar-timezone-id>
+
+6.  XML Element Definitions
+
+6.1.  CALDAV:calendar-query XML Element
+
+   The CALDAV:calendar-query XML element, defined in Section 9.5 of
+   [RFC4791], is modified to allow use of the CALDAV:timezone-id XML
+   element as follows.
+
+
+
+
+
+Daboo                        Standards Track                    [Page 9]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+   Definition:
+
+   <!ELEMENT calendar-query ((DAV:allprop |
+                              DAV:propname |
+                              DAV:prop)?, filter,
+                              (timezone | timezone-id)?)>
+
+6.2.  CALDAV:timezone-id XML Element
+
+   Name:  timezone-id
+
+   Namespace:  urn:ietf:params:xml:ns:caldav
+
+   Purpose:  Specifies the time zone identifier for a time zone
+      component to use when determining the results of a report.
+
+   Description:  The CALDAV:timezone-id XML element is used as an
+      alternative to the CALDAV:timezone XML element (see Section 9.8 of
+      [RFC4791]) in calendar query reports, to allow a client to specify
+      a time zone using a time zone identifier rather than providing the
+      full iCalendar time zone data.  See Section 3.1.6 for more
+      details.
+
+   Definition:
+
+   <!ELEMENT timezone-id (#PCDATA)>
+   PCDATA value: a time zone identifier.
+
+7.  Additional Message Header Fields
+
+7.1.  CalDAV-Timezones Request Header Field
+
+   The "CalDAV-Timezones" request header field provides a way for a
+   client to indicate to the server whether it wants "VTIMEZONE"
+   components returned in any iCalendar data that is part of the HTTP
+   response.  The value "T" indicates that the client wants time zone
+   data returned; the value "F" indicates that it does not.
+
+   CalDAV-Timezones = "T" / "F"
+
+   Example:
+
+   CalDAV-Timezones: F
+
+
+
+
+
+
+
+
+Daboo                        Standards Track                   [Page 10]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+8.  Security Considerations
+
+   This specifications adds time zone data distribution service
+   [RFC7808] servers into the overall calendaring and scheduling client/
+   server architecture, as a critical component, and thus adds a new
+   vector of attack against such systems.  As such, administrators of
+   CalDAV servers SHOULD ensure that any advertised time zone
+   distribution servers are protected by a level of security
+   commensurate with all the other components in the system.
+
+   Besides the above point, this specification does not introduce any
+   new security concerns beyond those addressed in CalDAV [RFC4791],
+   iCalendar [RFC5545], and the time zone data distribution service
+   [RFC7808].
+
+9.  Privacy Considerations
+
+   The privacy recommendations in Section 9 of the time zone data
+   distribution service specification [RFC7808] SHOULD be used to ensure
+   that details of clients' interactions with CalDAV servers are not
+   exposed to potential network observers.  Note that since events can
+   be delivered to a calendar user from an outside source (e.g., using
+   iTIP [RFC5546]), and an attacker could create a calendar event with,
+   e.g., a time zone identifier that is fake or rarely used and that
+   could be used to monitor the calendar user's activity and interaction
+   with others, this specification increases the importance of using the
+   mitigations of privacy issues discussed in [RFC7808].
+
+10.  IANA Considerations
+
+   The message header field below has been added to the Permanent
+   Message Header Field Registry (see [RFC3864]).
+
+10.1.  CalDAV-Timezones
+
+   Header field name: CalDAV-Timezones
+
+   Applicable protocol: http
+
+   Status: standard
+
+   Author/Change controller: IETF
+
+   Specification document(s): this document (Section 7.1)
+
+   Related information: none
+
+
+
+
+
+Daboo                        Standards Track                   [Page 11]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+11.  References
+
+11.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <http://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3864]  Klyne, G., Nottingham, M., and J. Mogul, "Registration
+              Procedures for Message Header Fields", BCP 90, RFC 3864,
+              DOI 10.17487/RFC3864, September 2004,
+              <http://www.rfc-editor.org/info/rfc3864>.
+
+   [RFC4791]  Daboo, C., Desruisseaux, B., and L. Dusseault,
+              "Calendaring Extensions to WebDAV (CalDAV)", RFC 4791,
+              DOI 10.17487/RFC4791, March 2007,
+              <http://www.rfc-editor.org/info/rfc4791>.
+
+   [RFC4918]  Dusseault, L., Ed., "HTTP Extensions for Web Distributed
+              Authoring and Versioning (WebDAV)", RFC 4918,
+              DOI 10.17487/RFC4918, June 2007,
+              <http://www.rfc-editor.org/info/rfc4918>.
+
+   [RFC5545]  Desruisseaux, B., Ed., "Internet Calendaring and
+              Scheduling Core Object Specification (iCalendar)",
+              RFC 5545, DOI 10.17487/RFC5545, September 2009,
+              <http://www.rfc-editor.org/info/rfc5545>.
+
+   [RFC6638]  Daboo, C. and B. Desruisseaux, "Scheduling Extensions to
+              CalDAV", RFC 6638, DOI 10.17487/RFC6638, June 2012,
+              <http://www.rfc-editor.org/info/rfc6638>.
+
+   [RFC7808]  Douglass, M. and C. Daboo, "Time Zone Data Distribution
+              Service", RFC 7808, DOI 10.17487/RFC7808, March 2016,
+              <http://www.rfc-editor.org/info/rfc7808>.
+
+11.2.  Informative References
+
+   [RFC5546]  Daboo, C., Ed., "iCalendar Transport-Independent
+              Interoperability Protocol (iTIP)", RFC 5546,
+              DOI 10.17487/RFC5546, December 2009,
+              <http://www.rfc-editor.org/info/rfc5546>.
+
+   [RFC6047]  Melnikov, A., Ed., "iCalendar Message-Based
+              Interoperability Protocol (iMIP)", RFC 6047,
+              DOI 10.17487/RFC6047, December 2010,
+              <http://www.rfc-editor.org/info/rfc6047>.
+
+
+
+Daboo                        Standards Track                   [Page 12]
+
+RFC 7809               CalDAV Time Zone Extension             March 2016
+
+
+   [RFC6557]  Lear, E. and P. Eggert, "Procedures for Maintaining the
+              Time Zone Database", BCP 175, RFC 6557,
+              DOI 10.17487/RFC6557, February 2012,
+              <http://www.rfc-editor.org/info/rfc6557>.
+
+Acknowledgments
+
+   Thanks to Mike Douglass, Andrew McMillan, and Ken Murchison.  This
+   specification came about via discussions at the Calendaring and
+   Scheduling Consortium.
+
+Author's Address
+
+   Cyrus Daboo
+   Apple Inc.
+   1 Infinite Loop
+   Cupertino, CA   95014
+   United States
+
+   Email: cyrus@daboo.name
+   URI:   http://www.apple.com/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Daboo                        Standards Track                   [Page 13]
+
