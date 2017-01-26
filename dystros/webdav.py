@@ -345,6 +345,13 @@ class DAVResource(object):
         """
         raise NotImplementedError(self.get_content_type)
 
+    def get_owner(self):
+        """Get an href identifying the owner of the resource.
+
+        Can be None if owner information is not known.
+        """
+        raise NotImplementedError(self.get_owner)
+
     def get_etag(self):
         """Get the etag for this resource.
 

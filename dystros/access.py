@@ -42,3 +42,19 @@ class CurrentUserPrivilegeSetProperty(webdav.DAVProperty):
        privilege = ET.SubElement(el, '{DAV:}privilege')
        # TODO(jelmer): Use something other than all
        priv_all = ET.SubElement(privilege, '{DAV:}all')
+
+
+class OwnerProperty(webdav.DAVProperty):
+    """owner property.
+
+    See http://www.webdav.org/specs/rfc3744.html, section 5.1
+    """
+
+    name = '{DAV:}owner'
+    in_allprops = False
+
+    def get_value(self, resource, el):
+       owner_href = resource.get_owner()
+       if owner_href is not None:
+           ET.SubElement(el, '{DAV:}href').href = owner_href
+

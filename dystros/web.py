@@ -103,6 +103,9 @@ class ObjectResource(webdav.DAVResource):
     def get_etag(self):
         return create_strong_etag(self.etag)
 
+    def get_owner(self):
+        return None
+
 
 class StoreBasedCollection(object):
 
@@ -162,6 +165,9 @@ class StoreBasedCollection(object):
             else:
                 new_resource = None
             yield (name, old_resource, new_resource)
+
+    def get_owner(self):
+        return None
 
 
 class Collection(StoreBasedCollection,caldav.Calendar):
@@ -384,6 +390,7 @@ class DystrosApp(webdav.WebDAVApp):
             caldav.MaxDateTimeProperty(),
             carddav.MaxResourceSizeProperty(),
             access.CurrentUserPrivilegeSetProperty(),
+            access.OwnerProperty(),
             webdav.DAVCreationDateProperty(),
             ])
         self.register_reporters([
