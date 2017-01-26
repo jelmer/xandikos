@@ -11,7 +11,5 @@ cache:
     - $HOME/.cache/pip
 script:
   - pip install pip --upgrade
-
-  # Test without c extensions
   - python -m unittest dystros.tests.test_suite
 

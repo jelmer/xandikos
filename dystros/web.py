@@ -251,6 +251,9 @@ class CollectionSetResource(webdav.DAVCollection):
     def get_sync_token(self):
         raise KeyError
 
+    def get_etag(self):
+        raise KeyError
+
     def members(self):
         ret = []
         p = self.backend._map_to_file_path(self.relpath)

@@ -7,6 +7,7 @@ web:
 	$(PYTHON) -m dystros.web
 
 check-compat:
-	cd compat && ./run.sh
+	cd compat && ./all.sh
 
 check-all: check check-compat
+
