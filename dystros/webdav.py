@@ -217,6 +217,18 @@ class DAVGetETagProperty(DAVProperty):
         el.text = resource.get_etag()
 
 
+def format_datetime(dt):
+    s = "%04d%02d%02dT%02d%02d%02dZ" % (
+        dt.year,
+        dt.month,
+        dt.day,
+        dt.hour,
+        dt.minute,
+        dt.second
+    )
+    return s.encode('utf-8')
+
+
 class DAVCreationDateProperty(DAVProperty):
     """Provides {DAV:}creationdate.
 
@@ -228,7 +240,7 @@ class DAVCreationDateProperty(DAVProperty):
     protected = True
 
     def get_value(self, resource, el):
-        el.text = resource.get_creationdate()
+        el.text = format_datetime(resource.get_creationdate())
 
 
 class DAVGetContentTypeProperty(DAVProperty):
@@ -324,6 +336,7 @@ class DAVResource(object):
 
         :return: A datetime object
         """
+        raise NotImplementedError(self.get_creationdate)
 
     def get_content_type(self):
         """Get the content type for the resource.

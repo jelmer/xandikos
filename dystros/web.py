@@ -384,6 +384,7 @@ class DystrosApp(webdav.WebDAVApp):
             caldav.MaxDateTimeProperty(),
             carddav.MaxResourceSizeProperty(),
             access.CurrentUserPrivilegeSetProperty(),
+            webdav.DAVCreationDateProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
