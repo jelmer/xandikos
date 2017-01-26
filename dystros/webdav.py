@@ -217,6 +217,20 @@ class DAVGetETagProperty(DAVProperty):
         el.text = resource.get_etag()
 
 
+class DAVCreationDateProperty(DAVProperty):
+    """Provides {DAV:}creationdate.
+
+    https://tools.ietf.org/html/rfc4918, section 23.2
+    """
+
+    name = '{DAV:}creationdate'
+    resource_type = None
+    protected = True
+
+    def get_value(self, resource, el):
+        el.text = resource.get_creationdate()
+
+
 class DAVGetContentTypeProperty(DAVProperty):
     """Provides {DAV:}getcontenttype.
 
@@ -304,6 +318,12 @@ class DAVResource(object):
     def get_displayname(self):
         """Get the resource display name."""
         raise KeyError
+
+    def get_creationdate(self):
+        """Get the resource creation date.
+
+        :return: A datetime object
+        """
 
     def get_content_type(self):
         """Get the content type for the resource.
@@ -724,8 +744,7 @@ class WebDAVApp(object):
             if not href.startswith(environ['SCRIPT_NAME']):
                 resource = None
             else:
-                href = href[len(environ['SCRIPT_NAME'])]
-                resource = self.backend.get_resource(href)
+                resource = self.backend.get_resource(href[len(environ['SCRIPT_NAME']):])
             yield (href, resource)
 
     def dav_REPORT(self, environ):
