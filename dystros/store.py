@@ -620,18 +620,6 @@ class TreeGitStore(GitStore):
                 yield (name, mode, sha)
 
 
-class StoreSet(object):
-    """A set of object stores.
-    """
-
-
-class FilesystemStoreSet(object):
-    """A StoreSet that is backed by a filesystem."""
-
-    def __init__(self, path):
-        self._path = path
-
-
 def open_store(location):
     """Open store from a location string.
 
