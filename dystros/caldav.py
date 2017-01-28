@@ -223,8 +223,23 @@ def apply_prop_filter(el, comp, tzify):
     return True
 
 
+# see https://tools.ietf.org/html/rfc4790
+
+collations = {
+        'i;ascii-casemap': lambda a, b: a.decode('ascii').upper() == b.decode('ascii').upper(),
+        'i;octet': lambda a, b: a == b,
+    }
+
+
 def apply_text_match(el, value):
-    raise NotImplementedError(apply_text_match)
+    collation = el.get('collation', 'i;ascii-casemap')
+    negate_condition = el.get('negate-condition', 'no')
+    matches = collations[collation](el.text, value)
+
+    if negate_condition == 'yes':
+        return (not matches)
+    else:
+        return matches
 
 
 def apply_param_filter(el, prop):
@@ -236,7 +251,7 @@ def apply_param_filter(el, prop):
         value = prop.params[name]
     except KeyError:
         return False
-    
+
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
             if not apply_text_match(subel, value):
