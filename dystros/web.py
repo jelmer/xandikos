@@ -406,15 +406,15 @@ class DystrosApp(webdav.WebDAVApp):
 
 
 if __name__ == '__main__':
-    from dystros import utils
     import optparse
     import sys
     parser = optparse.OptionParser()
+    parser.usage = "%prog -d ROOT-DIR [OPTIONS]"
     parser.add_option("-l", "--listen_address", dest="listen_address",
                       default="localhost",
                       help="Binding IP address.")
     parser.add_option("-d", "--directory", dest="directory",
-                      default=utils.DEFAULT_PATH,
+                      default=None,
                       help="Default path to serve from.")
     parser.add_option("-p", "--port", dest="port", type=int,
                       default=8000,
@@ -423,6 +423,10 @@ if __name__ == '__main__':
                       default="/user/",
                       help="Path to current user principal.")
     options, args = parser.parse_args(sys.argv)
+
+    if options.directory is None:
+        parser.print_usage()
+        sys.exit(1)
 
     from wsgiref.simple_server import make_server
     app = DystrosApp(
