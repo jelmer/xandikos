@@ -24,7 +24,6 @@ import datetime
 import optparse
 import os
 import sys
-import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -41,8 +40,6 @@ def filter_fn(component):
         not opts.category in component['CATEGORIES']):
          return False
     return True
-
-urllib.request.install_opener(utils.get_opener(opts.url))
 
 cals = utils.get_all_calendars(opts.url, filter=utils.comp_filter("VCALENDAR", utils.comp_filter("VEVENT")))
 

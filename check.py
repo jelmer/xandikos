@@ -24,7 +24,6 @@ import logging
 import optparse
 import os
 import sys
-import urllib.request
 from icalendar.cal import Calendar
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -35,8 +34,6 @@ from dystros.store import ExtractUID
 parser = optparse.OptionParser("check")
 parser.add_option_group(utils.CalendarOptionGroup(parser))
 opts, args = parser.parse_args()
-
-urllib.request.install_opener(utils.get_opener(opts.url))
 
 invalid = set()
 uids = {}

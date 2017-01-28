@@ -25,7 +25,6 @@ import datetime
 import optparse
 import os
 import sys
-import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -40,8 +39,6 @@ if len(args) < 1:
     sys.exit(1)
 
 day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
-
-urllib.request.install_opener(utils.get_opener(opts.url))
 
 cals = utils.get_all_props(opts.url, filter=utils.comp_filter("VCALENDAR", utils.comp_filter("VEVENT")))
 

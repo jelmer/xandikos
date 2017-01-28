@@ -54,8 +54,6 @@ parser.add_option('--category', dest='category', default=None, help="Category to
 parser.add_option('--status', dest='status', type="choice", choices=["", "tentative", "confirmed"], default=None, help="Status to set.")
 opts, args = parser.parse_args()
 
-urllib.request.install_opener(utils.get_opener(opts.url))
-
 try:
     import_url = args[0]
 except IndexError:

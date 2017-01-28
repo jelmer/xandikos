@@ -24,7 +24,6 @@
 import optparse
 import os
 import sys
-import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -33,8 +32,6 @@ from dystros import filters, utils
 parser = optparse.OptionParser("travel")
 parser.add_option_group(utils.CalendarOptionGroup(parser))
 opts, args = parser.parse_args()
-
-urllib.request.install_opener(utils.get_opener(opts.url))
 
 cals = utils.get_all_calendars(opts.url, filter=utils.comp_filter("VCALENDAR", utils.comp_filter("VTODO")))
 

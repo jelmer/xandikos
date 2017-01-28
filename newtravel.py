@@ -29,7 +29,6 @@ import os
 import sys
 import time
 import urllib.parse
-import urllib.request
 import uuid
 from icalendar.cal import Calendar, Event
 from icalendar.prop import vDate, vDuration, vDatetime, vText, vUri
@@ -118,8 +117,6 @@ c.add_component(ev)
 fname = uid + '.ics'
 
 url = urllib.parse.urljoin(opts.url, fname)
-
-urllib.request.install_opener(utils.get_opener(opts.url))
 
 utils.put(url, c.to_ical())
 
