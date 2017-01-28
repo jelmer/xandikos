@@ -24,18 +24,16 @@ import datetime
 import optparse
 import os
 import sys
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 
 from dystros import filters, utils
 
 parser = optparse.OptionParser("travel")
-store_set_options = utils.StoreSetOptionGroup(parser)
-parser.add_option_group(store_set_options)
+parser.add_option_group(utils.CalendarOptionGroup(parser))
 parser.add_option('--category', type=str, dest='category', help='Only display this category.')
 opts, args = parser.parse_args()
-
-stores = utils.StoreSet.from_options(opts)
 
 def filter_fn(component):
     if opts.category and (
@@ -44,7 +42,11 @@ def filter_fn(component):
          return False
     return True
 
-vevents = list(filter(filter_fn, filters.extract_vevents(stores.iter_calendars())))
+urllib.request.install_opener(utils.get_opener(opts.url))
+
+cals = utils.get_all_calendars(opts.url, filter=utils.comp_filter("VCALENDAR", utils.comp_filter("VEVENT")))
+
+vevents = list(filter(filter_fn, filters.extract_vevents(cals)))
 vevents.sort(key=utils.keyEvent)
 
 for vevent in vevents:

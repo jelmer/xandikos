@@ -28,6 +28,8 @@ import optparse
 import os
 import sys
 import time
+import urllib.parse
+import urllib.request
 import uuid
 from icalendar.cal import Calendar, Event
 from icalendar.prop import vDate, vDuration, vDatetime, vText, vUri
@@ -37,13 +39,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 from dystros.store import GitStore
 from dystros import utils
 
-DEFAULT_OUTPUT_DIR = os.path.join(utils.DEFAULT_PATH, "calendar")
-
 parser = optparse.OptionParser("travel")
-parser.add_option('--url', type=str, dest="url", help="Associated URL.", default=None)
+parser.add_option_group(utils.CalendarOptionGroup(parser))
 parser.add_option('--categories', type=str, dest="categories", help="Comma-separated list of categories to set", default="Travel")
-parser.add_option('--outputdir', type=str, dest="outputdir", help="Output directory.",
-                  default=DEFAULT_OUTPUT_DIR)
 opts, args = parser.parse_args()
 
 description = args[0].strip()
@@ -118,6 +116,11 @@ c = Calendar()
 c.add_component(ev)
 
 fname = uid + '.ics'
-store = GitStore.open_from_path(opts.outputdir)
-store.import_one(fname, c.to_ical())
-logging.info('Wrote %s', fname)
+
+url = urllib.parse.urljoin(opts.url, fname)
+
+urllib.request.install_opener(utils.get_opener(opts.url))
+
+utils.put(url, c.to_ical())
+
+logging.info('Wrote %s', url)

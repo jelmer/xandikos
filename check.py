@@ -24,6 +24,7 @@ import logging
 import optparse
 import os
 import sys
+import urllib.request
 from icalendar.cal import Calendar
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -32,26 +33,24 @@ from dystros import utils
 from dystros.store import ExtractUID
 
 parser = optparse.OptionParser("check")
-store_set_options = utils.StoreSetOptionGroup(parser)
-parser.add_option_group(store_set_options)
+parser.add_option_group(utils.CalendarOptionGroup(parser))
 opts, args = parser.parse_args()
 
-stores = utils.StoreSet.from_options(opts)
+urllib.request.install_opener(utils.get_opener(opts.url))
 
 invalid = set()
 uids = {}
 
-for name, etag, data in stores.iter_raw():
-    calendar = Calendar.from_ical(data)
+for href, cal in utils.get_all_calendars(opts.url):
     try:
-        uid = ExtractUID(calendar)
+        uid = ExtractUID(href, cal)
     except KeyError:
         logging.error(
             'File %s does not have a UID set.',
-            name)
+            href)
     else:
         if uid in uids:
             logging.error(
                 'UID %s is used by both %s and %s',
-                uid, uids[uid], name)
-        uids[uid] = name
+                uid, uids[uid], href)
+        uids[uid] = href

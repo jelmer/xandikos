@@ -30,6 +30,8 @@ from icalendar.cal import Calendar
 from icalendar.prop import vUri, vText
 import sys
 
+from dystros import utils
+
 def hasChanged(a, b):
     # FIXME(Jelmer)
     return True
@@ -46,25 +48,23 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 parser = optparse.OptionParser("split")
+parser.add_option_group(utils.CalendarOptionGroup(parser))
 parser.add_option("--prefix", dest="prefix", default="unknown", help="Filename prefix")
-parser.add_option("--outdir", dest="outdir", default=".", help="Output directory path")
 parser.add_option('--category', dest='category', default=None, help="Category to add.")
 parser.add_option('--status', dest='status', type="choice", choices=["", "tentative", "confirmed"], default=None, help="Status to set.")
 opts, args = parser.parse_args()
 
+urllib.request.install_opener(utils.get_opener(opts.url))
+
 try:
-    url = args[0]
+    import_url = args[0]
 except IndexError:
     f = sys.stdin.buffer
-    url = None
+    import_url = None
 else:
-    f = urllib.request.urlopen(url)
+    f = urllib.request.urlopen(import_url)
 
 orig = Calendar.from_ical(f.read())
-
-from dystros.store import open_store
-
-store = open_store(opts.outdir)
 
 other = []
 items = {}
@@ -80,18 +80,24 @@ for component in orig.subcomponents:
     else:
         other.append(component)
 
+seen = 0
+changed = 0
+added = 0
 for (uid, ev) in items.items():
     seen += 1
     try:
-        (fname, etag) = store.lookup_uid(uid)
+        (href, etag, old) = utils.get_vevent_by_uid(opts.url, uid)
     except KeyError:
+        if_match = None
         fname = "%s-%s.ics" % (opts.prefix, uid.replace("/", ""))
         old = None
+        url = urllib.parse.urljoin(opts.url, fname)
     else:
-        old = Calendar.from_ical(store.get_raw(fname, etag))
+        if_match = [etag]
+        url = urllib.parse.urljoin(opts.url, href)
     out = Calendar()
-    if url is not None:
-        out['X-IMPORTED-FROM-URL'] = vUri(url)
+    if import_url is not None:
+        out['X-IMPORTED-FROM-URL'] = vUri(import_url)
     out.update(list(orig.items()))
     for c in other:
         out.add_component(c)
@@ -104,11 +110,11 @@ for (uid, ev) in items.items():
     out.add_component(ev)
     write = hasChanged(old, out)
     if write:
-        if old is NOne:
+        if old is None:
            added += 1
         else:
            changed += 1
-        store.import_one(fname, out.to_ical())
+        utils.put(url, out.to_ical(), if_match=if_match)
 
 logger.info('Processed %s. Seen %d, updated %d, new %d', opts.prefix,
              seen, changed, added)

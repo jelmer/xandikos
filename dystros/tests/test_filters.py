@@ -58,10 +58,14 @@ class FilterTests(unittest.TestCase):
     def test_extract_vevents(self):
         event1 = Calendar.from_ical(EXAMPLE_VEVENT1)
         todo1 = Calendar.from_ical(EXAMPLE_VTODO1)
-        self.assertEqual([event1.subcomponents[0]], list(filters.extract_vevents([event1, todo1])))
+        self.assertEqual(
+            [event1.subcomponents[0]],
+            list(filters.extract_vevents([('name.ics', event1), ('foo.ics', todo1)])))
 
     def test_extract_vtodo(self):
         event1 = Calendar.from_ical(EXAMPLE_VEVENT1)
         todo1 = Calendar.from_ical(EXAMPLE_VTODO1)
-        self.assertEqual([todo1.subcomponents[0]], list(filters.extract_vtodos([event1, todo1])))
+        self.assertEqual(
+            [todo1.subcomponents[0]],
+            list(filters.extract_vtodos([('foo.ics', event1), ('bar.ics', todo1)])))
 

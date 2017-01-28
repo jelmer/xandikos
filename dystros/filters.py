@@ -21,10 +21,10 @@
 def extract_vevents(calendars):
     """Filter out vevents from an iterator over calendars.
 
-    :param calendars: Iterator over Calendar objects
+    :param calendars: Iterator over (href, calendar) tuples
     :return: Iterator over Calendar subcomponents
     """
-    for calendar in calendars:
+    for href, calendar in calendars:
         for component in calendar.subcomponents:
             if component.name == 'VEVENT':
                 yield component
@@ -33,10 +33,10 @@ def extract_vevents(calendars):
 def extract_vtodos(calendars):
     """Filter out vtodos from an iterator over calendars.
 
-    :param calendars: Iterator over Calendar objects
+    :param calendars: Iterator over (href, calendar) tuples
     :return: Iterator over Calendar subcomponents
     """
-    for calendar in calendars:
+    for href, calendar in calendars:
         for component in calendar.subcomponents:
             if component.name == 'VTODO':
                 yield component

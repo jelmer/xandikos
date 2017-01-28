@@ -21,6 +21,7 @@
 # MA  02110-1301, USA.
 
 
+from icalendar.cal import Calendar
 import collections
 import datetime
 import jinja2
@@ -28,12 +29,14 @@ import logging
 import optparse
 import os
 import sys
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(__file__))
 
 from dystros import filters, utils, store
 
 parser = optparse.OptionParser("travel")
+parser.add_option_group(utils.CalendarOptionGroup(parser))
 parser.add_option("--format", choices=["text", "html", "now"], default="text", help="Output format")
 parser.add_option("--html-template", type=str, help="Name of HTML template to use.", default="travel.html")
 parser.add_option("--category", type=str, help="Category to select", default="Travel")
@@ -42,18 +45,13 @@ parser.add_option("--show-past-cancelled", action="store_true", default=False, h
 parser.add_option("--tense", choices=["past", "future", "all"], default="all", help="Tense")
 opts, args = parser.parse_args()
 
-def iter_vevents(args):
-    for arg in args:
-        col = store.open_store(arg)
-        for ev in filters.extract_vevents([c for (n, s, c) in col.iter_calendars()]):
-            yield ev
-
-
 TravelEvent = collections.namedtuple("TravelEvent", ["summary", "url", "location", "status", "start", "end"])
+
+cals = utils.get_all_calendars(opts.url, filter=utils.comp_filter("VCALENDAR", utils.comp_filter("VEVENT")))
 
 travelevs = {}
 
-for ev in iter_vevents(args):
+for ev in filters.extract_vevents(cals):
     if ev.get('CLASS') not in (None, 'DEFAULT', 'PUBLIC', 'PRIVATE'):
         logging.info('Skipping %s because it is not public (%s)',
             ev['SUMMARY'], ev['CLASS'])
@@ -93,7 +91,9 @@ for ev in iter_vevents(args):
                 location = None
             if location == summary:
                 location = None
-    elif opts.obscured_category and (ev['CATEGORIES'] == opts.obscured_category or opts.obscured_category in ev['CATEGORIES']):
+    elif opts.obscured_category and (
+            ev['CATEGORIES'] == opts.obscured_category or
+            opts.obscured_category in ev['CATEGORIES']):
         location = None
         summary = opts.obscured_category
     else:

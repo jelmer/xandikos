@@ -25,14 +25,14 @@ import datetime
 import optparse
 import os
 import sys
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 
 from dystros import filters, utils
 
 parser = optparse.OptionParser("printday DATE")
-store_set_options = utils.StoreSetOptionGroup(parser)
-parser.add_option_group(store_set_options)
+parser.add_option_group(utils.CalendarOptionGroup(parser))
 opts, args = parser.parse_args()
 
 if len(args) < 1:
@@ -41,8 +41,11 @@ if len(args) < 1:
 
 day = utils.asdate(datetime.datetime.strptime(args[0], "%Y%m%d"))
 
-stores = utils.StoreSet.from_options(opts)
-vevents = list(filters.extract_vevents(stores.iter_calendars()))
+urllib.request.install_opener(utils.get_opener(opts.url))
+
+cals = utils.get_all_props(opts.url, filter=utils.comp_filter("VCALENDAR", utils.comp_filter("VEVENT")))
+
+vevents = list(filters.extract_vevents(cals))
 vevents.sort(key=utils.keyEvent)
 
 for vevent in vevents:
