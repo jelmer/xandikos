@@ -109,6 +109,13 @@ class Addressbook(webdav.DAVCollection):
         """
         raise NotImplementedError(self.get_max_resource_size)
 
+    def get_max_image_size(self):
+        """Get maximum image size this address book will store (in bytes)
+
+        Absence indicates no maximum.
+        """
+        raise NotImplementedError(self.get_max_image_size)
+
 
 class PrincipalExtensions:
     """Extensions to webdav.Principal."""
@@ -171,3 +178,17 @@ class MaxResourceSizeProperty(webdav.DAVProperty):
     def get_value(self, resource, el):
         el.text = str(resource.get_max_resource_size())
 
+
+class MaxImageSizeProperty(webdav.DAVProperty):
+    """Provides the max-image-size property.
+
+    This seems to be a carddav extension used by iOS and caldavzap.
+    """
+
+    name = '{%s}-max-image-size' % NAMESPACE
+    resource_type = ADDRESSBOOK_RESOURCE_TYPE
+    in_allprops = False
+    protected = True
+
+    def get_value(self, resource, el):
+        el.text = str(resource.get_max_image_size())

@@ -237,6 +237,10 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
         # No resource limit
         raise KeyError
 
+    def get_max_image_size(self):
+        # No resource limit
+        raise KeyError
+
 
 class CollectionSetResource(webdav.DAVCollection):
     """Resource for calendar sets."""
@@ -392,6 +396,7 @@ class DystrosApp(webdav.WebDAVApp):
             caldav.MinDateTimeProperty(),
             caldav.MaxDateTimeProperty(),
             carddav.MaxResourceSizeProperty(),
+            carddav.MaxImageSizeProperty(),
             access.CurrentUserPrivilegeSetProperty(),
             access.OwnerProperty(),
             webdav.DAVCreationDateProperty(),
