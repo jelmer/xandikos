@@ -170,3 +170,18 @@ Not supported
 
 ## DAV Properties
  - CALDAV:current-user-principal [supported]
+
+# Proprietary extensions
+
+## Custom properties used by various clients
+ - CARDDAV:max-image-size [supported]
+ - DAV:getctag [supported]
+
+## Apple-specific Properties
+ - calendar-color [supported]
+ - getctag [supported]
+
+## inf-it properties
+ - headervalue [not supported]
+ - settings [not supported]
+ - addressbook-color [supported]
