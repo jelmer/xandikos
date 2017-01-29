@@ -170,7 +170,7 @@ class MaxResourceSizeProperty(webdav.DAVProperty):
     See https://tools.ietf.org/html/rfc6352, section 6.2.3.
     """
 
-    name = '{%s}-max-resource-size' % NAMESPACE
+    name = '{%s}max-resource-size' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
     protected = True
@@ -185,7 +185,7 @@ class MaxImageSizeProperty(webdav.DAVProperty):
     This seems to be a carddav extension used by iOS and caldavzap.
     """
 
-    name = '{%s}-max-image-size' % NAMESPACE
+    name = '{%s}max-image-size' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
     protected = True
