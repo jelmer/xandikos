@@ -241,6 +241,14 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
         # No resource limit
         raise KeyError
 
+    def get_addressbook_color(self):
+        color = self.store.get_color()
+        if not color:
+            raise KeyError
+        if color and color[0] != '#':
+            color = '#' + color
+        return color
+
 
 class CollectionSetResource(webdav.DAVCollection):
     """Resource for calendar sets."""
@@ -400,6 +408,7 @@ class DystrosApp(webdav.WebDAVApp):
             access.CurrentUserPrivilegeSetProperty(),
             access.OwnerProperty(),
             webdav.DAVCreationDateProperty(),
+            carddav.AddressbookColorProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

@@ -95,6 +95,9 @@ class Addressbook(webdav.DAVCollection):
     def get_addressbook_description(self):
         raise NotImplementedError(self.get_addressbook_description)
 
+    def get_addressbook_color(self):
+        raise NotImplementedError(self.get_addressbook_color)
+
     def get_supported_address_data_types(self):
         """Get list of supported data types.
 
@@ -192,3 +195,18 @@ class MaxImageSizeProperty(webdav.DAVProperty):
 
     def get_value(self, resource, el):
         el.text = str(resource.get_max_image_size())
+
+
+class AddressbookColorProperty(webdav.DAVProperty):
+    """Provides the addressbook-color property.
+
+    This is an inf-it extension.
+    """
+
+    name = '{http://inf-it.com/ns/ab/}addressbook-color'
+    resource_type = ADDRESSBOOK_RESOURCE_TYPE
+    in_allprops = False
+    protected = False
+
+    def get_value(self, resource, el):
+        el.text = resource.get_addressbook_color()
