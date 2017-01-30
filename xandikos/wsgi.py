@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -17,5 +17,13 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-import unittest
+"""WSGI wrapper for xandikos.
+"""
 
+import os
+
+from xandikos.web import XandikosApp
+
+app = XandikosApp(
+        path=os.environ['DYSTROSPATH'],
+        current_user_principal=os.environ.get('CURRENT_USER_PRINCIPAL', '/user/'))

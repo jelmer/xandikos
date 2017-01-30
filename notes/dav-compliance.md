@@ -155,7 +155,7 @@ Not really supported
 
 # rfc6764.txt (Locating groupware services)
 
-Most of this is outside of the scope of dystros, but it does support
+Most of this is outside of the scope of xandikos, but it does support
 DAV:current-user-principal
 
 # rfc7809.txt (CalDAV Time Zone Extensions)

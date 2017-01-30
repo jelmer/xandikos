@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -19,7 +19,7 @@
 
 """Common functions for DAV implementations."""
 
-from dystros import webdav
+from xandikos import webdav
 
 class MultiGetReporter(webdav.DAVReporter):
     """Abstract base class for multi-get reporters."""

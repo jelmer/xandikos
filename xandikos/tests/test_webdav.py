@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@ import defusedxml.ElementTree
 from wsgiref.util import request_uri, setup_testing_defaults
 from xml.etree import ElementTree as ET
 
-from dystros.webdav import (
+from xandikos.webdav import (
     DAVCollection,
     DAVProperty,
     DAVResource,

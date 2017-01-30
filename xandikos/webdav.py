@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
 """Abstract WebDAV server implementation..
 
 This module contains an abstract WebDAV server. All caldav/carddav specific
-functionality should live in dystros.caldav/dystros.carddav respectively.
+functionality should live in xandikos.caldav/xandikos.carddav respectively.
 """
 
 # TODO(jelmer): Add authorization support

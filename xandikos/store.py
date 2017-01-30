@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@ from icalendar.cal import Calendar
 from dulwich.objects import Blob, Tree
 import dulwich.repo
 
-_DEFAULT_COMMITTER_IDENTITY = b'Dystros <dystros>'
+_DEFAULT_COMMITTER_IDENTITY = b'Xandikos <xandikos>'
 ICALENDAR_EXTENSION = '.ics'
 VCARD_EXTENSION = '.vcf'
 
@@ -374,7 +374,7 @@ class GitStore(Store):
         """
         config = self.repo.get_config()
         try:
-            color = config.get(b'dystros', b'color')
+            color = config.get(b'xandikos', b'color')
         except KeyError:
             return None
         else:
@@ -387,7 +387,7 @@ class GitStore(Store):
         """
         config = self.repo.get_config()
         try:
-            displayname = config.get(b'dystros', b'displayname')
+            displayname = config.get(b'xandikos', b'displayname')
         except KeyError:
             return None
         else:
@@ -400,7 +400,7 @@ class GitStore(Store):
         """
         config = self.repo.get_config()
         try:
-            store_type = config.get(b'dystros', b'type')
+            store_type = config.get(b'xandikos', b'type')
         except KeyError:
             return super(GitStore, self).get_type()
         else:

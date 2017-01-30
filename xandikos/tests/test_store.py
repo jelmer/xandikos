@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@ from icalendar.cal import Calendar
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
-from dystros.store import (
+from xandikos.store import (
     GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
     ExtractCalendarUID, InvalidETag, NoSuchItem,
     logger as store_logger)
@@ -234,7 +234,7 @@ class BaseGitStoreTest(BaseStoreTest):
         gc = self.create_store()
         self.assertIs(None, gc.get_color())
         c = gc.repo.get_config()
-        c.set(b'dystros', b'displayname', b'a name')
+        c.set(b'xandikos', b'displayname', b'a name')
         if getattr(c, 'path', None):
             c.write_to_path()
         self.assertEqual('a name', gc.get_displayname())
@@ -243,7 +243,7 @@ class BaseGitStoreTest(BaseStoreTest):
         gc = self.create_store()
         self.assertIs(None, gc.get_color())
         c = gc.repo.get_config()
-        c.set(b'dystros', b'color', b'334433')
+        c.set(b'xandikos', b'color', b'334433')
         if getattr(c, 'path', None):
             c.write_to_path()
         self.assertEqual('334433', gc.get_color())

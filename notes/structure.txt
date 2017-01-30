@@ -1,4 +1,4 @@
-Dystros consists of a couple of layers.
+Xandikos consists of a couple of layers.
 
 The main building blocks are vCard (*.vcf) and ICalendar (*.ics) files. Storage
 happens in GIT repositories.
@@ -17,8 +17,8 @@ The WebDAV server is a thin app that processes DAV requests and then defers to
 a DAVBackend for the actual implementation.
 
 The actual web implementation calls out to 'webdav' to start the server, then
-provides a DAVBackend that - together with dystros.store and utilities from
-dystros.caldav and dystros.carddav.
+provides a DAVBackend that - together with xandikos.store and utilities from
+xandikos.caldav and xandikos.carddav.
 
 class DAVResource(object):
 

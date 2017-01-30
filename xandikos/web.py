@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -28,8 +28,8 @@ import functools
 import os
 import posixpath
 
-from dystros import access, caldav, carddav, sync, webdav
-from dystros.store import (
+from xandikos import access, caldav, carddav, sync, webdav
+from xandikos.store import (
     BareGitStore,
     GitStore,
     NotStoreError,
@@ -49,9 +49,9 @@ USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 ROOT_PAGE_CONTENTS = b"""\
 <html>
   <body>
-    This is a Dystros WebDAV server. See
-    <a href="https://github.com/jelmer/dystros">
-    https://github.com/jelmer/dystros</a>.
+    This is a Xandikos WebDAV server. See
+    <a href="https://github.com/jelmer/xandikos">
+    https://github.com/jelmer/xandikos</a>.
   </body>
 </html>"""
 
@@ -354,7 +354,7 @@ def open_store_from_path(path):
     return GitStore.open_from_path(path)
 
 
-class DystrosBackend(webdav.DAVBackend):
+class XandikosBackend(webdav.DAVBackend):
 
     def __init__(self, path, current_user_principal):
         self.path = path
@@ -396,12 +396,12 @@ class DystrosBackend(webdav.DAVBackend):
                 return None
 
 
-class DystrosApp(webdav.WebDAVApp):
-    """A wsgi App that provides a Dystros web server.
+class XandikosApp(webdav.WebDAVApp):
+    """A wsgi App that provides a Xandikos web server.
     """
 
     def __init__(self, path, current_user_principal):
-        super(DystrosApp, self).__init__(DystrosBackend(
+        super(XandikosApp, self).__init__(DystrosBackend(
             path, current_user_principal))
         self.register_properties([
             webdav.DAVResourceTypeProperty(),
@@ -469,7 +469,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     from wsgiref.simple_server import make_server
-    app = DystrosApp(
+    app = XandikosApp(
         options.directory,
         current_user_principal=options.current_user_principal)
     server = make_server(options.listen_address, options.port, app)

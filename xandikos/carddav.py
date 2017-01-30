@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@ https://tools.ietf.org/html/rfc6352
 import defusedxml.ElementTree
 from xml.etree import ElementTree as ET
 
-from dystros import davcommon, webdav
+from xandikos import davcommon, webdav
 
 WELLKNOWN_CARDDAV_PATH = "/.well-known/carddav"
 

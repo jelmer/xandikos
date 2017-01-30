@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -30,8 +30,8 @@ from xml.etree import ElementTree as ET
 from icalendar.cal import Calendar as ICalendar
 from icalendar.prop import vDDDTypes
 
-from dystros import davcommon
-from dystros.webdav import (
+from xandikos import davcommon
+from xandikos.webdav import (
     DAVBackend,
     DAVCollection,
     DAVProperty,

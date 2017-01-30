@@ -1,7 +1,6 @@
 - newtravel: Handle items with unknown or vague date ("Nov?", "?", "Oct/Nov?")
 - fix-songkick: Get time somehow
 - export-freebusy
-- add dystros command-line tool
 
 - import tfl2ics
 - import from untappd?

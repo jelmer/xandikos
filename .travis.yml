@@ -11,5 +11,5 @@ cache:
     - $HOME/.cache/pip
 script:
   - pip install pip --upgrade
-  - python -m unittest dystros.tests.test_suite
+  - python -m unittest xandikos.tests.test_suite
 

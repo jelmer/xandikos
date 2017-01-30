@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -17,13 +17,15 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""WSGI wrapper for dystros.
-"""
+import unittest
 
-import os
 
-from dystros.web import DystrosApp
-
-app = DystrosApp(
-        path=os.environ['DYSTROSPATH'],
-        current_user_principal=os.environ.get('CURRENT_USER_PRINCIPAL', '/user/'))
+def test_suite():
+    names = [
+        'caldav',
+        'store',
+        'webdav',
+        ]
+    module_names = ['xandikos.tests.test_' + name for name in names]
+    loader = unittest.TestLoader()
+    return loader.loadTestsFromNames(module_names)

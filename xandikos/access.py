@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ See http://www.webdav.org/specs/rfc3744.html
 from defusedxml.ElementTree import fromstring as xmlparse
 from xml.etree import ElementTree as ET
 
-from dystros import webdav
+from xandikos import webdav
 
 
 class CurrentUserPrivilegeSetProperty(webdav.DAVProperty):

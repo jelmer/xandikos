@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ See https://tools.ietf.org/html/rfc6578
 import urllib.parse
 from xml.etree import ElementTree as ET
 
-from dystros import webdav
+from xandikos import webdav
 
 
 class SyncToken(object):
