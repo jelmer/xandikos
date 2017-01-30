@@ -32,9 +32,18 @@ import sys
 
 from dystros import utils
 
+def StripStamps(c):
+    if c is None:
+        return None
+    c = c.copy()
+    for sc in c.subcomponents:
+        if 'DTSTAMP' in sc:
+            del sc['DTSTAMP']
+    return c.to_ical()
+
+
 def hasChanged(a, b):
-    # FIXME(Jelmer)
-    return True
+    return StripStamps(a) != StripStamps(b)
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -67,14 +76,11 @@ orig = Calendar.from_ical(f.read())
 other = []
 items = {}
 for component in orig.subcomponents:
-    try:
-        uid = component['UID']
-    except KeyError:
-        md5 = hashlib.md5()
-        md5.update(component.to_ical())
-        component['UID'] = uid = md5.hexdigest()
     if component.name in ('VEVENT', 'VTODO'):
-        items[uid] = component
+        try:
+            items[component['UID']] = component
+        except KeyError:
+            raise KeyError('missing UID for %s in %s' % (component.name, url))
     else:
         other.append(component)
 
