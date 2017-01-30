@@ -891,9 +891,14 @@ class WebDAVApp(object):
         return []
 
     def do_OPTIONS(self, environ, start_response):
-        start_response('204 No Content', [
+        # RFC7231 requires that if there is no response body,
+        # Content-Length: 0 must be sent. This implies that there is
+        # content (albeit empty), and thus a 204 is not a valid reply.
+        # Thunderbird also fails if a 204 is sent rather than a 200.
+        start_response('200 OK', [
             ('DAV', ', '.join(self._get_dav_features(environ))),
-            ('Allow', ', '.join(self._get_allowed_methods(environ)))])
+            ('Allow', ', '.join(self._get_allowed_methods(environ))),
+            ('Content-Length', '0')])
         return []
 
     def __call__(self, environ, start_response):
