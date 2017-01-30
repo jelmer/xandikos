@@ -2,6 +2,8 @@ language: python
 sudo: false
 python:
   - "3.5"
+    # Python3.6 is disabled until https://github.com/tiran/defusedxml/issues/3 lands in travis.
+    #  - "3.6"
 env:
   global: PYTHONHASHSEED=random
 cache:
@@ -9,7 +11,5 @@ cache:
     - $HOME/.cache/pip
 script:
   - pip install pip --upgrade
-
-  # Test without c extensions
-  - python -m unittest dystros.tests.test_suite
+  - python -m unittest xandikos.tests.test_suite
 

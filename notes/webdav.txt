@@ -1,7 +1,33 @@
 WebDAV implementation
 ---------------------
 
-class DavResource(object):
+class DAVPropertyProvider(object):
+
+    NAME property
+
+    matchresource()
+
+    # One or multiple properties?
+
+    def proplist(self, resource, all=False):
+
+    def getprop(self, resource, property):
+
+    def propupdate(self, resource, updates):
+
+
+class DAVBackend(object):
+
+    def get_resource(self, path):
+
+    def create_collection(self, path):
+
+
+class DAVReporter(object):
+
+class DAVResource(object):
+
+  def get_resource_types(self):
 
   def get_body(self):
     """Returns the body of the resource.
@@ -27,10 +53,14 @@ class DavResource(object):
     :param updates: Dictionary mapping names to new values
     """
 
+  def lock(self):
+
+  def unlock(self):
+
   def members(self):
     """List members.
 
-    :return: List tuples of (name, DavResource)
+    :return: List tuples of (name, DAVResource)
     """
 
   # TODO(jelmer): COPY

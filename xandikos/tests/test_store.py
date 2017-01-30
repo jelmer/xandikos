@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -29,10 +29,10 @@ from icalendar.cal import Calendar
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
-from dystros.collection import (
-    GitCollection, BareGitCollection, TreeGitCollection, DuplicateUidError,
-    ExtractUID, NameExists, InvalidETag, NoSuchItem,
-    logger as collection_logger)
+from xandikos.store import (
+    GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
+    ExtractCalendarUID, InvalidETag, NoSuchItem,
+    logger as store_logger)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -79,30 +79,31 @@ END:VCALENDAR
 """
 
 
-class BaseCollectionTest(object):
+class BaseStoreTest(object):
 
     def test_import_one(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertIsInstance(etag, bytes)
+        self.assertIsInstance(etag, str)
         self.assertEqual([('foo.ics', etag)], list(gc.iter_with_etag()))
 
     def test_import_one_duplicate_uid(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertRaises(
                 DuplicateUidError, gc.import_one, 'bar.ics',
                 EXAMPLE_VCALENDAR1)
 
     def test_import_one_duplicate_name(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertRaises(
-                NameExists, gc.import_one, 'foo.ics',
-                EXAMPLE_VCALENDAR2)
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR2, etag)
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        self.assertRaises(InvalidETag, gc.import_one, 'foo.ics',
+                EXAMPLE_VCALENDAR2, 'invalidetag')
 
     def test_iter_calendars(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
         ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_calendars()}
@@ -112,7 +113,7 @@ class BaseCollectionTest(object):
              })
 
     def test_iter_raw(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
         ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_raw()}
@@ -122,7 +123,7 @@ class BaseCollectionTest(object):
              })
 
     def test_get_raw(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
         self.assertEqual(
@@ -133,10 +134,10 @@ class BaseCollectionTest(object):
             gc.get_raw('bar.ics', etag2))
         self.assertRaises(
             KeyError,
-            gc.get_raw, 'missing.ics', b'01' * 20)
+            gc.get_raw, 'missing.ics', '01' * 20)
 
     def test_iter_calendars_extension(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.txt', EXAMPLE_VCALENDAR2)
         ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_calendars()}
@@ -144,7 +145,7 @@ class BaseCollectionTest(object):
             {'foo.ics': (etag1, Calendar.from_ical(EXAMPLE_VCALENDAR1))})
 
     def test_delete_one(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertEqual([('foo.ics', etag1)], list(gc.iter_with_etag()))
@@ -152,7 +153,7 @@ class BaseCollectionTest(object):
         self.assertEqual([], list(gc.iter_with_etag()))
 
     def test_delete_one_with_etag(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertEqual([('foo.ics', etag1)], list(gc.iter_with_etag()))
@@ -160,11 +161,11 @@ class BaseCollectionTest(object):
         self.assertEqual([], list(gc.iter_with_etag()))
 
     def test_delete_one_nonexistant(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         self.assertRaises(NoSuchItem, gc.delete_one, 'foo.ics')
 
     def test_delete_one_invalid_etag(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
@@ -177,23 +178,23 @@ class BaseCollectionTest(object):
             set(gc.iter_with_etag()))
 
     def test_lookup_uid_nonexistant(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         self.assertRaises(KeyError, gc.lookup_uid, 'someuid')
 
     def test_lookup_uid(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertEqual(
             ('foo.ics', etag),
             gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
 
 
-class BaseGitCollectionTest(BaseCollectionTest):
+class BaseGitStoreTest(BaseStoreTest):
 
     kls = None
 
-    def create_collection(self):
-        raise NotImplementedError(self.create_collection)
+    def create_store(self):
+        raise NotImplementedError(self.create_store)
 
     def add_blob(self, gc, name, contents):
         raise NotImplementedError(self.add_blob)
@@ -201,55 +202,82 @@ class BaseGitCollectionTest(BaseCollectionTest):
     def test_create(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
-        gc = self.kls.create(d)
-        self.assertIsInstance(gc, GitCollection)
-        self.assertEqual(gc.repo.path, d)
+        gc = self.kls.create(os.path.join(d, 'store'))
+        self.assertIsInstance(gc, GitStore)
+        self.assertEqual(gc.repo.path, os.path.join(d, 'store'))
 
     def test_iter_with_etag_missing_uid(self):
         logging.getLogger('').setLevel(logging.ERROR)
-        gc = self.create_collection()
+        gc = self.create_store()
         bid = self.add_blob(gc, 'foo.ics', EXAMPLE_VCALENDAR_NO_UID)
         self.assertEqual([('foo.ics', bid)], list(gc.iter_with_etag()))
         gc._scan_ids()
         logging.getLogger('').setLevel(logging.NOTSET)
 
     def test_iter_with_etag(self):
-        gc = self.create_collection()
+        gc = self.create_store()
         bid = self.add_blob(gc, 'foo.ics', EXAMPLE_VCALENDAR1)
         self.assertEqual([('foo.ics', bid)], list(gc.iter_with_etag()))
         self.assertEqual(
-            ('foo.ics', bid), gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
+            ('foo.ics', bid),
+            gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
+
+    def test_get_description(self):
+        gc = self.create_store()
+        try:
+            gc.repo.set_description(b'a repo description')
+        except NotImplementedError:
+            self.skipTest('old dulwich version without MemoryRepo.set_description')
+        self.assertEqual(gc.get_description(), 'a repo description')
+
+    def test_displayname(self):
+        gc = self.create_store()
+        self.assertIs(None, gc.get_color())
+        c = gc.repo.get_config()
+        c.set(b'xandikos', b'displayname', b'a name')
+        if getattr(c, 'path', None):
+            c.write_to_path()
+        self.assertEqual('a name', gc.get_displayname())
+
+    def test_get_color(self):
+        gc = self.create_store()
+        self.assertIs(None, gc.get_color())
+        c = gc.repo.get_config()
+        c.set(b'xandikos', b'color', b'334433')
+        if getattr(c, 'path', None):
+            c.write_to_path()
+        self.assertEqual('334433', gc.get_color())
 
 
-class GitCollectionTest(unittest.TestCase):
+class GitStoreTest(unittest.TestCase):
 
     def test_open_from_path_bare(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
         Repo.init_bare(d)
-        gc = GitCollection.open_from_path(d)
-        self.assertIsInstance(gc, BareGitCollection)
+        gc = GitStore.open_from_path(d)
+        self.assertIsInstance(gc, BareGitStore)
         self.assertEqual(gc.repo.path, d)
 
     def test_open_from_path_tree(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
         Repo.init(d)
-        gc = GitCollection.open_from_path(d)
-        self.assertIsInstance(gc, TreeGitCollection)
+        gc = GitStore.open_from_path(d)
+        self.assertIsInstance(gc, TreeGitStore)
         self.assertEqual(gc.repo.path, d)
 
 
-class BareGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
+class BareGitStoreTest(BaseGitStoreTest,unittest.TestCase):
 
-    kls = BareGitCollection
+    kls = BareGitStore
 
-    def create_collection(self):
-        return BareGitCollection.create_memory()
+    def create_store(self):
+        return BareGitStore.create_memory()
 
     def test_create_memory(self):
-        gc = BareGitCollection.create_memory()
-        self.assertIsInstance(gc, GitCollection)
+        gc = BareGitStore.create_memory()
+        self.assertIsInstance(gc, GitStore)
 
     def add_blob(self, gc, name, contents):
         b = Blob.from_string(contents)
@@ -263,45 +291,47 @@ class BareGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
         c.message = b'do something'
         gc.repo.object_store.add_objects([(b, None), (t, None), (c, None)])
         gc.repo[gc.ref] = c.id
-        return b.id
+        return b.id.decode('ascii')
 
     def test_get_ctag(self):
-        gc = self.create_collection()
-        self.assertEqual(Tree().id, gc.get_ctag())
+        gc = self.create_store()
+        self.assertEqual(Tree().id.decode('ascii'), gc.get_ctag())
         self.add_blob(gc, 'foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertEqual(gc._get_current_tree().id, gc.get_ctag())
+        self.assertEqual(
+            gc._get_current_tree().id.decode('ascii'),
+            gc.get_ctag())
 
 
-class TreeGitCollectionTest(BaseGitCollectionTest,unittest.TestCase):
+class TreeGitStoreTest(BaseGitStoreTest,unittest.TestCase):
 
-    kls = TreeGitCollection
+    kls = TreeGitStore
 
-    def create_collection(self):
+    def create_store(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
-        return self.kls.create(d)
+        return self.kls.create(os.path.join(d, 'store'))
 
     def add_blob(self, gc, name, contents):
         with open(os.path.join(gc.repo.path, name), 'wb') as f:
             f.write(contents)
         gc.repo.stage(name.encode('utf-8'))
-        return Blob.from_string(contents).id
+        return Blob.from_string(contents).id.decode('ascii')
 
 
-class ExtractUIDTests(unittest.TestCase):
+class ExtractCalendarUIDTests(unittest.TestCase):
 
     def test_extract_str(self):
         self.assertEqual(
             'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ExtractUID(EXAMPLE_VCALENDAR1))
+            ExtractCalendarUID(EXAMPLE_VCALENDAR1))
 
     def test_extract_cal(self):
         cal = Calendar.from_ical(EXAMPLE_VCALENDAR1)
         self.assertEqual(
             'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ExtractUID(cal))
+            ExtractCalendarUID(cal))
 
     def test_extract_no_uid(self):
         self.assertRaises(
             KeyError,
-            ExtractUID, EXAMPLE_VCALENDAR_NO_UID)
+            ExtractCalendarUID, EXAMPLE_VCALENDAR_NO_UID)

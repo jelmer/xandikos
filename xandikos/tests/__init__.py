@@ -1,4 +1,4 @@
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -23,10 +23,9 @@ import unittest
 def test_suite():
     names = [
         'caldav',
-        'collection',
-        'filters',
+        'store',
         'webdav',
         ]
-    module_names = ['dystros.tests.test_' + name for name in names]
+    module_names = ['xandikos.tests.test_' + name for name in names]
     loader = unittest.TestLoader()
     return loader.loadTestsFromNames(module_names)

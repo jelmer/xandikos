@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 #
-# Dystros
+# Xandikos
 # Copyright (C) 2016 Jelmer Vernooĳ <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
@@ -24,12 +24,12 @@ from distutils.core import setup
 
 version = "0.0.1"
 
-setup(name="dystros",
-      description="VCS fastimport/fastexport parser",
+setup(name="xandikos",
+      description="CalDAV/CardDAV server",
       version=version,
       author="Jelmer Vernooij",
       author_email="jelmer@jelmer.uk",
       license="Apache v2 or later",
-      url="https://www.jelmer.uk/projects/dystros",
-      requires=['jinja2', 'icalendar', 'dulwich'],
-      packages=['dystros'])
+      url="https://www.jelmer.uk/projects/xandikos",
+      requires=['icalendar', 'dulwich', 'defusedxml'],
+      packages=['xandikos'])

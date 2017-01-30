@@ -1,17 +1,36 @@
 - newtravel: Handle items with unknown or vague date ("Nov?", "?", "Oct/Nov?")
 - fix-songkick: Get time somehow
 - export-freebusy
-- add dystros command-line tool
 
 - import tfl2ics
 - import from untappd?
 
 webdav server:
 - add support for authorization
-- implement DELETE If-Name
-- implement PUT If-Name
-- implement REPORT
-- implement MKCOL
-- implement PROPPATCH
+- implement MKCALENDAR
+- implement COPY
+- implement MOVE
 
 - run caldav tester
+
+- support returning components in calendar-data
+- support returning components in addressbook-data
+
+- use full hrefs (For thunderbird)
+
+- properties:
+ - group-membership
+ - calendar-proxy-read-for
+ - calendar-proxy-write-for
+ - {http://inf-it.com/ns/dav/}settings
+ - {http://inf-it.com/ns/dav/}headervalue
+
+- reporters:
+ - free-busy-query
+
+- properly handle well-known URLs:
+ - 302 to SCRIPT_NAME
+
+- coverage
+
+- split out server
