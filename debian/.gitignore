@@ -1,5 +1,5 @@
 debhelper-build-stamp
-python3-dystros/
+python3-xandikos/
 *.debhelper.log
 *.substvars
 files

@@ -1,5 +1,6 @@
-dystros (0~git20170108-1) UNRELEASED; urgency=low
+xandikos (0~git20170130-1) UNRELEASED; urgency=low
 
   * Initial release.
+  * New upstream snapshot.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 08 Jan 2017 04:15:38 +0100
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 30 Jan 2017 23:56:43 +0000
