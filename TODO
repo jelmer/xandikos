@@ -14,14 +14,16 @@ webdav server:
 
 - run caldav tester
 
-- implement filters in calendar-query
+- support returning components in calendar-data
+- support returning components in addressbook-data
+
+- use full hrefs (For thunderbird)
 
 - properties:
  - group-membership
  - calendar-proxy-read-for
  - calendar-proxy-write-for
  - {http://inf-it.com/ns/dav/}settings
- - {DAV:}supportedlock
  - {http://inf-it.com/ns/dav/}headervalue
 
 - reporters:

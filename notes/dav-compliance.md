@@ -33,7 +33,7 @@ This document aims to document the compliance with various RFCs.
  - (15.7) getlastmodified [not supported]
  - (15.8) lockdiscovery [not supported]
  - (15.9) resourcetype [supported]
- - (15.10) supportedlock [not supported]
+ - (15.10) supportedlock [supported]
  - (RFC2518 ONLY - 13.10) source [not supported]
 
 # rfc3253.txt (Versioning Extensions)

@@ -321,6 +321,17 @@ class GetCTagProperty(DAVProperty):
         el.text = resource.get_ctag()
 
 
+LOCK_SCOPE_EXCLUSIVE = '{DAV:}exclusive'
+LOCK_SCOPE_SHARED = '{DAV:}shared'
+LOCK_TYPE_WRITE = '{DAV:}write'
+
+
+ActiveLock = collections.namedtuple(
+    'ActiveLock',
+    ['lockscope', 'locktype', 'depth', 'owner', 'timeout','locktoken',
+        'lockroot'])
+
+
 class DAVResource(object):
     """A WebDAV resource."""
 
@@ -337,6 +348,22 @@ class DAVResource(object):
         :return: A datetime object
         """
         raise NotImplementedError(self.get_creationdate)
+
+    def get_supported_locks(self):
+        """Get the list of supported locks.
+
+        This should return a list of (lockscope, locktype) tuples.
+        Known lockscopes are LOCK_SCOPE_EXCLUSIVE, LOCK_SCOPE_SHARED
+        Known locktypes are LOCK_TYPE_WRITE
+        """
+        raise NotImplementedError(self.get_supported_locks)
+
+    def get_active_locks(self):
+        """Return the list of active locks.
+
+        :return: A list of ActiveLock tuples
+        """
+        raise NotImplementedError(self.get_active_locks)
 
     def get_content_type(self):
         """Get the content type for the resource.
@@ -592,6 +619,57 @@ class DAVExpandPropertyReporter(DAVReporter):
                resource, depth):
         return self._populate(request_body, resources_by_hrefs, properties,
                               href, resource)
+
+
+class DAVSupportedLockProperty(DAVProperty):
+    """supportedlock property.
+
+    See rfc4918, section 15.10.
+    """
+
+    name = '{DAV:}supportedlock'
+    resource_type = None
+    protected = True
+
+    def get_value(self, resource, el):
+        for (lockscope, locktype) in resource.get_supported_locks():
+            entry = ET.SubElement(el, '{DAV:}lockentry')
+            scope_el = ET.SubElement(entry, '{DAV:}lockscope')
+            ET.SubElement(scope_el, lockscope)
+            type_el = ET.SubElement(entry, '{DAV:}locktype')
+            ET.SubElement(type_el, locktype)
+
+
+class DAVLockDiscoveryProperty(DAVProperty):
+    """lockdiscovery property.
+
+    See rfc4918, section 15.8
+    """
+
+    name = '{DAV:}lockdiscovery'
+    resource_type = None
+    protected = True
+
+    def get_value(self, resource, el):
+        for activelock in resource.get_active_locks():
+            entry = ET.SubElement(el, '{DAV:}activelock')
+            type_el = ET.SubElement(entry, '{DAV:}locktype')
+            ET.SubElement(type_el, activelock.locktype)
+            scope_el = ET.SubElement(entry, '{DAV:}lockscope')
+            ET.SubElement(scope_el, activelock.lockscope)
+            ET.SubElement(entry, '{DAV:}depth').text = str(activelock.depth)
+            if activelock.owner:
+                ET.SubElement(entry, '{DAV:}owner').text = activelock.owner
+            if activelock.timeout:
+                ET.SubElement(entry, '{DAV:}timeout').text = activelock.timeout
+            if activelock.locktoken:
+                locktoken_el = ET.SubElement(entry, '{DAV:}locktoken')
+                href = ET.SubElement(locktoken_el, '{DAV:}href')
+                href.text = activelock.locktoken
+            if activelock.lockroot:
+                locktoken_el = ET.SubElement(entry, '{DAV:}lockroot')
+                href = ET.SubElement(locktoken_el, '{DAV:}href')
+                href.text = activelock.lockroot
 
 
 class WellknownResource(DAVResource):

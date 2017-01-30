@@ -103,6 +103,12 @@ class ObjectResource(webdav.DAVResource):
     def get_etag(self):
         return create_strong_etag(self.etag)
 
+    def get_supported_locks(self):
+        return []
+
+    def get_active_locks(self):
+        return []
+
     def get_owner(self):
         return None
 
@@ -168,6 +174,12 @@ class StoreBasedCollection(object):
 
     def get_owner(self):
         return None
+
+    def get_supported_locks(self):
+        return []
+
+    def get_active_locks(self):
+        return []
 
 
 class Collection(StoreBasedCollection,caldav.Calendar):
@@ -266,6 +278,12 @@ class CollectionSetResource(webdav.DAVCollection):
     def get_etag(self):
         raise KeyError
 
+    def get_supported_locks(self):
+        return []
+
+    def get_active_locks(self):
+        return []
+
     def members(self):
         ret = []
         p = self.backend._map_to_file_path(self.relpath)
@@ -302,6 +320,12 @@ class RootPage(webdav.DAVResource):
 
     def get_content_type(self):
         return 'text/html'
+
+    def get_supported_locks(self):
+        return []
+
+    def get_active_locks(self):
+        return []
 
     def get_etag(self):
         return '"root-page"'
@@ -409,6 +433,8 @@ class DystrosApp(webdav.WebDAVApp):
             access.OwnerProperty(),
             webdav.DAVCreationDateProperty(),
             carddav.AddressbookColorProperty(),
+            webdav.DAVSupportedLockProperty(),
+            webdav.DAVLockDiscoveryProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
