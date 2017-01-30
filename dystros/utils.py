@@ -134,7 +134,7 @@ def _extend_inner_filter(et, inner_filter):
     if not isinstance(inner_filter, list):
         inner_filter = [inner_filter]
     for f in inner_filter:
-        ret.append(f)
+        et.append(f)
 
 
 def comp_filter(name, inner_filter=None):
@@ -231,7 +231,7 @@ def put(url, data, if_match=None):
     assert f.status in (201, 204, 200), f.status
 
 
-def get_vevents_by_uid(url, uids, depth='1'):
+def get_vevent_by_uid(url, uid, depth='1'):
     uidprop = ET.Element('{urn:ietf:params:xml:ns:caldav}calendar-data')
     uidprop.set('name', 'UID')
     dataprop = ET.Element('{urn:ietf:params:xml:ns:caldav}calendar-data')
@@ -239,15 +239,16 @@ def get_vevents_by_uid(url, uids, depth='1'):
         url, props=[uidprop, dataprop, '{DAV:}getetag'], depth=depth,
         filter=comp_filter("VCALENDAR",
             comp_filter("VEVENT",
-                [prop_filter("UID", text_match(text=uid, collation="i;octet")) for uid in uids])))
+                prop_filter("UID", text_match(text=uid, collation="i;octet")))))
 
     for (href, status, propstat) in ret:
-        if status != 'HTTP/1.1 200 OK':
-            continue
+        if status == 'HTTP/1.1 404 Not Found':
+            raise KeyError(uid)
         by_status = {}
         for propstatsub in propstat:
             if propstatsub.tag == '{DAV:}status':
-                status = propstatsub.text
+                if propstatsub.text == 'HTTP/1.1 404 Not Found':
+                    raise KeyError(uid)
             elif propstatsub.tag == '{DAV:}prop':
                 by_status[status] = propstatsub
             else:
@@ -260,4 +261,5 @@ def get_vevents_by_uid(url, uids, depth='1'):
             if prop.tag == '{DAV:}getetag':
                 etag = prop.text
         assert data is not None, "data missing for %r" % href
-        yield (href, etag, Calendar.from_ical(data))
+        return (href, etag, Calendar.from_ical(data))
+    raise KeyError(uid)

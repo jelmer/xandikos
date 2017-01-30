@@ -84,18 +84,13 @@ for component in orig.subcomponents:
     else:
         other.append(component)
 
-
-existing = {}
-for (href, etag, old) in utils.get_vevents_by_uid(opts.url, items.keys()):
-    existing[uid] = (href, etag, old)
-
 seen = 0
 changed = 0
 added = 0
 for (uid, ev) in items.items():
     seen += 1
     try:
-        (href, etag, old) = existing[uid]
+        (href, etag, old) = utils.get_vevent_by_uid(opts.url, uid)
     except KeyError:
         if_match = None
         fname = "%s-%s.ics" % (opts.prefix, uid.replace("/", ""))
