@@ -35,7 +35,7 @@ from dystros import utils
 def StripStamps(c):
     if c is None:
         return None
-    c = c.copy()
+    c = Calendar.from_ical(c.to_ical())
     for sc in c.subcomponents:
         if 'DTSTAMP' in sc:
             del sc['DTSTAMP']
