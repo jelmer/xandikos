@@ -22,4 +22,7 @@ webdav server:
 - reporters:
  - free-busy-query
 
+- better commit messages
+- better author data in commits
+
 - coverage
