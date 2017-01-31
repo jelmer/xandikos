@@ -3,18 +3,17 @@ Section: python
 Priority: optional
 Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
 Homepage: https://jelmer.uk/xandikos
-Build-Depends: python3-all, debhelper (>= 9), python3-dulwich, dh-python, python3-jinja2, python3-icalendar, python3-defusedxml
+Build-Depends: python3-all, debhelper (>= 9), python3-dulwich, dh-python, python3-icalendar, python3-defusedxml
 Standards-Version: 3.9.8
 X-Python3-Version: >= 3.2
 Vcs-Git: https://jelmer.uk/code/xandikos.git -b unstable
 
 Package: python3-xandikos
 Architecture: all
-Depends: ${python3:Depends}, ${misc:Depends}, python3-jinja2, python3-icalendar, python3-defusedxml, python3-dulwich
-Breaks: bzr-git (<< 0.6.2)
-Description: Tools for working with calendars and addressbooks
- Dystros is a set of command-line utilities for working with calendars and
- addressbooks that are stored as iCalendar and vCard files in a git repository.
+Depends: ${python3:Depends}, ${misc:Depends}, python3-icalendar, python3-defusedxml, python3-dulwich
+Description: Git-backed CalDAV/CardDAV server
+ Xandikos is a standards-compliant CalDAV/CardDAV server that backs onto a
+ Git repository.
  .
- Dystros (Δύστρος) takes its name from the name of the February month in the
+ Xandikos (Δύστρος) takes its name from the name of the February month in the
  ancient Macedonian calendar, used in Macedon in the first millennium BC.
