@@ -877,9 +877,9 @@ class WebDAVApp(object):
                 propstat = get_properties(
                     resource, self.properties, requested)
                 ret.append(Status(href, '200 OK', propstat=list(propstat)))
-            # TODO(jelmer): Some servers don't seem to understand non-MultiStatus responses
-            if len(ret) == 1:
-                return ret[0]
+            # By my reading of the WebDAV RFC, it should be legal to return
+            # '200 OK' here if Depth=0, but the RFC is not super clear and
+            # some clients don't seem to like it .
             return ret
         else:
             # TODO(jelmer): implement allprop and propname
