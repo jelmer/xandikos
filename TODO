@@ -1,15 +1,9 @@
-- newtravel: Handle items with unknown or vague date ("Nov?", "?", "Oct/Nov?")
-- fix-songkick: Get time somehow
-- export-freebusy
-
-- import tfl2ics
-- import from untappd?
-
 webdav server:
 - add support for authorization
 - implement MKCALENDAR
 - implement COPY
 - implement MOVE
+- implement LOCK
 
 - run caldav tester
 
@@ -28,9 +22,4 @@ webdav server:
 - reporters:
  - free-busy-query
 
-- properly handle well-known URLs:
- - 302 to SCRIPT_NAME
-
 - coverage
-
-- split out server
