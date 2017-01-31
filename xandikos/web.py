@@ -401,7 +401,7 @@ class XandikosApp(webdav.WebDAVApp):
     """
 
     def __init__(self, path, current_user_principal):
-        super(XandikosApp, self).__init__(DystrosBackend(
+        super(XandikosApp, self).__init__(XandikosBackend(
             path, current_user_principal))
         self.register_properties([
             webdav.DAVResourceTypeProperty(),
