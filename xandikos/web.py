@@ -443,6 +443,21 @@ class XandikosApp(webdav.WebDAVApp):
             ])
 
 
+class WellknownRedirector(object):
+
+    def __init__(self, inner_app):
+        self._inner_app = inner_app
+
+    def __call__(self, environ, start_response):
+        # See https://tools.ietf.org/html/rfc6764
+        if ((environ['SCRIPT_NAME'] + environ['PATH_INFO'])
+                in WELLKNOWN_DAV_PATHS):
+            start_response('302 Found', [
+                ('Location', options.dav_root)])
+            return []
+        return self._inner_app(environ, start_response)
+
+
 if __name__ == '__main__':
     import optparse
     import sys
@@ -474,13 +489,6 @@ if __name__ == '__main__':
         current_user_principal=options.current_user_principal)
 
     from wsgiref.simple_server import make_server
-    def root_app(environ, start_response):
-        # See https://tools.ietf.org/html/rfc6764
-        if ((environ['SCRIPT_NAME'] + environ['PATH_INFO'])
-                in WELLKNOWN_DAV_PATHS):
-            start_response('302 Found', [
-                ('Location', options.dav_root)])
-            return []
-        return app(environ, start_response)
-    server = make_server(options.listen_address, options.port, root_app)
+    app = WellknownRedirector(app)
+    server = make_server(options.listen_address, options.port, app)
     server.serve_forever()

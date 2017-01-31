@@ -25,5 +25,5 @@ import os
 from xandikos.web import XandikosApp
 
 app = XandikosApp(
-        path=os.environ['DYSTROSPATH'],
+        path=os.environ['XANDIKOSPATH'],
         current_user_principal=os.environ.get('CURRENT_USER_PRINCIPAL', '/user/'))

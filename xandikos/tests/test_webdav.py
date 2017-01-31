@@ -223,9 +223,12 @@ class WebTests(unittest.TestCase):
 <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
-            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
-            '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>')
-        self.assertEqual(code, '200 OK')
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
+            '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
+            '</ns0:response></ns0:multistatus>')
+        self.assertEqual(code, '207 Multi-Status')
 
     def test_propfind_prop_not_present(self):
         class TestProperty(Property):
@@ -238,9 +241,12 @@ class WebTests(unittest.TestCase):
 <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
-            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
-            '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>')
-        self.assertEqual(code, '200 OK')
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
+            '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
+            '</ns0:response></ns0:multistatus>')
+        self.assertEqual(code, '207 Multi-Status')
 
     def test_propfind_found(self):
         class TestProperty(Property):
@@ -254,10 +260,13 @@ class WebTests(unittest.TestCase):
 </d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
-            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
-            '</ns0:current-user-principal></ns0:prop></ns0:propstat>')
-        self.assertEqual(code, '200 OK')
+            '</ns0:current-user-principal></ns0:prop></ns0:propstat>'
+            '</ns0:response></ns0:multistatus>')
+        self.assertEqual(code, '207 Multi-Status')
 
     def test_propfind_found_multi(self):
         class TestProperty1(Property):
@@ -277,11 +286,13 @@ class WebTests(unittest.TestCase):
         self.maxDiff = None
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
-            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
             '</ns0:current-user-principal><ns0:somethingelse /></ns0:prop>'
-            '</ns0:propstat>')
-        self.assertEqual(code, '200 OK')
+            '</ns0:propstat></ns0:response></ns0:multistatus>')
+        self.assertEqual(code, '207 Multi-Status')
 
     def test_propfind_found_multi_status(self):
         class TestProperty(Property):
