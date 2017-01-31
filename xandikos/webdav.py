@@ -268,7 +268,7 @@ class CurrentUserPrincipalProperty(Property):
     in_allprops = False
 
     def __init__(self, current_user_principal):
-        super(urrentUserPrincipalProperty, self).__init__()
+        super(CurrentUserPrincipalProperty, self).__init__()
         self.current_user_principal = current_user_principal
 
     def get_value(self, resource, el):
@@ -525,28 +525,33 @@ def get_properties(resource, properties, requested):
         yield get_property(resource, properties, propreq.tag)
 
 
-def traverse_resource(base_resource, depth, base_href):
+def traverse_resource(base_resource, base_href, depth):
     """Traverse a resource.
 
     :param base_resource: Resource to traverse from
-    :param depth: Depth ("0", "1", ...)
     :param base_href: href for base resource
+    :param depth: Depth ("0", "1", "infinity")
     :return: Iterator over (URL, Resource) tuples
     """
-    me = (base_href, base_resource)
-    if depth == "0":
-        return iter([me])
-    elif depth == "1":
-        ret = [me]
+    todo = collections.deque([(base_href, base_resource, depth)])
+    while todo:
+        (href, resource, depth) = todo.popleft()
+        if COLLECTION_RESOURCE_TYPE in resource.resource_types:
+            # caldavzap/carddavmate require this
+            href += '/'
+        yield (href, resource)
+        if depth == "0":
+            continue
+        elif depth == "1":
+            nextdepth = "0"
+        elif depth == "infinity":
+            nextdepth == "infinity"
+        else:
+            raise AssertionError("invalid depth %r" % depth)
         if COLLECTION_RESOURCE_TYPE in base_resource.resource_types:
-            for (name, resource) in base_resource.members():
-                href = urllib.parse.urljoin(base_href+'/', name)
-                if COLLECTION_RESOURCE_TYPE in resource.resource_types:
-                    # caldavzap/carddavmate require this
-                    href += '/'
-                ret.append((href, resource))
-        return iter(ret)
-    raise NotImplementedError
+            for (child_name, child_resource) in resource.members():
+                child_href = urllib.parse.urljoin(href+'/', name)
+                todo.append((child_href, child_resource, nextdepth))
 
 
 class Reporter(object):
@@ -670,25 +675,6 @@ class LockDiscoveryProperty(Property):
                 locktoken_el = ET.SubElement(entry, '{DAV:}lockroot')
                 href = ET.SubElement(locktoken_el, '{DAV:}href')
                 href.text = activelock.lockroot
-
-
-class WellknownResource(Resource):
-    """Resource for well known URLs.
-
-    See https://tools.ietf.org/html/rfc6764
-    """
-
-    def __init__(self, server_root):
-        self.server_root = server_root
-
-    def get_etag(self):
-        return '"%s"' % hashlib.md5(b''.join(self.get_body())).hexdigest()
-
-    def get_content_length(self):
-        return len(b''.join(self.get_body()))
-
-    def get_body(self):
-        return [self.server_root.encode(DEFAULT_ENCODING)]
 
 
 class Backend(object):
@@ -887,7 +873,7 @@ class WebDAVApp(object):
         if requested.tag == '{DAV:}prop':
             ret = []
             for href, resource in traverse_resource(
-                    base_resource, depth, self._request_href(environ)):
+                    base_resource, self._request_href(environ), depth):
                 propstat = get_properties(
                     resource, self.properties, requested)
                 ret.append(Status(href, '200 OK', propstat=list(propstat)))

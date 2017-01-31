@@ -449,7 +449,7 @@ class CalendarQueryReporter(webdav.Reporter):
         properties = dict(properties)
         properties[CalendarDataProperty.name] = CalendarDataProperty()
         for (href, resource) in traverse_resource(
-                base_resource, depth, base_href):
+                base_resource, base_href, depth):
             if not apply_filter(filter_el, resource, tzify):
                 continue
             propstat = get_properties(

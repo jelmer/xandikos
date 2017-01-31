@@ -365,9 +365,7 @@ class XandikosBackend(webdav.Backend):
 
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
-        if relpath in WELLKNOWN_DAV_PATHS:
-            return webdav.WellknownResource(self.current_user_principal)
-        elif relpath == '/':
+        if relpath == '/':
             return RootPage()
         elif relpath == self.current_user_principal:
             return Principal(self, relpath)
@@ -462,15 +460,27 @@ if __name__ == '__main__':
     parser.add_option("--current-user-principal",
                       default="/user/",
                       help="Path to current user principal.")
+    parser.add_option("--dav-root",
+                      default="/",
+                      help="Path to DAV root.")
     options, args = parser.parse_args(sys.argv)
 
     if options.directory is None:
         parser.print_usage()
         sys.exit(1)
 
-    from wsgiref.simple_server import make_server
     app = XandikosApp(
         options.directory,
         current_user_principal=options.current_user_principal)
-    server = make_server(options.listen_address, options.port, app)
+
+    from wsgiref.simple_server import make_server
+    def root_app(environ, start_response):
+        # See https://tools.ietf.org/html/rfc6764
+        if ((environ['SCRIPT_NAME'] + environ['PATH_INFO'])
+                in WELLKNOWN_DAV_PATHS):
+            start_response('302 Found', [
+                ('Location', options.dav_root)])
+            return []
+        return app(environ, start_response)
+    server = make_server(options.listen_address, options.port, root_app)
     server.serve_forever()
