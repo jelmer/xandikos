@@ -30,14 +30,8 @@ from xml.etree import ElementTree as ET
 from icalendar.cal import Calendar as ICalendar
 from icalendar.prop import vDDDTypes
 
-from xandikos import davcommon
+from xandikos import davcommon, webdav
 from xandikos.webdav import (
-    DAVBackend,
-    DAVCollection,
-    DAVProperty,
-    DAVReporter,
-    DAVResource,
-    DAVStatus,
     WebDAVApp,
     get_properties,
     traverse_resource,
@@ -52,9 +46,9 @@ CALENDAR_RESOURCE_TYPE = '{urn:ietf:params:xml:ns:caldav}calendar'
 NAMESPACE = 'urn:ietf:params:xml:ns:caldav'
 
 
-class Calendar(DAVCollection):
+class Calendar(webdav.Collection):
 
-    resource_types = DAVCollection.resource_types + [CALENDAR_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self):
         raise NotImplementedError(self.get_calendar_description)
@@ -121,7 +115,7 @@ class PrincipalExtensions:
         raise NotImplementedError(self.get_calendar_user_address_set)
 
 
-class CalendarHomeSetProperty(DAVProperty):
+class CalendarHomeSetProperty(webdav.Property):
     """calendar-home-set property
 
     See https://www.ietf.org/rfc/rfc4791.txt, section 6.2.1.
@@ -136,7 +130,7 @@ class CalendarHomeSetProperty(DAVProperty):
             ET.SubElement(el, '{DAV:}href').text = href
 
 
-class CalendarUserAddressSetProperty(DAVProperty):
+class CalendarUserAddressSetProperty(webdav.Property):
     """calendar-user-address-set property
 
     See https://tools.ietf.org/html/rfc6638, section 2.4.1
@@ -151,7 +145,7 @@ class CalendarUserAddressSetProperty(DAVProperty):
             ET.SubElement(el, '{DAV:}href').text = href
 
 
-class CalendarDescriptionProperty(DAVProperty):
+class CalendarDescriptionProperty(webdav.Property):
     """Provides calendar-description property.
 
     https://tools.ietf.org/html/rfc4791, section 5.2.1
@@ -167,7 +161,7 @@ class CalendarDescriptionProperty(DAVProperty):
     # protected = True
 
 
-class CalendarDataProperty(DAVProperty):
+class CalendarDataProperty(webdav.Property):
     """calendar-data property
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.4
@@ -426,7 +420,7 @@ def extract_tzid(cal):
     return cal.subcomponents[0]['TZID']
 
 
-class CalendarQueryReporter(DAVReporter):
+class CalendarQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
 
@@ -463,7 +457,7 @@ class CalendarQueryReporter(DAVReporter):
             yield DAVStatus(href, '200 OK', propstat=list(propstat))
 
 
-class CalendarColorProperty(DAVProperty):
+class CalendarColorProperty(webdav.Property):
     """calendar-color property
 
     This contains a HTML #RRGGBB color code, as CDATA.
@@ -476,7 +470,7 @@ class CalendarColorProperty(DAVProperty):
         el.text = resource.get_calendar_color()
 
 
-class SupportedCalendarComponentSetProperty(DAVProperty):
+class SupportedCalendarComponentSetProperty(webdav.Property):
     """supported-calendar-component-set property
 
     Set of supported calendar components by this calendar.
@@ -495,7 +489,7 @@ class SupportedCalendarComponentSetProperty(DAVProperty):
             subel.set('name', component)
 
 
-class SupportedCalendarDataProperty(DAVProperty):
+class SupportedCalendarDataProperty(webdav.Property):
     """supported-calendar-data property.
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.4
@@ -515,7 +509,7 @@ class SupportedCalendarDataProperty(DAVProperty):
             subel.set('version', version)
 
 
-class CalendarTimezoneProperty(DAVProperty):
+class CalendarTimezoneProperty(webdav.Property):
     """calendar-timezone property.
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.2
@@ -532,7 +526,7 @@ class CalendarTimezoneProperty(DAVProperty):
         resource.set_calendar_timezone(el.text)
 
 
-class MinDateTimeProperty(DAVProperty):
+class MinDateTimeProperty(webdav.Property):
     """min-date-time property.
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.6
@@ -547,7 +541,7 @@ class MinDateTimeProperty(DAVProperty):
         el.text = resource.get_min_date_time()
 
 
-class MaxDateTimeProperty(DAVProperty):
+class MaxDateTimeProperty(webdav.Property):
     """max-date-time property.
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.7

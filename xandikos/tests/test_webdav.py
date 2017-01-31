@@ -25,9 +25,9 @@ from wsgiref.util import request_uri, setup_testing_defaults
 from xml.etree import ElementTree as ET
 
 from xandikos.webdav import (
-    DAVCollection,
-    DAVProperty,
-    DAVResource,
+    Collection,
+    Property,
+    Resource,
     WebDAVApp,
     WellknownResource,
     )
@@ -135,7 +135,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual('404 Not Found', code)
 
     def test_get_body(self):
-        class TestResource(DAVResource):
+        class TestResource(Resource):
 
             def get_body(self):
                 return [b'this is content']
@@ -155,7 +155,7 @@ class WebTests(unittest.TestCase):
 
     def test_set_body(self):
         new_body = []
-        class TestResource(DAVResource):
+        class TestResource(Resource):
 
             def set_body(self, body, replace_etag=None):
                 new_body.extend(body)
@@ -178,7 +178,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(b'', contents)
 
     def test_mkcol_not_allowed(self):
-        class TestResource(DAVResource):
+        class TestResource(Resource):
 
             def create_collection(self, name):
                 pass
@@ -190,14 +190,14 @@ class WebTests(unittest.TestCase):
 
     def test_mkcol_exists(self):
         app = self.makeApp({
-            '/resource': DAVResource(),
-            '/resource/bla': DAVResource()}, [])
+            '/resource': Resource(),
+            '/resource/bla': Resource()}, [])
         code, headers, contents = self.mkcol(app, '/resource/bla')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertEqual(b'', contents)
 
     def test_delete(self):
-        class TestResource(DAVCollection):
+        class TestResource(Collection):
 
             def get_etag(self):
                 return '"foo"'
@@ -210,7 +210,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(b'', contents)
 
     def test_delete_not_found(self):
-        class TestResource(DAVCollection):
+        class TestResource(Collection):
             pass
 
         app = self.makeApp({'/resource': TestResource()}, [])
@@ -219,7 +219,7 @@ class WebTests(unittest.TestCase):
         self.assertTrue(contents.endswith(b'/resource not found.'))
 
     def test_propfind_prop_does_not_exist(self):
-        app = self.makeApp({'/resource': DAVResource()}, [])
+        app = self.makeApp({'/resource': Resource()}, [])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>""")
         self.assertMultiLineEqual(
@@ -229,12 +229,12 @@ class WebTests(unittest.TestCase):
         self.assertEqual(code, '200 OK')
 
     def test_propfind_prop_not_present(self):
-        class TestProperty(DAVProperty):
+        class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
             def get_value(self, resource, ret):
                 raise KeyError
-        app = self.makeApp({'/resource': DAVResource()}, [TestProperty()])
+        app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>""")
         self.assertMultiLineEqual(
@@ -244,12 +244,12 @@ class WebTests(unittest.TestCase):
         self.assertEqual(code, '200 OK')
 
     def test_propfind_found(self):
-        class TestProperty(DAVProperty):
+        class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
             def get_value(self, resource, ret):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
-        app = self.makeApp({'/resource': DAVResource()}, [TestProperty()])
+        app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
 </d:prop></d:propfind>""")
@@ -261,16 +261,16 @@ class WebTests(unittest.TestCase):
         self.assertEqual(code, '200 OK')
 
     def test_propfind_found_multi(self):
-        class TestProperty1(DAVProperty):
+        class TestProperty1(Property):
             name = '{DAV:}current-user-principal'
             def get_value(self, resource, el):
                 ET.SubElement(el, '{DAV:}href').text = '/user/'
-        class TestProperty2(DAVProperty):
+        class TestProperty2(Property):
             name = '{DAV:}somethingelse'
             def get_value(self, resource, el):
                 pass
         app = self.makeApp(
-                {'/resource': DAVResource()},
+                {'/resource': Resource()},
                 [TestProperty1(), TestProperty2()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
@@ -285,11 +285,11 @@ class WebTests(unittest.TestCase):
         self.assertEqual(code, '200 OK')
 
     def test_propfind_found_multi_status(self):
-        class TestProperty(DAVProperty):
+        class TestProperty(Property):
             name = '{DAV:}current-user-principal'
             def get_value(self, resource, ret):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
-        app = self.makeApp({'/resource': DAVResource()}, [TestProperty()])
+        app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
 <d:somethingelse/></d:prop></d:propfind>""")

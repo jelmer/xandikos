@@ -72,7 +72,7 @@ def extract_strong_etag(etag):
     return etag.strip('"')
 
 
-class ObjectResource(webdav.DAVResource):
+class ObjectResource(webdav.Resource):
     """Object resource."""
 
     def __init__(self, store, name, etag, content_type):
@@ -262,7 +262,7 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
         return color
 
 
-class CollectionSetResource(webdav.DAVCollection):
+class CollectionSetResource(webdav.Collection):
     """Resource for calendar sets."""
 
     def __init__(self, backend, relpath):
@@ -307,7 +307,7 @@ class CollectionSetResource(webdav.DAVCollection):
         return self.backend.get_resource(relpath)
 
 
-class RootPage(webdav.DAVResource):
+class RootPage(webdav.Resource):
     """A non-DAV resource."""
 
     resource_types = []
@@ -334,7 +334,7 @@ class RootPage(webdav.DAVResource):
 class Principal(CollectionSetResource):
     """Principal user resource."""
 
-    resource_types = webdav.DAVCollection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
 
     def get_principal_url(self):
         return self.path
@@ -354,7 +354,7 @@ def open_store_from_path(path):
     return GitStore.open_from_path(path)
 
 
-class XandikosBackend(webdav.DAVBackend):
+class XandikosBackend(webdav.Backend):
 
     def __init__(self, path, current_user_principal):
         self.path = path
@@ -404,13 +404,13 @@ class XandikosApp(webdav.WebDAVApp):
         super(XandikosApp, self).__init__(XandikosBackend(
             path, current_user_principal))
         self.register_properties([
-            webdav.DAVResourceTypeProperty(),
-            webdav.DAVCurrentUserPrincipalProperty(
+            webdav.ResourceTypeProperty(),
+            webdav.CurrentUserPrincipalProperty(
                 current_user_principal),
-            webdav.DAVPrincipalURLProperty(),
-            webdav.DAVDisplayNameProperty(),
-            webdav.DAVGetETagProperty(),
-            webdav.DAVGetContentTypeProperty(),
+            webdav.PrincipalURLProperty(),
+            webdav.DisplayNameProperty(),
+            webdav.GetETagProperty(),
+            webdav.GetContentTypeProperty(),
             caldav.CalendarHomeSetProperty(),
             caldav.CalendarUserAddressSetProperty(),
             carddav.AddressbookHomeSetProperty(),
@@ -421,7 +421,7 @@ class XandikosApp(webdav.WebDAVApp):
             carddav.PrincipalAddressProperty(),
             webdav.GetCTagProperty(),
             carddav.SupportedAddressDataProperty(),
-            webdav.DAVSupportedReportSetProperty(self.reporters),
+            webdav.SupportedReportSetProperty(self.reporters),
             sync.SyncTokenProperty(),
             caldav.SupportedCalendarDataProperty(),
             caldav.CalendarTimezoneProperty(),
@@ -431,16 +431,16 @@ class XandikosApp(webdav.WebDAVApp):
             carddav.MaxImageSizeProperty(),
             access.CurrentUserPrivilegeSetProperty(),
             access.OwnerProperty(),
-            webdav.DAVCreationDateProperty(),
+            webdav.CreationDateProperty(),
             carddav.AddressbookColorProperty(),
-            webdav.DAVSupportedLockProperty(),
-            webdav.DAVLockDiscoveryProperty(),
+            webdav.SupportedLockProperty(),
+            webdav.LockDiscoveryProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
             caldav.CalendarQueryReporter(),
             carddav.AddressbookMultiGetReporter(),
-            webdav.DAVExpandPropertyReporter(),
+            webdav.ExpandPropertyReporter(),
             sync.SyncCollectionReporter(),
             ])
 

@@ -32,7 +32,7 @@ NAMESPACE = 'urn:ietf:params:xml:ns:carddav'
 ADDRESSBOOK_RESOURCE_TYPE = '{%s}addressbook' % NAMESPACE
 
 
-class AddressbookHomeSetProperty(webdav.DAVProperty):
+class AddressbookHomeSetProperty(webdav.Property):
     """addressbook-home-set property
 
     See https://tools.ietf.org/html/rfc6352, section 7.1.1
@@ -47,7 +47,7 @@ class AddressbookHomeSetProperty(webdav.DAVProperty):
             ET.SubElement(el, '{DAV:}href').text = href
 
 
-class AddressDataProperty(webdav.DAVProperty):
+class AddressDataProperty(webdav.Property):
     """address-data property
 
     See https://tools.ietf.org/html/rfc6352, section 10.4
@@ -64,7 +64,7 @@ class AddressDataProperty(webdav.DAVProperty):
         el.text = b''.join(resource.get_body()).decode('utf-8')
 
 
-class AddressbookDescriptionProperty(webdav.DAVProperty):
+class AddressbookDescriptionProperty(webdav.Property):
     """Provides calendar-description property.
 
     https://tools.ietf.org/html/rfc6352, section 6.2.1
@@ -87,10 +87,10 @@ class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
     data_property_kls = AddressDataProperty
 
 
-class Addressbook(webdav.DAVCollection):
+class Addressbook(webdav.Collection):
 
     resource_types = (
-        webdav.DAVCollection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE])
+        webdav.Collection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE])
 
     def get_addressbook_description(self):
         raise NotImplementedError(self.get_addressbook_description)
@@ -135,7 +135,7 @@ class PrincipalExtensions:
         raise NotImplementedError(self.get_principal_address)
 
 
-class PrincipalAddressProperty(webdav.DAVProperty):
+class PrincipalAddressProperty(webdav.Property):
     """Provides the principal-address property.
 
     https://tools.ietf.org/html/rfc6352, section 7.1.2
@@ -149,7 +149,7 @@ class PrincipalAddressProperty(webdav.DAVProperty):
         ET.SubElement(el, '{DAV:}href').text = resource.get_principal_address()
 
 
-class SupportedAddressDataProperty(webdav.DAVProperty):
+class SupportedAddressDataProperty(webdav.Property):
     """Provides the supported-address-data property.
 
     https://tools.ietf.org/html/rfc6352, section 6.2.2
@@ -167,7 +167,7 @@ class SupportedAddressDataProperty(webdav.DAVProperty):
             subel.set('version', version)
 
 
-class MaxResourceSizeProperty(webdav.DAVProperty):
+class MaxResourceSizeProperty(webdav.Property):
     """Provides the max-resource-size property.
 
     See https://tools.ietf.org/html/rfc6352, section 6.2.3.
@@ -182,7 +182,7 @@ class MaxResourceSizeProperty(webdav.DAVProperty):
         el.text = str(resource.get_max_resource_size())
 
 
-class MaxImageSizeProperty(webdav.DAVProperty):
+class MaxImageSizeProperty(webdav.Property):
     """Provides the max-image-size property.
 
     This seems to be a carddav extension used by iOS and caldavzap.
@@ -197,7 +197,7 @@ class MaxImageSizeProperty(webdav.DAVProperty):
         el.text = str(resource.get_max_image_size())
 
 
-class AddressbookColorProperty(webdav.DAVProperty):
+class AddressbookColorProperty(webdav.Property):
     """Provides the addressbook-color property.
 
     This is an inf-it extension.

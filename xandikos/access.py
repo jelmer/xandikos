@@ -28,7 +28,7 @@ from xml.etree import ElementTree as ET
 from xandikos import webdav
 
 
-class CurrentUserPrivilegeSetProperty(webdav.DAVProperty):
+class CurrentUserPrivilegeSetProperty(webdav.Property):
     """current-user-privilege-set property
 
     See http://www.webdav.org/specs/rfc3744.html, section 3.7
@@ -44,7 +44,7 @@ class CurrentUserPrivilegeSetProperty(webdav.DAVProperty):
        priv_all = ET.SubElement(privilege, '{DAV:}all')
 
 
-class OwnerProperty(webdav.DAVProperty):
+class OwnerProperty(webdav.Property):
     """owner property.
 
     See http://www.webdav.org/specs/rfc3744.html, section 5.1

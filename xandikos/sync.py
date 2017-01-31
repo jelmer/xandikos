@@ -40,7 +40,7 @@ class SyncToken(object):
         return ret
 
 
-class SyncCollectionReporter(webdav.DAVReporter):
+class SyncCollectionReporter(webdav.Reporter):
     """sync-collection reporter implementation.
 
     See https://tools.ietf.org/html/rfc6578, section 3.2.
@@ -101,7 +101,7 @@ class SyncCollectionReporter(webdav.DAVReporter):
         yield SyncToken(new_token)
 
 
-class SyncTokenProperty(webdav.DAVProperty):
+class SyncTokenProperty(webdav.Property):
     """sync-token property.
 
     See https://tools.ietf.org/html/rfc6578, section 4
