@@ -568,17 +568,18 @@ class Reporter(object):
 
     name = None
 
-    def report(self, request_body, resources_by_hrefs, properties, href,
-               resource, depth):
+    def report(self, start_response, request_body, resources_by_hrefs,
+               properties, href, resource, depth):
         """Send a report.
 
+        :param start_response: WSGI start_response function
         :param request_body: XML Element for request body
         :param resources_by_hrefs: Function for retrieving resource by HREF
         :param properties: Dictionary mapping names to DAVProperty instances
         :param href: Base resource href
         :param resource: Resource to start from
         :param depth: Depth ("0", "1", ...)
-        :return: Iterator over Status objects
+        :return: chunked body
         """
         raise NotImplementedError(self.report)
 
@@ -629,6 +630,7 @@ class ExpandPropertyReporter(Reporter):
             ret.append(propstat)
         return Status(href, '200 OK', propstat=ret)
 
+    @multistatus
     def report(self, request_body, resources_by_hrefs, properties, href,
                resource, depth):
         return self._populate(request_body, resources_by_hrefs, properties,
@@ -693,6 +695,39 @@ class Backend(object):
         raise NotImplementedError(self.get_resource)
 
 
+def _send_dav_responses(start_response, responses, out_encoding):
+    if isinstance(responses, Status):
+        try:
+            (body, body_type) = responses.get_single_body(
+                out_encoding)
+        except NeedsMultiStatus:
+            responses = [responses]
+        else:
+            start_response(responses.status, [
+                ('Content-Type', body_type),
+                ('Content-Length', str(sum(map(len, body))))])
+            return body
+    ret = ET.Element('{DAV:}multistatus')
+    for response in responses:
+        ret.append(response.aselement())
+    body_type = 'text/xml; charset="%s"' % out_encoding
+    body = ET.tostringlist(ret, encoding=out_encoding)
+    start_response('207 Multi-Status', [
+        ('Content-Type', body_type),
+        ('Content-Length', str(sum(map(len, body))))])
+    return body
+
+
+def multistatus(req_fn):
+
+    def wrapper(start_response, *args, **kwargs):
+        responses = req_fn(*args, **kwargs)
+        return _send_dav_responses(start_response, responses,
+                DEFAULT_ENCODING)
+
+    return wrapper
+
+
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
@@ -700,8 +735,6 @@ class WebDAVApp(object):
     lookup_resource function that can map a path to a Resource object
     (returning None for nonexistant objects).
     """
-
-    out_encoding = DEFAULT_ENCODING
 
     def __init__(self, backend):
         self.backend = backend
@@ -807,28 +840,6 @@ class WebDAVApp(object):
         else:
             return environ['wsgi.input'].read(request_body_size)
 
-    def _send_dav_responses(self, start_response, responses):
-        if isinstance(responses, Status):
-            try:
-                (body, body_type) = responses.get_single_body(
-                    self.out_encoding)
-            except NeedsMultiStatus:
-                responses = [responses]
-            else:
-                start_response(responses.status, [
-                    ('Content-Type', body_type),
-                    ('Content-Length', str(sum(map(len, body))))])
-                return body
-        ret = ET.Element('{DAV:}multistatus')
-        for response in responses:
-            ret.append(response.aselement())
-        body_type = 'text/xml; charset="%s"' % self.out_encoding
-        body = ET.tostringlist(ret, encoding=self.out_encoding)
-        start_response('207 Multi-Status', [
-            ('Content-Type', body_type),
-            ('Content-Length', str(sum(map(len, body))))])
-        return body
-
     def _get_resources_by_hrefs(self, environ, hrefs):
         """Retrieve multiple resources by href.
         """
@@ -840,7 +851,7 @@ class WebDAVApp(object):
                 resource = self.backend.get_resource(href[len(environ['SCRIPT_NAME']):])
             yield (href, resource)
 
-    def dav_REPORT(self, environ):
+    def do_REPORT(self, environ):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
@@ -858,10 +869,11 @@ class WebDAVApp(object):
             return Status(request_uri(environ), '403 Forbidden',
                 error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
-            et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
+            start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
             self.properties, self._request_href(environ), r, depth)
 
-    def dav_PROPFIND(self, environ):
+    @multistatus
+    def do_PROPFIND(self, environ):
         base_resource = self.backend.get_resource(environ['PATH_INFO'])
         if base_resource is None:
             return Status(request_uri(environ), '404 Not Found')
@@ -897,7 +909,8 @@ class WebDAVApp(object):
                 request_uri(environ), '500 Internal Error',
                 'Expected prop tag, got ' + requested.tag)
 
-    def dav_PROPPATCH(self, environ):
+    @multistatus
+    def do_PROPPATCH(self, environ):
         resource = self.backend.get_resource(environ['PATH_INFO'])
         if resource is None:
             return Status(request_uri(environ), '404 Not Found')
@@ -976,9 +989,6 @@ class WebDAVApp(object):
 
     def __call__(self, environ, start_response):
         method = environ['REQUEST_METHOD']
-        dav = getattr(self, 'dav_' + method, None)
-        if dav is not None:
-            return self._send_dav_responses(start_response, dav(environ))
         do = getattr(self, 'do_' + method, None)
         if do is not None:
             return do(environ, start_response)

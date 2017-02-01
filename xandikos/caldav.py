@@ -433,6 +433,7 @@ class CalendarQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
 
+    @webdav.multistatus
     def report(self, body, resources_by_hrefs, properties, base_href,
                base_resource, depth):
         # TODO(jelmer): Verify that resource is an addressbook
@@ -627,7 +628,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}free-busy-query'
 
-    def report(self, body, resources_by_hrefs, properties, base_href,
+    def report(self, start_response, body, resources_by_hrefs, properties, base_href,
                base_resource, depth):
         requested = None
         for el in body:
@@ -650,5 +651,5 @@ class FreeBusyQueryReporter(webdav.Reporter):
             traverse_resource(base_resource, base_href, depth),
             start, end, tzify))
         ret.add_component(fb)
-        # TODO(jelmer): Return as 200 OK
-        print(ret.to_ical())
+        start_response('200 OK', [])
+        return [ret.to_ical()]

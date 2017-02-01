@@ -28,6 +28,7 @@ class MultiGetReporter(webdav.Reporter):
 
     data_property_kls = None
 
+    @webdav.multistatus
     def report(self, body, resources_by_hrefs, properties, base_href, resource,
                depth):
         # TODO(jelmer): Verify that depth == "0"
