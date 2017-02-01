@@ -843,6 +843,12 @@ class WebDAVApp(object):
         else:
             return environ['wsgi.input'].read(request_body_size)
 
+    def _readXmlBody(self, environ):
+        #TODO(jelmer): check Content-Type; should be something like
+        # 'text/xml; charset="utf-8"'
+        body = self._readBody(environ)
+        return xmlparse(body)
+
     def _get_resources_by_hrefs(self, environ, hrefs):
         """Retrieve multiple resources by href.
         """
@@ -860,9 +866,7 @@ class WebDAVApp(object):
         if r is None:
             return Status(request_uri(environ), '404 Not Found')
         depth = environ.get("HTTP_DEPTH", "0")
-        #TODO(jelmer): check Content-Type; should be something like
-        # 'text/xml; charset="utf-8"'
-        et = xmlparse(self._readBody(environ))
+        et = self._readXmlBody(environ)
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
@@ -881,9 +885,7 @@ class WebDAVApp(object):
         if base_resource is None:
             return Status(request_uri(environ), '404 Not Found')
         depth = environ.get("HTTP_DEPTH", "0")
-        #TODO(jelmer): check Content-Type; should be something like
-        # 'text/xml; charset="utf-8"'
-        et = xmlparse(self._readBody(environ))
+        et = self._readXmlBody(environ)
         if et.tag != '{DAV:}propfind':
             # TODO-ERROR(jelmer): What to return here?
             return Status(
@@ -917,7 +919,7 @@ class WebDAVApp(object):
         resource = self.backend.get_resource(environ['PATH_INFO'])
         if resource is None:
             return Status(request_uri(environ), '404 Not Found')
-        et = xmlparse(self._readBody(environ))
+        et = self._readXmlBody(environ)
         if et.tag != '{DAV:}propertyupdate':
             # TODO-ERROR(jelmer): What to return here?
             return Status(
