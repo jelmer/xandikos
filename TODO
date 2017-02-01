@@ -16,10 +16,6 @@ webdav server:
  - group-membership
  - calendar-proxy-read-for
  - calendar-proxy-write-for
- - {http://inf-it.com/ns/dav/}headervalue
-
-- reporters:
- - free-busy-query
 
 - better commit messages
 - better author data in commits
