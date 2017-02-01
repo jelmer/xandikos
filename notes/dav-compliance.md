@@ -2,6 +2,8 @@ This document aims to document the compliance with various RFCs.
 
 # rfc4918.txt (Core WebDAV) (obsoletes rfc2518)
 
+Mostly supported.
+
 ## HTTP Methods
  - PROPFIND [supported, with 'propfind' but not 'allprop' or 'propname']
  - PROPPATCH [supported]
@@ -31,7 +33,7 @@ This document aims to document the compliance with various RFCs.
  - (15.5) getcontenttype [supported]
  - (15.6) getetag [supported]
  - (15.7) getlastmodified [not supported]
- - (15.8) lockdiscovery [not supported]
+ - (15.8) lockdiscovery [supported]
  - (15.9) resourcetype [supported]
  - (15.10) supportedlock [supported]
  - (RFC2518 ONLY - 13.10) source [not supported]
@@ -112,6 +114,8 @@ Not really supported
 
 # rfc4791.txt (CalDAV)
 
+Fully supported.
+
 ## DAV Properties
  - CALDAV:calendar-description [supported]
  - CALDAV:calendar-home-set [supported]
@@ -122,7 +126,7 @@ Not really supported
  - CALDAV:min-date-time [supported]
  - CALDAV:max-date-time [supported]
  - CALDAV:max-instances [not supported]
- - CALDAV:max-atendees-per-instance [not supported]
+ - CALDAV:max-attendees-per-instance [not supported]
 
 ## HTTP Methods
  - MKCALENDAR [not supported]
@@ -130,9 +134,11 @@ Not really supported
 - DAV Reports
  - CALDAV:calendar-query [supported]
  - CALDAV:calendar-multiget [supported]
- - CALDAV:free-busy-query [not supported]
+ - CALDAV:free-busy-query [supported]
 
 # rfc6352.txt (CardDAV)
+
+Fully supported.
 
 ## DAV Properties
  - CARDDAV:addressbook-description [supported]

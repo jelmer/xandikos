@@ -40,7 +40,7 @@ from xandikos.webdav import (
     traverse_resource,
     )
 
-
+PROID = '-//Jelmer Vernooij//Xandikos//EN'
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
 
 # https://tools.ietf.org/html/rfc4791, section 4.2
@@ -590,19 +590,17 @@ def map_freebusy(comp):
         raise AssertionError('unknown status %r' % status)
 
 
-def extract_freebusy(comp):
+def extract_freebusy(comp, tzify):
     kind = map_freebusy(comp)
     if kind == 'FREE':
         return None
-    ret = vPeriod()
-    if kind != 'BUSY':
-        ret['FBTYPE'] = kind
     # TODO(jelmer): Convert to Zulu?
-    ret.start = comp['DTSTART']
     if 'DTEND' in comp:
-        ret.end = comp['DTEND']
+        ret = vPeriod((tzify(comp['DTSTART'].dt), tzify(comp['DTEND'].dt)))
     if 'DURATION' in comp:
-        ret.duration = comp['DURATION']
+        ret = vPeriod((tzify(comp['DTSTART'].dt), comp['DURATION'].dt))
+    if kind != 'BUSY':
+        ret.params['FBTYPE'] = kind
     return ret
 
 
@@ -616,7 +614,7 @@ def iter_freebusy(resources, start, end, tzify):
         for comp in c.subcomponents:
             if comp.name == 'VEVENT':
                 if apply_time_range_vevent(start, end, comp, tzify):
-                    vp = extract_freebusy(comp)
+                    vp = extract_freebusy(comp, tzify)
                     if vp is not None:
                         yield vp
 
@@ -637,17 +635,20 @@ class FreeBusyQueryReporter(webdav.Reporter):
                 requested = el
             else:
                 raise AssertionError("unexpected XML element")
+        # TODO(jelmer): Right timezone?
+        tzid = 'UTC'
+        tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
         (start, end) = _parse_time_range(requested)
         ret = ICalendar()
         ret['VERSION'] = '2.0'
-        ret['PRODID'] = '-//Jelmer Vernooij//Xandikos//EN'
+        ret['PRODID'] = PRODID
         fb = FreeBusy()
-        # TODO(jelmer): Set fb['DTSTAMP'] to utcnow
+        fb['DTSTAMP'] = vDDDTypes(datetime.datetime.now())
         fb['DTSTART'] = start
         fb['DTEND'] = end
-        fb['FREEBUSY'] = [iter_freebusy(
+        fb['FREEBUSY'] = list(iter_freebusy(
             traverse_resource(base_resource, base_href, depth),
-            start, end, tzify)]
+            start, end, tzify))
         ret.add_component(fb)
         # TODO(jelmer): Return as 200 OK
         print(ret.to_ical())
