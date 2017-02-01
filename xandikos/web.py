@@ -288,6 +288,8 @@ class CollectionSetResource(webdav.Collection):
         ret = []
         p = self.backend._map_to_file_path(self.relpath)
         for name in os.listdir(p):
+            if name.startswith('.'):
+                continue
             resource = self.get_member(name)
             ret.append((name, resource))
         return ret
