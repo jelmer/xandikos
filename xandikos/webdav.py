@@ -851,7 +851,7 @@ class WebDAVApp(object):
                 resource = self.backend.get_resource(href[len(environ['SCRIPT_NAME']):])
             yield (href, resource)
 
-    def do_REPORT(self, environ):
+    def do_REPORT(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
@@ -869,7 +869,7 @@ class WebDAVApp(object):
             return Status(request_uri(environ), '403 Forbidden',
                 error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
-            start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
+            environ, start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
             self.properties, self._request_href(environ), r, depth)
 
     @multistatus
