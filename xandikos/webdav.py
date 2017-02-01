@@ -939,8 +939,8 @@ class WebDAVApp(object):
                     handler = self.properties[propel.tag]
                 except KeyError:
                     logging.warning(
-                        'client attempted to modify unknown property %r',
-                        propel.tag)
+                        'client attempted to modify unknown property %r on %r',
+                        propel.tag, environ['PATH_INFO'])
                     propstat.append(
                         PropStatus('404 Not Found', None,
                             ET.Element(propel.tag)))
