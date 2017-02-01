@@ -429,9 +429,6 @@ def extract_tzid(cal):
     return cal.subcomponents[0]['TZID']
 
 
-def tzid_from_collection(resource):
-
-
 class CalendarQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
@@ -452,7 +449,10 @@ class CalendarQueryReporter(webdav.Reporter):
             else:
                 raise NotImplementedError(tag.name)
         if tztext is None:
-            tztext = base_resource.get_calendar_timezone()
+            try:
+                tztext = base_resource.get_calendar_timezone()
+            except KeyError:
+                tztext = None
         if tztext is not None:
             try:
                 tzid = extract_tzid(ICalendar.from_ical(tztext))
@@ -470,7 +470,7 @@ class CalendarQueryReporter(webdav.Reporter):
                 continue
             propstat = get_properties(
                 resource, properties, requested)
-            yield DAVStatus(href, '200 OK', propstat=list(propstat))
+            yield webdav.Status(href, '200 OK', propstat=list(propstat))
 
 
 class CalendarColorProperty(webdav.Property):
@@ -633,7 +633,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
                base_resource, depth):
         requested = None
         for el in body:
-            if el.tag == '{urn:ietf:params:xml:ns:caldav}time-range'
+            if el.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
                 requested = el
             else:
                 raise AssertionError("unexpected XML element")
@@ -650,4 +650,4 @@ class FreeBusyQueryReporter(webdav.Reporter):
             start, end, tzify)]
         ret.add_component(fb)
         # TODO(jelmer): Return as 200 OK
-        print(ret.to_ical()
+        print(ret.to_ical())
