@@ -74,7 +74,7 @@ class SyncCollectionReporter(webdav.Reporter):
         try:
             diff_iter = resource.iter_differences_since(old_token, new_token)
         except NotImplementedError:
-            return DAVStatus(
+            return Status(
                 href, '403 Forbidden',
                 error=ET.Element('{DAV:}sync-traversal-supported'))
 
@@ -96,7 +96,7 @@ class SyncCollectionReporter(webdav.Reporter):
                             new_resource, properties, prop.tag)
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
-            yield webdav.DAVStatus(
+            yield webdav.Status(
                 urllib.parse.urljoin(href+'/', name), propstat=propstat)
         # TODO(jelmer): This is a bit of a hack..
         yield SyncToken(new_token)
