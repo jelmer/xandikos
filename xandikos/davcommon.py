@@ -29,7 +29,7 @@ class MultiGetReporter(webdav.Reporter):
     data_property_kls = None
 
     @webdav.multistatus
-    def report(self, body, resources_by_hrefs, properties, base_href, resource,
+    def report(self, environ, body, resources_by_hrefs, properties, base_href, resource,
                depth):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an addressbook

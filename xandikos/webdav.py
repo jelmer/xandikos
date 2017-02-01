@@ -131,6 +131,16 @@ class Status(object):
         return ret
 
 
+def multistatus(req_fn):
+
+    def wrapper(self, environ, start_response, *args, **kwargs):
+        responses = req_fn(self, environ, *args, **kwargs)
+        return _send_dav_responses(start_response, responses,
+                DEFAULT_ENCODING)
+
+    return wrapper
+
+
 class Property(object):
     """Handler for listing, retrieving and updating DAV Properties."""
 
@@ -568,10 +578,11 @@ class Reporter(object):
 
     name = None
 
-    def report(self, start_response, request_body, resources_by_hrefs,
+    def report(self, environ, start_response, request_body, resources_by_hrefs,
                properties, href, resource, depth):
         """Send a report.
 
+        :param environ: wsgi environ
         :param start_response: WSGI start_response function
         :param request_body: XML Element for request body
         :param resources_by_hrefs: Function for retrieving resource by HREF
@@ -631,7 +642,7 @@ class ExpandPropertyReporter(Reporter):
         return Status(href, '200 OK', propstat=ret)
 
     @multistatus
-    def report(self, request_body, resources_by_hrefs, properties, href,
+    def report(self, environ, request_body, resources_by_hrefs, properties, href,
                resource, depth):
         return self._populate(request_body, resources_by_hrefs, properties,
                               href, resource)
@@ -718,16 +729,6 @@ def _send_dav_responses(start_response, responses, out_encoding):
     return body
 
 
-def multistatus(req_fn):
-
-    def wrapper(start_response, *args, **kwargs):
-        responses = req_fn(*args, **kwargs)
-        return _send_dav_responses(start_response, responses,
-                DEFAULT_ENCODING)
-
-    return wrapper
-
-
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
@@ -760,8 +761,7 @@ class WebDAVApp(object):
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
         # TODO(jelmer): Look up resource to determine supported methods.
-        return ([n[3:] for n in dir(self) if n.startswith('do_')] +
-                [n[4:] for n in dir(self) if n.startswith('dav_')])
+        return sorted([n[3:] for n in dir(self) if n.startswith('do_')])
 
     def _send_not_found(self, environ, start_response):
         path = request_uri(environ)
