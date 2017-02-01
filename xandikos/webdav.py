@@ -479,6 +479,9 @@ class Collection(Resource):
     def get_ctag(self):
         raise NotImplementedError(self.getctag)
 
+    def get_headervalue(self):
+        raise NotImplementedError(self.get_headervalue)
+
 
 class Principal(Resource):
     """Resource for a DAV Principal."""

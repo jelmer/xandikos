@@ -28,6 +28,7 @@ from xandikos import webdav, carddav
 class SettingsProperty(webdav.Property):
     """settings propety.
 
+    JSON settings.
     """
 
     name = '{http://inf-it.com/ns/dav/}settings'
@@ -44,7 +45,7 @@ class SettingsProperty(webdav.Property):
 class AddressbookColorProperty(webdav.Property):
     """Provides the addressbook-color property.
 
-    This is an inf-it extension.
+    Contains a RRGGBB code, similar to calendar-color.
     """
 
     name = '{http://inf-it.com/ns/ab/}addressbook-color'
@@ -54,3 +55,19 @@ class AddressbookColorProperty(webdav.Property):
 
     def get_value(self, resource, el):
         el.text = resource.get_addressbook_color()
+
+
+class HeaderValueProperty(webdav.Property):
+    """Provides the header-value property.
+
+    This behaves similar to the hrefLabel setting in caldavzap/carddavmate.
+    """
+
+
+    name = '{http://inf-it.com/ns/ab/}headervalue'
+    resource_type = webdav.COLLECTION_RESOURCE_TYPE
+    in_allprops = False
+    protected = False
+
+    def get_value(self, resource, el):
+        el.text = resource.get_headervalue()

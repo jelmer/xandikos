@@ -181,6 +181,9 @@ class StoreBasedCollection(object):
     def get_active_locks(self):
         return []
 
+    def get_headervalue(self):
+        raise KeyError
+
 
 class Collection(StoreBasedCollection,caldav.Calendar):
     """A generic WebDAV collection."""
@@ -307,6 +310,9 @@ class CollectionSetResource(webdav.Collection):
         if not os.path.isdir(p):
             raise KeyError(name)
         return self.backend.get_resource(relpath)
+
+    def get_headervalue(self):
+        raise KeyError
 
 
 class RootPage(webdav.Resource):
@@ -450,7 +456,8 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.SupportedLockProperty(),
             webdav.LockDiscoveryProperty(),
             infit.AddressbookColorProperty(),
-            infit.SettingsProperty()
+            infit.SettingsProperty(),
+            infit.HeaderValueProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

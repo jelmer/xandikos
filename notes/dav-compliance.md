@@ -188,6 +188,6 @@ Not supported
  - getctag [supported]
 
 ## inf-it properties
- - headervalue [not supported]
+ - headervalue [supported]
  - settings [supported]
  - addressbook-color [supported]
