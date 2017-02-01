@@ -27,8 +27,11 @@ import logging
 import pytz
 from xml.etree import ElementTree as ET
 
-from icalendar.cal import Calendar as ICalendar
-from icalendar.prop import vDDDTypes
+from icalendar.cal import (
+    Calendar as ICalendar,
+    FreeBusy,
+    )
+from icalendar.prop import vDDDTypes, vPeriod
 
 from xandikos import davcommon, webdav
 from xandikos.webdav import (
@@ -206,7 +209,7 @@ def apply_prop_filter(el, comp, tzify):
 
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
-            if not apply_time_range(subel, prop, tzify):
+            if not apply_time_range_prop(subel, prop, tzify):
                 return False
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
             if not apply_text_match(subel, prop):
@@ -356,9 +359,9 @@ def apply_time_range_comp(el, comp, tzify):
     return component_handler(start, end, comp, tzify)
 
 
-def apply_time_range(el, val, tzify):
+def apply_time_range_prop(el, val, tzify):
     (start, end) = _parse_time_range(el)
-    raise NotImplementedError(apply_time_range)
+    raise NotImplementedError(apply_time_range_prop)
 
 
 def apply_comp_filter(el, comp, tzify):
@@ -401,23 +404,32 @@ def apply_comp_filter(el, comp, tzify):
     return True
 
 
+def calendar_from_resource(resource):
+    try:
+        if resource.get_content_type() != 'text/calendar':
+            return None
+    except KeyError:
+        return None
+    return ICalendar.from_ical(b''.join(resource.get_body()))
+
+
 def apply_filter(el, resource, tzify):
     """Compile a filter element into a Python function.
     """
-    try:
-        if resource.get_content_type() != 'text/calendar':
-            return False
-    except KeyError:
-        return False
     if el is None:
         # Empty filter, let's not bother parsing
         return lambda x: True
-    c = ICalendar.from_ical(b''.join(resource.get_body()))
+    c = calendar_from_resource(resource)
+    if c is None:
+        return False
     return apply_comp_filter(list(el)[0], c, tzify)
 
 
 def extract_tzid(cal):
     return cal.subcomponents[0]['TZID']
+
+
+def tzid_from_collection(resource):
 
 
 class CalendarQueryReporter(webdav.Reporter):
@@ -429,22 +441,26 @@ class CalendarQueryReporter(webdav.Reporter):
         # TODO(jelmer): Verify that resource is an addressbook
         requested = None
         filter_el = None
-        tzid = None
+        tztext = None
         for el in body:
             if el.tag == '{DAV:}prop':
                 requested = el
             elif el.tag == '{urn:ietf:params:xml:ns:caldav}filter':
                 filter_el = el
             elif el.tag == '{urn:ietf:params:xml:ns:caldav}timezone':
-                tzid = extract_tzid(ICalendar.from_ical(el.text))
+                tztext = el.text
             else:
                 raise NotImplementedError(tag.name)
-        if tzid is None:
+        if tztext is None:
+            tztext = base_resource.get_calendar_timezone()
+        if tztext is not None:
             try:
-                tzid = extract_tzid(ICalendar.from_ical(base_resource.get_calendar_timezone()))
+                tzid = extract_tzid(ICalendar.from_ical(tztext))
             except KeyError:
                 # TODO(jelmer): Or perhaps the servers' local timezone?
                 tzid = 'UTC'
+        else:
+            tzid = 'UTC'
         tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
         properties = dict(properties)
         properties[CalendarDataProperty.name] = CalendarDataProperty()
@@ -554,3 +570,84 @@ class MaxDateTimeProperty(webdav.Property):
 
     def get_value(self, resource, el):
         el.text = resource.get_max_date_time()
+
+
+def map_freebusy(comp):
+    transp = comp.get('TRANSP', 'OPAQUE')
+    if transp == 'TRANSPARENT':
+        return 'FREE'
+    assert transp == 'OPAQUE', 'unknown transp %r' % transp
+    status = comp.get('STATUS', 'CONFIRMED')
+    if status == 'CONFIRMED':
+        return 'BUSY'
+    elif status == 'CANCELLED':
+        return 'FREE'
+    elif status == 'TENTATIVE':
+        return 'BUSY-TENTATIVE'
+    elif status.startswith('X-'):
+        return status
+    else:
+        raise AssertionError('unknown status %r' % status)
+
+
+def extract_freebusy(comp):
+    kind = map_freebusy(comp)
+    if kind == 'FREE':
+        return None
+    ret = vPeriod()
+    if kind != 'BUSY':
+        ret['FBTYPE'] = kind
+    # TODO(jelmer): Convert to Zulu?
+    ret.start = comp['DTSTART']
+    if 'DTEND' in comp:
+        ret.end = comp['DTEND']
+    if 'DURATION' in comp:
+        ret.duration = comp['DURATION']
+    return ret
+
+
+def iter_freebusy(resources, start, end, tzify):
+    for (href, resource) in resources:
+        c = calendar_from_resource(resource)
+        if c is None:
+            continue
+        if c.name != 'VCALENDAR':
+            continue
+        for comp in c.subcomponents:
+            if comp.name == 'VEVENT':
+                if apply_time_range_vevent(start, end, comp, tzify):
+                    vp = extract_freebusy(comp)
+                    if vp is not None:
+                        yield vp
+
+
+class FreeBusyQueryReporter(webdav.Reporter):
+    """free-busy-query reporter.
+
+    See https://tools.ietf.org/html/rfc4791, section 7.10
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}free-busy-query'
+
+    def report(self, body, resources_by_hrefs, properties, base_href,
+               base_resource, depth):
+        requested = None
+        for el in body:
+            if el.tag == '{urn:ietf:params:xml:ns:caldav}time-range'
+                requested = el
+            else:
+                raise AssertionError("unexpected XML element")
+        (start, end) = _parse_time_range(requested)
+        ret = ICalendar()
+        ret['VERSION'] = '2.0'
+        ret['PRODID'] = '-//Jelmer Vernooij//Xandikos//EN'
+        fb = FreeBusy()
+        # TODO(jelmer): Set fb['DTSTAMP'] to utcnow
+        fb['DTSTART'] = start
+        fb['DTEND'] = end
+        fb['FREEBUSY'] = [iter_freebusy(
+            traverse_resource(base_resource, base_href, depth),
+            start, end, tzify)]
+        ret.add_component(fb)
+        # TODO(jelmer): Return as 200 OK
+        print(ret.to_ical()

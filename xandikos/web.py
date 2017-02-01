@@ -440,6 +440,7 @@ class XandikosApp(webdav.WebDAVApp):
             carddav.AddressbookMultiGetReporter(),
             webdav.ExpandPropertyReporter(),
             sync.SyncCollectionReporter(),
+            carddav.FreeBusyQueryReporter(),
             ])
 
 
