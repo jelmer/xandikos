@@ -183,5 +183,5 @@ Not supported
 
 ## inf-it properties
  - headervalue [not supported]
- - settings [not supported]
+ - settings [supported]
  - addressbook-color [supported]

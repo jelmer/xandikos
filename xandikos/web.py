@@ -28,7 +28,7 @@ import functools
 import os
 import posixpath
 
-from xandikos import access, caldav, carddav, sync, webdav
+from xandikos import access, caldav, carddav, sync, webdav, infit
 from xandikos.store import (
     BareGitStore,
     GitStore,
@@ -348,6 +348,21 @@ class Principal(CollectionSetResource):
     def get_calendar_user_address_set(self):
         return USER_ADDRESS_SET
 
+    def set_infit_settings(self, settings):
+        relpath = posixpath.join(self.relpath, '.infit')
+        p = self.backend._map_to_file_path(relpath)
+        with open(p, 'w') as f:
+            f.write(settings)
+
+    def get_infit_settings(self):
+        relpath = posixpath.join(self.relpath, '.infit')
+        p = self.backend._map_to_file_path(relpath)
+        if not os.path.exists(p):
+            raise KeyError
+        with open(p, 'r') as f:
+            return f.read()
+
+
 
 @functools.lru_cache(maxsize=RESOURCE_CACHE_SIZE)
 def open_store_from_path(path):
@@ -430,9 +445,10 @@ class XandikosApp(webdav.WebDAVApp):
             access.CurrentUserPrivilegeSetProperty(),
             access.OwnerProperty(),
             webdav.CreationDateProperty(),
-            carddav.AddressbookColorProperty(),
             webdav.SupportedLockProperty(),
             webdav.LockDiscoveryProperty(),
+            infit.AddressbookColorProperty(),
+            infit.SettingsProperty()
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

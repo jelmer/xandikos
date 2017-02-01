@@ -195,18 +195,3 @@ class MaxImageSizeProperty(webdav.Property):
 
     def get_value(self, resource, el):
         el.text = str(resource.get_max_image_size())
-
-
-class AddressbookColorProperty(webdav.Property):
-    """Provides the addressbook-color property.
-
-    This is an inf-it extension.
-    """
-
-    name = '{http://inf-it.com/ns/ab/}addressbook-color'
-    resource_type = ADDRESSBOOK_RESOURCE_TYPE
-    in_allprops = False
-    protected = False
-
-    def get_value(self, resource, el):
-        el.text = resource.get_addressbook_color()

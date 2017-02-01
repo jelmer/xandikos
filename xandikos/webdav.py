@@ -482,6 +482,15 @@ class Principal(Resource):
         """
         raise NotImplementedError(self.get_principal_url)
 
+    def get_infit_settings(self):
+        """Return inf-it settings string.
+        """
+        raise NotImplementedError(self.get_infit_settings)
+
+    def set_infit_settings(self, settings):
+        """Set inf-it settings string."""
+        raise NotImplementedError(self.get_infit_settings)
+
 
 def get_property(resource, properties, name):
     """Get a single property on a resource.
