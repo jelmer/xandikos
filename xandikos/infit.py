@@ -64,7 +64,7 @@ class HeaderValueProperty(webdav.Property):
     """
 
 
-    name = '{http://inf-it.com/ns/ab/}headervalue'
+    name = '{http://inf-it.com/ns/dav/}headervalue'
     resource_type = webdav.COLLECTION_RESOURCE_TYPE
     in_allprops = False
     protected = False
