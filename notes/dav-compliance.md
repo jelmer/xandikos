@@ -181,6 +181,8 @@ Not supported
 
 ## Custom properties used by various clients
  - CARDDAV:max-image-size [supported]
+
+https://github.com/apple/ccs-calendarserver/blob/master/doc/Extensions/caldav-ctag.txt
  - DAV:getctag [supported]
 
 ## Apple-specific Properties
@@ -191,3 +193,7 @@ Not supported
  - headervalue [supported]
  - settings [supported]
  - addressbook-color [supported]
+
+# rfc5995.txt
+
+TODO
