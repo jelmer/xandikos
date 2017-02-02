@@ -146,7 +146,7 @@ class Store(object):
         for (name, etag, data) in self.iter_raw():
             if not name.endswith(ICALENDAR_EXTENSION):
                 continue
-            yield (name, etag, Calendar.from_ical(data))
+            yield (name, etag, Calendar.from_ical(b''.join(data)))
 
     def get_ctag(self):
         """Return the ctag for this store."""
@@ -275,12 +275,12 @@ class GitStore(Store):
 
         :param name: Name of the item
         :param etag: Optional etag
-        :return: raw contents
+        :return: raw contents as chunks
         """
         if etag is None:
             etag = self._get_etag(name)
         blob = self.repo.object_store[etag.encode('ascii')]
-        return blob.data
+        return blob.chunked
 
     def _scan_ids(self):
         removed = set(self._fname_to_uid.keys())

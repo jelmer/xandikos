@@ -80,6 +80,7 @@ class ObjectResource(webdav.Resource):
         self.name = name
         self.etag = etag
         self.content_type = content_type
+        self._chunked = None
 
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
@@ -87,7 +88,9 @@ class ObjectResource(webdav.Resource):
              self.content_type)
 
     def get_body(self):
-        return [self.store.get_raw(self.name, self.etag)]
+        if self._chunked is None:
+            self._chunked = self.store.get_raw(self.name, self.etag)
+        return self._chunked
 
     def set_body(self, data, replace_etag=None):
         etag = self.store.import_one(
@@ -98,7 +101,7 @@ class ObjectResource(webdav.Resource):
         return self.content_type
 
     def get_content_length(self):
-        return len(b''.join(self.get_body()))
+        return sum(map(len, self.get_body()))
 
     def get_etag(self):
         return create_strong_etag(self.etag)

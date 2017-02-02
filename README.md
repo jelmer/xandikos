@@ -6,7 +6,7 @@ in the ancient Macedonian calendar, used in Macedon in the first millennium BC.
 Supported clients
 #################
 
-Xandikos seems to work with at least with the following clients:
+Xandikos has been tested with the following clients:
 
  - vdirsyncer
  - caldavzap/carddavmate
