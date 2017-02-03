@@ -127,6 +127,7 @@ class CalendarHomeSetProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}calendar-home-set'
     resource_type = '{DAV:}principal'
     in_allprops = False
+    live = True
 
     def get_value(self, resource, el):
         for href in resource.get_calendar_home_set():
@@ -499,6 +500,7 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         for component in resource.get_supported_calendar_components():
@@ -553,6 +555,7 @@ class MinDateTimeProperty(webdav.Property):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_min_date_time()
@@ -568,6 +571,7 @@ class MaxDateTimeProperty(webdav.Property):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_max_date_time()

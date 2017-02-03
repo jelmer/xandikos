@@ -111,6 +111,7 @@ class SyncTokenProperty(webdav.Property):
     name = '{DAV:}sync-token'
     protected = True
     in_allprops = False
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_sync_token()

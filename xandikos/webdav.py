@@ -158,6 +158,9 @@ class Property(object):
     # will always be called.
     resource_type = None
 
+    # Whether this property is live (i.e set by the server)
+    live = None
+
     def get_value(self, resource, el):
         """Get property with specified name.
 
@@ -192,6 +195,8 @@ class ResourceTypeProperty(Property):
 
     resource_type = None
 
+    live = True
+
     def get_value(self, resource, el):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
@@ -222,6 +227,7 @@ class GetETagProperty(Property):
     name = '{DAV:}getetag'
     resource_type = None
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_etag()
@@ -248,6 +254,7 @@ class CreationDateProperty(Property):
     name = '{DAV:}creationdate'
     resource_type = None
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = format_datetime(resource.get_creationdate())
@@ -276,6 +283,7 @@ class CurrentUserPrincipalProperty(Property):
     name = '{DAV:}current-user-principal'
     resource_type = None
     in_allprops = False
+    live = True
 
     def __init__(self, current_user_principal):
         super(CurrentUserPrincipalProperty, self).__init__()
@@ -294,6 +302,7 @@ class PrincipalURLProperty(Property):
     name = '{DAV:}principal-URL'
     resource_type = '{DAV:}principal'
     in_allprops = True
+    live = True
 
     def get_value(self, resource, el):
         """Get property with specified name.
@@ -308,6 +317,7 @@ class SupportedReportSetProperty(Property):
     name = '{DAV:}supported-report-set'
     resource_type = '{DAV:}collection'
     in_allprops = False
+    live = True
 
     def __init__(self, reporters):
         self._reporters = reporters
@@ -326,6 +336,7 @@ class GetCTagProperty(Property):
     resource_type = COLLECTION_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_ctag()
@@ -660,6 +671,7 @@ class SupportedLockProperty(Property):
     name = '{DAV:}supportedlock'
     resource_type = None
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         for (lockscope, locktype) in resource.get_supported_locks():
@@ -679,6 +691,7 @@ class LockDiscoveryProperty(Property):
     name = '{DAV:}lockdiscovery'
     resource_type = None
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         for activelock in resource.get_active_locks():

@@ -37,6 +37,7 @@ class CurrentUserPrivilegeSetProperty(webdav.Property):
     name = '{DAV:}current-user-privilege-set'
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
        privilege = ET.SubElement(el, '{DAV:}privilege')
@@ -52,6 +53,7 @@ class OwnerProperty(webdav.Property):
 
     name = '{DAV:}owner'
     in_allprops = False
+    live = True
 
     def get_value(self, resource, el):
        owner_href = resource.get_owner()

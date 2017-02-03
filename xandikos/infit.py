@@ -34,6 +34,7 @@ class SettingsProperty(webdav.Property):
     name = '{http://inf-it.com/ns/dav/}settings'
     protected = False
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
+    live = False
 
     def get_value(self, resource, el):
         el.text = resource.get_infit_settings()
@@ -68,6 +69,7 @@ class HeaderValueProperty(webdav.Property):
     resource_type = webdav.COLLECTION_RESOURCE_TYPE
     in_allprops = False
     protected = False
+    live = False
 
     def get_value(self, resource, el):
         el.text = resource.get_headervalue()

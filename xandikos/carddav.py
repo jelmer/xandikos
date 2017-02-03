@@ -41,6 +41,7 @@ class AddressbookHomeSetProperty(webdav.Property):
     name = '{%s}addressbook-home-set' % NAMESPACE
     resource_type = '{DAV:}principal'
     in_allprops = False
+    live = True
 
     def get_value(self, resource, el):
         for href in resource.get_addressbook_home_set():
@@ -159,6 +160,7 @@ class SupportedAddressDataProperty(webdav.Property):
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         for (content_type, version) in resource.get_supported_address_data_types():
@@ -177,6 +179,7 @@ class MaxResourceSizeProperty(webdav.Property):
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = str(resource.get_max_resource_size())
@@ -192,6 +195,7 @@ class MaxImageSizeProperty(webdav.Property):
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = str(resource.get_max_image_size())
