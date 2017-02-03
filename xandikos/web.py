@@ -117,6 +117,12 @@ class ObjectResource(webdav.Resource):
     def get_owner(self):
         return None
 
+    def get_comment(self):
+        raise KeyError
+
+    def set_comment(self, comment):
+        raise NotImplementedError(self.set_comment)
+
 
 class StoreBasedCollection(object):
 
@@ -190,6 +196,12 @@ class StoreBasedCollection(object):
 
     def get_headervalue(self):
         raise KeyError
+
+    def get_comment(self):
+        return self.store.get_comment()
+
+    def set_comment(self, comment):
+        self.store.set_comment(comment)
 
 
 class Collection(StoreBasedCollection,caldav.Calendar):
@@ -320,6 +332,12 @@ class CollectionSetResource(webdav.Collection):
 
     def get_headervalue(self):
         raise KeyError
+
+    def get_comment(self):
+        raise KeyError
+
+    def set_comment(self, comment):
+        raise NotImplementedError(self.set_comment)
 
 
 class RootPage(webdav.Resource):
@@ -465,6 +483,7 @@ class XandikosApp(webdav.WebDAVApp):
             infit.AddressbookColorProperty(),
             infit.SettingsProperty(),
             infit.HeaderValueProperty(),
+            webdav.CommentProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

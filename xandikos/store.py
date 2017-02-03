@@ -226,6 +226,20 @@ class Store(object):
         """
         raise NotImplementedError(self.iter_changes)
 
+    def get_comment(self):
+        """Retrieve store comment.
+
+        :return: Comment
+        """
+        raise NotImplementedError(self.get_comment)
+
+    def set_comment(self, comment):
+        """Set comment.
+
+        :param comment: New comment to set
+        """
+        raise NotImplementedError(self.set_comment)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository.
@@ -366,6 +380,27 @@ class GitStore(Store):
         :param description: repository description as string
         """
         return self.repo.set_description(description.encode(DEFAULT_ENCODING))
+
+    def set_comment(self, comment):
+        """Set comment.
+
+        :param comment: Comment
+        """
+        config = self.repo.get_config()
+        config.set(b'xandikos', b'comment', comment.encode(DEFAULT_ENCODING))
+
+    def get_comment(self):
+        """Get comment.
+
+        :return: Comment
+        """
+        config = self.repo.get_config()
+        try:
+            comment = config.get(b'xandikos', b'comment')
+        except KeyError:
+            return None
+        else:
+            return comment.decode(DEFAULT_ENCODING)
 
     def get_color(self):
         """Get color.

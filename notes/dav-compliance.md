@@ -56,7 +56,7 @@ Broadly speaking, only features related to the REPORT method are supported.
  - MKACTIVITY [not supported]
 
 ## DAV Properties
- - DAV:comment [not supported]
+ - DAV:comment [supported]
  - DAV:creator-displayname [not supported]
  - DAV:supported-method-set [not supported]
  - DAV:supported-live-property-set [not supported]

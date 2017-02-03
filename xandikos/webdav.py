@@ -422,6 +422,20 @@ class Resource(object):
         """
         raise NotImplementedError(self.set_body)
 
+    def set_comment(self, comment):
+        """Set resource comment.
+
+        :param comment: New comment
+        """
+        raise NotImplementedError(self.set_comment)
+
+    def get_comment(self, comment):
+        """Get resource comment.
+
+        :return: comment
+        """
+        raise NotImplementedError(self.get_comment)
+
 
 class Collection(Resource):
     """Resource for a WebDAV Collection."""
@@ -714,6 +728,23 @@ class LockDiscoveryProperty(Property):
                 locktoken_el = ET.SubElement(entry, '{DAV:}lockroot')
                 href = ET.SubElement(locktoken_el, '{DAV:}href')
                 href.text = activelock.lockroot
+
+
+class CommentProperty(Property):
+    """comment property.
+
+    See RFC3253, section 3.1.1
+    """
+    name = '{DAV:}comment'
+    protected = False
+    live = False
+    in_allprops = False
+
+    def get_value(self, resource, el):
+        el.text = resource.get_comment()
+
+    def set_value(self, resource, el):
+        resource.set_comment(el.text)
 
 
 class Backend(object):
