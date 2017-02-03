@@ -196,4 +196,10 @@ https://github.com/apple/ccs-calendarserver/blob/master/doc/Extensions/caldav-ct
 
 # rfc5995.txt
 
-TODO
+Partially supported.
+
+## DAV Properties
+ - DAV:add-member [not supported]
+
+## HTTP Methods
+ - POST [supported]

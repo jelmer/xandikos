@@ -452,12 +452,13 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.delete_member)
 
-    def create_member(self, name, contents):
+    def create_member(self, name, contents, content_type):
         """Create a new member with specified name and contents.
 
-        :param name: Member name
+        :param name: Member name (can be None)
+        :param contents: Chunked contents
         :param etag: Optional required etag
-        :return: ETag for the new member
+        :return: (name, etag) for the new member
         """
         raise NotImplementedError(self.create_member)
 
@@ -822,6 +823,24 @@ class WebDAVApp(object):
         start_response('204 No Content', [])
         return []
 
+    def do_POST(self, environ, start_response):
+        # see RFC5995
+        new_contents = self._readBody(environ)
+        path = posixpath.normpath(environ['PATH_INFO'])
+        r = self.backend.get_resource(path)
+        if r is None:
+            return self._send_not_found(environ, start_response)
+        if not COLLECTION_RESOURCE_TYPE in r.resource_type:
+            start_response('405 Method Not Allowed', [])
+            return []
+        content_type = environ['HTTP_CONTENT_TYPE'].split(';')[0]
+        (name, etag) = r.create_member(None, new_contents, content_type)
+        href = environ['SCRIPT_NAME'] + urllib.parse.urljoin(path+'/', name)
+        start_response('200 OK', [
+            ('Location', href)
+            ])
+        return []
+
     def do_PUT(self, environ, start_response):
         new_contents = self._readBody(environ)
         path = posixpath.normpath(environ['PATH_INFO'])
@@ -839,10 +858,12 @@ class WebDAVApp(object):
             start_response('204 No Content', [
                 ('ETag', new_etag)])
             return []
+        content_type = environ.get('HTTP_CONTENT_TYPE')
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)
         if r is not None:
-            new_etag = r.create_member(name, [new_contents])
+            (new_name, new_etag) = r.create_member(
+                name, [new_contents], content_type)
             start_response('201 Created', [
                 ('ETag', new_etag)])
             return []

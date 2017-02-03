@@ -172,7 +172,7 @@ class WebTests(unittest.TestCase):
         code, headers, contents = self.lock(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertIn(
-            ('Allow', 'DELETE, GET, MKCOL, OPTIONS, PROPFIND, PROPPATCH, PUT, REPORT'),
+            ('Allow', 'DELETE, GET, MKCOL, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT'),
             headers)
         self.assertEqual(b'', contents)
 

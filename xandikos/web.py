@@ -25,8 +25,10 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import functools
+import mimetypes
 import os
 import posixpath
+import uuid
 
 from xandikos import access, caldav, carddav, sync, webdav, infit
 from xandikos.store import (
@@ -158,7 +160,9 @@ class StoreBasedCollection(object):
     def delete_member(self, name, etag=None):
         self.store.delete_one(name, extract_strong_etag(etag))
 
-    def create_member(self, name, contents):
+    def create_member(self, name, contents, content_type):
+        if name is None:
+            name = str(uuid.uuid4()) + mimetypes.get_extension(content_type)
         etag = self.store.import_one(name, b''.join(contents))
         return create_strong_etag(etag)
 
