@@ -7,3 +7,4 @@ MANIFEST
 .*.sw?
 .coverage
 htmlcov/
+dist
