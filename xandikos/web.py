@@ -123,6 +123,10 @@ class ObjectResource(webdav.Resource):
     def set_comment(self, comment):
         raise NotImplementedError(self.set_comment)
 
+    def get_creationdate(self):
+        # TODO(jelmer): Find creation date using store function
+        raise KeyError
+
 
 class StoreBasedCollection(object):
 
@@ -202,6 +206,10 @@ class StoreBasedCollection(object):
 
     def set_comment(self, comment):
         self.store.set_comment(comment)
+
+    def get_creationdate(self):
+        # TODO(jelmer): Find creation date using store function
+        raise KeyError
 
 
 class Collection(StoreBasedCollection,caldav.Calendar):
