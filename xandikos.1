@@ -1,6 +1,13 @@
 .TH XANDIKOS "1" "February 2017" "xandikos 0.0.1" "User Commands"
 .SH NAME
 xandikos \- CalDAV/CardDAV server
+.SH DESCRIPTION
+.PP
+Xandikos is a CalDAV/CardDAV application that stores its data in a Git
+repository.
+.PP
+The xandidos command-line tool starts a simple server instance, without
+authentication.
 .SH SYNOPSIS
 .B xandikos
 \fI\,-d ROOT-DIR \/\fR[\fI\,OPTIONS\/\fR]
@@ -26,5 +33,10 @@ Path to current user principal.
 .TP
 \fB\-\-dav\-root\fR=\fI\,DAV_ROOT\/\fR
 Path to DAV root.
+.SH SEE ALSO
+.BR calypso(1)
+.BR vdirsyncer(1)
 .SH AUTHOR
 Xandikos was written by Jelmer Vernooĳ <jelmer@jelmer.uk>
+.SH LICENSE
+GNU General Public License, version 3 or later.
