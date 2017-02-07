@@ -952,8 +952,7 @@ class WebDAVApp(object):
         # Default depth is infinity, per RFC2518
         depth = environ.get("HTTP_DEPTH", "infinity")
         if 'CONTENT_TYPE' not in environ and environ.get('CONTENT_LENGTH') == '0':
-            et = ET.Element('{DAV:}propfind')
-            ET.SubElement(et, '{DAV:}allprop')
+            requested = ET.Element('{DAV:}allprop')
         else:
             et = self._readXmlBody(environ)
             if et.tag != '{DAV:}propfind':
@@ -982,8 +981,10 @@ class WebDAVApp(object):
             for href, resource in traverse_resource(
                     base_resource, self._request_href(environ), depth):
                 propstat = []
-                for prop in self.properties:
-                    propstat.append(get_property(resource, self.properties, prop.name))
+                for name in self.properties:
+                    ps = get_property(resource, self.properties, name)
+                    if ps.statuscode == '200 OK':
+                        propstat.append(ps)
                 ret.append(Status(href, '200 OK', propstat=propstat))
             return ret
         elif requested.tag == '{DAV:}propname':
@@ -991,8 +992,10 @@ class WebDAVApp(object):
             for href, resource in traverse_resource(
                     base_resource, self._request_href(environ), depth):
                 propstat = []
-                for prop in self.properties:
-                    propstat.append(ET.Element(prop.name))
+                for name in self.properties:
+                    ps = get_property(resource, self.properties, name)
+                    if ps.statuscode == '200 OK':
+                        propstat.append(ET.Element(name))
                 ret.append(Status(href, '200 OK', propstat=propstat))
             return ret
         else:
