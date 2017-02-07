@@ -510,7 +510,7 @@ class WellknownRedirector(object):
         return self._inner_app(environ, start_response)
 
 
-if __name__ == '__main__':
+def main(argv):
     import optparse
     import sys
     parser = optparse.OptionParser()
@@ -530,7 +530,7 @@ if __name__ == '__main__':
     parser.add_option("--dav-root",
                       default="/",
                       help="Path to DAV root.")
-    options, args = parser.parse_args(sys.argv)
+    options, args = parser.parse_args(argv)
 
     if options.directory is None:
         parser.print_usage()
@@ -544,3 +544,7 @@ if __name__ == '__main__':
     app = WellknownRedirector(app)
     server = make_server(options.listen_address, options.port, app)
     server.serve_forever()
+
+
+if __name__ == '__main__':
+    main(sys.argv)

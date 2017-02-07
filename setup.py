@@ -33,6 +33,7 @@ setup(name="xandikos",
       url="https://www.jelmer.uk/projects/xandikos",
       requires=['icalendar', 'dulwich', 'defusedxml'],
       packages=['xandikos'],
+      scripts=['bin/xandikos'],
       classifiers=[
           'Development Status :: 4 - Beta',
           'License :: OSI Approved :: GNU General Public License v3 or later (GPLv2+)',
