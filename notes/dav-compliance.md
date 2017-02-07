@@ -5,7 +5,7 @@ This document aims to document the compliance with various RFCs.
 Mostly supported.
 
 ## HTTP Methods
- - PROPFIND [supported, with 'propfind' but not 'allprop' or 'propname']
+ - PROPFIND [supported]
  - PROPPATCH [supported]
  - MKCOL [supported]
  - DELETE [supported]

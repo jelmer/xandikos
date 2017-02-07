@@ -949,7 +949,8 @@ class WebDAVApp(object):
         base_resource = self.backend.get_resource(environ['PATH_INFO'])
         if base_resource is None:
             return Status(request_uri(environ), '404 Not Found')
-        depth = environ.get("HTTP_DEPTH", "0")
+        # Default depth is infinity, per RFC2518
+        depth = environ.get("HTTP_DEPTH", "infinity")
         et = self._readXmlBody(environ)
         if et.tag != '{DAV:}propfind':
             # TODO-ERROR(jelmer): What to return here?
@@ -959,7 +960,7 @@ class WebDAVApp(object):
         try:
             [requested] = et
         except IndexError:
-            return Status(request_uri(environ), '500 Internal Error',
+            return Status(request_uri(environ), '400 Bad Request',
                 'Received more than one element in propfind.')
         if requested.tag == '{DAV:}prop':
             ret = []
@@ -972,12 +973,30 @@ class WebDAVApp(object):
             # '200 OK' here if Depth=0, but the RFC is not super clear and
             # some clients don't seem to like it .
             return ret
+        elif requested.tag == '{DAV:}allprop':
+            ret = []
+            for href, resource in traverse_resource(
+                    base_resource, self._request_href(environ), depth):
+                propstat = []
+                for prop in self.properties:
+                    propstat.append(get_property(resource, self.properties, prop.name))
+                ret.append(Status(href, '200 OK', propstat=propstat))
+            return ret
+        elif requested.tag == '{DAV:}propname':
+            ret = []
+            for href, resource in traverse_resource(
+                    base_resource, self._request_href(environ), depth):
+                propstat = []
+                for prop in self.properties:
+                    propstat.append(ET.Element(prop.name))
+                ret.append(Status(href, '200 OK', propstat=propstat))
+            return ret
         else:
             # TODO(jelmer): implement allprop and propname
             # TODO-ERROR(jelmer): What to return here?
             return Status(
-                request_uri(environ), '500 Internal Error',
-                'Expected prop tag, got ' + requested.tag)
+                request_uri(environ), '400 Bad Request',
+                'Expected prop/allprop/propname tag, got ' + requested.tag)
 
     @multistatus
     def do_PROPPATCH(self, environ):
