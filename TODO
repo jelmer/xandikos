@@ -20,6 +20,4 @@ webdav server:
 - better commit messages
 - better author data in commits
 
-- coverage
-
 - improve performance
