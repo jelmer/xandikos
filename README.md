@@ -14,3 +14,4 @@ Xandikos has been tested with the following clients:
  - davdroid
  - sogo connector for Icedove/Thunderbird
  - aCALdav syncer for Android
+ - pycardsyncer
