@@ -109,6 +109,7 @@ class SyncTokenProperty(webdav.Property):
     """
 
     name = '{DAV:}sync-token'
+    resource_type = webdav.COLLECTION_RESOURCE_TYPE
     protected = True
     in_allprops = False
     live = True
