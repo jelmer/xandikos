@@ -513,7 +513,8 @@ class WellknownRedirector(object):
 def main(argv):
     import optparse
     import sys
-    parser = optparse.OptionParser()
+    from xandikos import __version__
+    parser = optparse.OptionParser(version='.'.join(map(str, __version__)))
     parser.usage = "%prog -d ROOT-DIR [OPTIONS]"
     parser.add_option("-l", "--listen_address", dest="listen_address",
                       default="localhost",
@@ -547,4 +548,5 @@ def main(argv):
 
 
 if __name__ == '__main__':
+    import sys
     main(sys.argv)
