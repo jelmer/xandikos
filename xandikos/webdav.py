@@ -902,7 +902,7 @@ class WebDAVApp(object):
 
     def _readBody(self, environ):
         try:
-            request_body_size = int(environ['CONTENT_LENGTH'])
+            request_body_size = int(environ['HTTP_CONTENT_LENGTH'])
         except KeyError:
             return environ['wsgi.input'].read()
         else:
@@ -951,17 +951,21 @@ class WebDAVApp(object):
             return Status(request_uri(environ), '404 Not Found')
         # Default depth is infinity, per RFC2518
         depth = environ.get("HTTP_DEPTH", "infinity")
-        et = self._readXmlBody(environ)
-        if et.tag != '{DAV:}propfind':
-            # TODO-ERROR(jelmer): What to return here?
-            return Status(
-                request_uri(environ), '500 Internal Error',
-                'Expected propfind tag, got ' + et.tag)
-        try:
-            [requested] = et
-        except IndexError:
-            return Status(request_uri(environ), '400 Bad Request',
-                'Received more than one element in propfind.')
+        if 'HTTP_CONTENT_TYPE' not in environ and environ.get('HTTP_CONTENT_LENGTH') == '0':
+            et = ET.Element('{DAV:}propfind')
+            ET.SubElement(et, '{DAV:}allprop')
+        else:
+            et = self._readXmlBody(environ)
+            if et.tag != '{DAV:}propfind':
+                # TODO-ERROR(jelmer): What to return here?
+                return Status(
+                    request_uri(environ), '500 Internal Error',
+                    'Expected propfind tag, got ' + et.tag)
+            try:
+                [requested] = et
+            except IndexError:
+                return Status(request_uri(environ), '400 Bad Request',
+                    'Received more than one element in propfind.')
         if requested.tag == '{DAV:}prop':
             ret = []
             for href, resource in traverse_resource(
