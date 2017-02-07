@@ -593,7 +593,7 @@ def traverse_resource(base_resource, base_href, depth):
         elif depth == "1":
             nextdepth = "0"
         elif depth == "infinity":
-            nextdepth == "infinity"
+            nextdepth = "infinity"
         else:
             raise AssertionError("invalid depth %r" % depth)
         if COLLECTION_RESOURCE_TYPE in base_resource.resource_types:
