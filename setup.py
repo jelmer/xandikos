@@ -32,4 +32,14 @@ setup(name="xandikos",
       license="Apache v2 or later",
       url="https://www.jelmer.uk/projects/xandikos",
       requires=['icalendar', 'dulwich', 'defusedxml'],
-      packages=['xandikos'])
+      packages=['xandikos'],
+      classifiers=[
+          'Development Status :: 4 - Beta',
+          'License :: OSI Approved :: GNU General Public License v3 or later (GPLv2+)',
+          'Programming Language :: Python :: 3.4',
+          'Programming Language :: Python :: 3.5',
+          'Programming Language :: Python :: 3.6',
+          'Programming Language :: Python :: Implementation :: CPython',
+          'Programming Language :: Python :: Implementation :: PyPy',
+          'Operating System :: POSIX',
+      ])
