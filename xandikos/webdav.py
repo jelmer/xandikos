@@ -864,7 +864,7 @@ class WebDAVApp(object):
         if not COLLECTION_RESOURCE_TYPE in r.resource_type:
             start_response('405 Method Not Allowed', [])
             return []
-        content_type = environ['HTTP_CONTENT_TYPE'].split(';')[0]
+        content_type = environ['CONTENT_TYPE'].split(';')[0]
         (name, etag) = r.create_member(None, new_contents, content_type)
         href = environ['SCRIPT_NAME'] + urllib.parse.urljoin(path+'/', name)
         start_response('200 OK', [
@@ -889,7 +889,7 @@ class WebDAVApp(object):
             start_response('204 No Content', [
                 ('ETag', new_etag)])
             return []
-        content_type = environ.get('HTTP_CONTENT_TYPE')
+        content_type = environ.get('CONTENT_TYPE')
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)
         if r is not None:
@@ -902,7 +902,7 @@ class WebDAVApp(object):
 
     def _readBody(self, environ):
         try:
-            request_body_size = int(environ['HTTP_CONTENT_LENGTH'])
+            request_body_size = int(environ['CONTENT_LENGTH'])
         except KeyError:
             return environ['wsgi.input'].read()
         else:
@@ -951,7 +951,7 @@ class WebDAVApp(object):
             return Status(request_uri(environ), '404 Not Found')
         # Default depth is infinity, per RFC2518
         depth = environ.get("HTTP_DEPTH", "infinity")
-        if 'HTTP_CONTENT_TYPE' not in environ and environ.get('HTTP_CONTENT_LENGTH') == '0':
+        if 'CONTENT_TYPE' not in environ and environ.get('CONTENT_LENGTH') == '0':
             et = ET.Element('{DAV:}propfind')
             ET.SubElement(et, '{DAV:}allprop')
         else:
