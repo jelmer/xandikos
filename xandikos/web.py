@@ -133,6 +133,10 @@ class StoreBasedCollection(object):
     def __init__(self, store):
         self.store = store
 
+    def __repr__(self):
+        return "%s(%r)" % (
+            type(self).__name__, self.store)
+
     def _get_resource(self, name, etag):
         return ObjectResource(
             self.store, name, etag, self._object_content_type)
@@ -212,7 +216,7 @@ class StoreBasedCollection(object):
         raise KeyError
 
 
-class Collection(StoreBasedCollection,caldav.Calendar):
+class Collection(StoreBasedCollection,webdav.Collection):
     """A generic WebDAV collection."""
 
     _object_content_type = 'application/unknown'

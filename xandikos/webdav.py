@@ -929,7 +929,7 @@ class WebDAVApp(object):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
-            return Status(request_uri(environ), '404 Not Found')
+            return self._send_not_found(environ, start_response)
         depth = environ.get("HTTP_DEPTH", "0")
         et = self._readXmlBody(environ)
         try:
