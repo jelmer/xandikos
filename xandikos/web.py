@@ -42,7 +42,7 @@ from xandikos.store import (
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 
-RESOURCE_CACHE_SIZE = 128
+STORE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
 CALENDAR_HOME = 'calendars'
 ADDRESSBOOK_HOME = 'contacts'
@@ -405,7 +405,7 @@ class Principal(CollectionSetResource):
 
 
 
-@functools.lru_cache(maxsize=RESOURCE_CACHE_SIZE)
+@functools.lru_cache(maxsize=STORE_CACHE_SIZE)
 def open_store_from_path(path):
     return GitStore.open_from_path(path)
 
