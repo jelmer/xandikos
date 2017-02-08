@@ -21,8 +21,8 @@ Xandikos has been tested and works with the following clients:
 Help
 ====
 
-There is a *#xandikos* IRC channel on the [Freenode](https://www.freenode.net/), and a
-[xandikos](https://groups.google.com/forum/#!forum/xandikos)
+There is a *#xandikos* IRC channel on the [Freenode](https://www.freenode.net/)
+IRC network, and a [xandikos](https://groups.google.com/forum/#!forum/xandikos)
 mailing list.
 
 Dependencies
