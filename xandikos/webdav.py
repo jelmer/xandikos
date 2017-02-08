@@ -958,7 +958,7 @@ class WebDAVApp(object):
                 et.tag)
             return _send_simple_dav_error(environ, start_response,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
-        if not reporter.supported_on(r): 
+        if not reporter.supported_on(r):
             return _send_simple_dav_error(environ, start_response,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
@@ -1102,7 +1102,7 @@ class WebDAVApp(object):
             dav_features = self._get_dav_features(r)
             headers.append(('DAV', ', '.join(dav_features)))
             allowed_methods = self._get_allowed_methods(environ)
-            headers.append(('Allow', ', '.join(r)))
+            headers.append(('Allow', ', '.join(allowed_methods)))
 
         # RFC7231 requires that if there is no response body,
         # Content-Length: 0 must be sent. This implies that there is
