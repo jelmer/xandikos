@@ -819,11 +819,11 @@ class WebDAVApp(object):
         for r in reporters:
             self.reporters[r.name] = r
 
-    def _get_dav_features(self, environ):
+    def _get_dav_features(self, resource):
         # TODO(jelmer): Support access-control
         return ['1', '2', '3', 'calendar-access', 'addressbook']
 
-    def _get_allowed_methods(self, environ):
+    def _get_allowed_methods(self, resource):
         """List of supported methods on this endpoint."""
         # TODO(jelmer): Look up resource to determine supported methods.
         return sorted([n[3:] for n in dir(self) if n.startswith('do_')])
@@ -1092,13 +1092,21 @@ class WebDAVApp(object):
         return []
 
     def do_OPTIONS(self, environ, start_response):
+        headers = []
+        if environ['PATH_INFO'] != '*':
+            r = self.backend.get_resource(environ['PATH_INFO'])
+            if r is None:
+                return self._send_not_found(environ, start_response)
+            dav_features = self._get_dav_features(r)
+            headers.append(('DAV', ', '.join(dav_features)))
+            allowed_methods = self._get_allowed_methods(environ)
+            headers.append(('Allow', ', '.join(r)))
+
         # RFC7231 requires that if there is no response body,
         # Content-Length: 0 must be sent. This implies that there is
         # content (albeit empty), and thus a 204 is not a valid reply.
         # Thunderbird also fails if a 204 is sent rather than a 200.
-        start_response('200 OK', [
-            ('DAV', ', '.join(self._get_dav_features(environ))),
-            ('Allow', ', '.join(self._get_allowed_methods(environ))),
+        start_response('200 OK', headers + [
             ('Content-Length', '0')])
         return []
 
