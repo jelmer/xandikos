@@ -178,7 +178,7 @@ class StoreBasedCollection(object):
         if name is None:
             name = str(uuid.uuid4()) + mimetypes.get_extension(content_type)
         etag = self.store.import_one(name, b''.join(contents))
-        return create_strong_etag(etag)
+        return (name, create_strong_etag(etag))
 
     def iter_differences_since(self, old_token, new_token):
         for (name, old_etag, new_etag) in self.store.iter_changes(

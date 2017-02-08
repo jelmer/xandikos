@@ -188,7 +188,7 @@ class CalendarDataProperty(webdav.Property):
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
-
+    resource_type = CALENDAR_RESOURCE_TYPE
     data_property_kls = CalendarDataProperty
 
 
@@ -433,6 +433,7 @@ def extract_tzid(cal):
 class CalendarQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
+    resource_type = CALENDAR_RESOURCE_TYPE
 
     @webdav.multistatus
     def report(self, environ, body, resources_by_hrefs, properties, base_href,
@@ -631,6 +632,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}free-busy-query'
+    resource_type = CALENDAR_RESOURCE_TYPE
 
     def report(self, environ, start_response, body, resources_by_hrefs, properties, base_href,
                base_resource, depth):

@@ -323,8 +323,9 @@ class SupportedReportSetProperty(Property):
         self._reporters = reporters
 
     def get_value(self, resource, el):
-        for name in self._reporters:
-            ET.SubElement(el, name)
+        for name, reporter in self._reporters.items():
+            if reporter.supported_on(resource):
+                ET.SubElement(el, name)
 
 
 class GetCTagProperty(Property):
@@ -607,6 +608,17 @@ class Reporter(object):
 
     name = None
 
+    resource_type = None
+
+    def supported_on(self, resource):
+        """Check if this reporter is available for the specified resource.
+
+        :param resource: Resource to check for
+        :return: boolean indicating whether this reporter is available
+        """
+        return (self.resource_type is None or
+                self.resource_type in resource.resource_types)
+
     def report(self, environ, start_response, request_body, resources_by_hrefs,
                properties, href, resource, depth):
         """Send a report.
@@ -777,6 +789,11 @@ def _send_dav_responses(start_response, responses, out_encoding):
     return body
 
 
+def _send_simple_dav_error(environ, start_response, statuscode, error):
+    status = Status(request_uri(environ), statuscode, error)
+    return _send_dav_responses(start_response, status, DEFAULT_ENCODING)
+
+
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
@@ -935,11 +952,13 @@ class WebDAVApp(object):
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
-            logging.warning(
-                'Client requested unkown REPORT %s',
+            logging.warning( 'Client requested unknown REPORT %s',
                 et.tag)
-            return Status(request_uri(environ), '403 Forbidden',
-                error=ET.Element('{DAV:}supported-report'))
+            return self._send_simple_dav_error(environ, start_response,
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
+        if not reporter.supported_on(r): 
+            return self._send_simple_dav_error(environ, start_response,
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
             environ, start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
             self.properties, self._request_href(environ), r, depth)

@@ -84,7 +84,7 @@ class AddressbookDescriptionProperty(webdav.Property):
 class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
 
     name = '{%s}addressbook-multiget' % NAMESPACE
-
+    resource_type = ADDRESSBOOK_RESOURCE_TYPE
     data_property_kls = AddressDataProperty
 
 
