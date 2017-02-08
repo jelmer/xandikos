@@ -10,7 +10,7 @@ webdav server:
 - support returning components in calendar-data
 - support returning components in addressbook-data
 
-- use full hrefs (For thunderbird)
+- use proper hrefs (i.e. urlencode) (For thunderbird)
 
 - properties:
  - group-membership

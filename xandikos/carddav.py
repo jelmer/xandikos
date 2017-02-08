@@ -45,7 +45,7 @@ class AddressbookHomeSetProperty(webdav.Property):
 
     def get_value(self, resource, el):
         for href in resource.get_addressbook_home_set():
-            ET.SubElement(el, '{DAV:}href').text = href
+            el.append(webdav.create_href_element(href))
 
 
 class AddressDataProperty(webdav.Property):
@@ -147,7 +147,8 @@ class PrincipalAddressProperty(webdav.Property):
     in_allprops = False
 
     def get_value(self, resource, el):
-        ET.SubElement(el, '{DAV:}href').text = resource.get_principal_address()
+        el.append(webdav.create_href_element(
+            resource.get_principal_address()))
 
 
 class SupportedAddressDataProperty(webdav.Property):

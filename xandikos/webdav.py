@@ -117,7 +117,7 @@ class Status(object):
 
     def aselement(self):
         ret = ET.Element('{DAV:}response')
-        ET.SubElement(ret, '{DAV:}href').text = self.href
+        ret.append(create_href_element(self.href))
         if self.status:
             ET.SubElement(ret, '{DAV:}status').text = 'HTTP/1.1 ' + self.status
         if self.error:
@@ -294,7 +294,7 @@ class CurrentUserPrincipalProperty(Property):
 
         :param name: A property name.
         """
-        ET.SubElement(el, '{DAV:}href').text = self.current_user_principal
+        el.append(create_href_element(self.current_user_principal))
 
 
 class PrincipalURLProperty(Property):
@@ -309,7 +309,7 @@ class PrincipalURLProperty(Property):
 
         :param name: A property name.
         """
-        ET.SubElement(el, '{DAV:}href').text = resource.get_principal_url()
+        el.append(create_href_element(resource.get_principal_url()))
 
 
 class SupportedReportSetProperty(Property):
@@ -636,6 +636,16 @@ class Reporter(object):
         raise NotImplementedError(self.report)
 
 
+def create_href_element(href):
+    et = ET.Element('{DAV:}href')
+    et.text = urllib.parse.quote(href)
+    return et
+
+
+def read_href_element(et):
+    return urllib.parse.unquote(et.text)
+
+
 class ExpandPropertyReporter(Reporter):
     """A expand-property reporter.
 
@@ -661,21 +671,24 @@ class ExpandPropertyReporter(Reporter):
             # FIXME: Resolve prop_name on resource
             propstat = get_property(resource, properties, prop_name)
             new_prop = ET.Element(propstat.prop.tag)
-            child_hrefs = [prop_child.text for prop_child in propstat.prop
-                           if prop_child.tag == '{DAV:}href']
+            child_hrefs = [
+                read_href_element(prop_child)
+                for prop_child in propstat.prop
+                if prop_child.tag == '{DAV:}href']
             child_resources = resources_by_hrefs(child_hrefs)
             for prop_child in propstat.prop:
                 if prop_child.tag != '{DAV:}href':
                     new_prop.append(prop_child)
                 else:
-                    child_resource = child_resources[prop_child.text]
+                    child_href = read_href_element(prop_child)
+                    child_resource = child_resources[child_href]
                     if child_resource is None:
                         # FIXME: What to do if the referenced href is invalid?
                         # For now, let's just keep the unresolved href around
                         new_prop.append(prop_child)
                     else:
                         response = self._populate(
-                            prop, properties, prop_child.text, child_resource)
+                            prop, properties, child_href, child_resource)
                         new_prop.append(response.aselement())
             propstat = PropStatus(
                 propstat.statuscode, propstat.responsedescription, prop=new_prop)
@@ -734,12 +747,10 @@ class LockDiscoveryProperty(Property):
                 ET.SubElement(entry, '{DAV:}timeout').text = activelock.timeout
             if activelock.locktoken:
                 locktoken_el = ET.SubElement(entry, '{DAV:}locktoken')
-                href = ET.SubElement(locktoken_el, '{DAV:}href')
-                href.text = activelock.locktoken
+                locktoken_el.append(create_href_element(activelock.locktoken))
             if activelock.lockroot:
-                locktoken_el = ET.SubElement(entry, '{DAV:}lockroot')
-                href = ET.SubElement(locktoken_el, '{DAV:}href')
-                href.text = activelock.lockroot
+                lockroot_el = ET.SubElement(entry, '{DAV:}lockroot')
+                lockroot_el.append(create_href_element(activelock.lockroot))
 
 
 class CommentProperty(Property):

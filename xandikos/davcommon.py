@@ -39,7 +39,7 @@ class MultiGetReporter(webdav.Reporter):
             if el.tag == '{DAV:}prop':
                 requested = el
             elif el.tag == '{DAV:}href':
-                hrefs.append(el.text)
+                hrefs.append(webdav.read_href_element(el))
             else:
                 raise NotImplementedError(tag.name)
         properties = dict(properties)

@@ -131,7 +131,7 @@ class CalendarHomeSetProperty(webdav.Property):
 
     def get_value(self, resource, el):
         for href in resource.get_calendar_home_set():
-            ET.SubElement(el, '{DAV:}href').text = href
+            el.append(webdav.create_href_element(href))
 
 
 class CalendarUserAddressSetProperty(webdav.Property):
@@ -146,7 +146,7 @@ class CalendarUserAddressSetProperty(webdav.Property):
 
     def get_value(self, resource, el):
         for href in resource.get_calendar_user_address_set():
-            ET.SubElement(el, '{DAV:}href').text = href
+            el.append(webdav.create_href_element(href))
 
 
 class CalendarDescriptionProperty(webdav.Property):
