@@ -30,7 +30,7 @@ import os
 import posixpath
 import uuid
 
-from xandikos import access, caldav, carddav, sync, webdav, infit
+from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling
 from xandikos.store import (
     BareGitStore,
     GitStore,
@@ -44,8 +44,8 @@ WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDD
 
 STORE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
-CALENDAR_HOME = 'calendars'
-ADDRESSBOOK_HOME = 'contacts'
+CALENDAR_HOME_SET = ['calendars']
+ADDRESSBOOK_HOME_SET = ['contacts']
 USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 
 ROOT_PAGE_CONTENTS = b"""\
@@ -99,6 +99,9 @@ class ObjectResource(webdav.Resource):
             self.name, b''.join(data), extract_strong_etag(replace_etag))
         return create_strong_etag(etag)
 
+    def get_content_language(self):
+        raise KeyError
+
     def get_content_type(self):
         return self.content_type
 
@@ -125,6 +128,10 @@ class ObjectResource(webdav.Resource):
 
     def get_creationdate(self):
         # TODO(jelmer): Find creation date using store function
+        raise KeyError
+
+    def get_last_modified(self):
+        # TODO(jelmer): Find last modified time using store function
         raise KeyError
 
 
@@ -215,6 +222,13 @@ class StoreBasedCollection(object):
         # TODO(jelmer): Find creation date using store function
         raise KeyError
 
+    def get_last_modified(self):
+        # TODO(jelmer): Find last modified time using store function
+        raise KeyError
+
+    def get_content_type(self):
+        return 'httpd/unix-directory'
+
 
 class Collection(StoreBasedCollection,webdav.Collection):
     """A generic WebDAV collection."""
@@ -254,10 +268,6 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
         return [('text/calendar', '1.0'),
                 ('text/calendar', '2.0')]
 
-    def get_content_type(self):
-        # TODO
-        raise KeyError
-
     def get_max_date_time(self):
         return "99991231T235959Z"
 
@@ -268,10 +278,6 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
 class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
 
     _object_content_type = 'text/vcard'
-
-    def get_content_type(self):
-        # TODO
-        raise KeyError
 
     def get_addressbook_description(self):
         return self.store.get_description()
@@ -351,6 +357,13 @@ class CollectionSetResource(webdav.Collection):
     def set_comment(self, comment):
         raise NotImplementedError(self.set_comment)
 
+    def get_content_type(self):
+        return 'httpd/unix-directory'
+
+    def get_last_modified(self):
+        # TODO(jelmer): Find last modified time using store function
+        raise KeyError
+
 
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
@@ -385,10 +398,10 @@ class Principal(CollectionSetResource):
         return self.path
 
     def get_calendar_home_set(self):
-        return [CALENDAR_HOME]
+        return CALENDAR_HOME_SET
 
     def get_addressbook_home_set(self):
-        return [ADDRESSBOOK_HOME]
+        return ADDRESSBOOK_HOME_SET
 
     def get_calendar_user_address_set(self):
         return USER_ADDRESS_SET
@@ -469,8 +482,9 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.DisplayNameProperty(),
             webdav.GetETagProperty(),
             webdav.GetContentTypeProperty(),
+            webdav.GetContentLengthProperty(),
+            webdav.GetContentLanguageProperty(),
             caldav.CalendarHomeSetProperty(),
-            caldav.CalendarUserAddressSetProperty(),
             carddav.AddressbookHomeSetProperty(),
             caldav.CalendarDescriptionProperty(),
             caldav.CalendarColorProperty(),
@@ -496,6 +510,11 @@ class XandikosApp(webdav.WebDAVApp):
             infit.SettingsProperty(),
             infit.HeaderValueProperty(),
             webdav.CommentProperty(),
+            scheduling.CalendarUserAddressSetProperty(),
+            scheduling.ScheduleInboxURLProperty(),
+            scheduling.ScheduleOutboxURLProperty(),
+            scheduling.CalendarUserTypeProperty(),
+            webdav.GetLastModifiedProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
@@ -508,16 +527,18 @@ class XandikosApp(webdav.WebDAVApp):
 
 
 class WellknownRedirector(object):
+    """Redirect paths under .well-known/ to the appropriate paths."""
 
-    def __init__(self, inner_app):
+    def __init__(self, inner_app, dav_root):
         self._inner_app = inner_app
+        self._dav_root = dav_root
 
     def __call__(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc6764
         if ((environ['SCRIPT_NAME'] + environ['PATH_INFO'])
                 in WELLKNOWN_DAV_PATHS):
             start_response('302 Found', [
-                ('Location', options.dav_root)])
+                ('Location', self._dav_root)])
             return []
         return self._inner_app(environ, start_response)
 
@@ -554,7 +575,7 @@ def main(argv):
         current_user_principal=options.current_user_principal)
 
     from wsgiref.simple_server import make_server
-    app = WellknownRedirector(app)
+    app = WellknownRedirector(app, options.dav_root)
     server = make_server(options.listen_address, options.port, app)
     server.serve_forever()
 

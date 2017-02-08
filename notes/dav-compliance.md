@@ -28,11 +28,11 @@ Mostly supported.
 ## DAV Properties
  - (15.1) creationdate [supported]
  - (15.2) displayname [supported]
- - (15.3) getcontentlanguage [not supported]
+ - (15.3) getcontentlanguage [supported]
  - (15.4) getcontentlength [supported]
  - (15.5) getcontenttype [supported]
  - (15.6) getetag [supported]
- - (15.7) getlastmodified [not supported]
+ - (15.7) getlastmodified [supported]
  - (15.8) lockdiscovery [supported]
  - (15.9) resourcetype [supported]
  - (15.10) supportedlock [supported]
@@ -97,7 +97,7 @@ Not really supported
  - DAV:principal-URL [supported]
  - DAV:group-member-set [not supported]
  - DAV:group-membership [not supported]
- - DAV:owner [not supported]
+ - DAV:owner [supported]
  - DAV:group [not supported]
  - DAV:current-user-privilege-set [supported]
  - DAV:supported-privilege-set [not supported]
@@ -154,10 +154,10 @@ Fully supported.
 # rfc6638.txt (CardDAV scheduling extensions)
 
 ## DAV Properties
- - CALDAV:schedule-outbox-URL [not supported]
- - CALDAV:schedule-inbox-URL [not supported]
+ - CALDAV:schedule-outbox-URL [supported]
+ - CALDAV:schedule-inbox-URL [supported]
  - CALDAV:calendar-user-address-set [supported]
- - CALDAV:calendar-user-type [not supported]
+ - CALDAV:calendar-user-type [supported]
 
 # rfc6764.txt (Locating groupware services)
 
@@ -194,7 +194,7 @@ https://github.com/apple/ccs-calendarserver/blob/master/doc/Extensions/caldav-ct
  - settings [supported]
  - addressbook-color [supported]
 
-# rfc5995.txt
+# rfc5995.txt (POST to create members)
 
 Partially supported.
 

@@ -139,8 +139,11 @@ class WebTests(unittest.TestCase):
             def get_body(self):
                 return [b'this is content']
 
-            def get_content_length(self):
-                return len('this is content')
+            def get_last_modified(self):
+                raise KeyError
+
+            def get_content_language(self):
+                raise KeyError
 
             def get_etag(self):
                 return "myetag"
@@ -172,7 +175,7 @@ class WebTests(unittest.TestCase):
         code, headers, contents = self.lock(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertIn(
-            ('Allow', 'DELETE, GET, MKCOL, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT'),
+            ('Allow', 'DELETE, GET, HEAD, MKCOL, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT'),
             headers)
         self.assertEqual(b'', contents)
 

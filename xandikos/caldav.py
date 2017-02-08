@@ -134,21 +134,6 @@ class CalendarHomeSetProperty(webdav.Property):
             el.append(webdav.create_href_element(href))
 
 
-class CalendarUserAddressSetProperty(webdav.Property):
-    """calendar-user-address-set property
-
-    See https://tools.ietf.org/html/rfc6638, section 2.4.1
-    """
-
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-user-address-set'
-    resource_type = '{DAV:}principal'
-    in_allprops = False
-
-    def get_value(self, resource, el):
-        for href in resource.get_calendar_user_address_set():
-            el.append(webdav.create_href_element(href))
-
-
 class CalendarDescriptionProperty(webdav.Property):
     """Provides calendar-description property.
 

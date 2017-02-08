@@ -233,6 +233,24 @@ class GetETagProperty(Property):
         el.text = resource.get_etag()
 
 
+class GetLastModifiedProperty(Property):
+    """Provides {DAV:}getlastmodified.
+
+    https://tools.ietf.org/html/rfc4918, section 15.7
+    """
+
+    name = '{DAV:}getlastmodified'
+    resource_type = None
+    protected = True
+    live = True
+    in_allprops = True
+
+    def get_value(self, resource, el):
+        # Use rfc1123 date (section 3.3.1 of RFC2616)
+        el.text = resource.get_last_modified().strftime(
+            '%a, %d %b %Y %H:%M:%S GMT')
+
+
 def format_datetime(dt):
     s = "%04d%02d%02dT%02d%02d%02dZ" % (
         dt.year,
@@ -258,6 +276,34 @@ class CreationDateProperty(Property):
 
     def get_value(self, resource, el):
         el.text = format_datetime(resource.get_creationdate())
+
+
+class GetContentLanguageProperty(Property):
+    """Provides {DAV:}getcontentlanguage.
+
+    https://tools.ietf.org/html/rfc4918, section 15.3
+    """
+
+    name = '{DAV:}getcontentlanguage'
+    resource_type = None
+    protected = True
+
+    def get_value(self, resource, el):
+        el.text = resource.get_content_language()
+
+
+class GetContentLengthProperty(Property):
+    """Provides {DAV:}getcontentlength.
+
+    https://tools.ietf.org/html/rfc4918, section 15.4
+    """
+
+    name = '{DAV:}getcontentlength'
+    resource_type = None
+    protected = True
+
+    def get_value(self, resource, el):
+        el.text = str(resource.get_content_length())
 
 
 class GetContentTypeProperty(Property):
@@ -415,6 +461,20 @@ class Resource(object):
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
+    def get_content_length(self):
+        """Get content length.
+
+        :return: Length of this objects content.
+        """
+        return sum(map(len, self.get_body()))
+
+    def get_content_language(self):
+        """Get content language.
+
+        :return: Language, as used in HTTP Accept-Language
+        """
+        raise NotImplementedError(self.get_content_language)
+
     def set_body(self, body, replace_etag=None):
         """Set resource contents.
 
@@ -436,6 +496,13 @@ class Resource(object):
         :return: comment
         """
         raise NotImplementedError(self.get_comment)
+
+    def get_last_modified(self):
+        """Get last modified time.
+
+        :return: Last modified time
+        """
+        raise NotImplementedError(self.get_last_modified)
 
 
 class Collection(Resource):
@@ -851,7 +918,13 @@ class WebDAVApp(object):
         # TODO(jelmer): Look up resource to determine supported methods.
         return sorted([n[3:] for n in dir(self) if n.startswith('do_')])
 
+    def do_HEAD(self, environ, start_response):
+        return self._do_get(environ, start_response, send_body=False)
+
     def do_GET(self, environ, start_response):
+        return self._do_get(environ, start_response, send_body=True)
+
+    def _do_get(self, environ, start_response, send_body):
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
             return _send_not_found(environ, start_response)
@@ -860,12 +933,28 @@ class WebDAVApp(object):
         if if_none_match and etag_matches(if_none_match, current_etag):
             start_response('304 Not Modified', [])
             return []
-        start_response('200 OK', [
+        headers = [
             ('ETag', current_etag),
             ('Content-Type', r.get_content_type()),
             ('Content-Length', str(r.get_content_length())),
-        ])
-        return r.get_body()
+        ]
+        try:
+            last_modified = r.get_last_modified()
+        except KeyError:
+            pass
+        else:
+            headers.append(('Last-Modified', last_modified))
+        try:
+            language = r.get_content_language()
+        except KeyError:
+            pass
+        else:
+            headers.append(('Content-Language', language))
+        start_response('200 OK', headers)
+        if send_body:
+            return r.get_body()
+        else:
+            return []
 
     def do_DELETE(self, environ, start_response):
         r = self.backend.get_resource(environ['PATH_INFO'])
