@@ -794,6 +794,18 @@ def _send_simple_dav_error(environ, start_response, statuscode, error):
     return _send_dav_responses(start_response, status, DEFAULT_ENCODING)
 
 
+def _send_not_found(environ, start_response):
+    path = request_uri(environ)
+    start_response('404 Not Found', [])
+    return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
+
+
+def _send_method_not_allowed(environ, start_response, allowed_methods):
+    start_response('405 Method Not Allowed', [
+        ('Allow', ', '.join(allowed_methods))])
+    return []
+
+
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
@@ -823,25 +835,15 @@ class WebDAVApp(object):
         # TODO(jelmer): Support access-control
         return ['1', '2', '3', 'calendar-access', 'addressbook']
 
-    def _get_allowed_methods(self, resource):
+    def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
         # TODO(jelmer): Look up resource to determine supported methods.
         return sorted([n[3:] for n in dir(self) if n.startswith('do_')])
 
-    def _send_not_found(self, environ, start_response):
-        path = request_uri(environ)
-        start_response('404 Not Found', [])
-        return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
-
-    def _send_method_not_allowed(self, environ, start_response):
-        start_response('405 Method Not Allowed', [
-            ('Allow', ', '.join(self._get_allowed_methods(environ)))])
-        return []
-
     def do_GET(self, environ, start_response):
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
-            return self._send_not_found(environ, start_response)
+            return _send_not_found(environ, start_response)
         current_etag = r.get_etag()
         if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
         if if_none_match and etag_matches(if_none_match, current_etag):
@@ -857,11 +859,11 @@ class WebDAVApp(object):
     def do_DELETE(self, environ, start_response):
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
-            return self._send_not_found(environ, start_response)
+            return _send_not_found(environ, start_response)
         container_path, item_name = posixpath.split(posixpath.normpath(environ['PATH_INFO']))
         pr = self.backend.get_resource(container_path)
         if pr is None:
-            return self._send_not_found(environ, start_response)
+            return _send_not_found(environ, start_response)
         current_etag = r.get_etag()
         if_match = environ.get('HTTP_IF_MATCH', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
@@ -877,7 +879,7 @@ class WebDAVApp(object):
         path = posixpath.normpath(environ['PATH_INFO'])
         r = self.backend.get_resource(path)
         if r is None:
-            return self._send_not_found(environ, start_response)
+            return _send_not_found(environ, start_response)
         if not COLLECTION_RESOURCE_TYPE in r.resource_type:
             start_response('405 Method Not Allowed', [])
             return []
@@ -915,7 +917,7 @@ class WebDAVApp(object):
             start_response('201 Created', [
                 ('ETag', new_etag)])
             return []
-        return self._send_not_found(environ, start_response)
+        return _send_not_found(environ, start_response)
 
     def _readBody(self, environ):
         try:
@@ -946,7 +948,7 @@ class WebDAVApp(object):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
-            return self._send_not_found(environ, start_response)
+            return _send_not_found(environ, start_response)
         depth = environ.get("HTTP_DEPTH", "0")
         et = self._readXmlBody(environ)
         try:
@@ -954,10 +956,10 @@ class WebDAVApp(object):
         except KeyError:
             logging.warning( 'Client requested unknown REPORT %s',
                 et.tag)
-            return self._send_simple_dav_error(environ, start_response,
+            return _send_simple_dav_error(environ, start_response,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
         if not reporter.supported_on(r): 
-            return self._send_simple_dav_error(environ, start_response,
+            return _send_simple_dav_error(environ, start_response,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
             environ, start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
@@ -1096,7 +1098,7 @@ class WebDAVApp(object):
         if environ['PATH_INFO'] != '*':
             r = self.backend.get_resource(environ['PATH_INFO'])
             if r is None:
-                return self._send_not_found(environ, start_response)
+                return _send_not_found(environ, start_response)
             dav_features = self._get_dav_features(r)
             headers.append(('DAV', ', '.join(dav_features)))
             allowed_methods = self._get_allowed_methods(environ)
@@ -1115,4 +1117,5 @@ class WebDAVApp(object):
         do = getattr(self, 'do_' + method, None)
         if do is not None:
             return do(environ, start_response)
-        return self._send_method_not_allowed(environ, start_response)
+        return _send_method_not_allowed(environ, start_response,
+            self._get_allowed_methods(environ))
