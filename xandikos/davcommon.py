@@ -21,14 +21,15 @@
 
 from xandikos import webdav
 
-class MultiGetReporter(webdav.DAVReporter):
+class MultiGetReporter(webdav.Reporter):
     """Abstract base class for multi-get reporters."""
 
     name = None
 
     data_property_kls = None
 
-    def report(self, body, resources_by_hrefs, properties, base_href, resource,
+    @webdav.multistatus
+    def report(self, environ, body, resources_by_hrefs, properties, base_href, resource,
                depth):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an addressbook
@@ -45,8 +46,8 @@ class MultiGetReporter(webdav.DAVReporter):
         properties[self.data_property_kls.name] = self.data_property_kls()
         for (href, resource) in resources_by_hrefs(hrefs):
             if resource is None:
-                yield webdav.DAVStatus(href, '404 Not Found', propstat=[])
+                yield webdav.Status(href, '404 Not Found', propstat=[])
             else:
                 propstat = webdav.get_properties(
                     resource, properties, requested)
-                yield webdav.DAVStatus(href, '200 OK', propstat=list(propstat))
+                yield webdav.Status(href, '200 OK', propstat=list(propstat))

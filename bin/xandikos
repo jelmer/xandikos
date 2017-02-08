@@ -1,7 +1,6 @@
-# encoding: utf-8
-#
+#!/usr/bin/env python3
 # Xandikos
-# Copyright (C) 2016 Jelmer Vernooĳ <jelmer@jelmer.uk>
+# Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -19,6 +18,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""CalDAV/CardDAV server."""
+import sys
 
-__version__ = (0, 0, 1)
+from xandikos.web import main
+
+main(sys.argv)

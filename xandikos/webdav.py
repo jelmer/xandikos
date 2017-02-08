@@ -67,7 +67,7 @@ class NeedsMultiStatus(Exception):
     """Raised when a response needs multi-status (e.g. for propstat)."""
 
 
-class DAVStatus(object):
+class Status(object):
     """A DAV response that can be used in multi-status."""
 
     def __init__(self, href, status=None, error=None, responsedescription=None,
@@ -131,7 +131,17 @@ class DAVStatus(object):
         return ret
 
 
-class DAVProperty(object):
+def multistatus(req_fn):
+
+    def wrapper(self, environ, start_response, *args, **kwargs):
+        responses = req_fn(self, environ, *args, **kwargs)
+        return _send_dav_responses(start_response, responses,
+                DEFAULT_ENCODING)
+
+    return wrapper
+
+
+class Property(object):
     """Handler for listing, retrieving and updating DAV Properties."""
 
     # Property name (e.g. '{DAV:}resourcetype')
@@ -147,6 +157,9 @@ class DAVProperty(object):
     # Resource type this property belongs to. If None, get_value()
     # will always be called.
     resource_type = None
+
+    # Whether this property is live (i.e set by the server)
+    live = None
 
     def get_value(self, resource, el):
         """Get property with specified name.
@@ -173,7 +186,7 @@ class DAVProperty(object):
         raise NotImplementedError(self.remove)
 
 
-class DAVResourceTypeProperty(DAVProperty):
+class ResourceTypeProperty(Property):
     """Provides {DAV:}resourcetype."""
 
     name = '{DAV:}resourcetype'
@@ -182,12 +195,14 @@ class DAVResourceTypeProperty(DAVProperty):
 
     resource_type = None
 
+    live = True
+
     def get_value(self, resource, el):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
 
 
-class DAVDisplayNameProperty(DAVProperty):
+class DisplayNameProperty(Property):
     """Provides {DAV:}displayname.
 
     https://tools.ietf.org/html/rfc4918, section 5.2
@@ -203,7 +218,7 @@ class DAVDisplayNameProperty(DAVProperty):
     # protected = True
 
 
-class DAVGetETagProperty(DAVProperty):
+class GetETagProperty(Property):
     """Provides {DAV:}getetag.
 
     https://tools.ietf.org/html/rfc4918, section 15.6
@@ -212,6 +227,7 @@ class DAVGetETagProperty(DAVProperty):
     name = '{DAV:}getetag'
     resource_type = None
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_etag()
@@ -229,7 +245,7 @@ def format_datetime(dt):
     return s.encode('utf-8')
 
 
-class DAVCreationDateProperty(DAVProperty):
+class CreationDateProperty(Property):
     """Provides {DAV:}creationdate.
 
     https://tools.ietf.org/html/rfc4918, section 23.2
@@ -238,12 +254,13 @@ class DAVCreationDateProperty(DAVProperty):
     name = '{DAV:}creationdate'
     resource_type = None
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = format_datetime(resource.get_creationdate())
 
 
-class DAVGetContentTypeProperty(DAVProperty):
+class GetContentTypeProperty(Property):
     """Provides {DAV:}getcontenttype.
 
     https://tools.ietf.org/html/rfc4918, section 13.5
@@ -257,7 +274,7 @@ class DAVGetContentTypeProperty(DAVProperty):
         el.text = resource.get_content_type()
 
 
-class DAVCurrentUserPrincipalProperty(DAVProperty):
+class CurrentUserPrincipalProperty(Property):
     """Provides {DAV:}current-user-principal.
 
     See https://tools.ietf.org/html/rfc5397
@@ -266,9 +283,10 @@ class DAVCurrentUserPrincipalProperty(DAVProperty):
     name = '{DAV:}current-user-principal'
     resource_type = None
     in_allprops = False
+    live = True
 
     def __init__(self, current_user_principal):
-        super(DAVCurrentUserPrincipalProperty, self).__init__()
+        super(CurrentUserPrincipalProperty, self).__init__()
         self.current_user_principal = current_user_principal
 
     def get_value(self, resource, el):
@@ -279,11 +297,12 @@ class DAVCurrentUserPrincipalProperty(DAVProperty):
         ET.SubElement(el, '{DAV:}href').text = self.current_user_principal
 
 
-class DAVPrincipalURLProperty(DAVProperty):
+class PrincipalURLProperty(Property):
 
     name = '{DAV:}principal-URL'
     resource_type = '{DAV:}principal'
     in_allprops = True
+    live = True
 
     def get_value(self, resource, el):
         """Get property with specified name.
@@ -293,11 +312,12 @@ class DAVPrincipalURLProperty(DAVProperty):
         ET.SubElement(el, '{DAV:}href').text = resource.get_principal_url()
 
 
-class DAVSupportedReportSetProperty(DAVProperty):
+class SupportedReportSetProperty(Property):
 
     name = '{DAV:}supported-report-set'
     resource_type = '{DAV:}collection'
     in_allprops = False
+    live = True
 
     def __init__(self, reporters):
         self._reporters = reporters
@@ -307,7 +327,7 @@ class DAVSupportedReportSetProperty(DAVProperty):
             ET.SubElement(el, name)
 
 
-class GetCTagProperty(DAVProperty):
+class GetCTagProperty(Property):
     """getctag property
 
     """
@@ -316,6 +336,7 @@ class GetCTagProperty(DAVProperty):
     resource_type = COLLECTION_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_ctag()
@@ -332,7 +353,7 @@ ActiveLock = collections.namedtuple(
         'lockroot'])
 
 
-class DAVResource(object):
+class Resource(object):
     """A WebDAV resource."""
 
     # A list of resource type names (e.g. '{DAV:}collection')
@@ -401,16 +422,30 @@ class DAVResource(object):
         """
         raise NotImplementedError(self.set_body)
 
+    def set_comment(self, comment):
+        """Set resource comment.
 
-class DAVCollection(DAVResource):
+        :param comment: New comment
+        """
+        raise NotImplementedError(self.set_comment)
+
+    def get_comment(self, comment):
+        """Get resource comment.
+
+        :return: comment
+        """
+        raise NotImplementedError(self.get_comment)
+
+
+class Collection(Resource):
     """Resource for a WebDAV Collection."""
 
-    resource_types = DAVResource.resource_types + [COLLECTION_RESOURCE_TYPE]
+    resource_types = Resource.resource_types + [COLLECTION_RESOURCE_TYPE]
 
     def members(self):
         """List all members.
 
-        :return: List of (name, DAVResource) tuples
+        :return: List of (name, Resource) tuples
         """
         raise NotImplementedError(self.members)
 
@@ -418,7 +453,7 @@ class DAVCollection(DAVResource):
         """Retrieve a member by name.
 
         :param name: Name of member to retrieve
-        :return: A DAVResource
+        :return: A Resource
         """
         raise NotImplementedError(self.get_member)
 
@@ -431,12 +466,13 @@ class DAVCollection(DAVResource):
         """
         raise NotImplementedError(self.delete_member)
 
-    def create_member(self, name, contents):
+    def create_member(self, name, contents, content_type):
         """Create a new member with specified name and contents.
 
-        :param name: Member name
+        :param name: Member name (can be None)
+        :param contents: Chunked contents
         :param etag: Optional required etag
-        :return: ETag for the new member
+        :return: (name, etag) for the new member
         """
         raise NotImplementedError(self.create_member)
 
@@ -469,11 +505,14 @@ class DAVCollection(DAVResource):
     def get_ctag(self):
         raise NotImplementedError(self.getctag)
 
+    def get_headervalue(self):
+        raise NotImplementedError(self.get_headervalue)
 
-class DAVPrincipal(DAVResource):
+
+class Principal(Resource):
     """Resource for a DAV Principal."""
 
-    resource_Types = DAVResource.resource_types + [PRINCIPAL_RESOURCE_TYPE]
+    resource_Types = Resource.resource_types + [PRINCIPAL_RESOURCE_TYPE]
 
     def get_principal_url(self):
         """Return the principal URL for this principal.
@@ -482,11 +521,20 @@ class DAVPrincipal(DAVResource):
         """
         raise NotImplementedError(self.get_principal_url)
 
+    def get_infit_settings(self):
+        """Return inf-it settings string.
+        """
+        raise NotImplementedError(self.get_infit_settings)
+
+    def set_infit_settings(self, settings):
+        """Set inf-it settings string."""
+        raise NotImplementedError(self.get_infit_settings)
+
 
 def get_property(resource, properties, name):
     """Get a single property on a resource.
 
-    :param resource: DAVResource object
+    :param resource: Resource object
     :param properties: Dictionary of properties
     :param name: name of property to resolve
     :return: PropStatus items
@@ -516,7 +564,7 @@ def get_property(resource, properties, name):
 def get_properties(resource, properties, requested):
     """Get a set of properties.
 
-    :param resource: DAVResource object
+    :param resource: Resource object
     :param properties: Dictionary of properties
     :param requested: XML {DAV:}prop element with properties to look up
     :return: Iterator over PropStatus items
@@ -525,51 +573,58 @@ def get_properties(resource, properties, requested):
         yield get_property(resource, properties, propreq.tag)
 
 
-def traverse_resource(base_resource, depth, base_href):
+def traverse_resource(base_resource, base_href, depth):
     """Traverse a resource.
 
     :param base_resource: Resource to traverse from
-    :param depth: Depth ("0", "1", ...)
     :param base_href: href for base resource
+    :param depth: Depth ("0", "1", "infinity")
     :return: Iterator over (URL, Resource) tuples
     """
-    me = (base_href, base_resource)
-    if depth == "0":
-        return iter([me])
-    elif depth == "1":
-        ret = [me]
+    todo = collections.deque([(base_href, base_resource, depth)])
+    while todo:
+        (href, resource, depth) = todo.popleft()
+        if COLLECTION_RESOURCE_TYPE in resource.resource_types:
+            # caldavzap/carddavmate require this
+            href += '/'
+        yield (href, resource)
+        if depth == "0":
+            continue
+        elif depth == "1":
+            nextdepth = "0"
+        elif depth == "infinity":
+            nextdepth = "infinity"
+        else:
+            raise AssertionError("invalid depth %r" % depth)
         if COLLECTION_RESOURCE_TYPE in base_resource.resource_types:
-            for (name, resource) in base_resource.members():
-                href = urllib.parse.urljoin(base_href+'/', name)
-                if COLLECTION_RESOURCE_TYPE in resource.resource_types:
-                    # caldavzap/carddavmate require this
-                    href += '/'
-                ret.append((href, resource))
-        return iter(ret)
-    raise NotImplementedError
+            for (child_name, child_resource) in resource.members():
+                child_href = urllib.parse.urljoin(href+'/', child_name)
+                todo.append((child_href, child_resource, nextdepth))
 
 
-class DAVReporter(object):
+class Reporter(object):
     """Implementation for DAV REPORT requests."""
 
     name = None
 
-    def report(self, request_body, resources_by_hrefs, properties, href,
-               resource, depth):
+    def report(self, environ, start_response, request_body, resources_by_hrefs,
+               properties, href, resource, depth):
         """Send a report.
 
+        :param environ: wsgi environ
+        :param start_response: WSGI start_response function
         :param request_body: XML Element for request body
         :param resources_by_hrefs: Function for retrieving resource by HREF
         :param properties: Dictionary mapping names to DAVProperty instances
         :param href: Base resource href
         :param resource: Resource to start from
         :param depth: Depth ("0", "1", ...)
-        :return: Iterator over DAVStatus objects
+        :return: chunked body
         """
         raise NotImplementedError(self.report)
 
 
-class DAVExpandPropertyReporter(DAVReporter):
+class ExpandPropertyReporter(Reporter):
     """A expand-property reporter.
 
     See https://tools.ietf.org/html/rfc3253, section 3.8
@@ -586,7 +641,7 @@ class DAVExpandPropertyReporter(DAVReporter):
         :param properties: Available properties
         :param href: href for current resource
         :param resource: current resource
-        :return: DAVSstatus object
+        :return: Status object
         """
         ret = []
         for prop in prop_list:
@@ -613,15 +668,16 @@ class DAVExpandPropertyReporter(DAVReporter):
             propstat = PropStatus(
                 propstat.statuscode, propstat.responsedescription, prop=new_prop)
             ret.append(propstat)
-        return DAVStatus(href, '200 OK', propstat=ret)
+        return Status(href, '200 OK', propstat=ret)
 
-    def report(self, request_body, resources_by_hrefs, properties, href,
+    @multistatus
+    def report(self, environ, request_body, resources_by_hrefs, properties, href,
                resource, depth):
         return self._populate(request_body, resources_by_hrefs, properties,
                               href, resource)
 
 
-class DAVSupportedLockProperty(DAVProperty):
+class SupportedLockProperty(Property):
     """supportedlock property.
 
     See rfc4918, section 15.10.
@@ -630,6 +686,7 @@ class DAVSupportedLockProperty(DAVProperty):
     name = '{DAV:}supportedlock'
     resource_type = None
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         for (lockscope, locktype) in resource.get_supported_locks():
@@ -640,7 +697,7 @@ class DAVSupportedLockProperty(DAVProperty):
             ET.SubElement(type_el, locktype)
 
 
-class DAVLockDiscoveryProperty(DAVProperty):
+class LockDiscoveryProperty(Property):
     """lockdiscovery property.
 
     See rfc4918, section 15.8
@@ -649,6 +706,7 @@ class DAVLockDiscoveryProperty(DAVProperty):
     name = '{DAV:}lockdiscovery'
     resource_type = None
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         for activelock in resource.get_active_locks():
@@ -672,41 +730,60 @@ class DAVLockDiscoveryProperty(DAVProperty):
                 href.text = activelock.lockroot
 
 
-class WellknownResource(DAVResource):
-    """Resource for well known URLs.
+class CommentProperty(Property):
+    """comment property.
 
-    See https://tools.ietf.org/html/rfc6764
+    See RFC3253, section 3.1.1
     """
+    name = '{DAV:}comment'
+    protected = False
+    live = False
+    in_allprops = False
 
-    def __init__(self, server_root):
-        self.server_root = server_root
+    def get_value(self, resource, el):
+        el.text = resource.get_comment()
 
-    def get_etag(self):
-        return '"%s"' % hashlib.md5(b''.join(self.get_body())).hexdigest()
-
-    def get_content_length(self):
-        return len(b''.join(self.get_body()))
-
-    def get_body(self):
-        return [self.server_root.encode(DEFAULT_ENCODING)]
+    def set_value(self, resource, el):
+        resource.set_comment(el.text)
 
 
-class DAVBackend(object):
+class Backend(object):
     """WebDAV backend."""
 
     def get_resoure(self, relpath):
         raise NotImplementedError(self.get_resource)
 
 
+def _send_dav_responses(start_response, responses, out_encoding):
+    if isinstance(responses, Status):
+        try:
+            (body, body_type) = responses.get_single_body(
+                out_encoding)
+        except NeedsMultiStatus:
+            responses = [responses]
+        else:
+            start_response(responses.status, [
+                ('Content-Type', body_type),
+                ('Content-Length', str(sum(map(len, body))))])
+            return body
+    ret = ET.Element('{DAV:}multistatus')
+    for response in responses:
+        ret.append(response.aselement())
+    body_type = 'text/xml; charset="%s"' % out_encoding
+    body = ET.tostringlist(ret, encoding=out_encoding)
+    start_response('207 Multi-Status', [
+        ('Content-Type', body_type),
+        ('Content-Length', str(sum(map(len, body))))])
+    return body
+
+
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
     A concrete implementation should provide an implementation of the
-    lookup_resource function that can map a path to a DAVResource object
+    lookup_resource function that can map a path to a Resource object
     (returning None for nonexistant objects).
     """
-
-    out_encoding = DEFAULT_ENCODING
 
     def __init__(self, backend):
         self.backend = backend
@@ -732,8 +809,7 @@ class WebDAVApp(object):
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
         # TODO(jelmer): Look up resource to determine supported methods.
-        return ([n[3:] for n in dir(self) if n.startswith('do_')] +
-                [n[4:] for n in dir(self) if n.startswith('dav_')])
+        return sorted([n[3:] for n in dir(self) if n.startswith('do_')])
 
     def _send_not_found(self, environ, start_response):
         path = request_uri(environ)
@@ -778,6 +854,24 @@ class WebDAVApp(object):
         start_response('204 No Content', [])
         return []
 
+    def do_POST(self, environ, start_response):
+        # see RFC5995
+        new_contents = self._readBody(environ)
+        path = posixpath.normpath(environ['PATH_INFO'])
+        r = self.backend.get_resource(path)
+        if r is None:
+            return self._send_not_found(environ, start_response)
+        if not COLLECTION_RESOURCE_TYPE in r.resource_type:
+            start_response('405 Method Not Allowed', [])
+            return []
+        content_type = environ['CONTENT_TYPE'].split(';')[0]
+        (name, etag) = r.create_member(None, new_contents, content_type)
+        href = environ['SCRIPT_NAME'] + urllib.parse.urljoin(path+'/', name)
+        start_response('200 OK', [
+            ('Location', href)
+            ])
+        return []
+
     def do_PUT(self, environ, start_response):
         new_contents = self._readBody(environ)
         path = posixpath.normpath(environ['PATH_INFO'])
@@ -795,10 +889,12 @@ class WebDAVApp(object):
             start_response('204 No Content', [
                 ('ETag', new_etag)])
             return []
+        content_type = environ.get('CONTENT_TYPE')
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)
         if r is not None:
-            new_etag = r.create_member(name, [new_contents])
+            (new_name, new_etag) = r.create_member(
+                name, [new_contents], content_type)
             start_response('201 Created', [
                 ('ETag', new_etag)])
             return []
@@ -812,27 +908,11 @@ class WebDAVApp(object):
         else:
             return environ['wsgi.input'].read(request_body_size)
 
-    def _send_dav_responses(self, start_response, responses):
-        if isinstance(responses, DAVStatus):
-            try:
-                (body, body_type) = responses.get_single_body(
-                    self.out_encoding)
-            except NeedsMultiStatus:
-                responses = [responses]
-            else:
-                start_response(responses.status, [
-                    ('Content-Type', body_type),
-                    ('Content-Length', str(sum(map(len, body))))])
-                return body
-        ret = ET.Element('{DAV:}multistatus')
-        for response in responses:
-            ret.append(response.aselement())
-        body_type = 'text/xml; charset="%s"' % self.out_encoding
-        body = ET.tostringlist(ret, encoding=self.out_encoding)
-        start_response('207 Multi-Status', [
-            ('Content-Type', body_type),
-            ('Content-Length', str(sum(map(len, body))))])
-        return body
+    def _readXmlBody(self, environ):
+        #TODO(jelmer): check Content-Type; should be something like
+        # 'text/xml; charset="utf-8"'
+        body = self._readBody(environ)
+        return xmlparse(body)
 
     def _get_resources_by_hrefs(self, environ, hrefs):
         """Retrieve multiple resources by href.
@@ -845,85 +925,109 @@ class WebDAVApp(object):
                 resource = self.backend.get_resource(href[len(environ['SCRIPT_NAME']):])
             yield (href, resource)
 
-    def dav_REPORT(self, environ):
+    def do_REPORT(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
-            return DAVStatus(request_uri(environ), '404 Not Found')
+            return Status(request_uri(environ), '404 Not Found')
         depth = environ.get("HTTP_DEPTH", "0")
-        #TODO(jelmer): check Content-Type; should be something like
-        # 'text/xml; charset="utf-8"'
-        et = xmlparse(self._readBody(environ))
+        et = self._readXmlBody(environ)
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
             logging.warning(
                 'Client requested unkown REPORT %s',
                 et.tag)
-            return DAVStatus(request_uri(environ), '403 Forbidden',
+            return Status(request_uri(environ), '403 Forbidden',
                 error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
-            et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
+            environ, start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
             self.properties, self._request_href(environ), r, depth)
 
-    def dav_PROPFIND(self, environ):
+    @multistatus
+    def do_PROPFIND(self, environ):
         base_resource = self.backend.get_resource(environ['PATH_INFO'])
         if base_resource is None:
-            return DAVStatus(request_uri(environ), '404 Not Found')
-        depth = environ.get("HTTP_DEPTH", "0")
-        #TODO(jelmer): check Content-Type; should be something like
-        # 'text/xml; charset="utf-8"'
-        et = xmlparse(self._readBody(environ))
-        if et.tag != '{DAV:}propfind':
-            # TODO-ERROR(jelmer): What to return here?
-            return DAVStatus(
-                request_uri(environ), '500 Internal Error',
-                'Expected propfind tag, got ' + et.tag)
-        try:
-            [requested] = et
-        except IndexError:
-            return DAVStatus(request_uri(environ), '500 Internal Error',
-                'Received more than one element in propfind.')
+            return Status(request_uri(environ), '404 Not Found')
+        # Default depth is infinity, per RFC2518
+        depth = environ.get("HTTP_DEPTH", "infinity")
+        if 'CONTENT_TYPE' not in environ and environ.get('CONTENT_LENGTH') == '0':
+            requested = ET.Element('{DAV:}allprop')
+        else:
+            et = self._readXmlBody(environ)
+            if et.tag != '{DAV:}propfind':
+                # TODO-ERROR(jelmer): What to return here?
+                return Status(
+                    request_uri(environ), '500 Internal Error',
+                    'Expected propfind tag, got ' + et.tag)
+            try:
+                [requested] = et
+            except IndexError:
+                return Status(request_uri(environ), '400 Bad Request',
+                    'Received more than one element in propfind.')
         if requested.tag == '{DAV:}prop':
             ret = []
             for href, resource in traverse_resource(
-                    base_resource, depth, self._request_href(environ)):
+                    base_resource, self._request_href(environ), depth):
                 propstat = get_properties(
                     resource, self.properties, requested)
-                ret.append(DAVStatus(href, '200 OK', propstat=list(propstat)))
-            # TODO(jelmer): Some servers don't seem to understand non-MultiStatus responses
-            if len(ret) == 1:
-                return ret[0]
+                ret.append(Status(href, '200 OK', propstat=list(propstat)))
+            # By my reading of the WebDAV RFC, it should be legal to return
+            # '200 OK' here if Depth=0, but the RFC is not super clear and
+            # some clients don't seem to like it .
+            return ret
+        elif requested.tag == '{DAV:}allprop':
+            ret = []
+            for href, resource in traverse_resource(
+                    base_resource, self._request_href(environ), depth):
+                propstat = []
+                for name in self.properties:
+                    ps = get_property(resource, self.properties, name)
+                    if ps.statuscode == '200 OK':
+                        propstat.append(ps)
+                ret.append(Status(href, '200 OK', propstat=propstat))
+            return ret
+        elif requested.tag == '{DAV:}propname':
+            ret = []
+            for href, resource in traverse_resource(
+                    base_resource, self._request_href(environ), depth):
+                propstat = []
+                for name in self.properties:
+                    ps = get_property(resource, self.properties, name)
+                    if ps.statuscode == '200 OK':
+                        propstat.append(ET.Element(name))
+                ret.append(Status(href, '200 OK', propstat=propstat))
             return ret
         else:
             # TODO(jelmer): implement allprop and propname
             # TODO-ERROR(jelmer): What to return here?
-            return DAVStatus(
-                request_uri(environ), '500 Internal Error',
-                'Expected prop tag, got ' + requested.tag)
+            return Status(
+                request_uri(environ), '400 Bad Request',
+                'Expected prop/allprop/propname tag, got ' + requested.tag)
 
-    def dav_PROPPATCH(self, environ):
+    @multistatus
+    def do_PROPPATCH(self, environ):
         resource = self.backend.get_resource(environ['PATH_INFO'])
         if resource is None:
-            return DAVStatus(request_uri(environ), '404 Not Found')
-        et = xmlparse(self._readBody(environ))
+            return Status(request_uri(environ), '404 Not Found')
+        et = self._readXmlBody(environ)
         if et.tag != '{DAV:}propertyupdate':
             # TODO-ERROR(jelmer): What to return here?
-            return DAVStatus(
+            return Status(
                 request_uri(environ), '500 Internal Error',
                 'Expected properyupdate tag, got ' + et.tag)
         propstat = []
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
-                return DAVStatus(request_uri(environ), '500 Internal Error',
+                return Status(request_uri(environ), '500 Internal Error',
                     'Unknown tag %s in propertyupdate' % el.tag)
             try:
                 [requested] = el
             except IndexError:
-                return DAVStatus(request_uri(environ), '500 Internal Error',
+                return Status(request_uri(environ), '500 Internal Error',
                     'Received more than one element in propertyupdate/set.')
             if requested.tag != '{DAV:}prop':
-                return DAVStatus(
+                return Status(
                     request_uri(environ), '500 Internal Error',
                     'Expected prop tag, got ' + requested.tag)
             for propel in requested:
@@ -931,8 +1035,8 @@ class WebDAVApp(object):
                     handler = self.properties[propel.tag]
                 except KeyError:
                     logging.warning(
-                        'client attempted to modify unknown property %r',
-                        propel.tag)
+                        'client attempted to modify unknown property %r on %r',
+                        propel.tag, environ['PATH_INFO'])
                     propstat.append(
                         PropStatus('404 Not Found', None,
                             ET.Element(propel.tag)))
@@ -950,7 +1054,7 @@ class WebDAVApp(object):
                     propstat.append(
                         PropStatus(statuscode, None, ET.Element(propel.tag)))
 
-        return [DAVStatus(
+        return [Status(
             request_uri(environ), propstat=propstat)]
 
     def do_MKCOL(self, environ, start_response):
@@ -981,9 +1085,6 @@ class WebDAVApp(object):
 
     def __call__(self, environ, start_response):
         method = environ['REQUEST_METHOD']
-        dav = getattr(self, 'dav_' + method, None)
-        if dav is not None:
-            return self._send_dav_responses(start_response, dav(environ))
         do = getattr(self, 'do_' + method, None)
         if do is not None:
             return do(environ, start_response)

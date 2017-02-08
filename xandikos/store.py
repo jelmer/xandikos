@@ -146,7 +146,7 @@ class Store(object):
         for (name, etag, data) in self.iter_raw():
             if not name.endswith(ICALENDAR_EXTENSION):
                 continue
-            yield (name, etag, Calendar.from_ical(data))
+            yield (name, etag, Calendar.from_ical(b''.join(data)))
 
     def get_ctag(self):
         """Return the ctag for this store."""
@@ -226,6 +226,20 @@ class Store(object):
         """
         raise NotImplementedError(self.iter_changes)
 
+    def get_comment(self):
+        """Retrieve store comment.
+
+        :return: Comment
+        """
+        raise NotImplementedError(self.get_comment)
+
+    def set_comment(self, comment):
+        """Set comment.
+
+        :param comment: New comment to set
+        """
+        raise NotImplementedError(self.set_comment)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository.
@@ -275,12 +289,12 @@ class GitStore(Store):
 
         :param name: Name of the item
         :param etag: Optional etag
-        :return: raw contents
+        :return: raw contents as chunks
         """
         if etag is None:
             etag = self._get_etag(name)
         blob = self.repo.object_store[etag.encode('ascii')]
-        return blob.data
+        return blob.chunked
 
     def _scan_ids(self):
         removed = set(self._fname_to_uid.keys())
@@ -366,6 +380,27 @@ class GitStore(Store):
         :param description: repository description as string
         """
         return self.repo.set_description(description.encode(DEFAULT_ENCODING))
+
+    def set_comment(self, comment):
+        """Set comment.
+
+        :param comment: Comment
+        """
+        config = self.repo.get_config()
+        config.set(b'xandikos', b'comment', comment.encode(DEFAULT_ENCODING))
+
+    def get_comment(self):
+        """Get comment.
+
+        :return: Comment
+        """
+        config = self.repo.get_config()
+        try:
+            comment = config.get(b'xandikos', b'comment')
+        except KeyError:
+            return None
+        else:
+            return comment.decode(DEFAULT_ENCODING)
 
     def get_color(self):
         """Get color.

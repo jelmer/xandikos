@@ -25,11 +25,10 @@ from wsgiref.util import request_uri, setup_testing_defaults
 from xml.etree import ElementTree as ET
 
 from xandikos.webdav import (
-    DAVCollection,
-    DAVProperty,
-    DAVResource,
+    Collection,
+    Property,
+    Resource,
     WebDAVApp,
-    WellknownResource,
     )
 
 
@@ -135,7 +134,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual('404 Not Found', code)
 
     def test_get_body(self):
-        class TestResource(DAVResource):
+        class TestResource(Resource):
 
             def get_body(self):
                 return [b'this is content']
@@ -155,7 +154,7 @@ class WebTests(unittest.TestCase):
 
     def test_set_body(self):
         new_body = []
-        class TestResource(DAVResource):
+        class TestResource(Resource):
 
             def set_body(self, body, replace_etag=None):
                 new_body.extend(body)
@@ -173,12 +172,12 @@ class WebTests(unittest.TestCase):
         code, headers, contents = self.lock(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertIn(
-            ('Allow', 'DELETE, GET, MKCOL, OPTIONS, PUT, PROPFIND, PROPPATCH, REPORT'),
+            ('Allow', 'DELETE, GET, MKCOL, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT'),
             headers)
         self.assertEqual(b'', contents)
 
     def test_mkcol_not_allowed(self):
-        class TestResource(DAVResource):
+        class TestResource(Resource):
 
             def create_collection(self, name):
                 pass
@@ -190,14 +189,14 @@ class WebTests(unittest.TestCase):
 
     def test_mkcol_exists(self):
         app = self.makeApp({
-            '/resource': DAVResource(),
-            '/resource/bla': DAVResource()}, [])
+            '/resource': Resource(),
+            '/resource/bla': Resource()}, [])
         code, headers, contents = self.mkcol(app, '/resource/bla')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertEqual(b'', contents)
 
     def test_delete(self):
-        class TestResource(DAVCollection):
+        class TestResource(Collection):
 
             def get_etag(self):
                 return '"foo"'
@@ -210,7 +209,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(b'', contents)
 
     def test_delete_not_found(self):
-        class TestResource(DAVCollection):
+        class TestResource(Collection):
             pass
 
         app = self.makeApp({'/resource': TestResource()}, [])
@@ -219,58 +218,67 @@ class WebTests(unittest.TestCase):
         self.assertTrue(contents.endswith(b'/resource not found.'))
 
     def test_propfind_prop_does_not_exist(self):
-        app = self.makeApp({'/resource': DAVResource()}, [])
+        app = self.makeApp({'/resource': Resource()}, [])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
-            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
-            '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>')
-        self.assertEqual(code, '200 OK')
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
+            '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
+            '</ns0:response></ns0:multistatus>')
+        self.assertEqual(code, '207 Multi-Status')
 
     def test_propfind_prop_not_present(self):
-        class TestProperty(DAVProperty):
+        class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
             def get_value(self, resource, ret):
                 raise KeyError
-        app = self.makeApp({'/resource': DAVResource()}, [TestProperty()])
+        app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
-            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
-            '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>')
-        self.assertEqual(code, '200 OK')
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
+            '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
+            '</ns0:response></ns0:multistatus>')
+        self.assertEqual(code, '207 Multi-Status')
 
     def test_propfind_found(self):
-        class TestProperty(DAVProperty):
+        class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
             def get_value(self, resource, ret):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
-        app = self.makeApp({'/resource': DAVResource()}, [TestProperty()])
+        app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
 </d:prop></d:propfind>""")
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
-            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
-            '</ns0:current-user-principal></ns0:prop></ns0:propstat>')
-        self.assertEqual(code, '200 OK')
+            '</ns0:current-user-principal></ns0:prop></ns0:propstat>'
+            '</ns0:response></ns0:multistatus>')
+        self.assertEqual(code, '207 Multi-Status')
 
     def test_propfind_found_multi(self):
-        class TestProperty1(DAVProperty):
+        class TestProperty1(Property):
             name = '{DAV:}current-user-principal'
             def get_value(self, resource, el):
                 ET.SubElement(el, '{DAV:}href').text = '/user/'
-        class TestProperty2(DAVProperty):
+        class TestProperty2(Property):
             name = '{DAV:}somethingelse'
             def get_value(self, resource, el):
                 pass
         app = self.makeApp(
-                {'/resource': DAVResource()},
+                {'/resource': Resource()},
                 [TestProperty1(), TestProperty2()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
@@ -278,18 +286,20 @@ class WebTests(unittest.TestCase):
         self.maxDiff = None
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
-            '<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
             '</ns0:current-user-principal><ns0:somethingelse /></ns0:prop>'
-            '</ns0:propstat>')
-        self.assertEqual(code, '200 OK')
+            '</ns0:propstat></ns0:response></ns0:multistatus>')
+        self.assertEqual(code, '207 Multi-Status')
 
     def test_propfind_found_multi_status(self):
-        class TestProperty(DAVProperty):
+        class TestProperty(Property):
             name = '{DAV:}current-user-principal'
             def get_value(self, resource, ret):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
-        app = self.makeApp({'/resource': DAVResource()}, [TestProperty()])
+        app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
 <d:somethingelse/></d:prop></d:propfind>""")
@@ -306,14 +316,3 @@ class WebTests(unittest.TestCase):
 <ns0:somethingelse /></ns0:prop></ns0:propstat>\
 </ns0:response>\
 </ns0:multistatus>""")
-
-
-class WellknownResourceTests(unittest.TestCase):
-
-    def test_get_body(self):
-        r = WellknownResource('/some/root')
-        self.assertEqual(b'/some/root', b''.join(r.get_body()))
-
-    def test_resource_types(self):
-        r = WellknownResource('/some/root')
-        self.assertEqual([], r.resource_types)

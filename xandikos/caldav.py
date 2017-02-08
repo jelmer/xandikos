@@ -27,23 +27,20 @@ import logging
 import pytz
 from xml.etree import ElementTree as ET
 
-from icalendar.cal import Calendar as ICalendar
-from icalendar.prop import vDDDTypes
+from icalendar.cal import (
+    Calendar as ICalendar,
+    FreeBusy,
+    )
+from icalendar.prop import vDDDTypes, vPeriod
 
-from xandikos import davcommon
+from xandikos import davcommon, webdav
 from xandikos.webdav import (
-    DAVBackend,
-    DAVCollection,
-    DAVProperty,
-    DAVReporter,
-    DAVResource,
-    DAVStatus,
     WebDAVApp,
     get_properties,
     traverse_resource,
     )
 
-
+PRODID = '-//Jelmer Vernooij//Xandikos//EN'
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
 
 # https://tools.ietf.org/html/rfc4791, section 4.2
@@ -52,9 +49,9 @@ CALENDAR_RESOURCE_TYPE = '{urn:ietf:params:xml:ns:caldav}calendar'
 NAMESPACE = 'urn:ietf:params:xml:ns:caldav'
 
 
-class Calendar(DAVCollection):
+class Calendar(webdav.Collection):
 
-    resource_types = DAVCollection.resource_types + [CALENDAR_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self):
         raise NotImplementedError(self.get_calendar_description)
@@ -121,7 +118,7 @@ class PrincipalExtensions:
         raise NotImplementedError(self.get_calendar_user_address_set)
 
 
-class CalendarHomeSetProperty(DAVProperty):
+class CalendarHomeSetProperty(webdav.Property):
     """calendar-home-set property
 
     See https://www.ietf.org/rfc/rfc4791.txt, section 6.2.1.
@@ -130,13 +127,14 @@ class CalendarHomeSetProperty(DAVProperty):
     name = '{urn:ietf:params:xml:ns:caldav}calendar-home-set'
     resource_type = '{DAV:}principal'
     in_allprops = False
+    live = True
 
     def get_value(self, resource, el):
         for href in resource.get_calendar_home_set():
             ET.SubElement(el, '{DAV:}href').text = href
 
 
-class CalendarUserAddressSetProperty(DAVProperty):
+class CalendarUserAddressSetProperty(webdav.Property):
     """calendar-user-address-set property
 
     See https://tools.ietf.org/html/rfc6638, section 2.4.1
@@ -151,7 +149,7 @@ class CalendarUserAddressSetProperty(DAVProperty):
             ET.SubElement(el, '{DAV:}href').text = href
 
 
-class CalendarDescriptionProperty(DAVProperty):
+class CalendarDescriptionProperty(webdav.Property):
     """Provides calendar-description property.
 
     https://tools.ietf.org/html/rfc4791, section 5.2.1
@@ -167,7 +165,7 @@ class CalendarDescriptionProperty(DAVProperty):
     # protected = True
 
 
-class CalendarDataProperty(DAVProperty):
+class CalendarDataProperty(webdav.Property):
     """calendar-data property
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.4
@@ -212,7 +210,7 @@ def apply_prop_filter(el, comp, tzify):
 
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
-            if not apply_time_range(subel, prop, tzify):
+            if not apply_time_range_prop(subel, prop, tzify):
                 return False
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
             if not apply_text_match(subel, prop):
@@ -362,9 +360,9 @@ def apply_time_range_comp(el, comp, tzify):
     return component_handler(start, end, comp, tzify)
 
 
-def apply_time_range(el, val, tzify):
+def apply_time_range_prop(el, val, tzify):
     (start, end) = _parse_time_range(el)
-    raise NotImplementedError(apply_time_range)
+    raise NotImplementedError(apply_time_range_prop)
 
 
 def apply_comp_filter(el, comp, tzify):
@@ -407,18 +405,24 @@ def apply_comp_filter(el, comp, tzify):
     return True
 
 
+def calendar_from_resource(resource):
+    try:
+        if resource.get_content_type() != 'text/calendar':
+            return None
+    except KeyError:
+        return None
+    return ICalendar.from_ical(b''.join(resource.get_body()))
+
+
 def apply_filter(el, resource, tzify):
     """Compile a filter element into a Python function.
     """
-    try:
-        if resource.get_content_type() != 'text/calendar':
-            return False
-    except KeyError:
-        return False
     if el is None:
         # Empty filter, let's not bother parsing
         return lambda x: True
-    c = ICalendar.from_ical(b''.join(resource.get_body()))
+    c = calendar_from_resource(resource)
+    if c is None:
+        return False
     return apply_comp_filter(list(el)[0], c, tzify)
 
 
@@ -426,44 +430,52 @@ def extract_tzid(cal):
     return cal.subcomponents[0]['TZID']
 
 
-class CalendarQueryReporter(DAVReporter):
+class CalendarQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
 
-    def report(self, body, resources_by_hrefs, properties, base_href,
+    @webdav.multistatus
+    def report(self, environ, body, resources_by_hrefs, properties, base_href,
                base_resource, depth):
         # TODO(jelmer): Verify that resource is an addressbook
         requested = None
         filter_el = None
-        tzid = None
+        tztext = None
         for el in body:
             if el.tag == '{DAV:}prop':
                 requested = el
             elif el.tag == '{urn:ietf:params:xml:ns:caldav}filter':
                 filter_el = el
             elif el.tag == '{urn:ietf:params:xml:ns:caldav}timezone':
-                tzid = extract_tzid(ICalendar.from_ical(el.text))
+                tztext = el.text
             else:
                 raise NotImplementedError(tag.name)
-        if tzid is None:
+        if tztext is None:
             try:
-                tzid = extract_tzid(ICalendar.from_ical(base_resource.get_calendar_timezone()))
+                tztext = base_resource.get_calendar_timezone()
+            except KeyError:
+                tztext = None
+        if tztext is not None:
+            try:
+                tzid = extract_tzid(ICalendar.from_ical(tztext))
             except KeyError:
                 # TODO(jelmer): Or perhaps the servers' local timezone?
                 tzid = 'UTC'
+        else:
+            tzid = 'UTC'
         tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
         properties = dict(properties)
         properties[CalendarDataProperty.name] = CalendarDataProperty()
         for (href, resource) in traverse_resource(
-                base_resource, depth, base_href):
+                base_resource, base_href, depth):
             if not apply_filter(filter_el, resource, tzify):
                 continue
             propstat = get_properties(
                 resource, properties, requested)
-            yield DAVStatus(href, '200 OK', propstat=list(propstat))
+            yield webdav.Status(href, '200 OK', propstat=list(propstat))
 
 
-class CalendarColorProperty(DAVProperty):
+class CalendarColorProperty(webdav.Property):
     """calendar-color property
 
     This contains a HTML #RRGGBB color code, as CDATA.
@@ -476,7 +488,7 @@ class CalendarColorProperty(DAVProperty):
         el.text = resource.get_calendar_color()
 
 
-class SupportedCalendarComponentSetProperty(DAVProperty):
+class SupportedCalendarComponentSetProperty(webdav.Property):
     """supported-calendar-component-set property
 
     Set of supported calendar components by this calendar.
@@ -488,6 +500,7 @@ class SupportedCalendarComponentSetProperty(DAVProperty):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         for component in resource.get_supported_calendar_components():
@@ -495,7 +508,7 @@ class SupportedCalendarComponentSetProperty(DAVProperty):
             subel.set('name', component)
 
 
-class SupportedCalendarDataProperty(DAVProperty):
+class SupportedCalendarDataProperty(webdav.Property):
     """supported-calendar-data property.
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.4
@@ -515,7 +528,7 @@ class SupportedCalendarDataProperty(DAVProperty):
             subel.set('version', version)
 
 
-class CalendarTimezoneProperty(DAVProperty):
+class CalendarTimezoneProperty(webdav.Property):
     """calendar-timezone property.
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.2
@@ -532,7 +545,7 @@ class CalendarTimezoneProperty(DAVProperty):
         resource.set_calendar_timezone(el.text)
 
 
-class MinDateTimeProperty(DAVProperty):
+class MinDateTimeProperty(webdav.Property):
     """min-date-time property.
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.6
@@ -542,12 +555,13 @@ class MinDateTimeProperty(DAVProperty):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_min_date_time()
 
 
-class MaxDateTimeProperty(DAVProperty):
+class MaxDateTimeProperty(webdav.Property):
     """max-date-time property.
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.7
@@ -557,6 +571,89 @@ class MaxDateTimeProperty(DAVProperty):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
     protected = True
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_max_date_time()
+
+
+def map_freebusy(comp):
+    transp = comp.get('TRANSP', 'OPAQUE')
+    if transp == 'TRANSPARENT':
+        return 'FREE'
+    assert transp == 'OPAQUE', 'unknown transp %r' % transp
+    status = comp.get('STATUS', 'CONFIRMED')
+    if status == 'CONFIRMED':
+        return 'BUSY'
+    elif status == 'CANCELLED':
+        return 'FREE'
+    elif status == 'TENTATIVE':
+        return 'BUSY-TENTATIVE'
+    elif status.startswith('X-'):
+        return status
+    else:
+        raise AssertionError('unknown status %r' % status)
+
+
+def extract_freebusy(comp, tzify):
+    kind = map_freebusy(comp)
+    if kind == 'FREE':
+        return None
+    # TODO(jelmer): Convert to Zulu?
+    if 'DTEND' in comp:
+        ret = vPeriod((tzify(comp['DTSTART'].dt), tzify(comp['DTEND'].dt)))
+    if 'DURATION' in comp:
+        ret = vPeriod((tzify(comp['DTSTART'].dt), comp['DURATION'].dt))
+    if kind != 'BUSY':
+        ret.params['FBTYPE'] = kind
+    return ret
+
+
+def iter_freebusy(resources, start, end, tzify):
+    for (href, resource) in resources:
+        c = calendar_from_resource(resource)
+        if c is None:
+            continue
+        if c.name != 'VCALENDAR':
+            continue
+        for comp in c.subcomponents:
+            if comp.name == 'VEVENT':
+                if apply_time_range_vevent(start, end, comp, tzify):
+                    vp = extract_freebusy(comp, tzify)
+                    if vp is not None:
+                        yield vp
+
+
+class FreeBusyQueryReporter(webdav.Reporter):
+    """free-busy-query reporter.
+
+    See https://tools.ietf.org/html/rfc4791, section 7.10
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}free-busy-query'
+
+    def report(self, environ, start_response, body, resources_by_hrefs, properties, base_href,
+               base_resource, depth):
+        requested = None
+        for el in body:
+            if el.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
+                requested = el
+            else:
+                raise AssertionError("unexpected XML element")
+        # TODO(jelmer): Right timezone?
+        tzid = 'UTC'
+        tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
+        (start, end) = _parse_time_range(requested)
+        ret = ICalendar()
+        ret['VERSION'] = '2.0'
+        ret['PRODID'] = PRODID
+        fb = FreeBusy()
+        fb['DTSTAMP'] = vDDDTypes(datetime.datetime.now())
+        fb['DTSTART'] = start
+        fb['DTEND'] = end
+        fb['FREEBUSY'] = list(iter_freebusy(
+            traverse_resource(base_resource, base_href, depth),
+            start, end, tzify))
+        ret.add_component(fb)
+        start_response('200 OK', [])
+        return [ret.to_ical()]

@@ -25,10 +25,12 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import functools
+import mimetypes
 import os
 import posixpath
+import uuid
 
-from xandikos import access, caldav, carddav, sync, webdav
+from xandikos import access, caldav, carddav, sync, webdav, infit
 from xandikos.store import (
     BareGitStore,
     GitStore,
@@ -72,7 +74,7 @@ def extract_strong_etag(etag):
     return etag.strip('"')
 
 
-class ObjectResource(webdav.DAVResource):
+class ObjectResource(webdav.Resource):
     """Object resource."""
 
     def __init__(self, store, name, etag, content_type):
@@ -80,6 +82,7 @@ class ObjectResource(webdav.DAVResource):
         self.name = name
         self.etag = etag
         self.content_type = content_type
+        self._chunked = None
 
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
@@ -87,7 +90,9 @@ class ObjectResource(webdav.DAVResource):
              self.content_type)
 
     def get_body(self):
-        return [self.store.get_raw(self.name, self.etag)]
+        if self._chunked is None:
+            self._chunked = self.store.get_raw(self.name, self.etag)
+        return self._chunked
 
     def set_body(self, data, replace_etag=None):
         etag = self.store.import_one(
@@ -98,7 +103,7 @@ class ObjectResource(webdav.DAVResource):
         return self.content_type
 
     def get_content_length(self):
-        return len(b''.join(self.get_body()))
+        return sum(map(len, self.get_body()))
 
     def get_etag(self):
         return create_strong_etag(self.etag)
@@ -111,6 +116,16 @@ class ObjectResource(webdav.DAVResource):
 
     def get_owner(self):
         return None
+
+    def get_comment(self):
+        raise KeyError
+
+    def set_comment(self, comment):
+        raise NotImplementedError(self.set_comment)
+
+    def get_creationdate(self):
+        # TODO(jelmer): Find creation date using store function
+        raise KeyError
 
 
 class StoreBasedCollection(object):
@@ -155,7 +170,9 @@ class StoreBasedCollection(object):
     def delete_member(self, name, etag=None):
         self.store.delete_one(name, extract_strong_etag(etag))
 
-    def create_member(self, name, contents):
+    def create_member(self, name, contents, content_type):
+        if name is None:
+            name = str(uuid.uuid4()) + mimetypes.get_extension(content_type)
         etag = self.store.import_one(name, b''.join(contents))
         return create_strong_etag(etag)
 
@@ -180,6 +197,19 @@ class StoreBasedCollection(object):
 
     def get_active_locks(self):
         return []
+
+    def get_headervalue(self):
+        raise KeyError
+
+    def get_comment(self):
+        return self.store.get_comment()
+
+    def set_comment(self, comment):
+        self.store.set_comment(comment)
+
+    def get_creationdate(self):
+        # TODO(jelmer): Find creation date using store function
+        raise KeyError
 
 
 class Collection(StoreBasedCollection,caldav.Calendar):
@@ -262,7 +292,7 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
         return color
 
 
-class CollectionSetResource(webdav.DAVCollection):
+class CollectionSetResource(webdav.Collection):
     """Resource for calendar sets."""
 
     def __init__(self, backend, relpath):
@@ -288,6 +318,8 @@ class CollectionSetResource(webdav.DAVCollection):
         ret = []
         p = self.backend._map_to_file_path(self.relpath)
         for name in os.listdir(p):
+            if name.startswith('.'):
+                continue
             resource = self.get_member(name)
             ret.append((name, resource))
         return ret
@@ -306,8 +338,17 @@ class CollectionSetResource(webdav.DAVCollection):
             raise KeyError(name)
         return self.backend.get_resource(relpath)
 
+    def get_headervalue(self):
+        raise KeyError
 
-class RootPage(webdav.DAVResource):
+    def get_comment(self):
+        raise KeyError
+
+    def set_comment(self, comment):
+        raise NotImplementedError(self.set_comment)
+
+
+class RootPage(webdav.Resource):
     """A non-DAV resource."""
 
     resource_types = []
@@ -334,7 +375,7 @@ class RootPage(webdav.DAVResource):
 class Principal(CollectionSetResource):
     """Principal user resource."""
 
-    resource_types = webdav.DAVCollection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
 
     def get_principal_url(self):
         return self.path
@@ -348,13 +389,28 @@ class Principal(CollectionSetResource):
     def get_calendar_user_address_set(self):
         return USER_ADDRESS_SET
 
+    def set_infit_settings(self, settings):
+        relpath = posixpath.join(self.relpath, '.infit')
+        p = self.backend._map_to_file_path(relpath)
+        with open(p, 'w') as f:
+            f.write(settings)
+
+    def get_infit_settings(self):
+        relpath = posixpath.join(self.relpath, '.infit')
+        p = self.backend._map_to_file_path(relpath)
+        if not os.path.exists(p):
+            raise KeyError
+        with open(p, 'r') as f:
+            return f.read()
+
+
 
 @functools.lru_cache(maxsize=RESOURCE_CACHE_SIZE)
 def open_store_from_path(path):
     return GitStore.open_from_path(path)
 
 
-class XandikosBackend(webdav.DAVBackend):
+class XandikosBackend(webdav.Backend):
 
     def __init__(self, path, current_user_principal):
         self.path = path
@@ -365,9 +421,7 @@ class XandikosBackend(webdav.DAVBackend):
 
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
-        if relpath in WELLKNOWN_DAV_PATHS:
-            return webdav.WellknownResource(self.current_user_principal)
-        elif relpath == '/':
+        if relpath == '/':
             return RootPage()
         elif relpath == self.current_user_principal:
             return Principal(self, relpath)
@@ -401,16 +455,16 @@ class XandikosApp(webdav.WebDAVApp):
     """
 
     def __init__(self, path, current_user_principal):
-        super(XandikosApp, self).__init__(DystrosBackend(
+        super(XandikosApp, self).__init__(XandikosBackend(
             path, current_user_principal))
         self.register_properties([
-            webdav.DAVResourceTypeProperty(),
-            webdav.DAVCurrentUserPrincipalProperty(
+            webdav.ResourceTypeProperty(),
+            webdav.CurrentUserPrincipalProperty(
                 current_user_principal),
-            webdav.DAVPrincipalURLProperty(),
-            webdav.DAVDisplayNameProperty(),
-            webdav.DAVGetETagProperty(),
-            webdav.DAVGetContentTypeProperty(),
+            webdav.PrincipalURLProperty(),
+            webdav.DisplayNameProperty(),
+            webdav.GetETagProperty(),
+            webdav.GetContentTypeProperty(),
             caldav.CalendarHomeSetProperty(),
             caldav.CalendarUserAddressSetProperty(),
             carddav.AddressbookHomeSetProperty(),
@@ -421,7 +475,7 @@ class XandikosApp(webdav.WebDAVApp):
             carddav.PrincipalAddressProperty(),
             webdav.GetCTagProperty(),
             carddav.SupportedAddressDataProperty(),
-            webdav.DAVSupportedReportSetProperty(self.reporters),
+            webdav.SupportedReportSetProperty(self.reporters),
             sync.SyncTokenProperty(),
             caldav.SupportedCalendarDataProperty(),
             caldav.CalendarTimezoneProperty(),
@@ -431,24 +485,44 @@ class XandikosApp(webdav.WebDAVApp):
             carddav.MaxImageSizeProperty(),
             access.CurrentUserPrivilegeSetProperty(),
             access.OwnerProperty(),
-            webdav.DAVCreationDateProperty(),
-            carddav.AddressbookColorProperty(),
-            webdav.DAVSupportedLockProperty(),
-            webdav.DAVLockDiscoveryProperty(),
+            webdav.CreationDateProperty(),
+            webdav.SupportedLockProperty(),
+            webdav.LockDiscoveryProperty(),
+            infit.AddressbookColorProperty(),
+            infit.SettingsProperty(),
+            infit.HeaderValueProperty(),
+            webdav.CommentProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
             caldav.CalendarQueryReporter(),
             carddav.AddressbookMultiGetReporter(),
-            webdav.DAVExpandPropertyReporter(),
+            webdav.ExpandPropertyReporter(),
             sync.SyncCollectionReporter(),
+            caldav.FreeBusyQueryReporter(),
             ])
 
 
-if __name__ == '__main__':
+class WellknownRedirector(object):
+
+    def __init__(self, inner_app):
+        self._inner_app = inner_app
+
+    def __call__(self, environ, start_response):
+        # See https://tools.ietf.org/html/rfc6764
+        if ((environ['SCRIPT_NAME'] + environ['PATH_INFO'])
+                in WELLKNOWN_DAV_PATHS):
+            start_response('302 Found', [
+                ('Location', options.dav_root)])
+            return []
+        return self._inner_app(environ, start_response)
+
+
+def main(argv):
     import optparse
     import sys
-    parser = optparse.OptionParser()
+    from xandikos import __version__
+    parser = optparse.OptionParser(version='.'.join(map(str, __version__)))
     parser.usage = "%prog -d ROOT-DIR [OPTIONS]"
     parser.add_option("-l", "--listen_address", dest="listen_address",
                       default="localhost",
@@ -462,15 +536,25 @@ if __name__ == '__main__':
     parser.add_option("--current-user-principal",
                       default="/user/",
                       help="Path to current user principal.")
-    options, args = parser.parse_args(sys.argv)
+    parser.add_option("--dav-root",
+                      default="/",
+                      help="Path to DAV root.")
+    options, args = parser.parse_args(argv)
 
     if options.directory is None:
         parser.print_usage()
         sys.exit(1)
 
-    from wsgiref.simple_server import make_server
     app = XandikosApp(
         options.directory,
         current_user_principal=options.current_user_principal)
+
+    from wsgiref.simple_server import make_server
+    app = WellknownRedirector(app)
     server = make_server(options.listen_address, options.port, app)
     server.serve_forever()
+
+
+if __name__ == '__main__':
+    import sys
+    main(sys.argv)

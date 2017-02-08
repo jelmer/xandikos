@@ -40,7 +40,7 @@ class SyncToken(object):
         return ret
 
 
-class SyncCollectionReporter(webdav.DAVReporter):
+class SyncCollectionReporter(webdav.Reporter):
     """sync-collection reporter implementation.
 
     See https://tools.ietf.org/html/rfc6578, section 3.2.
@@ -48,7 +48,8 @@ class SyncCollectionReporter(webdav.DAVReporter):
 
     name = '{DAV:}sync-collection'
 
-    def report(self, request_body, resources_by_hrefs, properties, href,
+    @webdav.multistatus
+    def report(self, environ, request_body, resources_by_hrefs, properties, href,
                resource, depth):
         old_token = None
         sync_level = None
@@ -73,7 +74,7 @@ class SyncCollectionReporter(webdav.DAVReporter):
         try:
             diff_iter = resource.iter_differences_since(old_token, new_token)
         except NotImplementedError:
-            return DAVStatus(
+            return Status(
                 href, '403 Forbidden',
                 error=ET.Element('{DAV:}sync-traversal-supported'))
 
@@ -95,21 +96,23 @@ class SyncCollectionReporter(webdav.DAVReporter):
                             new_resource, properties, prop.tag)
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
-            yield webdav.DAVStatus(
+            yield webdav.Status(
                 urllib.parse.urljoin(href+'/', name), propstat=propstat)
         # TODO(jelmer): This is a bit of a hack..
         yield SyncToken(new_token)
 
 
-class SyncTokenProperty(webdav.DAVProperty):
+class SyncTokenProperty(webdav.Property):
     """sync-token property.
 
     See https://tools.ietf.org/html/rfc6578, section 4
     """
 
     name = '{DAV:}sync-token'
+    resource_type = webdav.COLLECTION_RESOURCE_TYPE
     protected = True
     in_allprops = False
+    live = True
 
     def get_value(self, resource, el):
         el.text = resource.get_sync_token()

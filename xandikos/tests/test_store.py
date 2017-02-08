@@ -116,7 +116,7 @@ class BaseStoreTest(object):
         gc = self.create_store()
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
-        ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_raw()}
+        ret = {n: (etag, b''.join(cal)) for (n, etag, cal) in gc.iter_raw()}
         self.assertEqual(ret,
             {'bar.ics': (etag2, EXAMPLE_VCALENDAR2),
              'foo.ics': (etag1, EXAMPLE_VCALENDAR1),
@@ -128,10 +128,10 @@ class BaseStoreTest(object):
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
         self.assertEqual(
             EXAMPLE_VCALENDAR1,
-            gc.get_raw('foo.ics', etag1))
+            b''.join(gc.get_raw('foo.ics', etag1)))
         self.assertEqual(
             EXAMPLE_VCALENDAR2,
-            gc.get_raw('bar.ics', etag2))
+            b''.join(gc.get_raw('bar.ics', etag2)))
         self.assertRaises(
             KeyError,
             gc.get_raw, 'missing.ics', '01' * 20)

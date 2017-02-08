@@ -5,3 +5,6 @@ build/
 MANIFEST
 .tox/
 .*.sw?
+.coverage
+htmlcov/
+dist
