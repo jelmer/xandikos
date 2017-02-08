@@ -232,6 +232,9 @@ class StoreBasedCollection(object):
     def get_content_language(self):
         raise KeyError
 
+    def get_content_length(self):
+        raise KeyError
+
 
 class Collection(StoreBasedCollection,webdav.Collection):
     """A generic WebDAV collection."""
@@ -364,6 +367,9 @@ class CollectionSetResource(webdav.Collection):
         return 'httpd/unix-directory'
 
     def get_content_language(self):
+        raise KeyError
+
+    def get_content_length(self):
         raise KeyError
 
     def get_last_modified(self):
