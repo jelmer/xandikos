@@ -74,9 +74,10 @@ class SyncCollectionReporter(webdav.Reporter):
         try:
             diff_iter = resource.iter_differences_since(old_token, new_token)
         except NotImplementedError:
-            return Status(
+            yield webdav.Status(
                 href, '403 Forbidden',
                 error=ET.Element('{DAV:}sync-traversal-supported'))
+            return
 
         for (name, old_resource, new_resource) in diff_iter:
             propstat = []
