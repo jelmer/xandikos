@@ -43,7 +43,7 @@ class TimezoneServiceSetProperty(webdav.Property):
     live = True
 
     def __init__(self, timezone_services):
-        super(TimezoneServiceSetProperty, self).__init__(self)
+        super(TimezoneServiceSetProperty, self).__init__()
         self._timezone_services = timezone_services
 
     def get_value(self, resource, el):
