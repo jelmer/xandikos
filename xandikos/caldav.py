@@ -48,6 +48,9 @@ CALENDAR_RESOURCE_TYPE = '{urn:ietf:params:xml:ns:caldav}calendar'
 
 NAMESPACE = 'urn:ietf:params:xml:ns:caldav'
 
+# Feature to advertise to indicate CalDAV support.
+FEATURE = 'calendar-access'
+
 
 class Calendar(webdav.Collection):
 

@@ -17,49 +17,35 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Access control.
+"""Timezone handling.
 
-See http://www.webdav.org/specs/rfc3744.html
+See http://www.webdav.org/specs/rfc7809.html
 """
 
 from defusedxml.ElementTree import fromstring as xmlparse
 from xml.etree import ElementTree as ET
 
-from xandikos import webdav
-
-# Feature to advertise access control support.
-FEATURE = 'access-control'
+from xandikos import caldav, webdav
 
 
-class CurrentUserPrivilegeSetProperty(webdav.Property):
-    """current-user-privilege-set property
+class TimezoneServiceSetProperty(webdav.Property):
+    """timezone-service-set property
 
-    See http://www.webdav.org/specs/rfc3744.html, section 3.7
+    See http://www.webdav.org/specs/rfc7809.html, section 5.1
     """
 
-    name = '{DAV:}current-user-privilege-set'
+    name = '{DAV:}timezone-service-set'
+    # Should be set on CalDAV calendar home collection resources,
+    # but Xandikos doesn't have a separate resource type for those.
+    resource_type = webdav.COLLECTION_RESOURCE_TYPE
     in_allprops = False
     protected = True
     live = True
 
-    def get_value(self, resource, el):
-       privilege = ET.SubElement(el, '{DAV:}privilege')
-       # TODO(jelmer): Use something other than all
-       priv_all = ET.SubElement(privilege, '{DAV:}all')
-
-
-class OwnerProperty(webdav.Property):
-    """owner property.
-
-    See http://www.webdav.org/specs/rfc3744.html, section 5.1
-    """
-
-    name = '{DAV:}owner'
-    in_allprops = False
-    live = True
+    def __init__(self, timezone_services):
+        super(TimezoneServiceSetProperty, self).__init__(self)
+        self._timezone_services = timezone_services
 
     def get_value(self, resource, el):
-       owner_href = resource.get_owner()
-       if owner_href is not None:
-           el.append(webdav.create_href_element(owner_href))
-
+        for timezone_service_href in self._timezone_services:
+            el.append(webdav.create_href_element(timezone_service_href))

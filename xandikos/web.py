@@ -30,7 +30,7 @@ import os
 import posixpath
 import uuid
 
-from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling
+from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
 from xandikos.store import (
     BareGitStore,
     GitStore,
@@ -534,6 +534,7 @@ class XandikosApp(webdav.WebDAVApp):
             scheduling.ScheduleOutboxURLProperty(),
             scheduling.CalendarUserTypeProperty(),
             webdav.GetLastModifiedProperty(),
+            timezones.TimezoneServiceSetProperty([]),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

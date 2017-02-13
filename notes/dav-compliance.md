@@ -169,7 +169,7 @@ DAV:current-user-principal
 Not supported
 
 ## DAV Properties
- - CALDAV:timezone-service-set [not suported]
+ - CALDAV:timezone-service-set [supported]
  - CALDAV:calendar-timezone-id [not supported]
 
 # rfc5397.txt (WebDAV Current Principal Extension)

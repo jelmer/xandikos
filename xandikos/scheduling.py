@@ -30,6 +30,9 @@ from xandikos import caldav, webdav
 
 SCHEDULE_INBOX_RESOURCE_TYPE = '{%s}schedule-inbox' % caldav.NAMESPACE
 
+# Feature to advertise to indicate scheduling support.
+FEATURE = 'calendar-auto-schedule'
+
 
 class ScheduleInbox(caldav.Calendar):
 

@@ -31,6 +31,9 @@ WELLKNOWN_CARDDAV_PATH = "/.well-known/carddav"
 NAMESPACE = 'urn:ietf:params:xml:ns:carddav'
 ADDRESSBOOK_RESOURCE_TYPE = '{%s}addressbook' % NAMESPACE
 
+# Feature to advertise presence of CardDAV support
+FEATURE = 'addressbook'
+
 
 class AddressbookHomeSetProperty(webdav.Property):
     """addressbook-home-set property
