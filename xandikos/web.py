@@ -400,6 +400,12 @@ class RootPage(webdav.Resource):
     def get_etag(self):
         return '"root-page"'
 
+    def get_last_modified(self):
+        raise KeyError
+
+    def get_content_language(self):
+        return ['en-UK']
+
 
 class Principal(CollectionSetResource):
     """Principal user resource."""

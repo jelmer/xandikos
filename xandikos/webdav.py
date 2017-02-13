@@ -289,7 +289,7 @@ class GetContentLanguageProperty(Property):
     protected = True
 
     def get_value(self, resource, el):
-        el.text = resource.get_content_language()
+        el.text = ', '.join(resource.get_content_language())
 
 
 class GetContentLengthProperty(Property):
@@ -945,11 +945,11 @@ class WebDAVApp(object):
         else:
             headers.append(('Last-Modified', last_modified))
         try:
-            language = r.get_content_language()
+            languages = r.get_content_language()
         except KeyError:
             pass
         else:
-            headers.append(('Content-Language', language))
+            headers.append(('Content-Language', ', '.join(languages)))
         start_response('200 OK', headers)
         if send_body:
             return r.get_body()
