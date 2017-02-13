@@ -379,7 +379,7 @@ class GetCTagProperty(Property):
 
     """
 
-    name = '{http://calendarserver.org/ns/}getctag'
+    name = None
     resource_type = COLLECTION_RESOURCE_TYPE
     in_allprops = False
     protected = True
@@ -387,6 +387,22 @@ class GetCTagProperty(Property):
 
     def get_value(self, resource, el):
         el.text = resource.get_ctag()
+
+
+class DAVGetCTagProperty(GetCTagProperty):
+    """getctag property
+
+    """
+
+    name = '{DAV:}getctag'
+
+
+class AppleGetCTagProperty(GetCTagProperty):
+    """getctag property
+
+    """
+
+    name = '{http://calendarserver.org/ns/}getctag'
 
 
 LOCK_SCOPE_EXCLUSIVE = '{DAV:}exclusive'
