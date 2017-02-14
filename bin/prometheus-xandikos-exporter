@@ -18,16 +18,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-import sys
-
-from prometheus_client import multiprocess
-from prometheus_client import CollectorRegistry, make_wsgi_app
-from xandikos.prometheus import DEFAULT_PROMETHEUS_DIR
-
 import optparse
+import os
 import sys
 
 from xandikos import __version__
+from xandikos.prometheus import DEFAULT_PROMETHEUS_DIR
 parser = optparse.OptionParser(version='.'.join(map(str, __version__)))
 parser.add_option("-l", "--listen_address", dest="listen_address",
                   default="localhost",
@@ -41,6 +37,9 @@ parser.add_option("-d", "--prometheus-directory",
                   help="Path to prometheus statistics.")
 
 options, args = parser.parse_args()
+
+from prometheus_client import multiprocess
+from prometheus_client import CollectorRegistry, make_wsgi_app
 from wsgiref.simple_server import make_server
 
 registry = CollectorRegistry()

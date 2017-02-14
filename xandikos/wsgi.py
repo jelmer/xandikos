@@ -22,19 +22,25 @@
 
 import os
 
+# Do this before anything imports prometheus_client; it has side-effects,
+# and needs to have ${prometheus_multiproc_dir} set.
+os.environ['prometheus_multiproc_dir'] = ''
+import prometheus_client
+
+
 from xandikos.web import XandikosApp
-
-from prometheus_client import multiprocess
-from prometheus_client import CollectorRegistry, make_wsgi_app
-
-
 app = XandikosApp(
         path=os.environ['XANDIKOSPATH'],
         current_user_principal=os.environ.get('CURRENT_USER_PRINCIPAL', '/user/'))
 
 if os.environ.get('ENABLE_PROMETHEUS', '1') == '1':
-    from xandikos.prometheus import PrometheusRedirector, DEFAULT_PROMETHEUS_DIR
-    prometheus_dir = os.environ.get('PROMETHEUS_DIR', DEFAULT_PROMETHEUS_DIR)
+    from prometheus_client import multiprocess
+    from prometheus_client import CollectorRegistry
+    from xandikos.prometheus import DEFAULT_PROMETHEUS_DIR, PrometheusRedirector
+    os.environ['prometheus_multiproc_dir'] = os.environ.get(
+        'PROMETHEUS_DIR', DEFAULT_PROMETHEUS_DIR)
+    os.makedirs(os.environ['prometheus_multiproc_dir'])
+
     registry = CollectorRegistry()
-    multiprocess.MultiProcessCollector(registry, os.prometheus_dir)
+    multiprocess.MultiProcessCollector(registry)
     app_with_metrics = PrometheusRedirector(app, registry)
