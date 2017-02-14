@@ -18,14 +18,13 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from prometheus_client import make_wsgi_app
-
 DEFAULT_PROMETHEUS_DIR = '/run/xandikos/prometheus'
 
 
 class PrometheusRedirector(object):
 
     def __init__(self, inner_app, prometheus_registry):
+        from prometheus_client import make_wsgi_app
         self._inner_app = inner_app
         self._prometheus_app = make_wsgi_app(prometheus_registry)
 
