@@ -43,3 +43,5 @@ if os.environ.get('ENABLE_PROMETHEUS', '1') == '1':
     registry = CollectorRegistry()
     multiprocess.MultiProcessCollector(registry)
     app_with_metrics = PrometheusRedirector(app, registry)
+    import atexit
+    atexit.register(lambda: multiprocess.mark_process_dead(os.getpid()))
