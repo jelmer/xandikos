@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+# Xandikos
+# Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; version 2
+# of the License or (at your option) any later version of
+# the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+# MA  02110-1301, USA.
+
+import sys
+
+from prometheus_client import multiprocess
+from prometheus_client import CollectorRegistry, make_wsgi_app
+from xandikos.prometheus import DEFAULT_PROMETHEUS_DIR
+
+import optparse
+import sys
+
+from xandikos import __version__
+parser = optparse.OptionParser(version='.'.join(map(str, __version__)))
+parser.add_option("-l", "--listen_address", dest="listen_address",
+                  default="localhost",
+                  help="Binding IP address.")
+parser.add_option("-p", "--port", dest="port", type=int,
+                  default=8000,
+                  help="Port to listen on.")
+parser.add_option("-d", "--prometheus-directory",
+                  default=DEFAULT_PROMETHEUS_DIR,
+                  dest="prometheus_dir",
+                  help="Path to prometheus statistics.")
+
+options, args = parser.parse_args()
+from wsgiref.simple_server import make_server
+
+registry = CollectorRegistry()
+multiprocess.MultiProcessCollector(registry, options.prometheus_dir)
+app = make_wsgi_app(registry)
+
+server = make_server(options.listen_address, options.port, app)
+server.serve_forever()

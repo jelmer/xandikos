@@ -1,0 +1,14 @@
+[Unit]
+Description=Prometheus exporter for Xandikos
+Documentation=https://github.com/jelmer/xandikos
+
+[Service]
+Restart=always
+User=xandikos
+Group=xandikos
+EnvironmentFile=/etc/default/prometheus-xandikos-exporter
+ExecStart=/usr/bin/prometheus-xandikos-exporter $ARGS
+ExecStartPre=/usr/bin/install -o $USER -g $GID -d /run/xandikos
+
+[Install]
+WantedBy=multi-user.target

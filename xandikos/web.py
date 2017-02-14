@@ -30,6 +30,8 @@ import os
 import posixpath
 import uuid
 
+from prometheus_client import Summary
+
 from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
 from xandikos.store import (
     BareGitStore,
@@ -546,6 +548,9 @@ class XandikosApp(webdav.WebDAVApp):
             ])
 
 
+REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request')
+
+
 class WellknownRedirector(object):
     """Redirect paths under .well-known/ to the appropriate paths."""
 
@@ -553,6 +558,7 @@ class WellknownRedirector(object):
         self._inner_app = inner_app
         self._dav_root = dav_root
 
+    @REQUEST_TIME.time()
     def __call__(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc6764
         if ((environ['SCRIPT_NAME'] + environ['PATH_INFO'])
@@ -584,6 +590,10 @@ def main(argv):
     parser.add_option("--dav-root",
                       default="/",
                       help="Path to DAV root.")
+    parser.add_option("--prometheus-metrics",
+                      action="store_true",
+                      dest="prometheus",
+                      help="Whether to expose a /metrics target.")
     options, args = parser.parse_args(argv)
 
     if options.directory is None:
@@ -593,6 +603,11 @@ def main(argv):
     app = XandikosApp(
         options.directory,
         current_user_principal=options.current_user_principal)
+
+    if options.prometheus:
+        from .prometheus import PrometheusRedirector
+        from prometheus_client.core import REGISTRY
+        app = PrometheusRedirector(app, REGISTRY)
 
     from wsgiref.simple_server import make_server
     app = WellknownRedirector(app, options.dav_root)
