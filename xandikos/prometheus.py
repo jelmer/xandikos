@@ -19,6 +19,7 @@
 # MA  02110-1301, USA.
 
 DEFAULT_PROMETHEUS_DIR = '/run/xandikos/prometheus'
+DEFAULT_EXPORTER_PORT = 9211
 
 
 class PrometheusRedirector(object):

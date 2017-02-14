@@ -23,13 +23,13 @@ import os
 import sys
 
 from xandikos import __version__
-from xandikos.prometheus import DEFAULT_PROMETHEUS_DIR
+from xandikos.prometheus import DEFAULT_PROMETHEUS_DIR, DEFAULT_EXPORTER_PORT
 parser = optparse.OptionParser(version='.'.join(map(str, __version__)))
 parser.add_option("-l", "--listen_address", dest="listen_address",
                   default="localhost",
                   help="Binding IP address.")
 parser.add_option("-p", "--port", dest="port", type=int,
-                  default=8000,
+                  default=DEFAULT_EXPORTER_PORT,
                   help="Port to listen on.")
 parser.add_option("-d", "--prometheus-directory",
                   default=DEFAULT_PROMETHEUS_DIR,
