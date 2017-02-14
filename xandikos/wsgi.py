@@ -29,7 +29,7 @@ if os.environ.get('ENABLE_PROMETHEUS', '1') == '1':
     from xandikos.prometheus import DEFAULT_PROMETHEUS_DIR, PrometheusRedirector
     os.environ['prometheus_multiproc_dir'] = os.environ.get(
         'PROMETHEUS_DIR', DEFAULT_PROMETHEUS_DIR)
-    os.makedirs(os.environ['prometheus_multiproc_dir'])
+    os.makedirs(os.environ['prometheus_multiproc_dir'], exist_ok=True, mode=0o750)
 
 
 from xandikos.web import XandikosApp
