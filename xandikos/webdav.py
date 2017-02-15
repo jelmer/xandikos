@@ -158,13 +158,13 @@ class Property(object):
     # Whether this property is live (i.e set by the server)
     live = None
 
-    def _matches_resource_type(self, resource):
+    def supported_on(self, resource):
         return (self.resource_type is None or
                 self.resource_type in resource.resource_types)
 
     def is_set(self, resource):
         """Check if this property is set on a resource."""
-        if not self._matches_resource_type(resource):
+        if not self.supported_on(resource):
             return False
         try:
             self.get_value(resource, ET.Element(self.name))
@@ -633,7 +633,7 @@ def get_property(resource, properties, name):
             name)
     else:
         try:
-            if not prop._matches_resource_type(resource):
+            if not prop.supported_on(resource):
                 raise KeyError
             prop.get_value(resource, ret)
         except KeyError:
