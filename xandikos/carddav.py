@@ -48,7 +48,7 @@ class AddressbookHomeSetProperty(webdav.Property):
 
     def get_value(self, resource, el):
         for href in resource.get_addressbook_home_set():
-            el.append(webdav.create_href_element(href))
+            el.append(webdav.create_href(href))
 
 
 class AddressDataProperty(webdav.Property):
@@ -150,7 +150,7 @@ class PrincipalAddressProperty(webdav.Property):
     in_allprops = False
 
     def get_value(self, resource, el):
-        el.append(webdav.create_href_element(
+        el.append(webdav.create_href(
             resource.get_principal_address()))
 
 

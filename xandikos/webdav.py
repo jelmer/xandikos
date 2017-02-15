@@ -117,7 +117,7 @@ class Status(object):
 
     def aselement(self):
         ret = ET.Element('{DAV:}response')
-        ret.append(create_href_element(self.href))
+        ret.append(create_href(self.href))
         if self.status:
             ET.SubElement(ret, '{DAV:}status').text = 'HTTP/1.1 ' + self.status
         if self.error:
@@ -340,7 +340,7 @@ class CurrentUserPrincipalProperty(Property):
 
         :param name: A property name.
         """
-        el.append(create_href_element(self.current_user_principal))
+        el.append(create_href(self.current_user_principal))
 
 
 class PrincipalURLProperty(Property):
@@ -355,7 +355,7 @@ class PrincipalURLProperty(Property):
 
         :param name: A property name.
         """
-        el.append(create_href_element(resource.get_principal_url()))
+        el.append(create_href(resource.get_principal_url()))
 
 
 class SupportedReportSetProperty(Property):
@@ -719,7 +719,7 @@ class Reporter(object):
         raise NotImplementedError(self.report)
 
 
-def create_href_element(href):
+def create_href(href):
     et = ET.Element('{DAV:}href')
     et.text = urllib.parse.quote(href)
     return et
@@ -830,10 +830,10 @@ class LockDiscoveryProperty(Property):
                 ET.SubElement(entry, '{DAV:}timeout').text = activelock.timeout
             if activelock.locktoken:
                 locktoken_el = ET.SubElement(entry, '{DAV:}locktoken')
-                locktoken_el.append(create_href_element(activelock.locktoken))
+                locktoken_el.append(create_href(activelock.locktoken))
             if activelock.lockroot:
                 lockroot_el = ET.SubElement(entry, '{DAV:}lockroot')
-                lockroot_el.append(create_href_element(activelock.lockroot))
+                lockroot_el.append(create_href(activelock.lockroot))
 
 
 class CommentProperty(Property):

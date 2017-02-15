@@ -48,4 +48,4 @@ class TimezoneServiceSetProperty(webdav.Property):
 
     def get_value(self, resource, el):
         for timezone_service_href in self._timezone_services:
-            el.append(webdav.create_href_element(timezone_service_href))
+            el.append(webdav.create_href(timezone_service_href))
