@@ -39,7 +39,6 @@ class CurrentUserPrivilegeSetProperty(webdav.Property):
 
     name = '{DAV:}current-user-privilege-set'
     in_allprops = False
-    protected = True
     live = True
 
     def get_value(self, resource, el):

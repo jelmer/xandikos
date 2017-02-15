@@ -39,7 +39,6 @@ class TimezoneServiceSetProperty(webdav.Property):
     # but Xandikos doesn't have a separate resource type for those.
     resource_type = webdav.COLLECTION_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
     def __init__(self, timezone_services):

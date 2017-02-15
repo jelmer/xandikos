@@ -81,7 +81,8 @@ class AddressbookDescriptionProperty(webdav.Property):
         el.text = resource.get_addressbook_description()
 
     # TODO(jelmer): allow modification of this property
-    # protected = True
+    def set_value(self, resource, el):
+        raise NotImplementedError
 
 
 class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
@@ -163,7 +164,6 @@ class SupportedAddressDataProperty(webdav.Property):
     name = '{%s}supported-address-data' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
     def get_value(self, resource, el):
@@ -182,7 +182,6 @@ class MaxResourceSizeProperty(webdav.Property):
     name = '{%s}max-resource-size' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
     def get_value(self, resource, el):
@@ -198,7 +197,6 @@ class MaxImageSizeProperty(webdav.Property):
     name = '{%s}max-image-size' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
     def get_value(self, resource, el):

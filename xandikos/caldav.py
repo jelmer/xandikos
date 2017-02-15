@@ -150,7 +150,8 @@ class CalendarDescriptionProperty(webdav.Property):
         el.text = resource.get_calendar_description()
 
     # TODO(jelmer): allow modification of this property
-    # protected = True
+    def set_value(self, resource, el):
+        raise NotImplementedError
 
 
 class CalendarDataProperty(webdav.Property):
@@ -488,7 +489,6 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set'
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
     def get_value(self, resource, el):
@@ -506,7 +506,6 @@ class SupportedCalendarDataProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-data'
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
-    protected = True
 
     def get_value(self, resource, el):
         for (content_type, version) in (
@@ -543,7 +542,6 @@ class MinDateTimeProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}min-date-time'
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
     def get_value(self, resource, el):
@@ -559,7 +557,6 @@ class MaxDateTimeProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}max-date-time'
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
     def get_value(self, resource, el):

@@ -151,9 +151,6 @@ class Property(object):
     # https://tools.ietf.org/html/rfc4918, section 14.2
     in_allprops = True
 
-    # Whether this property is protected (i.e. read-only)
-    protected = True
-
     # Resource type this property belongs to. If None, get_value()
     # will always be called.
     resource_type = None
@@ -189,24 +186,17 @@ class Property(object):
         """Set property.
 
         :param resource: Resource to modify
-        :param el: Element to get new value from
+        :param el: Element to get new value from (None to remove property)
+        :raise NotImplementedError: to indicate this property can not be set
+            (i.e. is protected)
         """
         raise NotImplementedError(self.set_value)
-
-    def remove(self, resource):
-        """Remove property.
-
-        :param resource: Resource to modify
-        """
-        raise NotImplementedError(self.remove)
 
 
 class ResourceTypeProperty(Property):
     """Provides {DAV:}resourcetype."""
 
     name = '{DAV:}resourcetype'
-
-    protected = True
 
     resource_type = None
 
@@ -230,7 +220,8 @@ class DisplayNameProperty(Property):
         el.text = resource.get_displayname()
 
     # TODO(jelmer): allow modification of this property
-    # protected = True
+    def set_value(self, resource, el):
+        raise NotImplementedError
 
 
 class GetETagProperty(Property):
@@ -241,7 +232,6 @@ class GetETagProperty(Property):
 
     name = '{DAV:}getetag'
     resource_type = None
-    protected = True
     live = True
 
     def get_value(self, resource, el):
@@ -256,7 +246,6 @@ class GetLastModifiedProperty(Property):
 
     name = '{DAV:}getlastmodified'
     resource_type = None
-    protected = True
     live = True
     in_allprops = True
 
@@ -286,7 +275,6 @@ class CreationDateProperty(Property):
 
     name = '{DAV:}creationdate'
     resource_type = None
-    protected = True
     live = True
 
     def get_value(self, resource, el):
@@ -301,7 +289,6 @@ class GetContentLanguageProperty(Property):
 
     name = '{DAV:}getcontentlanguage'
     resource_type = None
-    protected = True
 
     def get_value(self, resource, el):
         el.text = ', '.join(resource.get_content_language())
@@ -315,7 +302,6 @@ class GetContentLengthProperty(Property):
 
     name = '{DAV:}getcontentlength'
     resource_type = None
-    protected = True
 
     def get_value(self, resource, el):
         el.text = str(resource.get_content_length())
@@ -329,7 +315,6 @@ class GetContentTypeProperty(Property):
 
     name = '{DAV:}getcontenttype'
     resource_type = None
-    protected = True
 
     def get_value(self, resource, el):
         el.text = resource.get_content_type()
@@ -397,7 +382,6 @@ class GetCTagProperty(Property):
     name = None
     resource_type = COLLECTION_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
     def get_value(self, resource, el):
@@ -807,7 +791,6 @@ class SupportedLockProperty(Property):
 
     name = '{DAV:}supportedlock'
     resource_type = None
-    protected = True
     live = True
 
     def get_value(self, resource, el):
@@ -827,7 +810,6 @@ class LockDiscoveryProperty(Property):
 
     name = '{DAV:}lockdiscovery'
     resource_type = None
-    protected = True
     live = True
 
     def get_value(self, resource, el):
@@ -856,7 +838,6 @@ class CommentProperty(Property):
     See RFC3253, section 3.1.1
     """
     name = '{DAV:}comment'
-    protected = False
     live = False
     in_allprops = False
 
@@ -1190,15 +1171,17 @@ class WebDAVApp(object):
                         PropStatus('404 Not Found', None,
                             ET.Element(propel.tag)))
                 else:
-                    if handler.protected:
+                    if el.tag == '{DAV:}remove':
+                        newval = None
+                    elif el.tag == '{DAV:}set':
+                        newval = propel
+                    try:
+                        handler.set_value(resource, newval)
+                    except NotImplementedError:
                         # TODO(jelmer): Signal
                         # {DAV:}cannot-modify-protected-property error
                         statuscode = '409 Conflict'
-                    elif el.tag == '{DAV:}remove':
-                        handler.remove(resource)
-                        statuscode = '200 OK'
-                    elif el.tag == '{DAV:}set':
-                        handler.set_value(resource, propel)
+                    else:
                         statuscode = '200 OK'
                     propstat.append(
                         PropStatus(statuscode, None, ET.Element(propel.tag)))
