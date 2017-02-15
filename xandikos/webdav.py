@@ -161,6 +161,21 @@ class Property(object):
     # Whether this property is live (i.e set by the server)
     live = None
 
+    def _matches_resource_type(self, resource):
+        return (self.resource_type is None or
+                self.resource_type in resource.resource_types)
+
+    def is_set(self, resource):
+        """Check if this property is set on a resource."""
+        if not self._matches_resource_type(resource):
+            return False
+        try:
+            self.get_value(resource, ET.Element(self.name))
+        except KeyError:
+            return False
+        else:
+            return True
+
     def get_value(self, resource, el):
         """Get property with specified name.
 
@@ -634,8 +649,7 @@ def get_property(resource, properties, name):
             name)
     else:
         try:
-            if (prop.resource_type is not None and
-                prop.resource_type not in resource.resource_types):
+            if not prop._matches_resource_type(resource):
                 raise KeyError
             prop.get_value(resource, ret)
         except KeyError:
@@ -1129,14 +1143,12 @@ class WebDAVApp(object):
             for href, resource in traverse_resource(
                     base_resource, self._request_href(environ), depth):
                 propstat = []
-                for name in self.properties:
-                    ps = get_property(resource, self.properties, name)
-                    if ps.statuscode == '200 OK':
+                for name, prop in self.properties.items():
+                    if prop.is_set(resource):
                         propstat.append(ET.Element(name))
                 ret.append(Status(href, '200 OK', propstat=propstat))
             return ret
         else:
-            # TODO(jelmer): implement allprop and propname
             # TODO-ERROR(jelmer): What to return here?
             return Status(
                 request_uri(environ), '400 Bad Request',
