@@ -152,11 +152,12 @@ class Store(object):
         """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
 
-    def import_one(self, name, data, replace_etag=None):
+    def import_one(self, name, data, message=None, replace_etag=None):
         """Import a single object.
 
         :param name: Name of the object
         :param data: serialized object as bytes
+        :param message: Commit message
         :param replace_etag: Etag to replace
         :raise NameExists: when the name already exists
         :raise DuplicateUidError: when the uid already exists
@@ -164,10 +165,11 @@ class Store(object):
         """
         raise NotImplementedError(self.import_one)
 
-    def delete_one(self, name, etag=None):
+    def delete_one(self, name, message=None, etag=None):
         """Delete an item.
 
         :param name: Filename to delete
+        :param message: Commit message
         :param etag: Optional mandatory etag of object to remove
         :raise NoSuchItem: when the item doesn't exist
         :raise InvalidETag: If the specified ETag doesn't match the current
@@ -515,11 +517,12 @@ class BareGitStore(GitStore):
         return self.repo.do_commit(message=message, tree=tree_id,
                 ref=self.ref, committer=committer)
 
-    def import_one(self, name, data, replace_etag=None):
+    def import_one(self, name, data, message=None, replace_etag=None):
         """Import a single object.
 
         :param name: Name of the object
         :param data: serialized object as bytes
+        :param message: commit message
         :param etag: optional etag of object to replace
         :raise InvalidETag: when the name already exists but with different etag
         :raise DuplicateUidError: when the uid already exists
@@ -533,13 +536,16 @@ class BareGitStore(GitStore):
         name_enc = name.encode(DEFAULT_ENCODING)
         tree[name_enc] = (0o644|stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
-        self._commit_tree(tree.id, b"Add " + name_enc)
+        if message is None:
+            message = "Update " + name
+        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING))
         return b.id.decode('ascii')
 
-    def delete_one(self, name, etag=None):
+    def delete_one(self, name, message=None, etag=None):
         """Delete an item.
 
         :param name: Filename to delete
+        :param message; Commit message
         :param etag: Optional mandatory etag of object to remove
         :raise NoSuchItem: when the item doesn't exist
         :raise InvalidETag: If the specified ETag doesn't match the curren
@@ -554,7 +560,9 @@ class BareGitStore(GitStore):
                 raise InvalidETag(name, etag, current_sha.decode('ascii'))
         del tree[name_enc]
         self.repo.object_store.add_objects([(tree, '')])
-        self._commit_tree(tree.id, b"Delete " + name_enc)
+        if message is None:
+            message = "Delete " + name
+        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING))
 
     @classmethod
     def create(cls, path):
@@ -590,11 +598,12 @@ class TreeGitStore(GitStore):
             committer = _DEFAULT_COMMITTER_IDENTITY
         return self.repo.do_commit(message=message, committer=committer)
 
-    def import_one(self, name, data, replace_etag=None):
+    def import_one(self, name, data, message=None, replace_etag=None):
         """Import a single object.
 
         :param name: name of the object
         :param data: serialized object as bytes
+        :param message: Commit message
         :param replace_etag: optional etag of object to replace
         :raise InvalidETag: when the name already exists but with different etag
         :raise DuplicateUidError: when the uid already exists
@@ -608,14 +617,16 @@ class TreeGitStore(GitStore):
             f.write(data)
         self.repo.stage(name)
         etag = self.repo.open_index()[name.encode(DEFAULT_ENCODING)].sha
-        message = b'Add ' + name.encode(DEFAULT_ENCODING)
-        self._commit_tree(message)
+        if message is None:
+            message = "Update " + name
+        self._commit_tree(message.encode(DEFAULT_ENCODING))
         return etag.decode('ascii')
 
-    def delete_one(self, name, etag=None):
+    def delete_one(self, name, message=None, etag=None):
         """Delete an item.
 
         :param name: Filename to delete
+        :param message: Commit message
         :param etag: Optional mandatory etag of object to remove
         :raise NoSuchItem: when the item doesn't exist
         :raise InvalidETag: If the specified ETag doesn't match the curren
@@ -630,8 +641,9 @@ class TreeGitStore(GitStore):
                 raise InvalidETag(name, etag, current_etag.decode('ascii'))
         os.unlink(p)
         self.repo.stage(name)
-        message = b'Delete ' + name.encode(DEFAULT_ENCODING)
-        self._commit_tree(message)
+        if message is None:
+            message = 'Delete ' + name
+        self._commit_tree(message.encode(DEFAULT_ENCODING))
 
     def get_ctag(self):
         """Return the ctag for this store."""

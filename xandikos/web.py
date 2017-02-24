@@ -95,8 +95,10 @@ class ObjectResource(webdav.Resource):
         return self._chunked
 
     def set_body(self, data, replace_etag=None):
+        message = "Modifying " + name
         etag = self.store.import_one(
-            self.name, b''.join(data), extract_strong_etag(replace_etag))
+            self.name, b''.join(data), extract_strong_etag(replace_etag),
+            message)
         return create_strong_etag(etag)
 
     def get_content_language(self):
@@ -179,12 +181,15 @@ class StoreBasedCollection(object):
             raise KeyError(name)
 
     def delete_member(self, name, etag=None):
-        self.store.delete_one(name, extract_strong_etag(etag))
+        message = "Delete " + name
+        self.store.delete_one(name, message, etag=extract_strong_etag(etag))
 
     def create_member(self, name, contents, content_type):
         if name is None:
             name = str(uuid.uuid4()) + mimetypes.get_extension(content_type)
-        etag = self.store.import_one(name, b''.join(contents))
+        message = "Add " + name
+        etag = self.store.import_one(name, b''.join(contents),
+            message=message)
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(self, old_token, new_token):

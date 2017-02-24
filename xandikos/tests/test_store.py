@@ -97,10 +97,10 @@ class BaseStoreTest(object):
     def test_import_one_duplicate_name(self):
         gc = self.create_store()
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR2, etag)
+        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR2, replace_etag=etag)
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertRaises(InvalidETag, gc.import_one, 'foo.ics',
-                EXAMPLE_VCALENDAR2, 'invalidetag')
+                EXAMPLE_VCALENDAR2, replace_etag='invalidetag')
 
     def test_iter_calendars(self):
         gc = self.create_store()
@@ -157,7 +157,7 @@ class BaseStoreTest(object):
         self.assertEqual([], list(gc.iter_with_etag()))
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertEqual([('foo.ics', etag1)], list(gc.iter_with_etag()))
-        gc.delete_one('foo.ics', etag1)
+        gc.delete_one('foo.ics', etag=etag1)
         self.assertEqual([], list(gc.iter_with_etag()))
 
     def test_delete_one_nonexistant(self):
@@ -172,7 +172,7 @@ class BaseStoreTest(object):
         self.assertEqual(
             set([('foo.ics', etag1), ('bar.ics', etag2)]),
             set(gc.iter_with_etag()))
-        self.assertRaises(InvalidETag, gc.delete_one, 'foo.ics', etag2)
+        self.assertRaises(InvalidETag, gc.delete_one, 'foo.ics', etag=etag2)
         self.assertEqual(
             set([('foo.ics', etag1), ('bar.ics', etag2)]),
             set(gc.iter_with_etag()))
