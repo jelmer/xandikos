@@ -116,7 +116,7 @@ class ObjectResource(webdav.Resource):
 
     def set_body(self, data, replace_etag=None):
         message = "Modifying " + describe_file(
-            name, data, self.get_content_type())
+            self.name, data, self.get_content_type())
         etag = self.store.import_one(
             self.name, b''.join(data),
             replace_etag=extract_strong_etag(replace_etag), message=message)
