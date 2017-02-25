@@ -31,7 +31,7 @@ from dulwich.repo import Repo
 
 from xandikos.store import (
     GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
-    ExtractCalendarUID, InvalidETag, NoSuchItem,
+    ICalendarHandler, InvalidETag, NoSuchItem,
     logger as store_logger)
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -323,15 +323,8 @@ class ExtractCalendarUIDTests(unittest.TestCase):
     def test_extract_str(self):
         self.assertEqual(
             'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ExtractCalendarUID(EXAMPLE_VCALENDAR1))
-
-    def test_extract_cal(self):
-        cal = Calendar.from_ical(EXAMPLE_VCALENDAR1)
-        self.assertEqual(
-            'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ExtractCalendarUID(cal))
+            ICalendarHandler([EXAMPLE_VCALENDAR1], 'text/calendar').get_uid())
 
     def test_extract_no_uid(self):
-        self.assertRaises(
-            KeyError,
-            ExtractCalendarUID, EXAMPLE_VCALENDAR_NO_UID)
+        fi = ICalendarHandler([EXAMPLE_VCALENDAR_NO_UID], 'text/calendar')
+        self.assertRaises(KeyError, fi.get_uid)

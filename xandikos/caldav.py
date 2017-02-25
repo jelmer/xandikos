@@ -40,7 +40,7 @@ from xandikos.webdav import (
     traverse_resource,
     )
 
-PRODID = '-//Jelmer Vernooij//Xandikos//EN'
+PRODID = '-//Jelmer Vernooĳ//Xandikos//EN'
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
 
 # https://tools.ietf.org/html/rfc4791, section 4.2

@@ -24,6 +24,7 @@ are always strong, and should be returned without wrapping quotes.
 """
 
 import logging
+import mimetypes
 import os
 import stat
 
@@ -51,33 +52,80 @@ DEFAULT_ENCODING = 'utf-8'
 logger = logging.getLogger(__name__)
 
 
-def ExtractCalendarUID(cal):
-    """Extract the UID from a VCalendar file.
+class FileHandler(object):
+    """A file type handler."""
 
-    :param cal: Calendar, possibly serialized.
-    :return: UID
-    """
-    if type(cal) in (bytes, str):
-        cal = Calendar.from_ical(cal)
-    for component in cal.subcomponents:
-        try:
-            return component["UID"]
-        except KeyError:
-            pass
-    raise KeyError
+    def __init__(self, content, content_type):
+        self.content = content
+        self.content_type = content_type
 
-
-def ExtractUID(name, data):
-    """Extract UID from a file.
-
-    :param name: Name of the file
-    :param data: Data (possibly serialized)
-    :return: UID
-    """
-    if name.endswith(ICALENDAR_EXTENSION):
-        return ExtractCalendarUID(data)
-    else:
+    def describe(self):
+        """Describe the contents of this file."""
         return None
+
+    def get_uid(self):
+        """Return UID.
+
+        :raise NotImplementedError: If UIDs aren't supported for this format
+        :raise KeyError: If there is no UID set on this file
+        :return: UID
+        """
+        raise NotImplementedError(self.get_uid)
+
+
+class ICalendarHandler(FileHandler):
+    """Handle for ICalendar files."""
+
+    content_type = 'text/calendar'
+
+    def describe(self):
+        cal = Calendar.from_ical(b''.join(self.content))
+        for component in cal.subcomponents:
+            try:
+                return component["SUMMARY"]
+            except KeyError:
+                pass
+
+    def get_uid(self):
+        """Extract the UID from a VCalendar file.
+
+        :param cal: Calendar, possibly serialized.
+        :return: UID
+        """
+        cal = Calendar.from_ical(b''.join(self.content))
+        for component in cal.subcomponents:
+            try:
+                return component["UID"]
+            except KeyError:
+                pass
+        raise KeyError
+
+
+FILE_HANDLERS = {
+    ICalendarHandler.content_type: ICalendarHandler,
+    }
+
+
+def open_by_content_type(content, content_type):
+    """Open a file based on content type.
+
+    :param content: list of bytestrings with content
+    :param content_type: MIME type
+    :return: FileHandler instance
+    """
+    return FILE_HANDLERS.get(content_type.split(';')[0], FileHandler)(
+        content, content_type)
+
+
+def open_by_extension(content, name):
+    """Open a file based on the filename extension.
+
+    :param content: list of bytestrings with content
+    :param name: Name of file to open
+    :return: FileHandler instance
+    """
+    (mime_type, encoding) = mimetypes.guess_type(name)
+    return open_by_content_type(content, mime_type)
 
 
 class DuplicateUidError(Exception):
@@ -288,6 +336,7 @@ class GitStore(Store):
             etag = None
         if replace_etag is not None and etag != replace_etag:
             raise InvalidETag(name, etag, replace_etag)
+        return etag
 
     def get_raw(self, name, etag=None):
         """Get the raw contents of an object.
@@ -311,9 +360,10 @@ class GitStore(Store):
                 self._fname_to_uid[name][0] == etag):
                 continue
             blob = self.repo.object_store[sha]
+            fi = open_by_extension(blob.chunked, name)
             try:
-                uid = ExtractUID(name, blob.data)
-            except KeyError:
+                uid = fi.get_uid()
+            except (NotImplementedError, KeyError):
                 logger.warning('No UID found in file %s', name)
                 uid = None
             self._fname_to_uid[name] = (etag, uid)
@@ -533,8 +583,12 @@ class BareGitStore(GitStore):
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
-        uid = ExtractUID(name, data)
-        self._check_duplicate(uid, name, replace_etag)
+        fi = open_by_extension([data], name)
+        try:
+            uid = fi.get_uid()
+        except (KeyError, NotImplementedError):
+            uid = None
+        modified = bool(self._check_duplicate(uid, name, replace_etag))
         # TODO(jelmer): Verify that 'data' actually represents a valid object
         b = Blob.from_string(data)
         tree = self._get_current_tree()
@@ -542,7 +596,8 @@ class BareGitStore(GitStore):
         tree[name_enc] = (0o644|stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
         if message is None:
-            message = "Update " + name
+            message = ("Update" if modified else "Add") + " " + (
+                fi.describe() or name)
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
             author=author)
         return b.id.decode('ascii')
@@ -559,16 +614,17 @@ class BareGitStore(GitStore):
         """
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
-        if not name_enc in tree:
+        try:
+            current_sha = tree[name_enc][1]
+        except KeyError:
             raise NoSuchItem(name)
-        if etag is not None:
-            current_sha = tree[name.encode(DEFAULT_ENCODING)][1]
-            if current_sha != etag.encode('ascii'):
-                raise InvalidETag(name, etag, current_sha.decode('ascii'))
+        if etag is not None and current_sha != etag.encode('ascii'):
+            raise InvalidETag(name, etag, current_sha.decode('ascii'))
         del tree[name_enc]
         self.repo.object_store.add_objects([(tree, '')])
         if message is None:
-            message = "Delete " + name
+            fi = open_by_extension(self.repo.object_store[current_sha].chunked, name)
+            message = "Delete " + (fi.describe() or name)
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
             author=author)
 
@@ -620,8 +676,12 @@ class TreeGitStore(GitStore):
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
-        uid = ExtractUID(name, data)
-        self._check_duplicate(uid, name, replace_etag)
+        fi = open_by_extension([data], name)
+        try:
+            uid = fi.get_uid()
+        except (KeyError, NotImplementedError):
+            uid = None
+        modified = bool(self._check_duplicate(uid, name, replace_etag))
         # TODO(jelmer): Verify that 'data' actually represents a valid object
         p = os.path.join(self.repo.path, name)
         with open(p, 'wb') as f:
@@ -629,7 +689,8 @@ class TreeGitStore(GitStore):
         self.repo.stage(name)
         etag = self.repo.open_index()[name.encode(DEFAULT_ENCODING)].sha
         if message is None:
-            message = "Update " + name
+            message = ("Update" if modified else "Add") + " " + (
+                fi.describe() or name)
         self._commit_tree(message.encode(DEFAULT_ENCODING), author=author)
         return etag.decode('ascii')
 
@@ -644,17 +705,21 @@ class TreeGitStore(GitStore):
         :raise InvalidETag: If the specified ETag doesn't match the curren
         """
         p = os.path.join(self.repo.path, name)
-        if not os.path.exists(p):
+        try:
+            with open(p, 'rb') as f:
+                current_blob = Blob.from_string(f.read())
+        except IOError:
             raise NoSuchItem(name)
+        if message is None:
+            fi = open_by_extension(current_blob.chunked, name)
+            message = 'Delete ' + (fi.describe() or name)
         if etag is not None:
             with open(p, 'rb') as f:
-                current_etag = Blob.from_string(f.read()).id
+                current_etag = current_blob.id
             if etag.encode('ascii') != current_etag:
                 raise InvalidETag(name, etag, current_etag.decode('ascii'))
         os.unlink(p)
         self.repo.stage(name)
-        if message is None:
-            message = 'Delete ' + name
         self._commit_tree(message.encode(DEFAULT_ENCODING), author=author)
 
     def get_ctag(self):

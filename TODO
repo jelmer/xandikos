@@ -15,7 +15,6 @@ webdav server:
  - calendar-proxy-read-for
  - calendar-proxy-write-for
 
-- better commit messages
 - better author data in commits
 
 - improve performance
