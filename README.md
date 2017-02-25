@@ -21,6 +21,12 @@ The following standards are implemented:
 
 See [[notes/dav-compliance.md]] for more detail on specification compliancy.
 
+Limitations
+-----------
+
+ - No multi-user support
+ - No support for CalDAV scheduling extensions
+
 Supported clients
 =================
 
@@ -33,6 +39,11 @@ Xandikos has been tested and works with the following clients:
  - sogo connector for Icedove/Thunderbird
  - aCALdav syncer for Android
  - pycardsyncer
+
+Clients that are known not to work:
+
+ - CAlDAV-Sync
+ - CardDAV-Sync
 
 Running
 =======

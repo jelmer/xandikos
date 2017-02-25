@@ -25,6 +25,7 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import functools
+from icalendar.cal import Calendar as ICalendar
 import mimetypes
 import os
 import posixpath
@@ -74,6 +75,25 @@ def extract_strong_etag(etag):
     return etag.strip('"')
 
 
+def describe_file(name, content, content_type):
+    """Describe a file.
+
+    :param name: The file name
+    :param content: Content, as a list of bytestrings
+    :param content_type: Content type
+    :return: Description
+    """
+    # TODO(jelmer): More generic file handling
+    if content_type.split(';')[0] == 'text/calendar':
+        cal = ICalendar.from_ical(b''.join(content))
+        for component in cal.subcomponents:
+            try:
+                return component["SUMMARY"]
+            except KeyError:
+                pass
+    return name
+
+
 class ObjectResource(webdav.Resource):
     """Object resource."""
 
@@ -95,10 +115,11 @@ class ObjectResource(webdav.Resource):
         return self._chunked
 
     def set_body(self, data, replace_etag=None):
-        message = "Modifying " + name
+        message = "Modifying " + describe_file(
+            name, data, self.get_content_type())
         etag = self.store.import_one(
-            self.name, b''.join(data), extract_strong_etag(replace_etag),
-            message)
+            self.name, b''.join(data),
+            replace_etag=extract_strong_etag(replace_etag), message=message)
         return create_strong_etag(etag)
 
     def get_content_language(self):
@@ -181,13 +202,15 @@ class StoreBasedCollection(object):
             raise KeyError(name)
 
     def delete_member(self, name, etag=None):
-        message = "Delete " + name
+        resource = self.get_member(name)
+        message = "Delete " + describe_file(
+            name, resource.get_body(), resource.get_content_type())
         self.store.delete_one(name, message, etag=extract_strong_etag(etag))
 
     def create_member(self, name, contents, content_type):
         if name is None:
             name = str(uuid.uuid4()) + mimetypes.get_extension(content_type)
-        message = "Add " + name
+        message = "Add " + describe_file(name, contents, content_type)
         etag = self.store.import_one(name, b''.join(contents),
             message=message)
         return (name, create_strong_etag(etag))

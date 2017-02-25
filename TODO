@@ -10,8 +10,6 @@ webdav server:
 - support returning components in calendar-data
 - support returning components in addressbook-data
 
-- use proper hrefs (i.e. urlencode) (For thunderbird)
-
 - properties:
  - group-membership
  - calendar-proxy-read-for
