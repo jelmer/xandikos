@@ -486,7 +486,7 @@ class CalendarQueryReporter(webdav.Reporter):
             if not apply_filter(filter_el, resource, tzify):
                 continue
             propstat = davcommon.get_properties_with_data(
-                self.data_property, resource, properties, requested)
+                self.data_property, href, resource, properties, requested)
             yield webdav.Status(href, '200 OK', propstat=list(propstat))
 
 
