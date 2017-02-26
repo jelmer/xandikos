@@ -1012,7 +1012,7 @@ class WebDAVApp(object):
         r = self.backend.get_resource(path)
         if r is None:
             return _send_not_found(environ, start_response)
-        if not COLLECTION_RESOURCE_TYPE in r.resource_type:
+        if not COLLECTION_RESOURCE_TYPE in r.resource_types:
             start_response('405 Method Not Allowed', [])
             return []
         content_type = environ['CONTENT_TYPE'].split(';')[0]
@@ -1036,7 +1036,7 @@ class WebDAVApp(object):
             start_response('412 Precondition Failed', [])
             return []
         if r is not None:
-            new_etag = r.set_body([new_contents], current_etag)
+            new_etag = r.set_body(new_contents, current_etag)
             start_response('204 No Content', [
                 ('ETag', new_etag)])
             return []
@@ -1045,7 +1045,7 @@ class WebDAVApp(object):
         r = self.backend.get_resource(container_path)
         if r is not None:
             (new_name, new_etag) = r.create_member(
-                name, [new_contents], content_type)
+                name, new_contents, content_type)
             start_response('201 Created', [
                 ('ETag', new_etag)])
             return []
@@ -1055,14 +1055,14 @@ class WebDAVApp(object):
         try:
             request_body_size = int(environ['CONTENT_LENGTH'])
         except KeyError:
-            return environ['wsgi.input'].read()
+            return [environ['wsgi.input'].read()]
         else:
-            return environ['wsgi.input'].read(request_body_size)
+            return [environ['wsgi.input'].read(request_body_size)]
 
     def _readXmlBody(self, environ):
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
-        body = self._readBody(environ)
+        body = b''.join(self._readBody(environ))
         return xmlparse(body)
 
     def _get_resources_by_hrefs(self, environ, hrefs):

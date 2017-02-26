@@ -352,7 +352,7 @@ class GitStore(Store):
         """
         fi = open_by_content_type(data, content_type)
         if name is None:
-            name = str(uuid.uuid4()) + mimetypes.get_extension(content_type)
+            name = str(uuid.uuid4()) + mimetypes.guess_extension(content_type)
         # TODO(jelmer): Verify that 'data' actually represents a valid object
         try:
             uid = fi.get_uid()
