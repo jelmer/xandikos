@@ -252,7 +252,7 @@ class AddMemberProperty(Property):
 
     def get_value(self, href, resource, el):
         # Support POST against collection URL
-        el.text = create_href('.', href)
+        el.append(create_href('.', href))
 
 
 class GetLastModifiedProperty(Property):
