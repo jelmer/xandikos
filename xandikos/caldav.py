@@ -102,6 +102,16 @@ class Calendar(webdav.Collection):
         """
         raise NotImplementedError(self.get_min_date_time)
 
+    def get_max_instances(self):
+        """Return maximum number of instances.
+        """
+        raise NotImplementedError(self.get_max_instances)
+
+    def get_max_attendees_per_instance(self):
+        """Return maximum number of attendees per instance.
+        """
+        raise NotImplementedError(self.get_max_attendees_per_instance)
+
 
 class PrincipalExtensions:
     """CalDAV-specific extensions to DAVPrincipal."""
@@ -586,6 +596,36 @@ class MaxDateTimeProperty(webdav.Property):
 
     def get_value(self, href, resource, el):
         el.text = resource.get_max_date_time()
+
+
+class MaxInstancesProperty(webdav.Property):
+    """max-instances property.
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.8
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}max-instances'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    live = True
+
+    def get_value(self, href, resource, el):
+        el.text = str(resource.get_max_instances())
+
+
+class MaxAttendeesPerInstanceProperty(webdav.Property):
+    """max-instances property.
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.9
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}max-attendees-per-instance'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    live = True
+
+    def get_value(self, href, resource, el):
+        el.text = str(resource.get_max_attendees_per_instance())
 
 
 def map_freebusy(comp):

@@ -280,6 +280,12 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
     def get_min_date_time(self):
         return "00010101T000000Z"
 
+    def get_max_instances(self):
+        raise KeyError
+
+    def get_max_attendees_per_instance(self):
+        raise KeyError
+
 
 class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
 
@@ -534,6 +540,8 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.GetLastModifiedProperty(),
             timezones.TimezoneServiceSetProperty([]),
             webdav.AddMemberProperty(),
+            webdav.MaxInstancesProperty(),
+            webdav.MaxAttendeesPerInstanceProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

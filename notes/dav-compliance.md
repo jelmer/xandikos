@@ -17,7 +17,7 @@ Mostly supported.
 
 ## HTTP Headers
  - (9.1) Dav [supported]
- - (9.2) Depth ['0 and '1' supported, 'infinity' is not]
+ - (9.2) Depth ['0, '1' and 'infinity' are supported]
  - (9.3) Destination [only used with COPY/MOVE, which are not supported]
  - (9.4) If [not supported]
  - (9.5) Lock-Token [not supported]
@@ -125,8 +125,8 @@ Fully supported.
  - CALDAV:max-resource-size [supported]
  - CALDAV:min-date-time [supported]
  - CALDAV:max-date-time [supported]
- - CALDAV:max-instances [not supported]
- - CALDAV:max-attendees-per-instance [not supported]
+ - CALDAV:max-instances [supported]
+ - CALDAV:max-attendees-per-instance [supported]
 
 ## HTTP Methods
  - MKCALENDAR [not supported]
