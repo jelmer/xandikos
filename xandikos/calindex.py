@@ -24,6 +24,7 @@
 See notes/filters.txt
 """
 
+import os
 import tdb
 
 KEYS = [
@@ -44,7 +45,7 @@ def get_index_entry(comp, key):
         if comp.name != first[5:]:
             return
         if not rest:
-            yield None
+            yield b''
         elif rest.startswith('comp='):
             for subcomp in comp.subcomponents:
                 for value in get_index_entry(subcomp, rest):
@@ -54,9 +55,14 @@ def get_index_entry(comp, key):
                 yield value
     elif first.startswith('prop='):
         try:
-            yield comp[first[5:]]
+            v = comp[first[5:]]
         except KeyError:
             pass
+        else:
+            if getattr(v, 'dt', None):
+                yield str(v.dt).encode('ascii')
+            else:
+                yield str(v).encode('utf-8')
     else:
         raise AssertionError('invalid key name %s' % key)
 
@@ -70,24 +76,39 @@ def get_index_entries(calendar, keys):
 
 class CalendarIndex(object):
 
+    def __init__(self, path):
+        self.db = tdb.open(path, flags=os.O_RDWR|os.O_CREAT, tdb_flags=tdb.DEFAULT)
+
+    @classmethod
+    def open_from_store(cls, store):
+        return cls(os.path.join(store.repo.controldir(), 'calindex.tdb'))
+
     def insert_entry(self, etag, calendar):
         self.db.transaction_start()
         try:
             for (k, vs) in get_index_entries(calendar, KEYS):
-                self.db[etag + '/' + k] = '\n'.join(vs)
-            self.db['PRESENT/' + etag] = ''
+                self.db[b'KEY/' + etag.encode('ascii') + b'/' + k.encode('utf-8')] = b'\n'.join(vs)
+            self.db[b'PRESENT/' + etag.encode('ascii')] = b''
         finally:
             self.db.transaction_commit()
 
+    def __contains__(self):
+        return (b'PRESENT/' + etag.encode('ascii') in self.db)
+
     def get_indexed_calendar(self, etag):
-        raise NotImplementedError(self.get_indexed_calendar)
+        if not etag in self:
+            raise KeyError(etag)
+        return IndexedCalendar(etag)
 
 
 if __name__ == '__main__':
+    from xandikos.store import open_store
     from icalendar.cal import Calendar
     import sys
-    for arg in sys.argv[1:]:
-        with open(arg, 'rb') as f:
-            cal = Calendar.from_ical(f.read())
-            for (k, vs) in get_index_entries(cal, KEYS):
-                print("%s -> %r" % (k, vs))
+    store = open_store(sys.argv[1])
+    index = CalendarIndex.open_from_store(store)
+    for (name, content_type, etag) in store.iter_with_etag():
+        if content_type != 'text/calendar':
+            continue
+        fi = store.get_file(name, content_type, etag)
+        index.insert_entry(etag, fi.calendar)
