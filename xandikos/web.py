@@ -100,8 +100,8 @@ class ObjectResource(webdav.Resource):
         return self.file.content
 
     def set_body(self, data, replace_etag=None):
-        etag = self.store.import_one(
-            self.name, b''.join(data),
+        (name, etag) = self.store.import_one(
+            self.name, self.content_type, data,
             replace_etag=extract_strong_etag(replace_etag))
         return create_strong_etag(etag)
 
@@ -187,9 +187,8 @@ class StoreBasedCollection(object):
         self.store.delete_one(name, etag=extract_strong_etag(etag))
 
     def create_member(self, name, contents, content_type):
-        if name is None:
-            name = str(uuid.uuid4()) + mimetypes.get_extension(content_type)
-        etag = self.store.import_one(name, b''.join(contents))
+        (name, etag) = self.store.import_one(name, content_type,
+            contents)
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(self, old_token, new_token):

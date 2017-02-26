@@ -27,6 +27,7 @@ import logging
 import mimetypes
 import os
 import stat
+import uuid
 
 from icalendar.cal import Calendar
 
@@ -202,13 +203,13 @@ class Store(object):
         """Import a single object.
 
         :param name: Name of the object
-        :param data: serialized object as bytes
+        :param data: serialized object as list of bytes
         :param message: Commit message
         :param author: Optional author
         :param replace_etag: Etag to replace
         :raise NameExists: when the name already exists
         :raise DuplicateUidError: when the uid already exists
-        :return: etag
+        :return: (name, etag)
         """
         raise NotImplementedError(self.import_one)
 
@@ -334,6 +335,35 @@ class GitStore(Store):
         if replace_etag is not None and etag != replace_etag:
             raise InvalidETag(name, etag, replace_etag)
         return etag
+
+    def import_one(self, name, content_type, data, message=None, author=None,
+            replace_etag=None):
+        """Import a single object.
+
+        :param name: name of the object
+        :param content_type: Content type
+        :param data: serialized object as list of bytes
+        :param message: Commit message
+        :param author: Optional author
+        :param replace_etag: optional etag of object to replace
+        :raise InvalidETag: when the name already exists but with different etag
+        :raise DuplicateUidError: when the uid already exists
+        :return: etag
+        """
+        fi = open_by_content_type(data, content_type)
+        if name is None:
+            name = str(uuid.uuid4()) + mimetypes.get_extension(content_type)
+        # TODO(jelmer): Verify that 'data' actually represents a valid object
+        try:
+            uid = fi.get_uid()
+        except (KeyError, NotImplementedError):
+            uid = None
+        modified = bool(self._check_duplicate(uid, name, replace_etag))
+        if message is None:
+            message = ("Update" if modified else "Add") + " " + (
+                fi.describe() or name)
+        etag = self._import_one(name, data, message, author=author)
+        return (name, etag.decode('ascii'))
 
     def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
@@ -575,37 +605,24 @@ class BareGitStore(GitStore):
         return self.repo.do_commit(message=message, tree=tree_id,
                 ref=self.ref, committer=committer, author=author)
 
-    def import_one(self, name, data, message=None, author=None,
-            replace_etag=None):
+    def _import_one(self, name, data, message, author=None):
         """Import a single object.
 
-        :param name: Name of the object
+        :param name: Optional name of the object
         :param data: serialized object as bytes
         :param message: optional commit message
         :param author: optional author
-        :param etag: optional etag of object to replace
-        :raise InvalidETag: when the name already exists but with different etag
-        :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
-        fi = open_by_extension([data], name)
-        try:
-            uid = fi.get_uid()
-        except (KeyError, NotImplementedError):
-            uid = None
-        modified = bool(self._check_duplicate(uid, name, replace_etag))
-        # TODO(jelmer): Verify that 'data' actually represents a valid object
-        b = Blob.from_string(data)
+        b = Blob()
+        b.chunked = data
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
         tree[name_enc] = (0o644|stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
-        if message is None:
-            message = ("Update" if modified else "Add") + " " + (
-                fi.describe() or name)
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
             author=author)
-        return b.id.decode('ascii')
+        return b.id
 
     def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
@@ -668,36 +685,22 @@ class TreeGitStore(GitStore):
         return self.repo.do_commit(message=message, committer=committer,
             author=author)
 
-    def import_one(self, name, data, message=None, author=None,
-            replace_etag=None):
+    def _import_one(self, name, data, message, author=None):
         """Import a single object.
 
         :param name: name of the object
-        :param data: serialized object as bytes
+        :param data: serialized object as list of bytes
         :param message: Commit message
         :param author: Optional author
-        :param replace_etag: optional etag of object to replace
-        :raise InvalidETag: when the name already exists but with different etag
-        :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
-        fi = open_by_extension([data], name)
-        try:
-            uid = fi.get_uid()
-        except (KeyError, NotImplementedError):
-            uid = None
-        modified = bool(self._check_duplicate(uid, name, replace_etag))
-        # TODO(jelmer): Verify that 'data' actually represents a valid object
         p = os.path.join(self.repo.path, name)
         with open(p, 'wb') as f:
-            f.write(data)
+            f.writelines(data)
         self.repo.stage(name)
         etag = self.repo.open_index()[name.encode(DEFAULT_ENCODING)].sha
-        if message is None:
-            message = ("Update" if modified else "Add") + " " + (
-                fi.describe() or name)
         self._commit_tree(message.encode(DEFAULT_ENCODING), author=author)
-        return etag.decode('ascii')
+        return etag
 
     def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
