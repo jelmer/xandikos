@@ -342,7 +342,7 @@ class CurrentUserPrincipalProperty(Property):
 
         :param name: A property name.
         """
-        el.append(create_href(self.current_user_principal))
+        el.append(create_href(self.current_user_principal, href))
 
 
 class PrincipalURLProperty(Property):
