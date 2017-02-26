@@ -85,7 +85,7 @@ class BaseStoreTest(object):
         gc = self.create_store()
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertIsInstance(etag, str)
-        self.assertEqual([('foo.ics', etag)], list(gc.iter_with_etag()))
+        self.assertEqual([('foo.ics', 'text/calendar', etag)], list(gc.iter_with_etag()))
 
     def test_import_one_duplicate_uid(self):
         gc = self.create_store()
@@ -101,16 +101,6 @@ class BaseStoreTest(object):
         etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         self.assertRaises(InvalidETag, gc.import_one, 'foo.ics',
                 EXAMPLE_VCALENDAR2, replace_etag='invalidetag')
-
-    def test_iter_raw(self):
-        gc = self.create_store()
-        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
-        ret = {n: (etag, b''.join(cal)) for (n, etag, cal) in gc.iter_raw()}
-        self.assertEqual(ret,
-            {'bar.ics': (etag2, EXAMPLE_VCALENDAR2),
-             'foo.ics': (etag1, EXAMPLE_VCALENDAR1),
-             })
 
     def test_get_raw(self):
         gc = self.create_store()
@@ -144,7 +134,9 @@ class BaseStoreTest(object):
         gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertEqual([('foo.ics', etag1)], list(gc.iter_with_etag()))
+        self.assertEqual(
+            [('foo.ics', 'text/calendar', etag1)],
+            list(gc.iter_with_etag()))
         gc.delete_one('foo.ics')
         self.assertEqual([], list(gc.iter_with_etag()))
 
@@ -152,7 +144,9 @@ class BaseStoreTest(object):
         gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertEqual([('foo.ics', etag1)], list(gc.iter_with_etag()))
+        self.assertEqual(
+            [('foo.ics', 'text/calendar', etag1)],
+            list(gc.iter_with_etag()))
         gc.delete_one('foo.ics', etag=etag1)
         self.assertEqual([], list(gc.iter_with_etag()))
 
@@ -166,11 +160,13 @@ class BaseStoreTest(object):
         etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
         etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
         self.assertEqual(
-            set([('foo.ics', etag1), ('bar.ics', etag2)]),
+            set([('foo.ics', 'text/calendar', etag1),
+                ('bar.ics', 'text/calendar', etag2)]),
             set(gc.iter_with_etag()))
         self.assertRaises(InvalidETag, gc.delete_one, 'foo.ics', etag=etag2)
         self.assertEqual(
-            set([('foo.ics', etag1), ('bar.ics', etag2)]),
+            set([('foo.ics', 'text/calendar', etag1),
+                 ('bar.ics', 'text/calendar', etag2)]),
             set(gc.iter_with_etag()))
 
     def test_lookup_uid_nonexistant(self):
@@ -206,14 +202,18 @@ class BaseGitStoreTest(BaseStoreTest):
         logging.getLogger('').setLevel(logging.ERROR)
         gc = self.create_store()
         bid = self.add_blob(gc, 'foo.ics', EXAMPLE_VCALENDAR_NO_UID)
-        self.assertEqual([('foo.ics', bid)], list(gc.iter_with_etag()))
+        self.assertEqual(
+            [('foo.ics', 'text/calendar', bid)],
+            list(gc.iter_with_etag()))
         gc._scan_ids()
         logging.getLogger('').setLevel(logging.NOTSET)
 
     def test_iter_with_etag(self):
         gc = self.create_store()
         bid = self.add_blob(gc, 'foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertEqual([('foo.ics', bid)], list(gc.iter_with_etag()))
+        self.assertEqual(
+            [('foo.ics', 'text/calendar', bid)],
+            list(gc.iter_with_etag()))
         self.assertEqual(
             ('foo.ics', bid),
             gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))

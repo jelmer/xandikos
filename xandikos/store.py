@@ -34,8 +34,6 @@ from dulwich.objects import Blob, Tree
 import dulwich.repo
 
 _DEFAULT_COMMITTER_IDENTITY = b'Xandikos <xandikos>'
-ICALENDAR_EXTENSION = '.ics'
-VCARD_EXTENSION = '.vcf'
 
 STORE_TYPE_ADDRESSBOOK = 'addressbook'
 STORE_TYPE_CALENDAR = 'calendar'
@@ -60,7 +58,10 @@ class File(object):
         self.content_type = content_type
 
     def describe(self):
-        """Describe the contents of this file."""
+        """Describe the contents of this file.
+
+        Used in e.g. commit messages.
+        """
         return None
 
     def get_uid(self):
@@ -174,7 +175,7 @@ class Store(object):
     def iter_with_etag(self):
         """Iterate over all items in the store with etag.
 
-        :yield: (name, etag) tuples
+        :yield: (name, content_type, etag) tuples
         """
         raise NotImplementedError(self.iter_with_etag)
 
@@ -191,15 +192,6 @@ class Store(object):
         :return: raw contents
         """
         raise NotImplementedError(self._get_raw)
-
-    def iter_raw(self):
-        """Iterate over raw object contents.
-
-        :yield: (name, etag, data) tuples
-        """
-        for (name, etag) in self.iter_with_etag():
-            data = self._get_raw(name, etag)
-            yield (name, etag, data)
 
     def get_ctag(self):
         """Return the ctag for this store."""
@@ -247,10 +239,10 @@ class Store(object):
         :return: one of [STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR, STORE_TYPE_OTHER]
         """
         ret = STORE_TYPE_OTHER
-        for (name, etag) in self.iter_with_etag():
-            if name.endswith(ICALENDAR_EXTENSION):
+        for (name, content_type, etag) in self.iter_with_etag():
+            if content_type == 'text/calendar':
                 ret = STORE_TYPE_CALENDAR
-            elif name.endswith(VCARD_EXTENSION):
+            elif content_type == 'text/vcard':
                 ret = STORE_TYPE_ADDRESSBOOK
         return ret
 
@@ -387,10 +379,11 @@ class GitStore(Store):
         """Iterate over all items in the store with etag.
 
         :param ctag: Ctag to iterate for
-        :yield: (name, etag) tuples
+        :yield: (name, content_type, etag) tuples
         """
         for (name, mode, sha) in self._iterblobs(ctag):
-            yield (name, sha.decode('ascii'))
+            (mime_type, encoding) = mimetypes.guess_type(name)
+            yield (name, mime_type, sha.decode('ascii'))
 
     @classmethod
     def create(cls, path):
@@ -517,8 +510,10 @@ class GitStore(Store):
             t = Tree()
             self.repo.object_store.add_object(t)
             old_ctag = t.id.decode('ascii')
-        previous = dict(self.iter_with_etag(old_ctag))
-        for (name, new_etag) in self.iter_with_etag(new_ctag):
+        previous = {
+            name: etag
+            for (name, unused_type, etag) in self.iter_with_etag(old_ctag)}
+        for (name, content_type, new_etag) in self.iter_with_etag(new_ctag):
             old_etag = previous.get(name)
             if old_etag != new_etag:
                 yield (name, old_etag, new_etag)
