@@ -400,7 +400,7 @@ def calendar_from_resource(resource):
             return None
     except KeyError:
         return None
-    return ICalendar.from_ical(b''.join(resource.get_body()))
+    return resource.file.calendar
 
 
 def apply_filter(el, resource, tzify):

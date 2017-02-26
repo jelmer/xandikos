@@ -52,7 +52,7 @@ DEFAULT_ENCODING = 'utf-8'
 logger = logging.getLogger(__name__)
 
 
-class FileHandler(object):
+class File(object):
     """A file type handler."""
 
     def __init__(self, content, content_type):
@@ -73,14 +73,23 @@ class FileHandler(object):
         raise NotImplementedError(self.get_uid)
 
 
-class ICalendarHandler(FileHandler):
+class ICalendarFile(File):
     """Handle for ICalendar files."""
 
     content_type = 'text/calendar'
 
+    def __init__(self, content, content_type):
+        super(ICalendarFile, self).__init__(content, content_type)
+        self._calendar = None
+
+    @property
+    def calendar(self):
+        if self._calendar is None:
+            self._calendar = Calendar.from_ical(b''.join(self.content))
+        return self._calendar
+
     def describe(self):
-        cal = Calendar.from_ical(b''.join(self.content))
-        for component in cal.subcomponents:
+        for component in self.calendar.subcomponents:
             try:
                 return component["SUMMARY"]
             except KeyError:
@@ -92,8 +101,7 @@ class ICalendarHandler(FileHandler):
         :param cal: Calendar, possibly serialized.
         :return: UID
         """
-        cal = Calendar.from_ical(b''.join(self.content))
-        for component in cal.subcomponents:
+        for component in self.calendar.subcomponents:
             try:
                 return component["UID"]
             except KeyError:
@@ -102,7 +110,7 @@ class ICalendarHandler(FileHandler):
 
 
 FILE_HANDLERS = {
-    ICalendarHandler.content_type: ICalendarHandler,
+    ICalendarFile.content_type: ICalendarFile,
     }
 
 
@@ -111,9 +119,9 @@ def open_by_content_type(content, content_type):
 
     :param content: list of bytestrings with content
     :param content_type: MIME type
-    :return: FileHandler instance
+    :return: File instance
     """
-    return FILE_HANDLERS.get(content_type.split(';')[0], FileHandler)(
+    return FILE_HANDLERS.get(content_type.split(';')[0], File)(
         content, content_type)
 
 
@@ -122,7 +130,7 @@ def open_by_extension(content, name):
 
     :param content: list of bytestrings with content
     :param name: Name of file to open
-    :return: FileHandler instance
+    :return: File instance
     """
     (mime_type, encoding) = mimetypes.guess_type(name)
     return open_by_content_type(content, mime_type)
@@ -170,12 +178,19 @@ class Store(object):
         """
         raise NotImplementedError(self.iter_with_etag)
 
-    def get_raw(self, name, etag):
+    def get_file(self, name, etag):
+        """Get the contents of an object.
+
+        :return: A File object
+        """
+        return open_by_extension(self._get_raw(name, etag), name)
+
+    def _get_raw(self, name, etag):
         """Get the raw contents of an object.
 
         :return: raw contents
         """
-        raise NotImplementedError(self.get_raw)
+        raise NotImplementedError(self._get_raw)
 
     def iter_raw(self):
         """Iterate over raw object contents.
@@ -183,18 +198,8 @@ class Store(object):
         :yield: (name, etag, data) tuples
         """
         for (name, etag) in self.iter_with_etag():
-            data = self.get_raw(name, etag)
+            data = self._get_raw(name, etag)
             yield (name, etag, data)
-
-    def iter_calendars(self):
-        """Iterate over all calendars.
-
-        :yield: (name, Calendar) tuples
-        """
-        for (name, etag, data) in self.iter_raw():
-            if not name.endswith(ICALENDAR_EXTENSION):
-                continue
-            yield (name, etag, Calendar.from_ical(b''.join(data)))
 
     def get_ctag(self):
         """Return the ctag for this store."""
@@ -338,7 +343,7 @@ class GitStore(Store):
             raise InvalidETag(name, etag, replace_etag)
         return etag
 
-    def get_raw(self, name, etag=None):
+    def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
 
         :param name: Name of the item

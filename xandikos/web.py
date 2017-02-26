@@ -78,22 +78,25 @@ def extract_strong_etag(etag):
 class ObjectResource(webdav.Resource):
     """Object resource."""
 
-    def __init__(self, store, name, etag, content_type):
+    def __init__(self, store, name, etag):
         self.store = store
         self.name = name
         self.etag = etag
-        self.content_type = content_type
-        self._chunked = None
+        self._file = None
 
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
             type(self).__name__, self.store, self.name, self.etag,
-             self.content_type)
+             self.file.content_type)
+
+    @property
+    def file(self):
+        if self._file is None:
+            self._file = self.store.get_file(self.name, self.etag)
+        return self._file
 
     def get_body(self):
-        if self._chunked is None:
-            self._chunked = self.store.get_raw(self.name, self.etag)
-        return self._chunked
+        return self.file.contents
 
     def set_body(self, data, replace_etag=None):
         etag = self.store.import_one(
@@ -105,7 +108,7 @@ class ObjectResource(webdav.Resource):
         raise KeyError
 
     def get_content_type(self):
-        return self.content_type
+        return self.file.content_type
 
     def get_content_length(self):
         return sum(map(len, self.get_body()))
@@ -147,8 +150,7 @@ class StoreBasedCollection(object):
             type(self).__name__, self.store)
 
     def _get_resource(self, name, etag):
-        return ObjectResource(
-            self.store, name, etag, self._object_content_type)
+        return ObjectResource(self.store, name, etag)
 
     def get_displayname(self):
         displayname = self.store.get_displayname()
@@ -241,15 +243,11 @@ class StoreBasedCollection(object):
 class Collection(StoreBasedCollection,webdav.Collection):
     """A generic WebDAV collection."""
 
-    _object_content_type = 'application/unknown'
-
     def __init__(self, store):
         self.store = store
 
 
 class CalendarResource(StoreBasedCollection,caldav.Calendar):
-
-    _object_content_type = 'text/calendar'
 
     def get_calendar_description(self):
         return self.store.get_description()
@@ -284,8 +282,6 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
 
 
 class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
-
-    _object_content_type = 'text/vcard'
 
     def get_addressbook_description(self):
         return self.store.get_description()
