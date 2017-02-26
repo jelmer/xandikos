@@ -78,16 +78,17 @@ def extract_strong_etag(etag):
 class ObjectResource(webdav.Resource):
     """Object resource."""
 
-    def __init__(self, store, name, etag):
+    def __init__(self, store, name, content_type, etag):
         self.store = store
         self.name = name
         self.etag = etag
+        self.content_type = content_type
         self._file = None
 
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
             type(self).__name__, self.store, self.name, self.etag,
-             self.file.content_type)
+             self.get_content_type())
 
     @property
     def file(self):
@@ -108,7 +109,7 @@ class ObjectResource(webdav.Resource):
         raise KeyError
 
     def get_content_type(self):
-        return self.file.content_type
+        return self.content_type
 
     def get_content_length(self):
         return sum(map(len, self.get_body()))
@@ -149,8 +150,8 @@ class StoreBasedCollection(object):
         return "%s(%r)" % (
             type(self).__name__, self.store)
 
-    def _get_resource(self, name, etag):
-        return ObjectResource(self.store, name, etag)
+    def _get_resource(self, name, content_type, etag):
+        return ObjectResource(self.store, name, content_type, etag)
 
     def get_displayname(self):
         displayname = self.store.get_displayname()
@@ -169,16 +170,16 @@ class StoreBasedCollection(object):
 
     def members(self):
         ret = []
-        for (name, etag) in self.store.iter_with_etag():
-            resource = self._get_resource(name, etag)
+        for (name, content_type, etag) in self.store.iter_with_etag():
+            resource = self._get_resource(name, content_type, etag)
             ret.append((name, resource))
         return ret
 
     def get_member(self, name):
         assert name != ''
-        for (fname, fetag) in self.store.iter_with_etag():
+        for (fname, content_type, fetag) in self.store.iter_with_etag():
             if name == fname:
-                return self._get_resource(name, fetag)
+                return self._get_resource(name, content_type, fetag)
         else:
             raise KeyError(name)
 
@@ -195,11 +196,11 @@ class StoreBasedCollection(object):
         for (name, old_etag, new_etag) in self.store.iter_changes(
                 old_token, new_token):
             if old_etag is not None:
-                old_resource = self._get_resource(name, old_etag)
+                old_resource = self._get_resource(name, content_type, old_etag)
             else:
                 old_resource = None
             if new_etag is not None:
-                new_resource = self._get_resource(name, new_etag)
+                new_resource = self._get_resource(name, content_type, new_etag)
             else:
                 new_resource = None
             yield (name, old_resource, new_resource)

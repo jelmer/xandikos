@@ -272,7 +272,7 @@ class Store(object):
 
         :param old_ctag: Old ctag (None for empty Store)
         :param new_ctag: New ctag
-        :return: Iterator over (name, old_etag, new_etag)
+        :return: Iterator over (name, content_type, old_etag, new_etag)
         """
         raise NotImplementedError(self.iter_changes)
 
@@ -504,23 +504,28 @@ class GitStore(Store):
 
         :param old_ctag: Old ctag (None for empty Store)
         :param new_ctag: New ctag
-        :return: Iterator over (name, old_etag, new_etag)
+        :return: Iterator over (name, content_type, old_etag, new_etag)
         """
         if old_ctag is None:
             t = Tree()
             self.repo.object_store.add_object(t)
             old_ctag = t.id.decode('ascii')
         previous = {
-            name: etag
-            for (name, unused_type, etag) in self.iter_with_etag(old_ctag)}
-        for (name, content_type, new_etag) in self.iter_with_etag(new_ctag):
-            old_etag = previous.get(name)
+            name: (content_type, etag)
+            for (name, content_type, etag) in self.iter_with_etag(old_ctag)}
+        for (name, new_content_type, new_etag) in self.iter_with_etag(new_ctag):
+            try:
+                (old_content_type, old_etag) = previous[name]
+            except KeyError:
+                old_etag = None
+            else:
+                assert old_content_type == new_content_type
             if old_etag != new_etag:
-                yield (name, old_etag, new_etag)
+                yield (name, new_content_type, old_etag, new_etag)
             if old_etag is not None:
                 del previous[name]
-        for (name, old_etag) in previous.items():
-            yield (name, old_etag, None)
+        for (name, (old_content_type, old_etag)) in previous.items():
+            yield (name, old_content_type, old_etag, None)
 
 
 class BareGitStore(GitStore):
