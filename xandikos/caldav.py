@@ -36,7 +36,6 @@ from icalendar.prop import vDDDTypes, vPeriod
 from xandikos import davcommon, webdav
 from xandikos.webdav import (
     WebDAVApp,
-    get_properties,
     traverse_resource,
     )
 
