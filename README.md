@@ -42,7 +42,7 @@ Xandikos has been tested and works with the following clients:
 
 Clients that are known not to work:
 
- - CAlDAV-Sync
+ - CalDAV-Sync
  - CardDAV-Sync
 
 Running
@@ -68,5 +68,5 @@ mailing list.
 Dependencies
 ============
 
-At the moment, Dulwich supports Python 3.5 and higher as well as Pypy 3. It
+At the moment, Xandikos supports Python 3.5 and higher as well as Pypy 3. It
 also uses dulwich, icalendar and defusedxml.
