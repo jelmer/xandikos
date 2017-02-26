@@ -19,6 +19,10 @@
 
 """Common functions for DAV implementations."""
 
+from defusedxml.ElementTree import fromstring as xmlparse
+# Hmm, defusedxml doesn't have XML generation functions? :(
+from xml.etree import ElementTree as ET
+
 from xandikos import webdav
 
 
