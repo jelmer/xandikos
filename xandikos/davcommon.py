@@ -21,12 +21,35 @@
 
 from xandikos import webdav
 
+
+class SubbedProperty(webdav.Property):
+    """Property with sub-components that can be queried."""
+
+    def get_value(self, resource, el, requested):
+        raise NotImplementedError(self.get_value)
+
+
+def get_properties_with_data(data_property, resource, properties, requested):
+    for propreq in list(requested):
+        if propreq.tag == data_property.name:
+            ret = ET.Element(propreq.tag)
+            if data_property.supported_on(resource):
+                data_property.get_value(resource, ret, propreq)
+                statuscode = '200 OK'
+            else:
+                statuscode = '404 Not Found'
+            yield webdav.PropStatus(statuscode, None, ret)
+        else:
+            yield get_property(resource, properties, propreq.tag)
+
+
 class MultiGetReporter(webdav.Reporter):
     """Abstract base class for multi-get reporters."""
 
     name = None
 
-    data_property_kls = None
+    # A SubbedProperty subclass
+    data_property = None
 
     @webdav.multistatus
     def report(self, environ, body, resources_by_hrefs, properties, base_href, resource,
@@ -42,12 +65,10 @@ class MultiGetReporter(webdav.Reporter):
                 hrefs.append(webdav.read_href_element(el))
             else:
                 raise NotImplementedError(tag.name)
-        properties = dict(properties)
-        properties[self.data_property_kls.name] = self.data_property_kls()
         for (href, resource) in resources_by_hrefs(hrefs):
             if resource is None:
                 yield webdav.Status(href, '404 Not Found', propstat=[])
             else:
-                propstat = webdav.get_properties(
-                    resource, properties, requested)
+                propstat = get_properties_with_data(
+                    kls.data_property, resource, properties, requested)
                 yield webdav.Status(href, '200 OK', propstat=list(propstat))

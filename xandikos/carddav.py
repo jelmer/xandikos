@@ -51,7 +51,7 @@ class AddressbookHomeSetProperty(webdav.Property):
             el.append(webdav.create_href(href))
 
 
-class AddressDataProperty(webdav.Property):
+class AddressDataProperty(davcommon.SubbedProperty):
     """address-data property
 
     See https://tools.ietf.org/html/rfc6352, section 10.4
@@ -62,7 +62,10 @@ class AddressDataProperty(webdav.Property):
 
     name = '{%s}address-data' % NAMESPACE
 
-    def get_value(self, resource, el):
+    def supported_on(self, resource):
+        return (resource.get_content_type() == 'text/vcard')
+
+    def get_value(self, resource, el, requested):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
         el.text = b''.join(resource.get_body()).decode('utf-8')
@@ -89,7 +92,7 @@ class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
 
     name = '{%s}addressbook-multiget' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
-    data_property_kls = AddressDataProperty
+    data_property = AddressDataProperty
 
 
 class Addressbook(webdav.Collection):

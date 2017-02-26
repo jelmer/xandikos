@@ -154,7 +154,7 @@ class CalendarDescriptionProperty(webdav.Property):
         raise NotImplementedError
 
 
-class CalendarDataProperty(webdav.Property):
+class CalendarDataProperty(davcommon.SubbedProperty):
     """calendar-data property
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.4
@@ -165,10 +165,10 @@ class CalendarDataProperty(webdav.Property):
 
     name = '{%s}calendar-data' % NAMESPACE
 
-    def get_value(self, resource, el):
-        # TODO(jelmer): Support other kinds of calendar
-        if resource.get_content_type() != 'text/calendar':
-            raise KeyError
+    def supported_on(self, resource):
+        return (resource.get_content_type() == 'text/calendar')
+
+    def get_value(self, resource, el, requested):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
         el.text = b''.join(resource.get_body()).decode('utf-8')
@@ -178,7 +178,7 @@ class CalendarMultiGetReporter(davcommon.MultiGetReporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
     resource_type = CALENDAR_RESOURCE_TYPE
-    data_property_kls = CalendarDataProperty
+    data_property = CalendarDataProperty
 
 
 def apply_prop_filter(el, comp, tzify):
@@ -423,6 +423,7 @@ class CalendarQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
     resource_type = CALENDAR_RESOURCE_TYPE
+    data_property = CalendarDataProperty()
 
     @webdav.multistatus
     def report(self, environ, body, resources_by_hrefs, properties, base_href,
@@ -454,14 +455,12 @@ class CalendarQueryReporter(webdav.Reporter):
         else:
             tzid = 'UTC'
         tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
-        properties = dict(properties)
-        properties[CalendarDataProperty.name] = CalendarDataProperty()
         for (href, resource) in traverse_resource(
                 base_resource, base_href, depth):
             if not apply_filter(filter_el, resource, tzify):
                 continue
-            propstat = get_properties(
-                resource, properties, requested)
+            propstat = webdav.get_properties_with_data(
+                kls.data_property, resource, properties, requested)
             yield webdav.Status(href, '200 OK', propstat=list(propstat))
 
 

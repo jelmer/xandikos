@@ -97,7 +97,7 @@ class ObjectResource(webdav.Resource):
         return self._file
 
     def get_body(self):
-        return self.file.contents
+        return self.file.content
 
     def set_body(self, data, replace_etag=None):
         etag = self.store.import_one(
@@ -193,7 +193,7 @@ class StoreBasedCollection(object):
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(self, old_token, new_token):
-        for (name, old_etag, new_etag) in self.store.iter_changes(
+        for (name, content_type, old_etag, new_etag) in self.store.iter_changes(
                 old_token, new_token):
             if old_etag is not None:
                 old_resource = self._get_resource(name, content_type, old_etag)
