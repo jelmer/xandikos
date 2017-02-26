@@ -7,7 +7,6 @@ webdav server:
 
 - run caldav tester
 
-- support returning components in calendar-data
 - support returning components in addressbook-data
 
 - properties:

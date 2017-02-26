@@ -28,6 +28,7 @@ import pytz
 from xml.etree import ElementTree as ET
 
 from icalendar.cal import (
+    component_factory,
     Calendar as ICalendar,
     FreeBusy,
     )
@@ -153,6 +154,28 @@ class CalendarDescriptionProperty(webdav.Property):
         raise NotImplementedError
 
 
+def extract_from_calendar(incal, outcal, requested):
+    """Extract requested components/properties from calendar.
+
+    :param incal: Calendar to filter
+    :param outcal: Calendar to write to
+    :param requested: <calendar-data> element with requested
+        components/properties
+    :return: A Calendar
+    """
+    for tag in requested:
+        if tag.name == ('{%s}comp' % NAMESPACE):
+            for insub in incal.subcomponents:
+                if insub.name == tag.get('name'):
+                    outsub = component_factory[insub.name]
+                    outcal.add_component(outsub)
+                    extract_from_calendar(insub, outsub, tag)
+        elif tag.name == ('{%s}prop' % NAMESPACE):
+            outcal[tag.get('name')] = incal[tag.get('name')]
+        else:
+            raise AssertionError('invalid element %r' % tag)
+
+
 class CalendarDataProperty(davcommon.SubbedProperty):
     """calendar-data property
 
@@ -168,9 +191,13 @@ class CalendarDataProperty(davcommon.SubbedProperty):
         return (resource.get_content_type() == 'text/calendar')
 
     def get_value(self, resource, el, requested):
-        # TODO(jelmer): Support subproperties
+        if len(requested) == 0:
+            el.text = b''.join(resource.get_body()).decode('utf-8')
+        else:
+            c = ICalendar()
+            extract_from_calendar(resource.calendar, c, requested)
+            el.text = c.to_ical()
         # TODO(jelmer): Don't hardcode encoding
-        el.text = b''.join(resource.get_body()).decode('utf-8')
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):

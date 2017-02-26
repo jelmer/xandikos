@@ -26,6 +26,12 @@ class SubbedProperty(webdav.Property):
     """Property with sub-components that can be queried."""
 
     def get_value(self, resource, el, requested):
+        """Get the value of a data property.
+
+        :param resource: Resource to get value for
+        :param el: Element to fill in
+        :param requested: Requested property (including subelements)
+        """
         raise NotImplementedError(self.get_value)
 
 
