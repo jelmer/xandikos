@@ -1,11 +1,3 @@
-Some properties need a way to create <href> objects that refer to the relative path of the resource.
-
-addmember
-calendar-home-set
-addressbook-home-set
-
-Access to a create_href() function should be sufficient.
-
 Some properties need WebDAV server metadata:
 
 supported-live-property-set needs list of properties
@@ -23,9 +15,6 @@ PUT/DELETE/MKCOL need access to username (for author) and possibly things like u
 
 
 class Context(object):
-
-    def create_href(self, href):
-	raise NotImplementedError(self.create_href)
 
     def get_current_user(self):
 	return (name, principal)
