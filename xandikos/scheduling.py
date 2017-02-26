@@ -83,7 +83,7 @@ class CalendarUserAddressSetProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6638, section 2.4.1
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-user-address-set'
+    name = '{%s}calendar-user-address-set' % caldav.NAMESPACE
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
