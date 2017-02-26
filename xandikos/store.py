@@ -180,12 +180,12 @@ class Store(object):
         """
         raise NotImplementedError(self.iter_with_etag)
 
-    def get_file(self, name, etag):
+    def get_file(self, name, content_type, etag):
         """Get the contents of an object.
 
         :return: A File object
         """
-        return open_by_extension(self._get_raw(name, etag), name)
+        return open_by_content_type(self._get_raw(name, etag), content_type)
 
     def _get_raw(self, name, etag):
         """Get the raw contents of an object.

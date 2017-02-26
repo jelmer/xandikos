@@ -93,7 +93,7 @@ class ObjectResource(webdav.Resource):
     @property
     def file(self):
         if self._file is None:
-            self._file = self.store.get_file(self.name, self.etag)
+            self._file = self.store.get_file(self.name, self.content_type, self.etag)
         return self._file
 
     def get_body(self):

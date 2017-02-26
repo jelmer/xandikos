@@ -120,10 +120,10 @@ class BaseStoreTest(object):
         gc = self.create_store()
         (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
         (name1, etag2) = gc.import_one('bar.ics', 'text/calendar', [EXAMPLE_VCALENDAR2])
-        f1 = gc.get_file('foo.ics', etag1)
+        f1 = gc.get_file('foo.ics', 'text/calendar', etag1)
         self.assertEqual(EXAMPLE_VCALENDAR1, b''.join(f1.content))
         self.assertEqual('text/calendar', f1.content_type)
-        f2 = gc.get_file('bar.ics', etag2)
+        f2 = gc.get_file('bar.ics', 'text/calendar', etag2)
         self.assertEqual(EXAMPLE_VCALENDAR2, b''.join(f2.content))
         self.assertEqual('text/calendar', f2.content_type)
         self.assertRaises(
