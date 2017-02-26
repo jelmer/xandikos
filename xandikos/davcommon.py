@@ -47,7 +47,7 @@ def get_properties_with_data(data_property, href, resource, properties, requeste
                 statuscode = '404 Not Found'
             yield webdav.PropStatus(statuscode, None, ret)
         else:
-            yield get_property(resource, properties, propreq.tag)
+            yield webdav.get_property(href, resource, properties, propreq.tag)
 
 
 class MultiGetReporter(webdav.Reporter):
@@ -77,5 +77,5 @@ class MultiGetReporter(webdav.Reporter):
                 yield webdav.Status(href, '404 Not Found', propstat=[])
             else:
                 propstat = get_properties_with_data(
-                    kls.data_property, href, resource, properties, requested)
+                    self.data_property, href, resource, properties, requested)
                 yield webdav.Status(href, '200 OK', propstat=list(propstat))
