@@ -132,7 +132,7 @@ class CalendarHomeSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         for href in resource.get_calendar_home_set():
             el.append(webdav.create_href(href))
 
@@ -146,11 +146,11 @@ class CalendarDescriptionProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}calendar-description'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_calendar_description()
 
     # TODO(jelmer): allow modification of this property
-    def set_value(self, resource, el):
+    def set_value(self, current_user, resource, el):
         raise NotImplementedError
 
 
@@ -190,7 +190,7 @@ class CalendarDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/calendar')
 
-    def get_value(self, resource, el, requested):
+    def get_value(self, current_user, resource, el, requested):
         if len(requested) == 0:
             el.text = b''.join(resource.get_body()).decode('utf-8')
         else:
@@ -499,7 +499,7 @@ class CalendarColorProperty(webdav.Property):
     name = '{http://apple.com/ns/ical/}calendar-color'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_calendar_color()
 
 
@@ -516,7 +516,7 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         for component in resource.get_supported_calendar_components():
             subel = ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}comp')
             subel.set('name', component)
@@ -532,7 +532,7 @@ class SupportedCalendarDataProperty(webdav.Property):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         for (content_type, version) in (
                 resource.get_supported_calendar_data_types()):
             subel = ET.SubElement(
@@ -551,10 +551,10 @@ class CalendarTimezoneProperty(webdav.Property):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_calendar_timezone()
 
-    def set_value(self, resource, el):
+    def set_value(self, current_user, resource, el):
         resource.set_calendar_timezone(el.text)
 
 
@@ -569,7 +569,7 @@ class MinDateTimeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_min_date_time()
 
 
@@ -584,7 +584,7 @@ class MaxDateTimeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_max_date_time()
 
 

@@ -141,6 +141,13 @@ def multistatus(req_fn):
     return wrapper
 
 
+class User(object):
+    """A DAV user."""
+
+    def get_principal(self):
+        raise NotImplementedError(self.get_principal)
+
+
 class Property(object):
     """Handler for listing, retrieving and updating DAV Properties."""
 
@@ -162,29 +169,31 @@ class Property(object):
         return (self.resource_type is None or
                 self.resource_type in resource.resource_types)
 
-    def is_set(self, resource):
+    def is_set(self, current_user, resource):
         """Check if this property is set on a resource."""
         if not self.supported_on(resource):
             return False
         try:
-            self.get_value(resource, ET.Element(self.name))
+            self.get_value(current_user, resource, ET.Element(self.name))
         except KeyError:
             return False
         else:
             return True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         """Get property with specified name.
 
+        :param current_user: Current user object
         :param resource: Resource for which to retrieve the property
         :param el: Element to populate
         :raise KeyError: if this property is not present
         """
         raise KeyError(self.name)
 
-    def set_value(self, resource, el):
+    def set_value(self, current_user, resource, el):
         """Set property.
 
+        :param current_user: Current user object
         :param resource: Resource to modify
         :param el: Element to get new value from (None to remove property)
         :raise NotImplementedError: to indicate this property can not be set
@@ -202,7 +211,7 @@ class ResourceTypeProperty(Property):
 
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
 
@@ -216,11 +225,11 @@ class DisplayNameProperty(Property):
     name = '{DAV:}displayname'
     resource_type = None
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_displayname()
 
     # TODO(jelmer): allow modification of this property
-    def set_value(self, resource, el):
+    def set_value(self, current_user, resource, el):
         raise NotImplementedError
 
 
@@ -234,7 +243,7 @@ class GetETagProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_etag()
 
 
@@ -249,7 +258,7 @@ class GetLastModifiedProperty(Property):
     live = True
     in_allprops = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         # Use rfc1123 date (section 3.3.1 of RFC2616)
         el.text = resource.get_last_modified().strftime(
             '%a, %d %b %Y %H:%M:%S GMT')
@@ -277,7 +286,7 @@ class CreationDateProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = format_datetime(resource.get_creationdate())
 
 
@@ -290,7 +299,7 @@ class GetContentLanguageProperty(Property):
     name = '{DAV:}getcontentlanguage'
     resource_type = None
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = ', '.join(resource.get_content_language())
 
 
@@ -303,7 +312,7 @@ class GetContentLengthProperty(Property):
     name = '{DAV:}getcontentlength'
     resource_type = None
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = str(resource.get_content_length())
 
 
@@ -316,7 +325,7 @@ class GetContentTypeProperty(Property):
     name = '{DAV:}getcontenttype'
     resource_type = None
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_content_type()
 
 
@@ -331,16 +340,12 @@ class CurrentUserPrincipalProperty(Property):
     in_allprops = False
     live = True
 
-    def __init__(self, current_user_principal):
-        super(CurrentUserPrincipalProperty, self).__init__()
-        self.current_user_principal = current_user_principal
-
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         """Get property with specified name.
 
         :param name: A property name.
         """
-        el.append(create_href(self.current_user_principal))
+        el.append(create_href(current_user.get_principal()))
 
 
 class PrincipalURLProperty(Property):
@@ -350,7 +355,7 @@ class PrincipalURLProperty(Property):
     in_allprops = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         """Get property with specified name.
 
         :param name: A property name.
@@ -368,7 +373,7 @@ class SupportedReportSetProperty(Property):
     def __init__(self, reporters):
         self._reporters = reporters
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         for name, reporter in self._reporters.items():
             if reporter.supported_on(resource):
                 ET.SubElement(el, name)
@@ -384,7 +389,7 @@ class GetCTagProperty(Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_ctag()
 
 
@@ -614,9 +619,10 @@ class Principal(Resource):
         raise NotImplementedError(self.get_infit_settings)
 
 
-def get_property(resource, properties, name):
+def get_property(current_user, resource, properties, name):
     """Get a single property on a resource.
 
+    :param current_user: Current user object
     :param resource: Resource object
     :param properties: Dictionary of properties
     :param name: name of property to resolve
@@ -635,7 +641,7 @@ def get_property(resource, properties, name):
         try:
             if not prop.supported_on(resource):
                 raise KeyError
-            prop.get_value(resource, ret)
+            prop.get_value(current_user, resource, ret)
         except KeyError:
             statuscode = '404 Not Found'
         else:
@@ -643,16 +649,17 @@ def get_property(resource, properties, name):
     return PropStatus(statuscode, responsedescription, ret)
 
 
-def get_properties(resource, properties, requested):
+def get_properties(current_user, resource, properties, requested):
     """Get a set of properties.
 
+    :param current_user: Current user object
     :param resource: Resource object
     :param properties: Dictionary of properties
     :param requested: XML {DAV:}prop element with properties to look up
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        yield get_property(resource, properties, propreq.tag)
+        yield get_property(current_user, resource, properties, propreq.tag)
 
 
 def traverse_resource(base_resource, base_href, depth):
@@ -735,7 +742,7 @@ class ExpandPropertyReporter(Reporter):
 
     name = '{DAV:}expand-property'
 
-    def _populate(self, prop_list, resources_by_hrefs, properties, href,
+    def _populate(self, current_user, prop_list, resources_by_hrefs, properties, href,
                   resource):
         """Expand properties for a resource.
 
@@ -750,7 +757,7 @@ class ExpandPropertyReporter(Reporter):
         for prop in prop_list:
             prop_name = prop.get('name')
             # FIXME: Resolve prop_name on resource
-            propstat = get_property(resource, properties, prop_name)
+            propstat = get_property(current_user, resource, properties, prop_name)
             new_prop = ET.Element(propstat.prop.tag)
             child_hrefs = [
                 read_href_element(prop_child)
@@ -779,7 +786,8 @@ class ExpandPropertyReporter(Reporter):
     @multistatus
     def report(self, environ, request_body, resources_by_hrefs, properties, href,
                resource, depth):
-        return self._populate(request_body, resources_by_hrefs, properties,
+        current_user = None # FIXME
+        return self._populate(current_user, request_body, resources_by_hrefs, properties,
                               href, resource)
 
 
@@ -793,7 +801,7 @@ class SupportedLockProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         for (lockscope, locktype) in resource.get_supported_locks():
             entry = ET.SubElement(el, '{DAV:}lockentry')
             scope_el = ET.SubElement(entry, '{DAV:}lockscope')
@@ -812,7 +820,7 @@ class LockDiscoveryProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         for activelock in resource.get_active_locks():
             entry = ET.SubElement(el, '{DAV:}activelock')
             type_el = ET.SubElement(entry, '{DAV:}locktype')
@@ -841,10 +849,10 @@ class CommentProperty(Property):
     live = False
     in_allprops = False
 
-    def get_value(self, resource, el):
+    def get_value(self, current_user, resource, el):
         el.text = resource.get_comment()
 
-    def set_value(self, resource, el):
+    def set_value(self, current_user, resource, el):
         resource.set_comment(el.text)
 
 
@@ -1114,7 +1122,8 @@ class WebDAVApp(object):
                     base_resource, self._request_href(environ), depth):
                 propstat = []
                 for name in self.properties:
-                    ps = get_property(resource, self.properties, name)
+                    ps = get_property(current_user, resource, self.properties,
+                        name)
                     if ps.statuscode == '200 OK':
                         propstat.append(ps)
                 ret.append(Status(href, '200 OK', propstat=propstat))
@@ -1176,7 +1185,7 @@ class WebDAVApp(object):
                     elif el.tag == '{DAV:}set':
                         newval = propel
                     try:
-                        handler.set_value(resource, newval)
+                        handler.set_value(current_user, resource, newval)
                     except NotImplementedError:
                         # TODO(jelmer): Signal
                         # {DAV:}cannot-modify-protected-property error
