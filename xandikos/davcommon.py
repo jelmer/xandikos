@@ -25,9 +25,10 @@ from xandikos import webdav
 class SubbedProperty(webdav.Property):
     """Property with sub-components that can be queried."""
 
-    def get_value(self, resource, el, requested):
+    def get_value(self, href, resource, el, requested):
         """Get the value of a data property.
 
+        :param href: Resource href
         :param resource: Resource to get value for
         :param el: Element to fill in
         :param requested: Requested property (including subelements)
@@ -35,12 +36,12 @@ class SubbedProperty(webdav.Property):
         raise NotImplementedError(self.get_value)
 
 
-def get_properties_with_data(data_property, resource, properties, requested):
+def get_properties_with_data(data_property, href, resource, properties, requested):
     for propreq in list(requested):
         if propreq.tag == data_property.name:
             ret = ET.Element(propreq.tag)
             if data_property.supported_on(resource):
-                data_property.get_value(resource, ret, propreq)
+                data_property.get_value(href, resource, ret, propreq)
                 statuscode = '200 OK'
             else:
                 statuscode = '404 Not Found'
@@ -76,5 +77,5 @@ class MultiGetReporter(webdav.Reporter):
                 yield webdav.Status(href, '404 Not Found', propstat=[])
             else:
                 propstat = get_properties_with_data(
-                    kls.data_property, resource, properties, requested)
+                    kls.data_property, href, resource, properties, requested)
                 yield webdav.Status(href, '200 OK', propstat=list(propstat))

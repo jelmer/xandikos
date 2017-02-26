@@ -46,9 +46,9 @@ class AddressbookHomeSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, base_href, resource, el):
         for href in resource.get_addressbook_home_set():
-            el.append(webdav.create_href(href))
+            el.append(webdav.create_href(href, base_href))
 
 
 class AddressDataProperty(davcommon.SubbedProperty):
@@ -65,7 +65,7 @@ class AddressDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/vcard')
 
-    def get_value(self, resource, el, requested):
+    def get_value(self, href, resource, el, requested):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
         el.text = b''.join(resource.get_body()).decode('utf-8')
@@ -80,11 +80,11 @@ class AddressbookDescriptionProperty(webdav.Property):
     name = '{%s}addressbook-description' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_addressbook_description()
 
     # TODO(jelmer): allow modification of this property
-    def set_value(self, resource, el):
+    def set_value(self, href, resource, el):
         raise NotImplementedError
 
 
@@ -153,9 +153,9 @@ class PrincipalAddressProperty(webdav.Property):
     resource_type = '{DAV:}principal'
     in_allprops = False
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.append(webdav.create_href(
-            resource.get_principal_address()))
+            resource.get_principal_address(), href))
 
 
 class SupportedAddressDataProperty(webdav.Property):
@@ -169,7 +169,7 @@ class SupportedAddressDataProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         for (content_type, version) in resource.get_supported_address_data_types():
             subel = ET.SubElement(el, '{%s}content-type' % NAMESPACE)
             subel.set('content-type', content_type)
@@ -187,7 +187,7 @@ class MaxResourceSizeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = str(resource.get_max_resource_size())
 
 
@@ -202,5 +202,5 @@ class MaxImageSizeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = str(resource.get_max_image_size())

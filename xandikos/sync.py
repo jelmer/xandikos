@@ -114,5 +114,5 @@ class SyncTokenProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_sync_token()

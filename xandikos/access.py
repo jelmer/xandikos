@@ -41,7 +41,7 @@ class CurrentUserPrivilegeSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
        privilege = ET.SubElement(el, '{DAV:}privilege')
        # TODO(jelmer): Use something other than all
        priv_all = ET.SubElement(privilege, '{DAV:}all')
@@ -57,8 +57,8 @@ class OwnerProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, base_href, resource, el):
        owner_href = resource.get_owner()
        if owner_href is not None:
-           el.append(webdav.create_href(owner_href))
+           el.append(webdav.create_href(owner_href, base_href=href))
 
