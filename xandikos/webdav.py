@@ -357,7 +357,7 @@ class PrincipalURLProperty(Property):
 
         :param name: A property name.
         """
-        el.append(create_href(resource.get_principal_url()))
+        el.append(create_href(resource.get_principal_url(), href))
 
 
 class SupportedReportSetProperty(Property):

@@ -411,7 +411,7 @@ class Principal(CollectionSetResource):
     resource_types = webdav.Collection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
 
     def get_principal_url(self):
-        return self.path
+        return '.'
 
     def get_calendar_home_set(self):
         return CALENDAR_HOME_SET
