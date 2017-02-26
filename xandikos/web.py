@@ -533,6 +533,7 @@ class XandikosApp(webdav.WebDAVApp):
             scheduling.CalendarUserTypeProperty(),
             webdav.GetLastModifiedProperty(),
             timezones.TimezoneServiceSetProperty([]),
+            webdav.AddMemberProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

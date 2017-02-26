@@ -16,7 +16,7 @@ The following standards are implemented:
  - RFC5397 (Current Principal) - *fully implemented*
  - RFC3253 (Versioning Extensions) - *partially implemented, only the REPORT method and {DAV:}expand-property property*
  - RFC3744 (Access Control) - *partially implemented*
- - RFC5995 (POST to create members) - *partially implemented, lacks support for the {DAV:}add-member property*
+ - RFC5995 (POST to create members) - *fully implemented*
  - RFC7809 (CalDAV Time Zone Extensions) - *not implemented*
 
 See [[notes/dav-compliance.md]] for more detail on specification compliancy.

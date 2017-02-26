@@ -240,6 +240,21 @@ class GetETagProperty(Property):
         el.text = resource.get_etag()
 
 
+class AddMemberProperty(Property):
+    """Provides {DAV:}add-member.
+
+    https://tools.ietf.org/html/rfc5995, section 3.2.1
+    """
+
+    name = '{DAV:}add-member'
+    resource_type = COLLECTION_RESOURCE_TYPE
+    live = True
+
+    def get_value(self, href, resource, el):
+        # Support POST against collection URL
+        el.text = create_href('.', href)
+
+
 class GetLastModifiedProperty(Property):
     """Provides {DAV:}getlastmodified.
 
