@@ -204,7 +204,7 @@ class CalendarMultiGetReporter(davcommon.MultiGetReporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
     resource_type = CALENDAR_RESOURCE_TYPE
-    data_property = CalendarDataProperty
+    data_property = CalendarDataProperty()
 
 
 def apply_prop_filter(el, comp, tzify):
