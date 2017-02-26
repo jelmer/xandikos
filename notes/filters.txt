@@ -1,0 +1,44 @@
+Common filters:
+===============
+
+<ns0:filter xmlns:ns0="urn:ietf:params:xml:ns:caldav"><ns0:comp-filter name="VCALENDAR"><ns0:comp-filter name="VEVENT"><ns0:prop-filter name="UID"><ns0:text-match collation="i;octet">7kukuqrfedlm2f9te062h01gedq36j0acgtcp5urq93605obov0j98d7uce73ekjd75g</ns0:text-match></ns0:prop-filter></ns0:comp-filter></ns0:comp-filter></ns0:filter>
+<ns0:filter xmlns:ns0="urn:ietf:params:xml:ns:caldav"><ns0:comp-filter name="VCALENDAR"><ns0:comp-filter name="VEVENT"><ns0:time-range end="20170615T000000Z" start="20161025T000000Z" /></ns0:comp-filter></ns0:comp-filter></ns0:filter>'
+<ns0:filter xmlns:ns0="urn:ietf:params:xml:ns:caldav"><ns0:comp-filter name="VCALENDAR"><ns0:comp-filter name="VTODO" /></ns0:comp-filter></ns0:filter>
+
+Ideally, we'd like some way of *excluding* entries that don't match the filter early, without having to parse the file.
+
+Indexes
+=======
+
+One way would be to keep indexes:
+
+comp=VCALENDAR/comp=VEVENT
+comp=VCALENDAR/comp=VTODO
+comp=VCALENDAR/comp=VEVENT/prop=UID
+comp=VCALENDAR/comp=VTODO/prop=UID
+comp=VCALENDAR/comp=VJOURNAL/prop=UID
+comp=VCALENDAR/comp=VEVENT/prop=DTSTART
+comp=VCALENDAR/comp=VEVENT/prop=DTEND
+comp=VCALENDAR/comp=VEVENT/prop=DURATION
+
+These index should be sufficient to answer the queries listed above.
+
+A stub of icalendar.cal.Calendar can be implemented on top of this, which uses
+this index. If an item is requested that is not indexed, it raises an Exception
+and the calling code can fall back to just scanning.
+
+Ideally it should also log the filter that it wasn't able to apply through the
+index.
+
+Index values are boolean (presence), string or timestamp.
+
+It should still be possible to modify the git repository externally. If this is done, the
+index should automatically be updated.
+
+Implementation
+==============
+
+Use a TDB database (on disk or even in RAM). Store:
+
+PRESENT/blobid -> ''
+KEY/blobid/<key> -> <value>

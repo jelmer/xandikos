@@ -112,6 +112,18 @@ class Calendar(webdav.Collection):
         """
         raise NotImplementedError(self.get_max_attendees_per_instance)
 
+    def check_filter(self, resource, check_filter):
+        """Check if a filter applies to a resource.
+
+        :param resource; Resource to check
+        :param check_filter: Function to check a calendar.
+        :return: boolean indicating whether resource matches
+        """
+        c = calendar_from_resource(resource)
+        if c is None:
+            return False
+        return check_filter(c)
+
 
 class PrincipalExtensions:
     """CalDAV-specific extensions to DAVPrincipal."""
@@ -483,9 +495,6 @@ def apply_filter(el, resource, tzify):
     if el is None:
         # Empty filter, let's not bother parsing
         return lambda x: True
-    c = calendar_from_resource(resource)
-    if c is None:
-        return False
     return apply_comp_filter(list(el)[0], c, tzify)
 
 
@@ -537,7 +546,7 @@ class CalendarQueryReporter(webdav.Reporter):
         tzify = lambda dt: as_tz_aware_ts(dt, tz)
         for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth):
-            if not apply_filter(filter_el, resource, tzify):
+            if not base_resource.check_filter(resource, lambda cal: apply_filter(filter_el, cal, tzify)):
                 continue
             propstat = davcommon.get_properties_with_data(
                 self.data_property, href, resource, properties, environ,
