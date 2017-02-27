@@ -59,10 +59,7 @@ def get_index_entry(comp, key):
         except KeyError:
             pass
         else:
-            if getattr(v, 'dt', None):
-                yield str(v.dt).encode('ascii')
-            else:
-                yield str(v).encode('utf-8')
+            yield v.to_ical()
     else:
         raise AssertionError('invalid key name %s' % key)
 

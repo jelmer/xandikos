@@ -35,10 +35,17 @@ Index values are boolean (presence), string or timestamp.
 It should still be possible to modify the git repository externally. If this is done, the
 index should automatically be updated.
 
-Implementation
-==============
+Implementation - TDB
+====================
 
 Use a TDB database (on disk or even in RAM). Store:
 
 PRESENT/blobid -> ''
 KEY/blobid/<key> -> <value>
+
+Implementation - Git
+====================
+
+Keep a separate directory in Git somewhere, with one directory per component/property, nested.
+
+comp=VCALENDAR/comp=VEVENT/....
