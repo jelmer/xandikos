@@ -58,12 +58,12 @@ class File(object):
         self.content = content
         self.content_type = content_type
 
-    def describe(self):
+    def describe(self, name):
         """Describe the contents of this file.
 
         Used in e.g. commit messages.
         """
-        return None
+        return name
 
     def get_uid(self):
         """Return UID.
@@ -73,6 +73,30 @@ class File(object):
         :return: UID
         """
         raise NotImplementedError(self.get_uid)
+
+    def describe_delta(self, name, previous):
+        """Describe the important difference between this and previous one.
+
+        :param name: File name
+        :param previous: Previous file to compare to.
+        :return: List of strings describing change
+        """
+        if previous is None:
+            yield "Added " + self.describe(name)
+        else:
+            yield "Modified " + self.describe(name)
+
+
+def describe_calendar_delta(old_cal, new_cal):
+    # TODO(jelmer)
+    for component in new_cal.subcomponents:
+        try:
+            yield "%s %s on %s" % (
+                "Modified" if old_cal else "Added", component["SUMMARY"],
+                component['DTSTART'].dt)
+        except KeyError:
+            pass
+    raise NotImplementedError
 
 
 class ICalendarFile(File):
@@ -90,7 +114,13 @@ class ICalendarFile(File):
             self._calendar = Calendar.from_ical(b''.join(self.content))
         return self._calendar
 
-    def describe(self):
+    def describe_delta(self, name, previous):
+        try:
+            return list(describe_calendar_delta(previous.calendar if previous else None, self.calendar))
+        except NotImplementedError:
+            return super(ICalendarFile, self).describe_delta(name, previous)
+
+    def describe(self, name):
         for component in self.calendar.subcomponents:
             try:
                 return component["SUMMARY"]
@@ -180,12 +210,15 @@ class Store(object):
         """
         raise NotImplementedError(self.iter_with_etag)
 
-    def get_file(self, name, content_type, etag):
+    def get_file(self, name, content_type=None, etag=None):
         """Get the contents of an object.
 
         :return: A File object
         """
-        return open_by_content_type(self._get_raw(name, etag), content_type)
+        if content_type is None:
+            return open_by_extension(self._get_raw(name, etag), name)
+        else:
+            return open_by_content_type(self._get_raw(name, etag), content_type)
 
     def _get_raw(self, name, etag):
         """Get the raw contents of an object.
@@ -360,8 +393,11 @@ class GitStore(Store):
             uid = None
         modified = bool(self._check_duplicate(uid, name, replace_etag))
         if message is None:
-            message = ("Update" if modified else "Add") + " " + (
-                fi.describe() or name)
+            try:
+                old_fi = self.get_file(name, content_type, replace_etag)
+            except KeyError:
+                old_fi = None
+            message = '\n'.join(fi.describe_delta(name, old_fi))
         etag = self._import_one(name, data, message, author=author)
         return (name, etag.decode('ascii'))
 
@@ -646,7 +682,7 @@ class BareGitStore(GitStore):
         self.repo.object_store.add_objects([(tree, '')])
         if message is None:
             fi = open_by_extension(self.repo.object_store[current_sha].chunked, name)
-            message = "Delete " + (fi.describe() or name)
+            message = "Delete " + fi.describe(name)
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
             author=author)
 
@@ -720,7 +756,7 @@ class TreeGitStore(GitStore):
             raise NoSuchItem(name)
         if message is None:
             fi = open_by_extension(current_blob.chunked, name)
-            message = 'Delete ' + (fi.describe() or name)
+            message = 'Delete ' + fi.describe(name)
         if etag is not None:
             with open(p, 'rb') as f:
                 current_etag = current_blob.id
