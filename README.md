@@ -78,6 +78,14 @@ Alternatively, you can run uWSGI standalone and have it authenticate and
 directly serve HTTP traffic. An example configuration for this can be found in
 [examples/uwsgi-standalone.ini](examples/uwsgi-standalone.ini).
 
+This will start a server on _localhost:8080_ with username *user1* and password
+*password1*.
+
+```shell
+mkdir -p $HOME/dav
+uwsgi examples/uwsgi-standalone.ini
+```
+
 Help
 ====
 
