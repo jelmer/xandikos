@@ -25,11 +25,8 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import functools
-from icalendar.cal import Calendar as ICalendar
-import mimetypes
 import os
 import posixpath
-import uuid
 
 from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
 from xandikos.store import (
