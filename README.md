@@ -59,7 +59,7 @@ mkdir -p $HOME/dav
 ./bin/xandikos -d $HOME/dav
 ```
 
-A server should now be running on http://localhost:8080/.
+A server should now be running on [localhost:8080](http://localhost:8080/).
 
 Production
 ----------
@@ -78,7 +78,7 @@ Alternatively, you can run uWSGI standalone and have it authenticate and
 directly serve HTTP traffic. An example configuration for this can be found in
 [examples/uwsgi-standalone.ini](examples/uwsgi-standalone.ini).
 
-This will start a server on http://localhost:8080/ with username *user1* and password
+This will start a server on [localhost:8080](http://localhost:8080/) with username *user1* and password
 *password1*.
 
 ```shell
