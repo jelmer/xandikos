@@ -16,4 +16,6 @@ webdav server:
 
 - better author data in commits
 
+- improve calendar delta describer
+
 - improve performance

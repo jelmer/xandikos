@@ -29,9 +29,10 @@ from icalendar.cal import Calendar
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
+from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
-    ICalendarFile, File, InvalidETag, NoSuchItem,
+    File, InvalidETag, NoSuchItem,
     logger as store_logger)
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -269,7 +270,9 @@ class BareGitStoreTest(BaseGitStoreTest,unittest.TestCase):
     kls = BareGitStore
 
     def create_store(self):
-        return BareGitStore.create_memory()
+        store = BareGitStore.create_memory()
+        store.load_extra_file_handler(ICalendarFile)
+        return store
 
     def test_create_memory(self):
         gc = BareGitStore.create_memory()
@@ -305,25 +308,15 @@ class TreeGitStoreTest(BaseGitStoreTest,unittest.TestCase):
     def create_store(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
-        return self.kls.create(os.path.join(d, 'store'))
+        store = self.kls.create(os.path.join(d, 'store'))
+        store.load_extra_file_handler(ICalendarFile)
+        return store
 
     def add_blob(self, gc, name, contents):
         with open(os.path.join(gc.repo.path, name), 'wb') as f:
             f.write(contents)
         gc.repo.stage(name.encode('utf-8'))
         return Blob.from_string(contents).id.decode('ascii')
-
-
-class ExtractCalendarUIDTests(unittest.TestCase):
-
-    def test_extract_str(self):
-        self.assertEqual(
-            'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ICalendarFile([EXAMPLE_VCALENDAR1], 'text/calendar').get_uid())
-
-    def test_extract_no_uid(self):
-        fi = ICalendarFile([EXAMPLE_VCALENDAR_NO_UID], 'text/calendar')
-        self.assertRaises(KeyError, fi.get_uid)
 
 
 class ExtractRegularUIDTests(unittest.TestCase):

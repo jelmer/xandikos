@@ -29,6 +29,7 @@ import os
 import posixpath
 
 from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
+from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     BareGitStore,
     GitStore,
@@ -443,7 +444,9 @@ class Principal(CollectionSetResource):
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
 def open_store_from_path(path):
-    return GitStore.open_from_path(path)
+    store = GitStore.open_from_path(path)
+    store.load_extra_file_handler(ICalendarFile)
+    return store
 
 
 class XandikosBackend(webdav.Backend):

@@ -23,6 +23,7 @@ import unittest
 def test_suite():
     names = [
         'caldav',
+        'icalendar',
         'store',
         'webdav',
         'web',

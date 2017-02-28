@@ -29,8 +29,6 @@ import os
 import stat
 import uuid
 
-from icalendar.cal import Calendar
-
 from dulwich.objects import Blob, Tree
 import dulwich.repo
 
@@ -87,77 +85,18 @@ class File(object):
             yield "Modified " + self.describe(name)
 
 
-def describe_calendar_delta(old_cal, new_cal):
-    # TODO(jelmer)
-    for component in new_cal.subcomponents:
-        try:
-            yield "%s %s on %s" % (
-                "Modified" if old_cal else "Added", component["SUMMARY"],
-                component['DTSTART'].dt)
-        except KeyError:
-            pass
-    raise NotImplementedError
-
-
-class ICalendarFile(File):
-    """Handle for ICalendar files."""
-
-    content_type = 'text/calendar'
-
-    def __init__(self, content, content_type):
-        super(ICalendarFile, self).__init__(content, content_type)
-        self._calendar = None
-
-    @property
-    def calendar(self):
-        if self._calendar is None:
-            self._calendar = Calendar.from_ical(b''.join(self.content))
-        return self._calendar
-
-    def describe_delta(self, name, previous):
-        try:
-            return list(describe_calendar_delta(previous.calendar if previous else None, self.calendar))
-        except NotImplementedError:
-            return super(ICalendarFile, self).describe_delta(name, previous)
-
-    def describe(self, name):
-        for component in self.calendar.subcomponents:
-            try:
-                return component["SUMMARY"]
-            except KeyError:
-                pass
-
-    def get_uid(self):
-        """Extract the UID from a VCalendar file.
-
-        :param cal: Calendar, possibly serialized.
-        :return: UID
-        """
-        for component in self.calendar.subcomponents:
-            try:
-                return component["UID"]
-            except KeyError:
-                pass
-        raise KeyError
-
-
-FILE_HANDLERS = {
-    ICalendarFile.content_type: ICalendarFile,
-    }
-
-
-def open_by_content_type(content, content_type):
+def open_by_content_type(content, content_type, extra_file_handlers):
     """Open a file based on content type.
 
     :param content: list of bytestrings with content
     :param content_type: MIME type
     :return: File instance
     """
-    return FILE_HANDLERS.get(content_type.split(';')[0], File)(
+    return extra_file_handlers.get(content_type.split(';')[0], File)(
         content, content_type)
 
 
-def open_by_extension(content, name):
+def open_by_extension(content, name, extra_file_handlers):
     """Open a file based on the filename extension.
 
     :param content: list of bytestrings with content
@@ -165,7 +104,8 @@ def open_by_extension(content, name):
     :return: File instance
     """
     (mime_type, encoding) = mimetypes.guess_type(name)
-    return open_by_content_type(content, mime_type)
+    return open_by_content_type(content, mime_type,
+        extra_file_handlers=extra_file_handlers)
 
 
 class DuplicateUidError(Exception):
@@ -203,6 +143,12 @@ class NotStoreError(Exception):
 class Store(object):
     """A object store."""
 
+    def __init__(self):
+        self.extra_file_handlers = {}
+
+    def load_extra_file_handler(self, file_handler):
+        self.extra_file_handlers[file_handler.content_type] = file_handler
+
     def iter_with_etag(self):
         """Iterate over all items in the store with etag.
 
@@ -216,9 +162,13 @@ class Store(object):
         :return: A File object
         """
         if content_type is None:
-            return open_by_extension(self._get_raw(name, etag), name)
+            return open_by_extension(
+                self._get_raw(name, etag), name,
+                extra_file_handlers=self.extra_file_handlers)
         else:
-            return open_by_content_type(self._get_raw(name, etag), content_type)
+            return open_by_content_type(
+                self._get_raw(name, etag), content_type,
+                extra_file_handlers=self.extra_file_handlers)
 
     def _get_raw(self, name, etag):
         """Get the raw contents of an object.
@@ -330,6 +280,7 @@ class GitStore(Store):
     """
 
     def __init__(self, repo, ref=b'refs/heads/master'):
+        super(GitStore, self).__init__()
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
@@ -383,7 +334,7 @@ class GitStore(Store):
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
-        fi = open_by_content_type(data, content_type)
+        fi = open_by_content_type(data, content_type, self.extra_file_handlers)
         if name is None:
             name = str(uuid.uuid4()) + mimetypes.guess_extension(content_type)
         # TODO(jelmer): Verify that 'data' actually represents a valid object
@@ -423,11 +374,14 @@ class GitStore(Store):
                 self._fname_to_uid[name][0] == etag):
                 continue
             blob = self.repo.object_store[sha]
-            fi = open_by_extension(blob.chunked, name)
+            fi = open_by_extension(blob.chunked, name, self.extra_file_handlers)
             try:
                 uid = fi.get_uid()
-            except (NotImplementedError, KeyError):
+            except KeyError:
                 logger.warning('No UID found in file %s', name)
+                uid = None
+            except NotImplementedError:
+                # This file type doesn't support UIDs
                 uid = None
             self._fname_to_uid[name] = (etag, uid)
             if uid is not None:
@@ -681,7 +635,9 @@ class BareGitStore(GitStore):
         del tree[name_enc]
         self.repo.object_store.add_objects([(tree, '')])
         if message is None:
-            fi = open_by_extension(self.repo.object_store[current_sha].chunked, name)
+            fi = open_by_extension(
+                self.repo.object_store[current_sha].chunked, name,
+                self.extra_file_handlers)
             message = "Delete " + fi.describe(name)
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
             author=author)
@@ -755,7 +711,8 @@ class TreeGitStore(GitStore):
         except IOError:
             raise NoSuchItem(name)
         if message is None:
-            fi = open_by_extension(current_blob.chunked, name)
+            fi = open_by_extension(current_blob.chunked, name,
+                self.extra_file_handlers)
             message = 'Delete ' + fi.describe(name)
         if etag is not None:
             with open(p, 'rb') as f:
