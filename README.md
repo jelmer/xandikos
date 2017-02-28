@@ -70,7 +70,7 @@ The easiest way to run Xandikos in production is using
 One option is to setup uWSGI with a server like
 [Apache](http://uwsgi-docs.readthedocs.io/en/latest/Apache.html),
 [Nginx](http://uwsgi-docs.readthedocs.io/en/latest/Nginx.html) or another web
-server that can authenticate users and forward authenticated requests to
+server that can authenticate users and forward authorized requests to
 Xandikos in uWSGI. See [examples/uwsgi.ini](examples/uwsgi.ini) for an
 example uWSGI configuration.
 
