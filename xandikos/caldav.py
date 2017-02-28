@@ -57,13 +57,15 @@ class Calendar(webdav.Collection):
     resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self):
+        """Return the calendar description."""
         raise NotImplementedError(self.get_calendar_description)
 
     def get_calendar_color(self):
+        """Return the calendar color."""
         raise NotImplementedError(self.get_calendar_color)
 
     def get_calendar_timezone(self):
-        """Return calendar timezone property.
+        """Return calendar timezone.
 
         This should be an iCalendar object with exactly one
         VTIMEZONE component.
@@ -71,7 +73,7 @@ class Calendar(webdav.Collection):
         raise NotImplementedError(self.get_calendar_timezone)
 
     def set_calendar_timezone(self):
-        """Set calendar timezone property.
+        """Set calendar timezone.
 
         This should be an iCalendar object with exactly one
         VTIMEZONE component.
