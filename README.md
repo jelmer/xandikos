@@ -19,7 +19,7 @@ The following standards are implemented:
  - [RFC5995](http://www.rfc-base.org/rfc-5995.html) (POST to create members) - *fully implemented*
  - [RFC7809](http://www.rfc-base.org/rfc-7809.html) (CalDAV Time Zone Extensions) - *not implemented*
 
-See [[notes/dav-compliance.md]] for more detail on specification compliancy.
+See [DAV compliance](notes/dav-compliance.md) for more detail on specification compliancy.
 
 Limitations
 -----------
