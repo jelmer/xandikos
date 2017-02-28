@@ -77,7 +77,10 @@ def describe_component(component):
         except KeyError:
             return "task"
     else:
-        return component["SUMMARY"]
+        try:
+            return component["SUMMARY"]
+        except KeyError:
+            return "calendar item"
 
 
 DELTA_IGNORE_FIELDS = set(["LAST-MODIFIED", "SEQUENCE", "DTSTAMP", "PRODID", "CREATED"])
@@ -109,6 +112,8 @@ def describe_calendar_delta(old_cal, new_cal):
            if (old_component.name.upper() == "VTODO" and
                field.upper() == "STATUS"):
                yield "%s marked as %s" % (description, new_component["STATUS"])
+           elif field.upper() == 'DESCRIPTION':
+                yield "changed description of %s" % description
            elif (old_component.name.upper() == "VTODO" and
                  field.upper() == "PERCENT-COMPLETE"):
                yield "%s marked as %d%% complete." % (
@@ -145,7 +150,7 @@ class ICalendarFile(File):
     def describe(self, name):
         for component in self.calendar.subcomponents:
             try:
-                return component["SUMMARY"]
+                return describe_component(component)
             except KeyError:
                 pass
 
