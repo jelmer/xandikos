@@ -10,14 +10,14 @@ Implemented standards
 
 The following standards are implemented:
 
- - RFC4918/RFC2518 (Core WebDAV) - *implemented, except for COPY/MOVE/LOCK operations*
- - RFC4791 (CalDAV) - *fully implemented*
- - RFC6352 (CardDAV) - *fully implemented*
- - RFC5397 (Current Principal) - *fully implemented*
- - RFC3253 (Versioning Extensions) - *partially implemented, only the REPORT method and {DAV:}expand-property property*
- - RFC3744 (Access Control) - *partially implemented*
- - RFC5995 (POST to create members) - *fully implemented*
- - RFC7809 (CalDAV Time Zone Extensions) - *not implemented*
+ - [RFC4918](http://www.rfc-base.org/rfc-4918.html)/[RFC2518](http://www.rfc-base.org/rfc-2518.html) (Core WebDAV) - *implemented, except for COPY/MOVE/LOCK operations*
+ - [RFC4791](http://www.rfc-base.org/rfc-4791.html) (CalDAV) - *fully implemented*
+ - [RFC6352](http://www.rfc-base.org/rfc-6352.html) (CardDAV) - *fully implemented*
+ - [RFC5397](http://www.rfc-base.org/rfc-5397.html) (Current Principal) - *fully implemented*
+ - [RFC3253](http://www.rfc-base.org/rfc-3253.html) (Versioning Extensions) - *partially implemented, only the REPORT method and {DAV:}expand-property property*
+ - [RFC3744](http://www.rfc-base.org/rfc-3744.html) (Access Control) - *partially implemented*
+ - [RFC5995](http://www.rfc-base.org/rfc-5995.html) (POST to create members) - *fully implemented*
+ - [RFC7809](http://www.rfc-base.org/rfc-7809.html) (CalDAV Time Zone Extensions) - *not implemented*
 
 See [[notes/dav-compliance.md]] for more detail on specification compliancy.
 
@@ -32,18 +32,18 @@ Supported clients
 
 Xandikos has been tested and works with the following clients:
 
- - vdirsyncer
- - caldavzap/carddavmate
- - evolution
- - davdroid
- - sogo connector for Icedove/Thunderbird
- - aCALdav syncer for Android
- - pycardsyncer
+ - [vdirsyncer](https://github.com/pimutils/vdirsyncer)
+ - [caldavzap](https://www.inf-it.com/open-source/clients/caldavzap/)/[carddavmate](https://www.inf-it.com/open-source/clients/carddavmate/)
+ - [evolution](https://wiki.gnome.org/Apps/Evolution)
+ - [davdroid](https://davdroid.bitfire.at/)
+ - [sogo connector for Icedove/Thunderbird](http://v2.sogo.nu/english/downloads/frontends.html)
+ - [aCALdav syncer for Android](https://play.google.com/store/apps/details?id=de.we.acaldav&hl=en)
+ - [pycardsyncer](https://github.com/geier/pycarddav)
 
 Clients that are known not to work:
 
- - CalDAV-Sync
- - CardDAV-Sync
+ - [CalDAV-Sync](https://dmfs.org/caldav/)
+ - [CardDAV-Sync](https://dmfs.org/carddav/)
 
 Running
 =======
@@ -69,4 +69,6 @@ Dependencies
 ============
 
 At the moment, Xandikos supports Python 3.5 and higher as well as Pypy 3. It
-also uses dulwich, icalendar and defusedxml.
+also uses [dulwich](https://github.com/jelmer/dulwich),
+[icalendar](https://github.com/collective/icalendar) and
+[defusedxml](https://github.com/tiran/defusedxml).
