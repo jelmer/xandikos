@@ -48,8 +48,11 @@ Clients that are known not to work:
 Running
 =======
 
-To run a standalone (low-performance) instance of Xandikos, simply create a
-directory to store your data (say *$HOME/dav*) and run it:
+Testing
+-------
+
+To run a standalone (low-performance, no authentication) instance of Xandikos,
+simply create a directory to store your data (say *$HOME/dav*) and run it:
 
 ```shell
 mkdir -p $HOME/dav
@@ -57,6 +60,23 @@ mkdir -p $HOME/dav
 ```
 
 A server should now be running on _localhost:8080_.
+
+Production
+----------
+
+The easiest way to run Xandikos in production is using
+[uWSGI](https://uwsgi-docs.readthedocs.io/en/latest/).
+
+One option is to setup uWSGI with a server like
+[Apache](http://uwsgi-docs.readthedocs.io/en/latest/Apache.html),
+[Nginx](http://uwsgi-docs.readthedocs.io/en/latest/Nginx.html) or another web
+server that can authenticate users and forward authenticated requests to
+Xandikos in uWSGI. See [examples/uwsgi.ini](examples/uwsgi.ini) for an
+example uWSGI configuration.
+
+Alternatively, you can run uWSGI standalone and have it authenticate and
+directly serve HTTP traffic. An example configuration for this can be found in
+[examples/uwsgi-standalone.ini](examples/uwsgi-standalone.ini).
 
 Help
 ====

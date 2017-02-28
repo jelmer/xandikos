@@ -540,8 +540,8 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.GetLastModifiedProperty(),
             timezones.TimezoneServiceSetProperty([]),
             webdav.AddMemberProperty(),
-            webdav.MaxInstancesProperty(),
-            webdav.MaxAttendeesPerInstanceProperty(),
+            caldav.MaxInstancesProperty(),
+            caldav.MaxAttendeesPerInstanceProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
