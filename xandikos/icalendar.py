@@ -111,13 +111,15 @@ def describe_calendar_delta(old_cal, new_cal):
                old_value, new_value)
            if (old_component.name.upper() == "VTODO" and
                field.upper() == "STATUS"):
-               yield "%s marked as %s" % (description, new_component["STATUS"])
+               yield "%s marked as %s" % (description, new_value)
            elif field.upper() == 'DESCRIPTION':
                 yield "changed description of %s" % description
+           elif field.upper() == 'LOCATION':
+                yield "changed location of %s to %s" % (description, new_value)
            elif (old_component.name.upper() == "VTODO" and
                  field.upper() == "PERCENT-COMPLETE"):
                yield "%s marked as %d%% complete." % (
-                   description, new_component["PERCENT-COMPLETE"])
+                   description, new_value)
            else:
                yield "modified field %s in %s" % (field, description)
 
