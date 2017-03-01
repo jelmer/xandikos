@@ -66,7 +66,7 @@ def calendar_prop_delta(old_component, new_component):
     for field in fields:
         old_value = old_component.get(field)
         new_value = new_component.get(field)
-        if old_value != new_value:
+        if (old_value.to_ical() if old_value else None) != (new_value.to_ical() if new_value else None):
             yield (field, old_value, new_value)
 
 
@@ -83,7 +83,7 @@ def describe_component(component):
             return "calendar item"
 
 
-DELTA_IGNORE_FIELDS = set(["LAST-MODIFIED", "SEQUENCE", "DTSTAMP", "PRODID", "CREATED"])
+DELTA_IGNORE_FIELDS = set(["LAST-MODIFIED", "SEQUENCE", "DTSTAMP", "PRODID", "CREATED", "COMPLETED"])
 
 
 def describe_calendar_delta(old_cal, new_cal):
@@ -118,7 +118,7 @@ def describe_calendar_delta(old_cal, new_cal):
                 yield "changed location of %s to %s" % (description, new_value)
            elif (old_component.name.upper() == "VTODO" and
                  field.upper() == "PERCENT-COMPLETE"):
-               yield "%s marked as %d%% complete." % (
+               yield "%s marked as %d%% completed." % (
                    description, new_value)
            else:
                yield "modified field %s in %s" % (field, description)
