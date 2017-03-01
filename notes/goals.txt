@@ -1,0 +1,6 @@
+- standards compliant
+- standards complete
+- backed by git
+ * easily hackable/editable with standard tools (e.g. git/vim)
+ * version tracked
+- unit tested

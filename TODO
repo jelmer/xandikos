@@ -7,17 +7,15 @@ webdav server:
 
 - run caldav tester
 
-- support returning components in calendar-data
 - support returning components in addressbook-data
-
-- use full hrefs (For thunderbird)
 
 - properties:
  - group-membership
  - calendar-proxy-read-for
  - calendar-proxy-write-for
 
-- better commit messages
 - better author data in commits
+
+- improve calendar delta describer
 
 - improve performance

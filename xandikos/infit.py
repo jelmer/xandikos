@@ -32,14 +32,13 @@ class SettingsProperty(webdav.Property):
     """
 
     name = '{http://inf-it.com/ns/dav/}settings'
-    protected = False
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     live = False
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_infit_settings()
 
-    def set_value(self, resource, el):
+    def set_value(self, href, resource, el):
         resource.set_infit_settings(el.text)
 
 
@@ -52,10 +51,13 @@ class AddressbookColorProperty(webdav.Property):
     name = '{http://inf-it.com/ns/ab/}addressbook-color'
     resource_type = carddav.ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
-    protected = False
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_addressbook_color()
+
+    def set_value(self, href, resource, el):
+        # TODO
+        raise NotImplementedError
 
 
 class HeaderValueProperty(webdav.Property):
@@ -68,8 +70,11 @@ class HeaderValueProperty(webdav.Property):
     name = '{http://inf-it.com/ns/dav/}headervalue'
     resource_type = webdav.COLLECTION_RESOURCE_TYPE
     in_allprops = False
-    protected = False
     live = False
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_headervalue()
+
+    def set_value(self, href, resource, el):
+        # TODO
+        raise NotImplementedError

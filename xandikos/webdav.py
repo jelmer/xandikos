@@ -117,7 +117,7 @@ class Status(object):
 
     def aselement(self):
         ret = ET.Element('{DAV:}response')
-        ET.SubElement(ret, '{DAV:}href').text = self.href
+        ret.append(create_href(self.href))
         if self.status:
             ET.SubElement(ret, '{DAV:}status').text = 'HTTP/1.1 ' + self.status
         if self.error:
@@ -151,9 +151,6 @@ class Property(object):
     # https://tools.ietf.org/html/rfc4918, section 14.2
     in_allprops = True
 
-    # Whether this property is protected (i.e. read-only)
-    protected = True
-
     # Resource type this property belongs to. If None, get_value()
     # will always be called.
     resource_type = None
@@ -161,29 +158,41 @@ class Property(object):
     # Whether this property is live (i.e set by the server)
     live = None
 
-    def get_value(self, resource, el):
+    def supported_on(self, resource):
+        return (self.resource_type is None or
+                self.resource_type in resource.resource_types)
+
+    def is_set(self, href, resource):
+        """Check if this property is set on a resource."""
+        if not self.supported_on(resource):
+            return False
+        try:
+            self.get_value('/', resource, ET.Element(self.name))
+        except KeyError:
+            return False
+        else:
+            return True
+
+    def get_value(self, href, resource, el):
         """Get property with specified name.
 
+        :param href: Resource href
         :param resource: Resource for which to retrieve the property
         :param el: Element to populate
         :raise KeyError: if this property is not present
         """
         raise KeyError(self.name)
 
-    def set_value(self, resource, el):
+    def set_value(self, href, resource, el):
         """Set property.
 
+        :param href: Resource href
         :param resource: Resource to modify
-        :param el: Element to get new value from
+        :param el: Element to get new value from (None to remove property)
+        :raise NotImplementedError: to indicate this property can not be set
+            (i.e. is protected)
         """
         raise NotImplementedError(self.set_value)
-
-    def remove(self, resource):
-        """Remove property.
-
-        :param resource: Resource to modify
-        """
-        raise NotImplementedError(self.remove)
 
 
 class ResourceTypeProperty(Property):
@@ -191,13 +200,11 @@ class ResourceTypeProperty(Property):
 
     name = '{DAV:}resourcetype'
 
-    protected = True
-
     resource_type = None
 
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
 
@@ -211,11 +218,12 @@ class DisplayNameProperty(Property):
     name = '{DAV:}displayname'
     resource_type = None
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_displayname()
 
     # TODO(jelmer): allow modification of this property
-    # protected = True
+    def set_value(self, href, resource, el):
+        raise NotImplementedError
 
 
 class GetETagProperty(Property):
@@ -226,11 +234,42 @@ class GetETagProperty(Property):
 
     name = '{DAV:}getetag'
     resource_type = None
-    protected = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_etag()
+
+
+class AddMemberProperty(Property):
+    """Provides {DAV:}add-member.
+
+    https://tools.ietf.org/html/rfc5995, section 3.2.1
+    """
+
+    name = '{DAV:}add-member'
+    resource_type = COLLECTION_RESOURCE_TYPE
+    live = True
+
+    def get_value(self, href, resource, el):
+        # Support POST against collection URL
+        el.append(create_href('.', href))
+
+
+class GetLastModifiedProperty(Property):
+    """Provides {DAV:}getlastmodified.
+
+    https://tools.ietf.org/html/rfc4918, section 15.7
+    """
+
+    name = '{DAV:}getlastmodified'
+    resource_type = None
+    live = True
+    in_allprops = True
+
+    def get_value(self, href, resource, el):
+        # Use rfc1123 date (section 3.3.1 of RFC2616)
+        el.text = resource.get_last_modified().strftime(
+            '%a, %d %b %Y %H:%M:%S GMT')
 
 
 def format_datetime(dt):
@@ -253,11 +292,36 @@ class CreationDateProperty(Property):
 
     name = '{DAV:}creationdate'
     resource_type = None
-    protected = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = format_datetime(resource.get_creationdate())
+
+
+class GetContentLanguageProperty(Property):
+    """Provides {DAV:}getcontentlanguage.
+
+    https://tools.ietf.org/html/rfc4918, section 15.3
+    """
+
+    name = '{DAV:}getcontentlanguage'
+    resource_type = None
+
+    def get_value(self, href, resource, el):
+        el.text = ', '.join(resource.get_content_language())
+
+
+class GetContentLengthProperty(Property):
+    """Provides {DAV:}getcontentlength.
+
+    https://tools.ietf.org/html/rfc4918, section 15.4
+    """
+
+    name = '{DAV:}getcontentlength'
+    resource_type = None
+
+    def get_value(self, href, resource, el):
+        el.text = str(resource.get_content_length())
 
 
 class GetContentTypeProperty(Property):
@@ -268,9 +332,8 @@ class GetContentTypeProperty(Property):
 
     name = '{DAV:}getcontenttype'
     resource_type = None
-    protected = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_content_type()
 
 
@@ -289,12 +352,12 @@ class CurrentUserPrincipalProperty(Property):
         super(CurrentUserPrincipalProperty, self).__init__()
         self.current_user_principal = current_user_principal
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         """Get property with specified name.
 
         :param name: A property name.
         """
-        ET.SubElement(el, '{DAV:}href').text = self.current_user_principal
+        el.append(create_href(self.current_user_principal, href))
 
 
 class PrincipalURLProperty(Property):
@@ -304,12 +367,12 @@ class PrincipalURLProperty(Property):
     in_allprops = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         """Get property with specified name.
 
         :param name: A property name.
         """
-        ET.SubElement(el, '{DAV:}href').text = resource.get_principal_url()
+        el.append(create_href(resource.get_principal_url(), href))
 
 
 class SupportedReportSetProperty(Property):
@@ -322,9 +385,10 @@ class SupportedReportSetProperty(Property):
     def __init__(self, reporters):
         self._reporters = reporters
 
-    def get_value(self, resource, el):
-        for name in self._reporters:
-            ET.SubElement(el, name)
+    def get_value(self, href, resource, el):
+        for name, reporter in self._reporters.items():
+            if reporter.supported_on(resource):
+                ET.SubElement(el, name)
 
 
 class GetCTagProperty(Property):
@@ -332,14 +396,29 @@ class GetCTagProperty(Property):
 
     """
 
-    name = '{http://calendarserver.org/ns/}getctag'
+    name = None
     resource_type = COLLECTION_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_ctag()
+
+
+class DAVGetCTagProperty(GetCTagProperty):
+    """getctag property
+
+    """
+
+    name = '{DAV:}getctag'
+
+
+class AppleGetCTagProperty(GetCTagProperty):
+    """getctag property
+
+    """
+
+    name = '{http://calendarserver.org/ns/}getctag'
 
 
 LOCK_SCOPE_EXCLUSIVE = '{DAV:}exclusive'
@@ -414,6 +493,20 @@ class Resource(object):
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
+    def get_content_length(self):
+        """Get content length.
+
+        :return: Length of this objects content.
+        """
+        return sum(map(len, self.get_body()))
+
+    def get_content_language(self):
+        """Get content language.
+
+        :return: Language, as used in HTTP Accept-Language
+        """
+        raise NotImplementedError(self.get_content_language)
+
     def set_body(self, body, replace_etag=None):
         """Set resource contents.
 
@@ -435,6 +528,13 @@ class Resource(object):
         :return: comment
         """
         raise NotImplementedError(self.get_comment)
+
+    def get_last_modified(self):
+        """Get last modified time.
+
+        :return: Last modified time
+        """
+        raise NotImplementedError(self.get_last_modified)
 
 
 class Collection(Resource):
@@ -531,9 +631,10 @@ class Principal(Resource):
         raise NotImplementedError(self.get_infit_settings)
 
 
-def get_property(resource, properties, name):
+def get_property(href, resource, properties, name):
     """Get a single property on a resource.
 
+    :param href: Resource href
     :param resource: Resource object
     :param properties: Dictionary of properties
     :param name: name of property to resolve
@@ -550,10 +651,9 @@ def get_property(resource, properties, name):
             name)
     else:
         try:
-            if (prop.resource_type is not None and
-                prop.resource_type not in resource.resource_types):
+            if not prop.supported_on(resource):
                 raise KeyError
-            prop.get_value(resource, ret)
+            prop.get_value(href, resource, ret)
         except KeyError:
             statuscode = '404 Not Found'
         else:
@@ -561,16 +661,17 @@ def get_property(resource, properties, name):
     return PropStatus(statuscode, responsedescription, ret)
 
 
-def get_properties(resource, properties, requested):
+def get_properties(href, resource, properties, requested):
     """Get a set of properties.
 
+    :param href: Resource Href
     :param resource: Resource object
     :param properties: Dictionary of properties
     :param requested: XML {DAV:}prop element with properties to look up
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        yield get_property(resource, properties, propreq.tag)
+        yield get_property(href, resource, properties, propreq.tag)
 
 
 def traverse_resource(base_resource, base_href, depth):
@@ -607,6 +708,17 @@ class Reporter(object):
 
     name = None
 
+    resource_type = None
+
+    def supported_on(self, resource):
+        """Check if this reporter is available for the specified resource.
+
+        :param resource: Resource to check for
+        :return: boolean indicating whether this reporter is available
+        """
+        return (self.resource_type is None or
+                self.resource_type in resource.resource_types)
+
     def report(self, environ, start_response, request_body, resources_by_hrefs,
                properties, href, resource, depth):
         """Send a report.
@@ -622,6 +734,18 @@ class Reporter(object):
         :return: chunked body
         """
         raise NotImplementedError(self.report)
+
+
+def create_href(href, base_href=None):
+    et = ET.Element('{DAV:}href')
+    if base_href is not None:
+        href = urllib.parse.urljoin(base_href+'/', href)
+    et.text = urllib.parse.quote(href)
+    return et
+
+
+def read_href_element(et):
+    return urllib.parse.unquote(et.text)
 
 
 class ExpandPropertyReporter(Reporter):
@@ -647,23 +771,26 @@ class ExpandPropertyReporter(Reporter):
         for prop in prop_list:
             prop_name = prop.get('name')
             # FIXME: Resolve prop_name on resource
-            propstat = get_property(resource, properties, prop_name)
+            propstat = get_property(href, resource, properties, prop_name)
             new_prop = ET.Element(propstat.prop.tag)
-            child_hrefs = [prop_child.text for prop_child in propstat.prop
-                           if prop_child.tag == '{DAV:}href']
+            child_hrefs = [
+                read_href_element(prop_child)
+                for prop_child in propstat.prop
+                if prop_child.tag == '{DAV:}href']
             child_resources = resources_by_hrefs(child_hrefs)
             for prop_child in propstat.prop:
                 if prop_child.tag != '{DAV:}href':
                     new_prop.append(prop_child)
                 else:
-                    child_resource = child_resources[prop_child.text]
+                    child_href = read_href_element(prop_child)
+                    child_resource = child_resources[child_href]
                     if child_resource is None:
                         # FIXME: What to do if the referenced href is invalid?
                         # For now, let's just keep the unresolved href around
                         new_prop.append(prop_child)
                     else:
                         response = self._populate(
-                            prop, properties, prop_child.text, child_resource)
+                            prop, properties, child_href, child_resource)
                         new_prop.append(response.aselement())
             propstat = PropStatus(
                 propstat.statuscode, propstat.responsedescription, prop=new_prop)
@@ -685,10 +812,9 @@ class SupportedLockProperty(Property):
 
     name = '{DAV:}supportedlock'
     resource_type = None
-    protected = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         for (lockscope, locktype) in resource.get_supported_locks():
             entry = ET.SubElement(el, '{DAV:}lockentry')
             scope_el = ET.SubElement(entry, '{DAV:}lockscope')
@@ -705,10 +831,9 @@ class LockDiscoveryProperty(Property):
 
     name = '{DAV:}lockdiscovery'
     resource_type = None
-    protected = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         for activelock in resource.get_active_locks():
             entry = ET.SubElement(el, '{DAV:}activelock')
             type_el = ET.SubElement(entry, '{DAV:}locktype')
@@ -722,12 +847,10 @@ class LockDiscoveryProperty(Property):
                 ET.SubElement(entry, '{DAV:}timeout').text = activelock.timeout
             if activelock.locktoken:
                 locktoken_el = ET.SubElement(entry, '{DAV:}locktoken')
-                href = ET.SubElement(locktoken_el, '{DAV:}href')
-                href.text = activelock.locktoken
+                locktoken_el.append(create_href(activelock.locktoken))
             if activelock.lockroot:
-                locktoken_el = ET.SubElement(entry, '{DAV:}lockroot')
-                href = ET.SubElement(locktoken_el, '{DAV:}href')
-                href.text = activelock.lockroot
+                lockroot_el = ET.SubElement(entry, '{DAV:}lockroot')
+                lockroot_el.append(create_href(activelock.lockroot))
 
 
 class CommentProperty(Property):
@@ -736,14 +859,13 @@ class CommentProperty(Property):
     See RFC3253, section 3.1.1
     """
     name = '{DAV:}comment'
-    protected = False
     live = False
     in_allprops = False
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_comment()
 
-    def set_value(self, resource, el):
+    def set_value(self, href, resource, el):
         resource.set_comment(el.text)
 
 
@@ -777,6 +899,23 @@ def _send_dav_responses(start_response, responses, out_encoding):
     return body
 
 
+def _send_simple_dav_error(environ, start_response, statuscode, error):
+    status = Status(request_uri(environ), statuscode, error)
+    return _send_dav_responses(start_response, status, DEFAULT_ENCODING)
+
+
+def _send_not_found(environ, start_response):
+    path = request_uri(environ)
+    start_response('404 Not Found', [])
+    return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
+
+
+def _send_method_not_allowed(environ, start_response, allowed_methods):
+    start_response('405 Method Not Allowed', [
+        ('Allow', ', '.join(allowed_methods))])
+    return []
+
+
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
@@ -802,7 +941,7 @@ class WebDAVApp(object):
         for r in reporters:
             self.reporters[r.name] = r
 
-    def _get_dav_features(self, environ):
+    def _get_dav_features(self, resource):
         # TODO(jelmer): Support access-control
         return ['1', '2', '3', 'calendar-access', 'addressbook']
 
@@ -811,40 +950,52 @@ class WebDAVApp(object):
         # TODO(jelmer): Look up resource to determine supported methods.
         return sorted([n[3:] for n in dir(self) if n.startswith('do_')])
 
-    def _send_not_found(self, environ, start_response):
-        path = request_uri(environ)
-        start_response('404 Not Found', [])
-        return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
-
-    def _send_method_not_allowed(self, environ, start_response):
-        start_response('405 Method Not Allowed', [
-            ('Allow', ', '.join(self._get_allowed_methods(environ)))])
-        return []
+    def do_HEAD(self, environ, start_response):
+        return self._do_get(environ, start_response, send_body=False)
 
     def do_GET(self, environ, start_response):
+        return self._do_get(environ, start_response, send_body=True)
+
+    def _do_get(self, environ, start_response, send_body):
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
-            return self._send_not_found(environ, start_response)
+            return _send_not_found(environ, start_response)
         current_etag = r.get_etag()
         if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
         if if_none_match and etag_matches(if_none_match, current_etag):
             start_response('304 Not Modified', [])
             return []
-        start_response('200 OK', [
+        headers = [
             ('ETag', current_etag),
             ('Content-Type', r.get_content_type()),
             ('Content-Length', str(r.get_content_length())),
-        ])
-        return r.get_body()
+        ]
+        try:
+            last_modified = r.get_last_modified()
+        except KeyError:
+            pass
+        else:
+            headers.append(('Last-Modified', last_modified))
+        try:
+            languages = r.get_content_language()
+        except KeyError:
+            pass
+        else:
+            headers.append(('Content-Language', ', '.join(languages)))
+        start_response('200 OK', headers)
+        if send_body:
+            return r.get_body()
+        else:
+            return []
 
     def do_DELETE(self, environ, start_response):
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
-            return self._send_not_found(environ, start_response)
+            return _send_not_found(environ, start_response)
         container_path, item_name = posixpath.split(posixpath.normpath(environ['PATH_INFO']))
         pr = self.backend.get_resource(container_path)
         if pr is None:
-            return self._send_not_found(environ, start_response)
+            return _send_not_found(environ, start_response)
         current_etag = r.get_etag()
         if_match = environ.get('HTTP_IF_MATCH', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
@@ -860,8 +1011,8 @@ class WebDAVApp(object):
         path = posixpath.normpath(environ['PATH_INFO'])
         r = self.backend.get_resource(path)
         if r is None:
-            return self._send_not_found(environ, start_response)
-        if not COLLECTION_RESOURCE_TYPE in r.resource_type:
+            return _send_not_found(environ, start_response)
+        if not COLLECTION_RESOURCE_TYPE in r.resource_types:
             start_response('405 Method Not Allowed', [])
             return []
         content_type = environ['CONTENT_TYPE'].split(';')[0]
@@ -885,7 +1036,7 @@ class WebDAVApp(object):
             start_response('412 Precondition Failed', [])
             return []
         if r is not None:
-            new_etag = r.set_body([new_contents], current_etag)
+            new_etag = r.set_body(new_contents, current_etag)
             start_response('204 No Content', [
                 ('ETag', new_etag)])
             return []
@@ -894,24 +1045,24 @@ class WebDAVApp(object):
         r = self.backend.get_resource(container_path)
         if r is not None:
             (new_name, new_etag) = r.create_member(
-                name, [new_contents], content_type)
+                name, new_contents, content_type)
             start_response('201 Created', [
                 ('ETag', new_etag)])
             return []
-        return self._send_not_found(environ, start_response)
+        return _send_not_found(environ, start_response)
 
     def _readBody(self, environ):
         try:
             request_body_size = int(environ['CONTENT_LENGTH'])
         except KeyError:
-            return environ['wsgi.input'].read()
+            return [environ['wsgi.input'].read()]
         else:
-            return environ['wsgi.input'].read(request_body_size)
+            return [environ['wsgi.input'].read(request_body_size)]
 
     def _readXmlBody(self, environ):
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
-        body = self._readBody(environ)
+        body = b''.join(self._readBody(environ))
         return xmlparse(body)
 
     def _get_resources_by_hrefs(self, environ, hrefs):
@@ -929,17 +1080,19 @@ class WebDAVApp(object):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         r = self.backend.get_resource(environ['PATH_INFO'])
         if r is None:
-            return Status(request_uri(environ), '404 Not Found')
+            return _send_not_found(environ, start_response)
         depth = environ.get("HTTP_DEPTH", "0")
         et = self._readXmlBody(environ)
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
-            logging.warning(
-                'Client requested unkown REPORT %s',
+            logging.warning( 'Client requested unknown REPORT %s',
                 et.tag)
-            return Status(request_uri(environ), '403 Forbidden',
-                error=ET.Element('{DAV:}supported-report'))
+            return _send_simple_dav_error(environ, start_response,
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
+        if not reporter.supported_on(r):
+            return _send_simple_dav_error(environ, start_response,
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
             environ, start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
             self.properties, self._request_href(environ), r, depth)
@@ -970,7 +1123,7 @@ class WebDAVApp(object):
             for href, resource in traverse_resource(
                     base_resource, self._request_href(environ), depth):
                 propstat = get_properties(
-                    resource, self.properties, requested)
+                    href, resource, self.properties, requested)
                 ret.append(Status(href, '200 OK', propstat=list(propstat)))
             # By my reading of the WebDAV RFC, it should be legal to return
             # '200 OK' here if Depth=0, but the RFC is not super clear and
@@ -982,7 +1135,7 @@ class WebDAVApp(object):
                     base_resource, self._request_href(environ), depth):
                 propstat = []
                 for name in self.properties:
-                    ps = get_property(resource, self.properties, name)
+                    ps = get_property(href, resource, self.properties, name)
                     if ps.statuscode == '200 OK':
                         propstat.append(ps)
                 ret.append(Status(href, '200 OK', propstat=propstat))
@@ -992,14 +1145,12 @@ class WebDAVApp(object):
             for href, resource in traverse_resource(
                     base_resource, self._request_href(environ), depth):
                 propstat = []
-                for name in self.properties:
-                    ps = get_property(resource, self.properties, name)
-                    if ps.statuscode == '200 OK':
+                for name, prop in self.properties.items():
+                    if prop.is_set(resource):
                         propstat.append(ET.Element(name))
                 ret.append(Status(href, '200 OK', propstat=propstat))
             return ret
         else:
-            # TODO(jelmer): implement allprop and propname
             # TODO-ERROR(jelmer): What to return here?
             return Status(
                 request_uri(environ), '400 Bad Request',
@@ -1007,6 +1158,7 @@ class WebDAVApp(object):
 
     @multistatus
     def do_PROPPATCH(self, environ):
+        href = self._request_href(environ)
         resource = self.backend.get_resource(environ['PATH_INFO'])
         if resource is None:
             return Status(request_uri(environ), '404 Not Found')
@@ -1041,15 +1193,17 @@ class WebDAVApp(object):
                         PropStatus('404 Not Found', None,
                             ET.Element(propel.tag)))
                 else:
-                    if handler.protected:
+                    if el.tag == '{DAV:}remove':
+                        newval = None
+                    elif el.tag == '{DAV:}set':
+                        newval = propel
+                    try:
+                        handler.set_value(href, resource, newval)
+                    except NotImplementedError:
                         # TODO(jelmer): Signal
                         # {DAV:}cannot-modify-protected-property error
                         statuscode = '409 Conflict'
-                    elif el.tag == '{DAV:}remove':
-                        handler.remove(resource)
-                        statuscode = '200 OK'
-                    elif el.tag == '{DAV:}set':
-                        handler.set_value(resource, propel)
+                    else:
                         statuscode = '200 OK'
                     propstat.append(
                         PropStatus(statuscode, None, ET.Element(propel.tag)))
@@ -1073,13 +1227,21 @@ class WebDAVApp(object):
         return []
 
     def do_OPTIONS(self, environ, start_response):
+        headers = []
+        if environ['PATH_INFO'] != '*':
+            r = self.backend.get_resource(environ['PATH_INFO'])
+            if r is None:
+                return _send_not_found(environ, start_response)
+            dav_features = self._get_dav_features(r)
+            headers.append(('DAV', ', '.join(dav_features)))
+            allowed_methods = self._get_allowed_methods(environ)
+            headers.append(('Allow', ', '.join(allowed_methods)))
+
         # RFC7231 requires that if there is no response body,
         # Content-Length: 0 must be sent. This implies that there is
         # content (albeit empty), and thus a 204 is not a valid reply.
         # Thunderbird also fails if a 204 is sent rather than a 200.
-        start_response('200 OK', [
-            ('DAV', ', '.join(self._get_dav_features(environ))),
-            ('Allow', ', '.join(self._get_allowed_methods(environ))),
+        start_response('200 OK', headers + [
             ('Content-Length', '0')])
         return []
 
@@ -1088,4 +1250,5 @@ class WebDAVApp(object):
         do = getattr(self, 'do_' + method, None)
         if do is not None:
             return do(environ, start_response)
-        return self._send_method_not_allowed(environ, start_response)
+        return _send_method_not_allowed(environ, start_response,
+            self._get_allowed_methods(environ))

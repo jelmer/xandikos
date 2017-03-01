@@ -19,14 +19,48 @@
 
 """Common functions for DAV implementations."""
 
+from defusedxml.ElementTree import fromstring as xmlparse
+# Hmm, defusedxml doesn't have XML generation functions? :(
+from xml.etree import ElementTree as ET
+
 from xandikos import webdav
+
+
+class SubbedProperty(webdav.Property):
+    """Property with sub-components that can be queried."""
+
+    def get_value(self, href, resource, el, requested):
+        """Get the value of a data property.
+
+        :param href: Resource href
+        :param resource: Resource to get value for
+        :param el: Element to fill in
+        :param requested: Requested property (including subelements)
+        """
+        raise NotImplementedError(self.get_value)
+
+
+def get_properties_with_data(data_property, href, resource, properties, requested):
+    for propreq in list(requested):
+        if propreq.tag == data_property.name:
+            ret = ET.Element(propreq.tag)
+            if data_property.supported_on(resource):
+                data_property.get_value(href, resource, ret, propreq)
+                statuscode = '200 OK'
+            else:
+                statuscode = '404 Not Found'
+            yield webdav.PropStatus(statuscode, None, ret)
+        else:
+            yield webdav.get_property(href, resource, properties, propreq.tag)
+
 
 class MultiGetReporter(webdav.Reporter):
     """Abstract base class for multi-get reporters."""
 
     name = None
 
-    data_property_kls = None
+    # A SubbedProperty subclass
+    data_property = None
 
     @webdav.multistatus
     def report(self, environ, body, resources_by_hrefs, properties, base_href, resource,
@@ -39,15 +73,13 @@ class MultiGetReporter(webdav.Reporter):
             if el.tag == '{DAV:}prop':
                 requested = el
             elif el.tag == '{DAV:}href':
-                hrefs.append(el.text)
+                hrefs.append(webdav.read_href_element(el))
             else:
                 raise NotImplementedError(tag.name)
-        properties = dict(properties)
-        properties[self.data_property_kls.name] = self.data_property_kls()
         for (href, resource) in resources_by_hrefs(hrefs):
             if resource is None:
                 yield webdav.Status(href, '404 Not Found', propstat=[])
             else:
-                propstat = webdav.get_properties(
-                    resource, properties, requested)
+                propstat = get_properties_with_data(
+                    self.data_property, href, resource, properties, requested)
                 yield webdav.Status(href, '200 OK', propstat=list(propstat))

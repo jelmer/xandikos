@@ -28,6 +28,7 @@ import pytz
 from xml.etree import ElementTree as ET
 
 from icalendar.cal import (
+    component_factory,
     Calendar as ICalendar,
     FreeBusy,
     )
@@ -36,11 +37,10 @@ from icalendar.prop import vDDDTypes, vPeriod
 from xandikos import davcommon, webdav
 from xandikos.webdav import (
     WebDAVApp,
-    get_properties,
     traverse_resource,
     )
 
-PRODID = '-//Jelmer Vernooij//Xandikos//EN'
+PRODID = '-//Jelmer Vernooĳ//Xandikos//EN'
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
 
 # https://tools.ietf.org/html/rfc4791, section 4.2
@@ -48,19 +48,24 @@ CALENDAR_RESOURCE_TYPE = '{urn:ietf:params:xml:ns:caldav}calendar'
 
 NAMESPACE = 'urn:ietf:params:xml:ns:caldav'
 
+# Feature to advertise to indicate CalDAV support.
+FEATURE = 'calendar-access'
+
 
 class Calendar(webdav.Collection):
 
     resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self):
+        """Return the calendar description."""
         raise NotImplementedError(self.get_calendar_description)
 
     def get_calendar_color(self):
+        """Return the calendar color."""
         raise NotImplementedError(self.get_calendar_color)
 
     def get_calendar_timezone(self):
-        """Return calendar timezone property.
+        """Return calendar timezone.
 
         This should be an iCalendar object with exactly one
         VTIMEZONE component.
@@ -68,7 +73,7 @@ class Calendar(webdav.Collection):
         raise NotImplementedError(self.get_calendar_timezone)
 
     def set_calendar_timezone(self):
-        """Set calendar timezone property.
+        """Set calendar timezone.
 
         This should be an iCalendar object with exactly one
         VTIMEZONE component.
@@ -98,6 +103,16 @@ class Calendar(webdav.Collection):
         """Return maximum datetime property.
         """
         raise NotImplementedError(self.get_min_date_time)
+
+    def get_max_instances(self):
+        """Return maximum number of instances.
+        """
+        raise NotImplementedError(self.get_max_instances)
+
+    def get_max_attendees_per_instance(self):
+        """Return maximum number of attendees per instance.
+        """
+        raise NotImplementedError(self.get_max_attendees_per_instance)
 
 
 class PrincipalExtensions:
@@ -129,24 +144,9 @@ class CalendarHomeSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, base_href, resource, el):
         for href in resource.get_calendar_home_set():
-            ET.SubElement(el, '{DAV:}href').text = href
-
-
-class CalendarUserAddressSetProperty(webdav.Property):
-    """calendar-user-address-set property
-
-    See https://tools.ietf.org/html/rfc6638, section 2.4.1
-    """
-
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-user-address-set'
-    resource_type = '{DAV:}principal'
-    in_allprops = False
-
-    def get_value(self, resource, el):
-        for href in resource.get_calendar_user_address_set():
-            ET.SubElement(el, '{DAV:}href').text = href
+            el.append(webdav.create_href(href, base_href))
 
 
 class CalendarDescriptionProperty(webdav.Property):
@@ -158,14 +158,37 @@ class CalendarDescriptionProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}calendar-description'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, resource, el):
+    def get_value(self, base_href, resource, el):
         el.text = resource.get_calendar_description()
 
     # TODO(jelmer): allow modification of this property
-    # protected = True
+    def set_value(self, href, resource, el):
+        raise NotImplementedError
 
 
-class CalendarDataProperty(webdav.Property):
+def extract_from_calendar(incal, outcal, requested):
+    """Extract requested components/properties from calendar.
+
+    :param incal: Calendar to filter
+    :param outcal: Calendar to write to
+    :param requested: <calendar-data> element with requested
+        components/properties
+    :return: A Calendar
+    """
+    for tag in requested:
+        if tag.name == ('{%s}comp' % NAMESPACE):
+            for insub in incal.subcomponents:
+                if insub.name == tag.get('name'):
+                    outsub = component_factory[insub.name]
+                    outcal.add_component(outsub)
+                    extract_from_calendar(insub, outsub, tag)
+        elif tag.name == ('{%s}prop' % NAMESPACE):
+            outcal[tag.get('name')] = incal[tag.get('name')]
+        else:
+            raise AssertionError('invalid element %r' % tag)
+
+
+class CalendarDataProperty(davcommon.SubbedProperty):
     """calendar-data property
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.4
@@ -176,20 +199,24 @@ class CalendarDataProperty(webdav.Property):
 
     name = '{%s}calendar-data' % NAMESPACE
 
-    def get_value(self, resource, el):
-        # TODO(jelmer): Support other kinds of calendar
-        if resource.get_content_type() != 'text/calendar':
-            raise KeyError
-        # TODO(jelmer): Support subproperties
+    def supported_on(self, resource):
+        return (resource.get_content_type() == 'text/calendar')
+
+    def get_value(self, base_href, resource, el, requested):
+        if len(requested) == 0:
+            el.text = b''.join(resource.get_body()).decode('utf-8')
+        else:
+            c = ICalendar()
+            extract_from_calendar(resource.calendar, c, requested)
+            el.text = c.to_ical()
         # TODO(jelmer): Don't hardcode encoding
-        el.text = b''.join(resource.get_body()).decode('utf-8')
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
-
-    data_property_kls = CalendarDataProperty
+    resource_type = CALENDAR_RESOURCE_TYPE
+    data_property = CalendarDataProperty()
 
 
 def apply_prop_filter(el, comp, tzify):
@@ -411,7 +438,7 @@ def calendar_from_resource(resource):
             return None
     except KeyError:
         return None
-    return ICalendar.from_ical(b''.join(resource.get_body()))
+    return resource.file.calendar
 
 
 def apply_filter(el, resource, tzify):
@@ -433,6 +460,8 @@ def extract_tzid(cal):
 class CalendarQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    data_property = CalendarDataProperty()
 
     @webdav.multistatus
     def report(self, environ, body, resources_by_hrefs, properties, base_href,
@@ -464,14 +493,12 @@ class CalendarQueryReporter(webdav.Reporter):
         else:
             tzid = 'UTC'
         tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
-        properties = dict(properties)
-        properties[CalendarDataProperty.name] = CalendarDataProperty()
         for (href, resource) in traverse_resource(
                 base_resource, base_href, depth):
             if not apply_filter(filter_el, resource, tzify):
                 continue
-            propstat = get_properties(
-                resource, properties, requested)
+            propstat = davcommon.get_properties_with_data(
+                self.data_property, href, resource, properties, requested)
             yield webdav.Status(href, '200 OK', propstat=list(propstat))
 
 
@@ -484,7 +511,7 @@ class CalendarColorProperty(webdav.Property):
     name = '{http://apple.com/ns/ical/}calendar-color'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_calendar_color()
 
 
@@ -499,10 +526,9 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set'
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         for component in resource.get_supported_calendar_components():
             subel = ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}comp')
             subel.set('name', component)
@@ -517,9 +543,8 @@ class SupportedCalendarDataProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-data'
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
-    protected = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         for (content_type, version) in (
                 resource.get_supported_calendar_data_types()):
             subel = ET.SubElement(
@@ -538,10 +563,10 @@ class CalendarTimezoneProperty(webdav.Property):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_calendar_timezone()
 
-    def set_value(self, resource, el):
+    def set_value(self, href, resource, el):
         resource.set_calendar_timezone(el.text)
 
 
@@ -554,10 +579,9 @@ class MinDateTimeProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}min-date-time'
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_min_date_time()
 
 
@@ -570,11 +594,40 @@ class MaxDateTimeProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}max-date-time'
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
-    protected = True
     live = True
 
-    def get_value(self, resource, el):
+    def get_value(self, href, resource, el):
         el.text = resource.get_max_date_time()
+
+
+class MaxInstancesProperty(webdav.Property):
+    """max-instances property.
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.8
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}max-instances'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    live = True
+
+    def get_value(self, href, resource, el):
+        el.text = str(resource.get_max_instances())
+
+
+class MaxAttendeesPerInstanceProperty(webdav.Property):
+    """max-instances property.
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.9
+    """
+
+    name = '{urn:ietf:params:xml:ns:caldav}max-attendees-per-instance'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    live = True
+
+    def get_value(self, href, resource, el):
+        el.text = str(resource.get_max_attendees_per_instance())
 
 
 def map_freebusy(comp):
@@ -631,6 +684,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}free-busy-query'
+    resource_type = CALENDAR_RESOURCE_TYPE
 
     def report(self, environ, start_response, body, resources_by_hrefs, properties, base_href,
                base_resource, depth):

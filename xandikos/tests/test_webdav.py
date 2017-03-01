@@ -139,8 +139,11 @@ class WebTests(unittest.TestCase):
             def get_body(self):
                 return [b'this is content']
 
-            def get_content_length(self):
-                return len('this is content')
+            def get_last_modified(self):
+                raise KeyError
+
+            def get_content_language(self):
+                raise KeyError
 
             def get_etag(self):
                 return "myetag"
@@ -172,7 +175,7 @@ class WebTests(unittest.TestCase):
         code, headers, contents = self.lock(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertIn(
-            ('Allow', 'DELETE, GET, MKCOL, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT'),
+            ('Allow', 'DELETE, GET, HEAD, MKCOL, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT'),
             headers)
         self.assertEqual(b'', contents)
 
@@ -234,7 +237,7 @@ class WebTests(unittest.TestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, resource, ret):
+            def get_value(self, href, resource, ret):
                 raise KeyError
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -252,7 +255,7 @@ class WebTests(unittest.TestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, resource, ret):
+            def get_value(self, href, resource, ret):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -271,11 +274,11 @@ class WebTests(unittest.TestCase):
     def test_propfind_found_multi(self):
         class TestProperty1(Property):
             name = '{DAV:}current-user-principal'
-            def get_value(self, resource, el):
+            def get_value(self, href, resource, el):
                 ET.SubElement(el, '{DAV:}href').text = '/user/'
         class TestProperty2(Property):
             name = '{DAV:}somethingelse'
-            def get_value(self, resource, el):
+            def get_value(self, href, resource, el):
                 pass
         app = self.makeApp(
                 {'/resource': Resource()},
@@ -297,7 +300,7 @@ class WebTests(unittest.TestCase):
     def test_propfind_found_multi_status(self):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
-            def get_value(self, resource, ret):
+            def get_value(self, href, resource, ret):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\

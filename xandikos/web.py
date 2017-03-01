@@ -25,12 +25,11 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import functools
-import mimetypes
 import os
 import posixpath
-import uuid
 
-from xandikos import access, caldav, carddav, sync, webdav, infit
+from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
+from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     BareGitStore,
     GitStore,
@@ -42,10 +41,10 @@ from xandikos.store import (
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 
-RESOURCE_CACHE_SIZE = 128
+STORE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
-CALENDAR_HOME = 'calendars'
-ADDRESSBOOK_HOME = 'contacts'
+CALENDAR_HOME_SET = ['calendars']
+ADDRESSBOOK_HOME_SET = ['contacts']
 USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 
 ROOT_PAGE_CONTENTS = b"""\
@@ -77,27 +76,35 @@ def extract_strong_etag(etag):
 class ObjectResource(webdav.Resource):
     """Object resource."""
 
-    def __init__(self, store, name, etag, content_type):
+    def __init__(self, store, name, content_type, etag):
         self.store = store
         self.name = name
         self.etag = etag
         self.content_type = content_type
-        self._chunked = None
+        self._file = None
 
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
             type(self).__name__, self.store, self.name, self.etag,
-             self.content_type)
+             self.get_content_type())
+
+    @property
+    def file(self):
+        if self._file is None:
+            self._file = self.store.get_file(self.name, self.content_type, self.etag)
+        return self._file
 
     def get_body(self):
-        if self._chunked is None:
-            self._chunked = self.store.get_raw(self.name, self.etag)
-        return self._chunked
+        return self.file.content
 
     def set_body(self, data, replace_etag=None):
-        etag = self.store.import_one(
-            self.name, b''.join(data), extract_strong_etag(replace_etag))
+        (name, etag) = self.store.import_one(
+            self.name, self.content_type, data,
+            replace_etag=extract_strong_etag(replace_etag))
         return create_strong_etag(etag)
+
+    def get_content_language(self):
+        raise KeyError
 
     def get_content_type(self):
         return self.content_type
@@ -127,15 +134,22 @@ class ObjectResource(webdav.Resource):
         # TODO(jelmer): Find creation date using store function
         raise KeyError
 
+    def get_last_modified(self):
+        # TODO(jelmer): Find last modified time using store function
+        raise KeyError
+
 
 class StoreBasedCollection(object):
 
     def __init__(self, store):
         self.store = store
 
-    def _get_resource(self, name, etag):
-        return ObjectResource(
-            self.store, name, etag, self._object_content_type)
+    def __repr__(self):
+        return "%s(%r)" % (
+            type(self).__name__, self.store)
+
+    def _get_resource(self, name, content_type, etag):
+        return ObjectResource(self.store, name, content_type, etag)
 
     def get_displayname(self):
         displayname = self.store.get_displayname()
@@ -154,37 +168,36 @@ class StoreBasedCollection(object):
 
     def members(self):
         ret = []
-        for (name, etag) in self.store.iter_with_etag():
-            resource = self._get_resource(name, etag)
+        for (name, content_type, etag) in self.store.iter_with_etag():
+            resource = self._get_resource(name, content_type, etag)
             ret.append((name, resource))
         return ret
 
     def get_member(self, name):
         assert name != ''
-        for (fname, fetag) in self.store.iter_with_etag():
+        for (fname, content_type, fetag) in self.store.iter_with_etag():
             if name == fname:
-                return self._get_resource(name, fetag)
+                return self._get_resource(name, content_type, fetag)
         else:
             raise KeyError(name)
 
     def delete_member(self, name, etag=None):
-        self.store.delete_one(name, extract_strong_etag(etag))
+        self.store.delete_one(name, etag=extract_strong_etag(etag))
 
     def create_member(self, name, contents, content_type):
-        if name is None:
-            name = str(uuid.uuid4()) + mimetypes.get_extension(content_type)
-        etag = self.store.import_one(name, b''.join(contents))
-        return create_strong_etag(etag)
+        (name, etag) = self.store.import_one(name, content_type,
+            contents)
+        return (name, create_strong_etag(etag))
 
     def iter_differences_since(self, old_token, new_token):
-        for (name, old_etag, new_etag) in self.store.iter_changes(
+        for (name, content_type, old_etag, new_etag) in self.store.iter_changes(
                 old_token, new_token):
             if old_etag is not None:
-                old_resource = self._get_resource(name, old_etag)
+                old_resource = self._get_resource(name, content_type, old_etag)
             else:
                 old_resource = None
             if new_etag is not None:
-                new_resource = self._get_resource(name, new_etag)
+                new_resource = self._get_resource(name, content_type, new_etag)
             else:
                 new_resource = None
             yield (name, old_resource, new_resource)
@@ -211,19 +224,28 @@ class StoreBasedCollection(object):
         # TODO(jelmer): Find creation date using store function
         raise KeyError
 
+    def get_last_modified(self):
+        # TODO(jelmer): Find last modified time using store function
+        raise KeyError
 
-class Collection(StoreBasedCollection,caldav.Calendar):
+    def get_content_type(self):
+        return 'httpd/unix-directory'
+
+    def get_content_language(self):
+        raise KeyError
+
+    def get_content_length(self):
+        raise KeyError
+
+
+class Collection(StoreBasedCollection,webdav.Collection):
     """A generic WebDAV collection."""
-
-    _object_content_type = 'application/unknown'
 
     def __init__(self, store):
         self.store = store
 
 
 class CalendarResource(StoreBasedCollection,caldav.Calendar):
-
-    _object_content_type = 'text/calendar'
 
     def get_calendar_description(self):
         return self.store.get_description()
@@ -250,24 +272,20 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
         return [('text/calendar', '1.0'),
                 ('text/calendar', '2.0')]
 
-    def get_content_type(self):
-        # TODO
-        raise KeyError
-
     def get_max_date_time(self):
         return "99991231T235959Z"
 
     def get_min_date_time(self):
         return "00010101T000000Z"
 
+    def get_max_instances(self):
+        raise KeyError
+
+    def get_max_attendees_per_instance(self):
+        raise KeyError
+
 
 class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
-
-    _object_content_type = 'text/vcard'
-
-    def get_content_type(self):
-        # TODO
-        raise KeyError
 
     def get_addressbook_description(self):
         return self.store.get_description()
@@ -347,6 +365,19 @@ class CollectionSetResource(webdav.Collection):
     def set_comment(self, comment):
         raise NotImplementedError(self.set_comment)
 
+    def get_content_type(self):
+        return 'httpd/unix-directory'
+
+    def get_content_language(self):
+        raise KeyError
+
+    def get_content_length(self):
+        raise KeyError
+
+    def get_last_modified(self):
+        # TODO(jelmer): Find last modified time using store function
+        raise KeyError
+
 
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
@@ -371,6 +402,12 @@ class RootPage(webdav.Resource):
     def get_etag(self):
         return '"root-page"'
 
+    def get_last_modified(self):
+        raise KeyError
+
+    def get_content_language(self):
+        return ['en-UK']
+
 
 class Principal(CollectionSetResource):
     """Principal user resource."""
@@ -378,13 +415,13 @@ class Principal(CollectionSetResource):
     resource_types = webdav.Collection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
 
     def get_principal_url(self):
-        return self.path
+        return '.'
 
     def get_calendar_home_set(self):
-        return [CALENDAR_HOME]
+        return CALENDAR_HOME_SET
 
     def get_addressbook_home_set(self):
-        return [ADDRESSBOOK_HOME]
+        return ADDRESSBOOK_HOME_SET
 
     def get_calendar_user_address_set(self):
         return USER_ADDRESS_SET
@@ -405,9 +442,11 @@ class Principal(CollectionSetResource):
 
 
 
-@functools.lru_cache(maxsize=RESOURCE_CACHE_SIZE)
+@functools.lru_cache(maxsize=STORE_CACHE_SIZE)
 def open_store_from_path(path):
-    return GitStore.open_from_path(path)
+    store = GitStore.open_from_path(path)
+    store.load_extra_file_handler(ICalendarFile)
+    return store
 
 
 class XandikosBackend(webdav.Backend):
@@ -465,15 +504,17 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.DisplayNameProperty(),
             webdav.GetETagProperty(),
             webdav.GetContentTypeProperty(),
+            webdav.GetContentLengthProperty(),
+            webdav.GetContentLanguageProperty(),
             caldav.CalendarHomeSetProperty(),
-            caldav.CalendarUserAddressSetProperty(),
             carddav.AddressbookHomeSetProperty(),
             caldav.CalendarDescriptionProperty(),
             caldav.CalendarColorProperty(),
             caldav.SupportedCalendarComponentSetProperty(),
             carddav.AddressbookDescriptionProperty(),
             carddav.PrincipalAddressProperty(),
-            webdav.GetCTagProperty(),
+            webdav.AppleGetCTagProperty(),
+            webdav.DAVGetCTagProperty(),
             carddav.SupportedAddressDataProperty(),
             webdav.SupportedReportSetProperty(self.reporters),
             sync.SyncTokenProperty(),
@@ -492,6 +533,15 @@ class XandikosApp(webdav.WebDAVApp):
             infit.SettingsProperty(),
             infit.HeaderValueProperty(),
             webdav.CommentProperty(),
+            scheduling.CalendarUserAddressSetProperty(),
+            scheduling.ScheduleInboxURLProperty(),
+            scheduling.ScheduleOutboxURLProperty(),
+            scheduling.CalendarUserTypeProperty(),
+            webdav.GetLastModifiedProperty(),
+            timezones.TimezoneServiceSetProperty([]),
+            webdav.AddMemberProperty(),
+            caldav.MaxInstancesProperty(),
+            caldav.MaxAttendeesPerInstanceProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
@@ -504,16 +554,18 @@ class XandikosApp(webdav.WebDAVApp):
 
 
 class WellknownRedirector(object):
+    """Redirect paths under .well-known/ to the appropriate paths."""
 
-    def __init__(self, inner_app):
+    def __init__(self, inner_app, dav_root):
         self._inner_app = inner_app
+        self._dav_root = dav_root
 
     def __call__(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc6764
         if ((environ['SCRIPT_NAME'] + environ['PATH_INFO'])
                 in WELLKNOWN_DAV_PATHS):
             start_response('302 Found', [
-                ('Location', options.dav_root)])
+                ('Location', self._dav_root)])
             return []
         return self._inner_app(environ, start_response)
 
@@ -550,7 +602,7 @@ def main(argv):
         current_user_principal=options.current_user_principal)
 
     from wsgiref.simple_server import make_server
-    app = WellknownRedirector(app)
+    app = WellknownRedirector(app, options.dav_root)
     server = make_server(options.listen_address, options.port, app)
     server.serve_forever()
 

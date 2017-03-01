@@ -29,9 +29,10 @@ from icalendar.cal import Calendar
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
+from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
-    ExtractCalendarUID, InvalidETag, NoSuchItem,
+    File, InvalidETag, NoSuchItem,
     logger as store_logger)
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -83,81 +84,71 @@ class BaseStoreTest(object):
 
     def test_import_one(self):
         gc = self.create_store()
-        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
         self.assertIsInstance(etag, str)
-        self.assertEqual([('foo.ics', etag)], list(gc.iter_with_etag()))
+        self.assertEqual([('foo.ics', 'text/calendar', etag)], list(gc.iter_with_etag()))
 
     def test_import_one_duplicate_uid(self):
         gc = self.create_store()
-        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
         self.assertRaises(
                 DuplicateUidError, gc.import_one, 'bar.ics',
-                EXAMPLE_VCALENDAR1)
+                'text/calendar', [EXAMPLE_VCALENDAR1])
 
     def test_import_one_duplicate_name(self):
         gc = self.create_store()
-        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR2, etag)
-        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR2], replace_etag=etag)
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
         self.assertRaises(InvalidETag, gc.import_one, 'foo.ics',
-                EXAMPLE_VCALENDAR2, 'invalidetag')
-
-    def test_iter_calendars(self):
-        gc = self.create_store()
-        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
-        ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_calendars()}
-        self.assertEqual(ret,
-            {'bar.ics': (etag2, Calendar.from_ical(EXAMPLE_VCALENDAR2)),
-             'foo.ics': (etag1, Calendar.from_ical(EXAMPLE_VCALENDAR1)),
-             })
-
-    def test_iter_raw(self):
-        gc = self.create_store()
-        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
-        ret = {n: (etag, b''.join(cal)) for (n, etag, cal) in gc.iter_raw()}
-        self.assertEqual(ret,
-            {'bar.ics': (etag2, EXAMPLE_VCALENDAR2),
-             'foo.ics': (etag1, EXAMPLE_VCALENDAR1),
-             })
+                'text/calendar', [EXAMPLE_VCALENDAR2], replace_etag='invalidetag')
 
     def test_get_raw(self):
         gc = self.create_store()
-        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one('bar.ics', 'text/calendar', [EXAMPLE_VCALENDAR2])
         self.assertEqual(
             EXAMPLE_VCALENDAR1,
-            b''.join(gc.get_raw('foo.ics', etag1)))
+            b''.join(gc._get_raw('foo.ics', etag1)))
         self.assertEqual(
             EXAMPLE_VCALENDAR2,
-            b''.join(gc.get_raw('bar.ics', etag2)))
+            b''.join(gc._get_raw('bar.ics', etag2)))
         self.assertRaises(
             KeyError,
-            gc.get_raw, 'missing.ics', '01' * 20)
+            gc._get_raw, 'missing.ics', '01' * 20)
 
-    def test_iter_calendars_extension(self):
+    def test_get_file(self):
         gc = self.create_store()
-        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        etag2 = gc.import_one('bar.txt', EXAMPLE_VCALENDAR2)
-        ret = {n: (etag, cal) for (n, etag, cal) in gc.iter_calendars()}
-        self.assertEqual(ret,
-            {'foo.ics': (etag1, Calendar.from_ical(EXAMPLE_VCALENDAR1))})
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        (name1, etag2) = gc.import_one('bar.ics', 'text/calendar', [EXAMPLE_VCALENDAR2])
+        f1 = gc.get_file('foo.ics', 'text/calendar', etag1)
+        self.assertEqual(EXAMPLE_VCALENDAR1, b''.join(f1.content))
+        self.assertEqual('text/calendar', f1.content_type)
+        f2 = gc.get_file('bar.ics', 'text/calendar', etag2)
+        self.assertEqual(EXAMPLE_VCALENDAR2, b''.join(f2.content))
+        self.assertEqual('text/calendar', f2.content_type)
+        self.assertRaises(
+            KeyError,
+            gc._get_raw, 'missing.ics', '01' * 20)
 
     def test_delete_one(self):
         gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
-        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertEqual([('foo.ics', etag1)], list(gc.iter_with_etag()))
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        self.assertEqual(
+            [('foo.ics', 'text/calendar', etag1)],
+            list(gc.iter_with_etag()))
         gc.delete_one('foo.ics')
         self.assertEqual([], list(gc.iter_with_etag()))
 
     def test_delete_one_with_etag(self):
         gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
-        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertEqual([('foo.ics', etag1)], list(gc.iter_with_etag()))
-        gc.delete_one('foo.ics', etag1)
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        self.assertEqual(
+            [('foo.ics', 'text/calendar', etag1)],
+            list(gc.iter_with_etag()))
+        gc.delete_one('foo.ics', etag=etag1)
         self.assertEqual([], list(gc.iter_with_etag()))
 
     def test_delete_one_nonexistant(self):
@@ -167,14 +158,16 @@ class BaseStoreTest(object):
     def test_delete_one_invalid_etag(self):
         gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
-        etag1 = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
-        etag2 = gc.import_one('bar.ics', EXAMPLE_VCALENDAR2)
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one('bar.ics', 'text/calendar', [EXAMPLE_VCALENDAR2])
         self.assertEqual(
-            set([('foo.ics', etag1), ('bar.ics', etag2)]),
+            set([('foo.ics', 'text/calendar', etag1),
+                ('bar.ics', 'text/calendar', etag2)]),
             set(gc.iter_with_etag()))
-        self.assertRaises(InvalidETag, gc.delete_one, 'foo.ics', etag2)
+        self.assertRaises(InvalidETag, gc.delete_one, 'foo.ics', etag=etag2)
         self.assertEqual(
-            set([('foo.ics', etag1), ('bar.ics', etag2)]),
+            set([('foo.ics', 'text/calendar', etag1),
+                 ('bar.ics', 'text/calendar', etag2)]),
             set(gc.iter_with_etag()))
 
     def test_lookup_uid_nonexistant(self):
@@ -183,7 +176,7 @@ class BaseStoreTest(object):
 
     def test_lookup_uid(self):
         gc = self.create_store()
-        etag = gc.import_one('foo.ics', EXAMPLE_VCALENDAR1)
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
         self.assertEqual(
             ('foo.ics', etag),
             gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
@@ -210,14 +203,18 @@ class BaseGitStoreTest(BaseStoreTest):
         logging.getLogger('').setLevel(logging.ERROR)
         gc = self.create_store()
         bid = self.add_blob(gc, 'foo.ics', EXAMPLE_VCALENDAR_NO_UID)
-        self.assertEqual([('foo.ics', bid)], list(gc.iter_with_etag()))
+        self.assertEqual(
+            [('foo.ics', 'text/calendar', bid)],
+            list(gc.iter_with_etag()))
         gc._scan_ids()
         logging.getLogger('').setLevel(logging.NOTSET)
 
     def test_iter_with_etag(self):
         gc = self.create_store()
         bid = self.add_blob(gc, 'foo.ics', EXAMPLE_VCALENDAR1)
-        self.assertEqual([('foo.ics', bid)], list(gc.iter_with_etag()))
+        self.assertEqual(
+            [('foo.ics', 'text/calendar', bid)],
+            list(gc.iter_with_etag()))
         self.assertEqual(
             ('foo.ics', bid),
             gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
@@ -273,7 +270,9 @@ class BareGitStoreTest(BaseGitStoreTest,unittest.TestCase):
     kls = BareGitStore
 
     def create_store(self):
-        return BareGitStore.create_memory()
+        store = BareGitStore.create_memory()
+        store.load_extra_file_handler(ICalendarFile)
+        return store
 
     def test_create_memory(self):
         gc = BareGitStore.create_memory()
@@ -309,7 +308,9 @@ class TreeGitStoreTest(BaseGitStoreTest,unittest.TestCase):
     def create_store(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
-        return self.kls.create(os.path.join(d, 'store'))
+        store = self.kls.create(os.path.join(d, 'store'))
+        store.load_extra_file_handler(ICalendarFile)
+        return store
 
     def add_blob(self, gc, name, contents):
         with open(os.path.join(gc.repo.path, name), 'wb') as f:
@@ -318,20 +319,8 @@ class TreeGitStoreTest(BaseGitStoreTest,unittest.TestCase):
         return Blob.from_string(contents).id.decode('ascii')
 
 
-class ExtractCalendarUIDTests(unittest.TestCase):
-
-    def test_extract_str(self):
-        self.assertEqual(
-            'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ExtractCalendarUID(EXAMPLE_VCALENDAR1))
-
-    def test_extract_cal(self):
-        cal = Calendar.from_ical(EXAMPLE_VCALENDAR1)
-        self.assertEqual(
-            'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ExtractCalendarUID(cal))
+class ExtractRegularUIDTests(unittest.TestCase):
 
     def test_extract_no_uid(self):
-        self.assertRaises(
-            KeyError,
-            ExtractCalendarUID, EXAMPLE_VCALENDAR_NO_UID)
+        fi = File([EXAMPLE_VCALENDAR_NO_UID], 'text/bla')
+        self.assertRaises(NotImplementedError, fi.get_uid)

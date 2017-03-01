@@ -24,17 +24,15 @@ are always strong, and should be returned without wrapping quotes.
 """
 
 import logging
+import mimetypes
 import os
 import stat
-
-from icalendar.cal import Calendar
+import uuid
 
 from dulwich.objects import Blob, Tree
 import dulwich.repo
 
 _DEFAULT_COMMITTER_IDENTITY = b'Xandikos <xandikos>'
-ICALENDAR_EXTENSION = '.ics'
-VCARD_EXTENSION = '.vcf'
 
 STORE_TYPE_ADDRESSBOOK = 'addressbook'
 STORE_TYPE_CALENDAR = 'calendar'
@@ -51,33 +49,63 @@ DEFAULT_ENCODING = 'utf-8'
 logger = logging.getLogger(__name__)
 
 
-def ExtractCalendarUID(cal):
-    """Extract the UID from a VCalendar file.
+class File(object):
+    """A file type handler."""
 
-    :param cal: Calendar, possibly serialized.
-    :return: UID
+    def __init__(self, content, content_type):
+        self.content = content
+        self.content_type = content_type
+
+    def describe(self, name):
+        """Describe the contents of this file.
+
+        Used in e.g. commit messages.
+        """
+        return name
+
+    def get_uid(self):
+        """Return UID.
+
+        :raise NotImplementedError: If UIDs aren't supported for this format
+        :raise KeyError: If there is no UID set on this file
+        :return: UID
+        """
+        raise NotImplementedError(self.get_uid)
+
+    def describe_delta(self, name, previous):
+        """Describe the important difference between this and previous one.
+
+        :param name: File name
+        :param previous: Previous file to compare to.
+        :return: List of strings describing change
+        """
+        if previous is None:
+            yield "Added " + self.describe(name)
+        else:
+            yield "Modified " + self.describe(name)
+
+
+def open_by_content_type(content, content_type, extra_file_handlers):
+    """Open a file based on content type.
+
+    :param content: list of bytestrings with content
+    :param content_type: MIME type
+    :return: File instance
     """
-    if type(cal) in (bytes, str):
-        cal = Calendar.from_ical(cal)
-    for component in cal.subcomponents:
-        try:
-            return component["UID"]
-        except KeyError:
-            pass
-    raise KeyError
+    return extra_file_handlers.get(content_type.split(';')[0], File)(
+        content, content_type)
 
 
-def ExtractUID(name, data):
-    """Extract UID from a file.
+def open_by_extension(content, name, extra_file_handlers):
+    """Open a file based on the filename extension.
 
-    :param name: Name of the file
-    :param data: Data (possibly serialized)
-    :return: UID
+    :param content: list of bytestrings with content
+    :param name: Name of file to open
+    :return: File instance
     """
-    if name.endswith(ICALENDAR_EXTENSION):
-        return ExtractCalendarUID(data)
-    else:
-        return None
+    (mime_type, encoding) = mimetypes.guess_type(name)
+    return open_by_content_type(content, mime_type,
+        extra_file_handlers=extra_file_handlers)
 
 
 class DuplicateUidError(Exception):
@@ -115,59 +143,65 @@ class NotStoreError(Exception):
 class Store(object):
     """A object store."""
 
+    def __init__(self):
+        self.extra_file_handlers = {}
+
+    def load_extra_file_handler(self, file_handler):
+        self.extra_file_handlers[file_handler.content_type] = file_handler
+
     def iter_with_etag(self):
         """Iterate over all items in the store with etag.
 
-        :yield: (name, etag) tuples
+        :yield: (name, content_type, etag) tuples
         """
         raise NotImplementedError(self.iter_with_etag)
 
-    def get_raw(self, name, etag):
+    def get_file(self, name, content_type=None, etag=None):
+        """Get the contents of an object.
+
+        :return: A File object
+        """
+        if content_type is None:
+            return open_by_extension(
+                self._get_raw(name, etag), name,
+                extra_file_handlers=self.extra_file_handlers)
+        else:
+            return open_by_content_type(
+                self._get_raw(name, etag), content_type,
+                extra_file_handlers=self.extra_file_handlers)
+
+    def _get_raw(self, name, etag):
         """Get the raw contents of an object.
 
         :return: raw contents
         """
-        raise NotImplementedError(self.get_raw)
-
-    def iter_raw(self):
-        """Iterate over raw object contents.
-
-        :yield: (name, etag, data) tuples
-        """
-        for (name, etag) in self.iter_with_etag():
-            data = self.get_raw(name, etag)
-            yield (name, etag, data)
-
-    def iter_calendars(self):
-        """Iterate over all calendars.
-
-        :yield: (name, Calendar) tuples
-        """
-        for (name, etag, data) in self.iter_raw():
-            if not name.endswith(ICALENDAR_EXTENSION):
-                continue
-            yield (name, etag, Calendar.from_ical(b''.join(data)))
+        raise NotImplementedError(self._get_raw)
 
     def get_ctag(self):
         """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
 
-    def import_one(self, name, data, replace_etag=None):
+    def import_one(self, name, data, message=None, author=None,
+            replace_etag=None):
         """Import a single object.
 
         :param name: Name of the object
-        :param data: serialized object as bytes
+        :param data: serialized object as list of bytes
+        :param message: Commit message
+        :param author: Optional author
         :param replace_etag: Etag to replace
         :raise NameExists: when the name already exists
         :raise DuplicateUidError: when the uid already exists
-        :return: etag
+        :return: (name, etag)
         """
         raise NotImplementedError(self.import_one)
 
-    def delete_one(self, name, etag=None):
+    def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
 
         :param name: Filename to delete
+        :param author: Optional author
+        :param message: Commit message
         :param etag: Optional mandatory etag of object to remove
         :raise NoSuchItem: when the item doesn't exist
         :raise InvalidETag: If the specified ETag doesn't match the current
@@ -189,10 +223,10 @@ class Store(object):
         :return: one of [STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR, STORE_TYPE_OTHER]
         """
         ret = STORE_TYPE_OTHER
-        for (name, etag) in self.iter_with_etag():
-            if name.endswith(ICALENDAR_EXTENSION):
+        for (name, content_type, etag) in self.iter_with_etag():
+            if content_type == 'text/calendar':
                 ret = STORE_TYPE_CALENDAR
-            elif name.endswith(VCARD_EXTENSION):
+            elif content_type == 'text/vcard':
                 ret = STORE_TYPE_ADDRESSBOOK
         return ret
 
@@ -222,7 +256,7 @@ class Store(object):
 
         :param old_ctag: Old ctag (None for empty Store)
         :param new_ctag: New ctag
-        :return: Iterator over (name, old_etag, new_etag)
+        :return: Iterator over (name, content_type, old_etag, new_etag)
         """
         raise NotImplementedError(self.iter_changes)
 
@@ -246,6 +280,7 @@ class GitStore(Store):
     """
 
     def __init__(self, repo, ref=b'refs/heads/master'):
+        super(GitStore, self).__init__()
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
@@ -283,8 +318,41 @@ class GitStore(Store):
             etag = None
         if replace_etag is not None and etag != replace_etag:
             raise InvalidETag(name, etag, replace_etag)
+        return etag
 
-    def get_raw(self, name, etag=None):
+    def import_one(self, name, content_type, data, message=None, author=None,
+            replace_etag=None):
+        """Import a single object.
+
+        :param name: name of the object
+        :param content_type: Content type
+        :param data: serialized object as list of bytes
+        :param message: Commit message
+        :param author: Optional author
+        :param replace_etag: optional etag of object to replace
+        :raise InvalidETag: when the name already exists but with different etag
+        :raise DuplicateUidError: when the uid already exists
+        :return: etag
+        """
+        fi = open_by_content_type(data, content_type, self.extra_file_handlers)
+        if name is None:
+            name = str(uuid.uuid4()) + mimetypes.guess_extension(content_type)
+        # TODO(jelmer): Verify that 'data' actually represents a valid object
+        try:
+            uid = fi.get_uid()
+        except (KeyError, NotImplementedError):
+            uid = None
+        modified = bool(self._check_duplicate(uid, name, replace_etag))
+        if message is None:
+            try:
+                old_fi = self.get_file(name, content_type, replace_etag)
+            except KeyError:
+                old_fi = None
+            message = '\n'.join(fi.describe_delta(name, old_fi))
+        etag = self._import_one(name, data, message, author=author)
+        return (name, etag.decode('ascii'))
+
+    def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
 
         :param name: Name of the item
@@ -306,10 +374,14 @@ class GitStore(Store):
                 self._fname_to_uid[name][0] == etag):
                 continue
             blob = self.repo.object_store[sha]
+            fi = open_by_extension(blob.chunked, name, self.extra_file_handlers)
             try:
-                uid = ExtractUID(name, blob.data)
+                uid = fi.get_uid()
             except KeyError:
                 logger.warning('No UID found in file %s', name)
+                uid = None
+            except NotImplementedError:
+                # This file type doesn't support UIDs
                 uid = None
             self._fname_to_uid[name] = (etag, uid)
             if uid is not None:
@@ -327,10 +399,11 @@ class GitStore(Store):
         """Iterate over all items in the store with etag.
 
         :param ctag: Ctag to iterate for
-        :yield: (name, etag) tuples
+        :yield: (name, content_type, etag) tuples
         """
         for (name, mode, sha) in self._iterblobs(ctag):
-            yield (name, sha.decode('ascii'))
+            (mime_type, encoding) = mimetypes.guess_type(name)
+            yield (name, mime_type, sha.decode('ascii'))
 
     @classmethod
     def create(cls, path):
@@ -451,21 +524,28 @@ class GitStore(Store):
 
         :param old_ctag: Old ctag (None for empty Store)
         :param new_ctag: New ctag
-        :return: Iterator over (name, old_etag, new_etag)
+        :return: Iterator over (name, content_type, old_etag, new_etag)
         """
         if old_ctag is None:
             t = Tree()
             self.repo.object_store.add_object(t)
             old_ctag = t.id.decode('ascii')
-        previous = dict(self.iter_with_etag(old_ctag))
-        for (name, new_etag) in self.iter_with_etag(new_ctag):
-            old_etag = previous.get(name)
+        previous = {
+            name: (content_type, etag)
+            for (name, content_type, etag) in self.iter_with_etag(old_ctag)}
+        for (name, new_content_type, new_etag) in self.iter_with_etag(new_ctag):
+            try:
+                (old_content_type, old_etag) = previous[name]
+            except KeyError:
+                old_etag = None
+            else:
+                assert old_content_type == new_content_type
             if old_etag != new_etag:
-                yield (name, old_etag, new_etag)
+                yield (name, new_content_type, old_etag, new_etag)
             if old_etag is not None:
                 del previous[name]
-        for (name, old_etag) in previous.items():
-            yield (name, old_etag, None)
+        for (name, (old_content_type, old_etag)) in previous.items():
+            yield (name, old_content_type, old_etag, None)
 
 
 class BareGitStore(GitStore):
@@ -507,54 +587,60 @@ class BareGitStore(GitStore):
         """
         return cls(dulwich.repo.MemoryRepo())
 
-    def _commit_tree(self, tree_id, message):
+    def _commit_tree(self, tree_id, message, author=None):
         try:
             committer = self.repo._get_user_identity()
         except KeyError:
             committer = _DEFAULT_COMMITTER_IDENTITY
         return self.repo.do_commit(message=message, tree=tree_id,
-                ref=self.ref, committer=committer)
+                ref=self.ref, committer=committer, author=author)
 
-    def import_one(self, name, data, replace_etag=None):
+    def _import_one(self, name, data, message, author=None):
         """Import a single object.
 
-        :param name: Name of the object
+        :param name: Optional name of the object
         :param data: serialized object as bytes
-        :param etag: optional etag of object to replace
-        :raise InvalidETag: when the name already exists but with different etag
-        :raise DuplicateUidError: when the uid already exists
+        :param message: optional commit message
+        :param author: optional author
         :return: etag
         """
-        uid = ExtractUID(name, data)
-        self._check_duplicate(uid, name, replace_etag)
-        # TODO(jelmer): Verify that 'data' actually represents a valid object
-        b = Blob.from_string(data)
+        b = Blob()
+        b.chunked = data
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
         tree[name_enc] = (0o644|stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
-        self._commit_tree(tree.id, b"Add " + name_enc)
-        return b.id.decode('ascii')
+        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
+            author=author)
+        return b.id
 
-    def delete_one(self, name, etag=None):
+    def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
 
         :param name: Filename to delete
+        :param message; Commit message
+        :param author: Optional author to store
         :param etag: Optional mandatory etag of object to remove
         :raise NoSuchItem: when the item doesn't exist
         :raise InvalidETag: If the specified ETag doesn't match the curren
         """
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
-        if not name_enc in tree:
+        try:
+            current_sha = tree[name_enc][1]
+        except KeyError:
             raise NoSuchItem(name)
-        if etag is not None:
-            current_sha = tree[name.encode(DEFAULT_ENCODING)][1]
-            if current_sha != etag.encode('ascii'):
-                raise InvalidETag(name, etag, current_sha.decode('ascii'))
+        if etag is not None and current_sha != etag.encode('ascii'):
+            raise InvalidETag(name, etag, current_sha.decode('ascii'))
         del tree[name_enc]
         self.repo.object_store.add_objects([(tree, '')])
-        self._commit_tree(tree.id, b"Delete " + name_enc)
+        if message is None:
+            fi = open_by_extension(
+                self.repo.object_store[current_sha].chunked, name,
+                self.extra_file_handlers)
+            message = "Delete " + fi.describe(name)
+        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
+            author=author)
 
     @classmethod
     def create(cls, path):
@@ -583,55 +669,59 @@ class TreeGitStore(GitStore):
         name = name.encode(DEFAULT_ENCODING)
         return index[name].sha.decode('ascii')
 
-    def _commit_tree(self, message):
+    def _commit_tree(self, message, author=None):
         try:
             committer = self.repo._get_user_identity()
         except KeyError:
             committer = _DEFAULT_COMMITTER_IDENTITY
-        return self.repo.do_commit(message=message, committer=committer)
+        return self.repo.do_commit(message=message, committer=committer,
+            author=author)
 
-    def import_one(self, name, data, replace_etag=None):
+    def _import_one(self, name, data, message, author=None):
         """Import a single object.
 
         :param name: name of the object
-        :param data: serialized object as bytes
-        :param replace_etag: optional etag of object to replace
-        :raise InvalidETag: when the name already exists but with different etag
-        :raise DuplicateUidError: when the uid already exists
+        :param data: serialized object as list of bytes
+        :param message: Commit message
+        :param author: Optional author
         :return: etag
         """
-        uid = ExtractUID(name, data)
-        self._check_duplicate(uid, name, replace_etag)
-        # TODO(jelmer): Verify that 'data' actually represents a valid object
         p = os.path.join(self.repo.path, name)
         with open(p, 'wb') as f:
-            f.write(data)
+            f.writelines(data)
         self.repo.stage(name)
         etag = self.repo.open_index()[name.encode(DEFAULT_ENCODING)].sha
-        message = b'Add ' + name.encode(DEFAULT_ENCODING)
-        self._commit_tree(message)
-        return etag.decode('ascii')
+        self._commit_tree(message.encode(DEFAULT_ENCODING), author=author)
+        return etag
 
-    def delete_one(self, name, etag=None):
+    def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
 
         :param name: Filename to delete
+        :param message: Commit message
+        :param author: Optional author
         :param etag: Optional mandatory etag of object to remove
         :raise NoSuchItem: when the item doesn't exist
         :raise InvalidETag: If the specified ETag doesn't match the curren
         """
         p = os.path.join(self.repo.path, name)
-        if not os.path.exists(p):
+        try:
+            with open(p, 'rb') as f:
+                current_blob = Blob.from_string(f.read())
+        except IOError:
             raise NoSuchItem(name)
+        if message is None:
+            fi = open_by_extension(current_blob.chunked, name,
+                self.extra_file_handlers)
+            message = 'Delete ' + fi.describe(name)
         if etag is not None:
             with open(p, 'rb') as f:
-                current_etag = Blob.from_string(f.read()).id
+                current_etag = current_blob.id
             if etag.encode('ascii') != current_etag:
                 raise InvalidETag(name, etag, current_etag.decode('ascii'))
         os.unlink(p)
         self.repo.stage(name)
-        message = b'Delete ' + name.encode(DEFAULT_ENCODING)
-        self._commit_tree(message)
+        self._commit_tree(message.encode(DEFAULT_ENCODING), author=author)
 
     def get_ctag(self):
         """Return the ctag for this store."""
