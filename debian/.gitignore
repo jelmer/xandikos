@@ -3,3 +3,4 @@ python3-xandikos/
 *.debhelper.log
 *.substvars
 files
+*.debhelper
