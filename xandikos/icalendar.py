@@ -120,6 +120,10 @@ def describe_calendar_delta(old_cal, new_cal):
                  field.upper() == "PERCENT-COMPLETE"):
                yield "%s marked as %d%% completed." % (
                    description, new_value)
+           elif field.upper() == 'DUE':
+               yield "changed due date for %s from %s to %s" % (
+                   description, old_value.dt if old_value else 'none',
+                   new_value.dt if new_value else 'none')
            else:
                yield "modified field %s in %s" % (field, description)
 
