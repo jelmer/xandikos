@@ -1,5 +1,5 @@
-xandikos (0~git20170207-1) UNRELEASED; urgency=low
+xandikos (0~git20170301-1) UNRELEASED; urgency=low
 
-  * Initial release.
+  * Initial release. Closes: #856511
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 30 Jan 2017 23:56:43 +0000
