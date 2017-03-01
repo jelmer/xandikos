@@ -6,7 +6,7 @@
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; version 2
+# as published by the Free Software Foundation; version 3
 # of the License or (at your option) any later version of
 # the License.
 #
@@ -29,7 +29,7 @@ setup(name="xandikos",
       version=version,
       author="Jelmer Vernooij",
       author_email="jelmer@jelmer.uk",
-      license="Apache v2 or later",
+      license="GNU GPLv3 or later",
       url="https://www.jelmer.uk/projects/xandikos",
       requires=['icalendar', 'dulwich', 'defusedxml'],
       packages=['xandikos'],
