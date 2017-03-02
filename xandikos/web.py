@@ -624,6 +624,9 @@ def main(argv):
         os.makedirs(options.directory, exist_ok=True)
         Principal.initialize(app.backend, options.current_user_principal)
 
+    if not os.path.isdir(options.directory):
+        logging.warning('%r does not exist?', options.directory)
+
     from wsgiref.simple_server import make_server
     app = WellknownRedirector(app, options.route_prefix)
     server = make_server(options.listen_address, options.port, app)

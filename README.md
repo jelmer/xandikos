@@ -52,11 +52,10 @@ Testing
 -------
 
 To run a standalone (low-performance, no authentication) instance of Xandikos,
-simply create a directory to store your data (say *$HOME/dav*) and run it:
+simply run it (say storing data in *$HOME/dav*):
 
 ```shell
-mkdir -p $HOME/dav
-./bin/xandikos -d $HOME/dav
+./bin/xandikos --autocreate -d $HOME/dav
 ```
 
 A server should now be running on [localhost:8080](http://localhost:8080/).
