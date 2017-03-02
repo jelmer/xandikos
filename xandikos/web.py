@@ -25,6 +25,7 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import functools
+import logging
 import os
 import posixpath
 
@@ -598,6 +599,8 @@ def main(argv):
         parser.print_usage()
         sys.exit(1)
 
+    logging.basicConfig(level=logging.INFO)
+
     app = XandikosApp(
         options.directory,
         current_user_principal=options.current_user_principal)
@@ -605,6 +608,8 @@ def main(argv):
     from wsgiref.simple_server import make_server
     app = WellknownRedirector(app, options.route_prefix)
     server = make_server(options.listen_address, options.port, app)
+    logging.info('Listening on %s:%s', options.listen_address,
+                 options.port)
     server.serve_forever()
 
 
