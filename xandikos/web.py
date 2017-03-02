@@ -590,20 +590,21 @@ def main(argv):
     parser.usage = "%prog -d ROOT-DIR [OPTIONS]"
     parser.add_option("-l", "--listen_address", dest="listen_address",
                       default="localhost",
-                      help="Binding IP address.")
+                      help="Binding IP address. [%default]")
     parser.add_option("-d", "--directory", dest="directory",
                       default=None,
-                      help="Default path to serve from.")
+                      help="Directory to serve from.")
     parser.add_option("-p", "--port", dest="port", type=int,
                       default=8000,
-                      help="Port to listen on.")
+                      help="Port to listen on. [%default]")
     parser.add_option("--current-user-principal",
                       default="/user/",
-                      help="Path to current user principal.")
+                      help="Path to current user principal. [%default]")
     parser.add_option("--route-prefix",
                       default="/",
                       help=("Path to Xandikos. " +
-                            "(useful when Xandikos is behind a reverse proxy)"))
+                            "(useful when Xandikos is behind a reverse proxy) "
+                            "[%default]"))
     parser.add_option("--autocreate",
                       action="store_true",
                       dest="autocreate",
