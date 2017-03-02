@@ -588,9 +588,10 @@ def main(argv):
     parser.add_option("--current-user-principal",
                       default="/user/",
                       help="Path to current user principal.")
-    parser.add_option("--dav-root",
+    parser.add_option("--route-prefix",
                       default="/",
-                      help="Path to DAV root.")
+                      help=("Path to Xandikos. " +
+                            "(useful when Xandikos is behind a reverse proxy)"))
     options, args = parser.parse_args(argv)
 
     if options.directory is None:
@@ -602,7 +603,7 @@ def main(argv):
         current_user_principal=options.current_user_principal)
 
     from wsgiref.simple_server import make_server
-    app = WellknownRedirector(app, options.dav_root)
+    app = WellknownRedirector(app, options.route_prefix)
     server = make_server(options.listen_address, options.port, app)
     server.serve_forever()
 
