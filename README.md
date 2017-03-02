@@ -52,7 +52,7 @@ Testing
 -------
 
 To run a standalone (low-performance, no authentication) instance of Xandikos,
-simply run it (say storing data in *$HOME/dav*):
+simply run it (storing data in *$HOME/dav*):
 
 ```shell
 ./bin/xandikos --autocreate -d $HOME/dav
