@@ -441,6 +441,17 @@ class Principal(CollectionSetResource):
         with open(p, 'r') as f:
             return f.read()
 
+    @classmethod
+    def initialize(cls, backend, relpath):
+        path = backend._map_to_file_path(relpath)
+        os.makedirs(path, exist_ok=True)
+        p = cls(backend, relpath)
+        to_create = set()
+        to_create.update(p.get_addressbook_home_set())
+        to_create.update(p.get_calendar_home_set())
+        for relpath in to_create:
+            os.makedirs(os.path.join(path, relpath), exist_ok=True)
+        return p
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
@@ -593,6 +604,10 @@ def main(argv):
                       default="/",
                       help=("Path to Xandikos. " +
                             "(useful when Xandikos is behind a reverse proxy)"))
+    parser.add_option("--autocreate",
+                      action="store_true",
+                      dest="autocreate",
+                      help="Automatically create necessary directories.")
     options, args = parser.parse_args(argv)
 
     if options.directory is None:
@@ -604,6 +619,10 @@ def main(argv):
     app = XandikosApp(
         options.directory,
         current_user_principal=options.current_user_principal)
+
+    if options.autocreate:
+        os.makedirs(options.directory, exist_ok=True)
+        Principal.initialize(app.backend, options.current_user_principal)
 
     from wsgiref.simple_server import make_server
     app = WellknownRedirector(app, options.route_prefix)
