@@ -60,6 +60,10 @@ simply run it (say storing data in *$HOME/dav*):
 
 A server should now be running on [localhost:8080](http://localhost:8080/).
 
+Note that Xandikos does not create any collections by default. You can either
+create collections from your CalDAV/CardDAV client, or by creating git
+repositories under the *contacts* or *calendars* directories it has created.
+
 Production
 ----------
 
