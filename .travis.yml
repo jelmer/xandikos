@@ -10,7 +10,9 @@ env:
 cache:
   directories:
     - $HOME/.cache/pip
+install:
+  - pip install pip --upgrade
+  - sudo apt-get install -qq libneon-dev
 script:
   - pip install pip --upgrade
   - python -m unittest xandikos.tests.test_suite
-
