@@ -624,16 +624,24 @@ def main(argv):
 
     backend = XandikosBackend(options.directory)
     backend._mark_as_principal(options.current_user_principal)
-    app = XandikosApp(
-        backend,
-        current_user_principal=options.current_user_principal)
 
     if options.autocreate:
         os.makedirs(options.directory, exist_ok=True)
-        Principal.initialize(app.backend, options.current_user_principal)
+        Principal.initialize(backend, options.current_user_principal)
 
     if not os.path.isdir(options.directory):
-        logging.warning('%r does not exist?', options.directory)
+        logging.warning(
+            '%r does not exist. Run xandikos with --autocreate?',
+            options.directory)
+    if not backend.get_resource(options.current_user_principal):
+        logging.warning(
+            'default user principal %s does not exist. '
+            'Run xandikos with --autocreate?',
+            options.current_user_principal)
+
+    app = XandikosApp(
+        backend,
+        current_user_principal=options.current_user_principal)
 
     from wsgiref.simple_server import make_server
     app = WellknownRedirector(app, options.route_prefix)
