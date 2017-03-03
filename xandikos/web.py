@@ -409,7 +409,10 @@ class RootPage(webdav.Resource):
         return []
 
     def get_etag(self):
-        return '"root-page"'
+        h = hashlib.md5()
+        for c in self.get_body():
+            m.update(c)
+        return h.hexdigest()
 
     def get_last_modified(self):
         raise KeyError
