@@ -22,8 +22,9 @@
 
 import os
 
-from xandikos.web import XandikosApp
+from xandikos.web import XandikosBackend, XandikosApp
 
-app = XandikosApp(
-        path=os.environ['XANDIKOSPATH'],
-        current_user_principal=os.environ.get('CURRENT_USER_PRINCIPAL', '/user/'))
+backend = XandikosBackend(path=os.environ['XANDIKOSPATH'])
+current_user_principal = os.environ.get('CURRENT_USER_PRINCIPAL', '/user/')
+backend._mark_as_principal(current_user_principal)
+app = XandikosApp(backend, current_user_principal)

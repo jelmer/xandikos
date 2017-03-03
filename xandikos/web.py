@@ -463,23 +463,26 @@ def open_store_from_path(path):
 
 class XandikosBackend(webdav.Backend):
 
-    def __init__(self, path, current_user_principal):
+    def __init__(self, path):
         self.path = path
-        self.current_user_principal = posixpath.normpath(current_user_principal)
+        self._user_principals = set()
 
     def _map_to_file_path(self, relpath):
         return os.path.join(self.path, relpath.lstrip('/'))
+
+    def _mark_as_principal(self, path):
+        self._user_principals.add(posixpath.normpath(path))
 
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
         if relpath == '/':
             return RootPage()
-        elif relpath == self.current_user_principal:
-            return Principal(self, relpath)
         p = self._map_to_file_path(relpath)
         if p is None:
             return None
         if os.path.isdir(p):
+            if relpath in self._user_principals:
+                return Principal(self, relpath)
             try:
                 store = open_store_from_path(p)
             except NotStoreError:
@@ -505,9 +508,8 @@ class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server.
     """
 
-    def __init__(self, path, current_user_principal):
-        super(XandikosApp, self).__init__(XandikosBackend(
-            path, current_user_principal))
+    def __init__(self, backend, current_user_principal):
+        super(XandikosApp, self).__init__(backend)
         self.register_properties([
             webdav.ResourceTypeProperty(),
             webdav.CurrentUserPrincipalProperty(
@@ -620,8 +622,10 @@ def main(argv):
 
     logging.basicConfig(level=logging.INFO)
 
+    backend = XandikosBackend(options.directory)
+    backend._mark_as_principal(options.current_user_principal)
     app = XandikosApp(
-        options.directory,
+        backend,
         current_user_principal=options.current_user_principal)
 
     if options.autocreate:
