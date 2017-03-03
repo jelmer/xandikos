@@ -347,7 +347,7 @@ class CollectionSetResource(webdav.Collection):
         relpath = posixpath.join(self.relpath, name)
         p = self.backend._map_to_file_path(relpath)
         # Why bare store, not a tree store?
-        return BareGitStore.create(p)
+        return Collection(BareGitStore.create(p))
 
     def get_member(self, name):
         assert name != ''
@@ -585,6 +585,28 @@ class WellknownRedirector(object):
         return self._inner_app(environ, start_response)
 
 
+def create_principal_defaults(backend, principal):
+    """Create default calendar and addressbook for a principal.
+
+    :param backend: Backend in which the principal exists.
+    :param principal: Principal object
+    """
+    calendars_path = posixpath.join(principal.relpath, principal.get_calendar_home_set()[0])
+    try:
+        resource = backend.get_resource(calendars_path).create_collection('calendar')
+    except FileExistsError:
+        pass
+    else:
+        logging.info('Create calendar in %s.', resource.store.path)
+    addressbooks_path = posixpath.join(principal.relpath, principal.get_addressbook_home_set()[0])
+    try:
+        resource = backend.get_resource(addressbooks_path).create_collection('addressbook')
+    except FileExistsError:
+        pass
+    else:
+        logging.info('Create addressbook in %s.', resource.store.path)
+
+
 def main(argv):
     import optparse
     import sys
@@ -615,6 +637,11 @@ def main(argv):
                       action="store_true",
                       dest="autocreate",
                       help="Automatically create necessary directories.")
+    parser.add_option("--defaults",
+                      action="store_true",
+                      dest="defaults",
+                      help=("Create initial calendar and address book. "
+                            "Implies --autocreate."))
     options, args = parser.parse_args(argv)
 
     if options.directory is None:
@@ -626,9 +653,11 @@ def main(argv):
     backend = XandikosBackend(options.directory)
     backend._mark_as_principal(options.current_user_principal)
 
-    if options.autocreate:
+    if options.autocreate or options.defaults:
         os.makedirs(options.directory, exist_ok=True)
-        Principal.initialize(backend, options.current_user_principal)
+        principal = Principal.initialize(backend, options.current_user_principal)
+        if options.defaults:
+            create_principal_defaults(backend, principal)
 
     if not os.path.isdir(options.directory):
         logging.warning(

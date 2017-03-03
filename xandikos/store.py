@@ -291,6 +291,10 @@ class GitStore(Store):
     def __repr__(self):
         return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
 
+    @property
+    def path(self):
+        return self.repo.path
+
     def lookup_uid(self, uid):
         """Lookup an item by UID.
 
