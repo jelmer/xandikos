@@ -447,10 +447,11 @@ class Principal(CollectionSetResource):
         os.makedirs(path, exist_ok=True)
         p = cls(backend, relpath)
         to_create = set()
-        to_create.update(p.get_addressbook_home_set())
-        to_create.update(p.get_calendar_home_set())
+        to_create.update(posixpath.join(p.relpath, n) for n in p.get_addressbook_home_set())
+        to_create.update(posixpath.join(p.relpath, n) for n in p.get_calendar_home_set())
         for relpath in to_create:
-            os.makedirs(os.path.join(path, relpath), exist_ok=True)
+            path = backend._map_to_file_path(relpath)
+            os.makedirs(path, exist_ok=True)
         return p
 
 
