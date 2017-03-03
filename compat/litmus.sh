@@ -14,7 +14,11 @@ function finish() {
 trap finish EXIT
 pushd "${scratch}"
 
-wget -O "litmus-${VERSION}.tar.gz" http://www.webdav.org/neon/litmus/litmus-${VERSION}.tar.gz
+if [ -f "${SRCPATH}/litmus-${VERSION}.tar.gz" ]; then
+	cp "${SRCPATH}/litmus-${VERSION}.tar.gz" .
+else
+	wget -O "litmus-${VERSION}.tar.gz" http://www.webdav.org/neon/litmus/litmus-${VERSION}.tar.gz
+fi
 sha256sum ${SRCPATH}/litmus-${VERSION}.tar.gz.sha256sum
 tar xvfz litmus-${VERSION}.tar.gz
 pushd litmus-${VERSION}
