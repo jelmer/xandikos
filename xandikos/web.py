@@ -594,7 +594,7 @@ def main(argv):
                       default="localhost",
                       help="Binding IP address. [%default]")
     access_group.add_option("-p", "--port", dest="port", type=int,
-                      default=8000,
+                      default=8080,
                       help="Port to listen on. [%default]")
     access_group.add_option("--route-prefix",
                       default="/",
