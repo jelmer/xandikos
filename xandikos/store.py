@@ -26,6 +26,7 @@ are always strong, and should be returned without wrapping quotes.
 import logging
 import mimetypes
 import os
+import shutil
 import stat
 import uuid
 
@@ -284,6 +285,10 @@ class Store(object):
         :param comment: New comment to set
         """
         raise NotImplementedError(self.set_comment)
+
+    def destroy(self):
+        """Destroy this store."""
+        raise NotImplementedError(self.destroy)
 
 
 class GitStore(Store):
@@ -575,6 +580,9 @@ class GitStore(Store):
         for (name, (old_content_type, old_etag)) in previous.items():
             yield (name, old_content_type, old_etag, None)
 
+    def destroy(self):
+        """Destroy this store."""
+        shutil.rmtree(self.path)
 
 class BareGitStore(GitStore):
     """A Store backed by a bare git repository."""

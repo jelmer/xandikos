@@ -242,7 +242,7 @@ class StoreBasedCollection(object):
 
     def destroy(self):
         # RFC2518, section 8.6.2 says this should recursively delete.
-        shutil.rmtree(self.store.path)
+        self.store.destroy()
 
 
 class Collection(StoreBasedCollection,webdav.Collection):
