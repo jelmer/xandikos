@@ -1217,7 +1217,10 @@ class WebDAVApp(object):
             request_uri(environ), propstat=propstat)]
 
     def do_MKCOL(self, environ, start_response):
-        # TODO(jelmer): Implement extended-mkcol - https://tools.ietf.org/html/rfc5689
+        if environ.get('CONTENT_TYPE') not in ('text/plain', None):
+            # TODO(jelmer): Implement extended-mkcol - https://tools.ietf.org/html/rfc5689
+            start_response('415 Unsupported Media Type', [])
+            return []
         resource = self.backend.get_resource(environ['PATH_INFO'])
         if resource is not None:
             start_response('405 Method Not Allowed', [])
