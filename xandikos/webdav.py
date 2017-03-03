@@ -576,13 +576,6 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.create_member)
 
-    def create_collection(self, name):
-        """Create a subcollection with the specified name.
-
-        :param name: Subcollection name
-        """
-        raise NotImplementedError(self.create_collection)
-
     def get_sync_token(self):
         """Get sync-token for the current state of this collection.
         """
@@ -876,6 +869,13 @@ class CommentProperty(Property):
 
 class Backend(object):
     """WebDAV backend."""
+
+    def create_collection(self, relpath):
+        """Create a collection with the specified relpath.
+
+        :param relpath: Collection path
+        """
+        raise NotImplementedError(self.create_collection)
 
     def get_resoure(self, relpath):
         raise NotImplementedError(self.get_resource)
@@ -1230,12 +1230,11 @@ class WebDAVApp(object):
         if resource is not None:
             start_response('405 Method Not Allowed', [])
             return []
-        container_path, item_name = posixpath.split(posixpath.normpath(environ['PATH_INFO']))
-        pr = self.backend.get_resource(container_path)
-        if pr is None:
+        try:
+            resource = self.backend.create_collection(environ['PATH_INFO'])
+        except FileNotFoundError:
             start_response('409 Conflict', [])
             return []
-        pr.create_collection(item_name)
         start_response('201 Created', [])
         return []
 

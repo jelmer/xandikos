@@ -179,13 +179,13 @@ class WebTests(unittest.TestCase):
             headers)
         self.assertEqual(b'', contents)
 
-    def test_mkcol_not_allowed(self):
-        class TestResource(Resource):
-
-            def create_collection(self, name):
+    def test_mkcol_ok(self):
+        class Backend(object):
+            def create_collection(self, relpath):
                 pass
-
-        app = self.makeApp({'/resource': TestResource()}, [])
+            def get_resource(self, relpath):
+                return None
+        app = WebDAVApp(Backend())
         code, headers, contents = self.mkcol(app, '/resource/bla')
         self.assertEqual('201 Created', code)
         self.assertEqual(b'', contents)

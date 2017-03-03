@@ -33,8 +33,9 @@ import shutil
 from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
-    BareGitStore,
+    TreeGitStore,
     GitStore,
+    NoSuchItem,
     NotStoreError,
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
@@ -184,8 +185,12 @@ class StoreBasedCollection(object):
             raise KeyError(name)
 
     def delete_member(self, name, etag=None):
-        # TODO: Allow removing subcollections
-        self.store.delete_one(name, etag=extract_strong_etag(etag))
+        try:
+            self.store.delete_one(name, etag=extract_strong_etag(etag))
+        except NoSuchItem:
+            # TODO: Properly allow removing subcollections
+            # self.get_subcollection(name).destroy()
+            shutil.rmtree(os.path.join(self.store.path, name))
 
     def create_member(self, name, contents, content_type):
         (name, etag) = self.store.import_one(name, content_type,
@@ -357,12 +362,6 @@ class CollectionSetResource(webdav.Collection):
             ret.append((name, resource))
         return ret
 
-    def create_collection(self, name):
-        relpath = posixpath.join(self.relpath, name)
-        p = self.backend._map_to_file_path(relpath)
-        # Why bare store, not a tree store?
-        return Collection(BareGitStore.create(p))
-
     def get_member(self, name):
         assert name != ''
         relpath = posixpath.join(self.relpath, name)
@@ -408,6 +407,9 @@ class RootPage(webdav.Resource):
 
     resource_types = []
 
+    def __init__(self, backend):
+        self.backend = backend
+
     def get_body(self):
         return [ROOT_PAGE_CONTENTS]
 
@@ -434,6 +436,13 @@ class RootPage(webdav.Resource):
 
     def get_content_language(self):
         return ['en-UK']
+
+    def get_member(self, name):
+        return self.backend.get_resource(name)
+
+    def delete_member(self, name, etag=None):
+        # This doesn't have any non-collection members.
+        self.get_member(name).destroy()
 
 
 class Principal(CollectionSetResource):
@@ -471,10 +480,10 @@ class Principal(CollectionSetResource):
     def create(cls, backend, relpath):
         p = super(Principal, cls).create(backend, relpath)
         to_create = set()
-        to_create.update(posixpath.join(p.relpath, n) for n in p.get_addressbook_home_set())
-        to_create.update(posixpath.join(p.relpath, n) for n in p.get_calendar_home_set())
-        for relpath in to_create:
-            CollectionSetResource.create(backend, relpath)
+        to_create.update(p.get_addressbook_home_set())
+        to_create.update(p.get_calendar_home_set())
+        for n in to_create:
+            backend.create_collection(posixpath.join(relpath, n))
         return p
 
 
@@ -497,10 +506,15 @@ class XandikosBackend(webdav.Backend):
     def _mark_as_principal(self, path):
         self._user_principals.add(posixpath.normpath(path))
 
+    def create_collection(self, relpath):
+        p = self._map_to_file_path(relpath)
+        # Why bare store, not a tree store?
+        return Collection(TreeGitStore.create(p))
+
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
         if relpath == '/':
-            return RootPage()
+            return RootPage(self)
         p = self._map_to_file_path(relpath)
         if p is None:
             return None
@@ -614,17 +628,17 @@ def create_principal_defaults(backend, principal):
     :param backend: Backend in which the principal exists.
     :param principal: Principal object
     """
-    calendars_path = posixpath.join(principal.relpath, principal.get_calendar_home_set()[0])
+    calendar_path = posixpath.join(principal.relpath, principal.get_calendar_home_set()[0], 'calendar')
     try:
-        resource = backend.get_resource(calendars_path).create_collection('calendar')
+        resource = backend.create_collection(calendar_path)
     except FileExistsError:
         pass
     else:
         resource.store.set_type(STORE_TYPE_CALENDAR)
         logging.info('Create calendar in %s.', resource.store.path)
-    addressbooks_path = posixpath.join(principal.relpath, principal.get_addressbook_home_set()[0])
+    addressbook_path = posixpath.join(principal.relpath, principal.get_addressbook_home_set()[0], 'addressbook')
     try:
-        resource = backend.get_resource(addressbooks_path).create_collection('addressbook')
+        resource = backend.create_collection(addressbook_path)
     except FileExistsError:
         pass
     else:
