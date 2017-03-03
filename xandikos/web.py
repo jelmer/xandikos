@@ -318,6 +318,14 @@ class CollectionSetResource(webdav.Collection):
         self.backend = backend
         self.relpath = relpath
 
+    @classmethod
+    def create(cls, backend, relpath):
+        path = backend._map_to_file_path(relpath)
+        if not os.path.isdir(path):
+            os.makedirs(path, exist_ok=True)
+            logging.info('Creating %s', path)
+        return cls(backend, relpath)
+
     def get_displayname(self):
         return posixpath.basename(self.relpath)
 
@@ -442,16 +450,13 @@ class Principal(CollectionSetResource):
             return f.read()
 
     @classmethod
-    def initialize(cls, backend, relpath):
-        path = backend._map_to_file_path(relpath)
-        os.makedirs(path, exist_ok=True)
-        p = cls(backend, relpath)
+    def create(cls, backend, relpath):
+        p = super(Principal, cls).create(backend, relpath)
         to_create = set()
         to_create.update(posixpath.join(p.relpath, n) for n in p.get_addressbook_home_set())
         to_create.update(posixpath.join(p.relpath, n) for n in p.get_calendar_home_set())
         for relpath in to_create:
-            path = backend._map_to_file_path(relpath)
-            os.makedirs(path, exist_ok=True)
+            CollectionSetResource.create(backend, relpath)
         return p
 
 
@@ -655,7 +660,7 @@ def main(argv):
 
     if options.autocreate or options.defaults:
         os.makedirs(options.directory, exist_ok=True)
-        principal = Principal.initialize(backend, options.current_user_principal)
+        principal = Principal.create(backend, options.current_user_principal)
         if options.defaults:
             create_principal_defaults(backend, principal)
 
