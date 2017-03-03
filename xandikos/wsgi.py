@@ -1,9 +1,9 @@
 # Xandikos
-# Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; version 2
+# as published by the Free Software Foundation; version 3
 # of the License or (at your option) any later version of
 # the License.
 #
@@ -22,8 +22,9 @@
 
 import os
 
-from xandikos.web import XandikosApp
+from xandikos.web import XandikosBackend, XandikosApp
 
-app = XandikosApp(
-        path=os.environ['XANDIKOSPATH'],
-        current_user_principal=os.environ.get('CURRENT_USER_PRINCIPAL', '/user/'))
+backend = XandikosBackend(path=os.environ['XANDIKOSPATH'])
+current_user_principal = os.environ.get('CURRENT_USER_PRINCIPAL', '/user/')
+backend._mark_as_principal(current_user_principal)
+app = XandikosApp(backend, current_user_principal)

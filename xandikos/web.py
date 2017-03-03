@@ -1,9 +1,9 @@
 # Xandikos
-# Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; version 2
+# as published by the Free Software Foundation; version 3
 # of the License or (at your option) any later version of
 # the License.
 #
@@ -25,6 +25,7 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import functools
+import logging
 import os
 import posixpath
 
@@ -317,6 +318,14 @@ class CollectionSetResource(webdav.Collection):
         self.backend = backend
         self.relpath = relpath
 
+    @classmethod
+    def create(cls, backend, relpath):
+        path = backend._map_to_file_path(relpath)
+        if not os.path.isdir(path):
+            os.makedirs(path, exist_ok=True)
+            logging.info('Creating %s', path)
+        return cls(backend, relpath)
+
     def get_displayname(self):
         return posixpath.basename(self.relpath)
 
@@ -346,7 +355,7 @@ class CollectionSetResource(webdav.Collection):
         relpath = posixpath.join(self.relpath, name)
         p = self.backend._map_to_file_path(relpath)
         # Why bare store, not a tree store?
-        return BareGitStore.create(p)
+        return Collection(BareGitStore.create(p))
 
     def get_member(self, name):
         assert name != ''
@@ -440,6 +449,15 @@ class Principal(CollectionSetResource):
         with open(p, 'r') as f:
             return f.read()
 
+    @classmethod
+    def create(cls, backend, relpath):
+        p = super(Principal, cls).create(backend, relpath)
+        to_create = set()
+        to_create.update(posixpath.join(p.relpath, n) for n in p.get_addressbook_home_set())
+        to_create.update(posixpath.join(p.relpath, n) for n in p.get_calendar_home_set())
+        for relpath in to_create:
+            CollectionSetResource.create(backend, relpath)
+        return p
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
@@ -451,23 +469,26 @@ def open_store_from_path(path):
 
 class XandikosBackend(webdav.Backend):
 
-    def __init__(self, path, current_user_principal):
+    def __init__(self, path):
         self.path = path
-        self.current_user_principal = posixpath.normpath(current_user_principal)
+        self._user_principals = set()
 
     def _map_to_file_path(self, relpath):
         return os.path.join(self.path, relpath.lstrip('/'))
+
+    def _mark_as_principal(self, path):
+        self._user_principals.add(posixpath.normpath(path))
 
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
         if relpath == '/':
             return RootPage()
-        elif relpath == self.current_user_principal:
-            return Principal(self, relpath)
         p = self._map_to_file_path(relpath)
         if p is None:
             return None
         if os.path.isdir(p):
+            if relpath in self._user_principals:
+                return Principal(self, relpath)
             try:
                 store = open_store_from_path(p)
             except NotStoreError:
@@ -493,9 +514,8 @@ class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server.
     """
 
-    def __init__(self, path, current_user_principal):
-        super(XandikosApp, self).__init__(XandikosBackend(
-            path, current_user_principal))
+    def __init__(self, backend, current_user_principal):
+        super(XandikosApp, self).__init__(backend)
         self.register_properties([
             webdav.ResourceTypeProperty(),
             webdav.CurrentUserPrincipalProperty(
@@ -570,40 +590,101 @@ class WellknownRedirector(object):
         return self._inner_app(environ, start_response)
 
 
+def create_principal_defaults(backend, principal):
+    """Create default calendar and addressbook for a principal.
+
+    :param backend: Backend in which the principal exists.
+    :param principal: Principal object
+    """
+    calendars_path = posixpath.join(principal.relpath, principal.get_calendar_home_set()[0])
+    try:
+        resource = backend.get_resource(calendars_path).create_collection('calendar')
+    except FileExistsError:
+        pass
+    else:
+        resource.store.set_type(STORE_TYPE_CALENDAR)
+        logging.info('Create calendar in %s.', resource.store.path)
+    addressbooks_path = posixpath.join(principal.relpath, principal.get_addressbook_home_set()[0])
+    try:
+        resource = backend.get_resource(addressbooks_path).create_collection('addressbook')
+    except FileExistsError:
+        pass
+    else:
+        resource.store.set_type(STORE_TYPE_ADDRESSBOOK)
+        logging.info('Create addressbook in %s.', resource.store.path)
+
+
 def main(argv):
     import optparse
     import sys
     from xandikos import __version__
     parser = optparse.OptionParser(version='.'.join(map(str, __version__)))
     parser.usage = "%prog -d ROOT-DIR [OPTIONS]"
-    parser.add_option("-l", "--listen_address", dest="listen_address",
+
+    access_group = optparse.OptionGroup(parser, "Access Options")
+    access_group.add_option("-l", "--listen_address", dest="listen_address",
                       default="localhost",
-                      help="Binding IP address.")
+                      help="Binding IP address. [%default]")
+    access_group.add_option("-p", "--port", dest="port", type=int,
+                      default=8080,
+                      help="Port to listen on. [%default]")
+    access_group.add_option("--route-prefix",
+                      default="/",
+                      help=("Path to Xandikos. " +
+                            "(useful when Xandikos is behind a reverse proxy) "
+                            "[%default]"))
+    parser.add_option_group(access_group)
     parser.add_option("-d", "--directory", dest="directory",
                       default=None,
-                      help="Default path to serve from.")
-    parser.add_option("-p", "--port", dest="port", type=int,
-                      default=8000,
-                      help="Port to listen on.")
+                      help="Directory to serve from.")
     parser.add_option("--current-user-principal",
                       default="/user/",
-                      help="Path to current user principal.")
-    parser.add_option("--dav-root",
-                      default="/",
-                      help="Path to DAV root.")
+                      help="Path to current user principal. [%default]")
+    parser.add_option("--autocreate",
+                      action="store_true",
+                      dest="autocreate",
+                      help="Automatically create necessary directories.")
+    parser.add_option("--defaults",
+                      action="store_true",
+                      dest="defaults",
+                      help=("Create initial calendar and address book. "
+                            "Implies --autocreate."))
     options, args = parser.parse_args(argv)
 
     if options.directory is None:
         parser.print_usage()
         sys.exit(1)
 
+    logging.basicConfig(level=logging.INFO)
+
+    backend = XandikosBackend(options.directory)
+    backend._mark_as_principal(options.current_user_principal)
+
+    if options.autocreate or options.defaults:
+        os.makedirs(options.directory, exist_ok=True)
+        principal = Principal.create(backend, options.current_user_principal)
+        if options.defaults:
+            create_principal_defaults(backend, principal)
+
+    if not os.path.isdir(options.directory):
+        logging.warning(
+            '%r does not exist. Run xandikos with --autocreate?',
+            options.directory)
+    if not backend.get_resource(options.current_user_principal):
+        logging.warning(
+            'default user principal %s does not exist. '
+            'Run xandikos with --autocreate?',
+            options.current_user_principal)
+
     app = XandikosApp(
-        options.directory,
+        backend,
         current_user_principal=options.current_user_principal)
 
     from wsgiref.simple_server import make_server
-    app = WellknownRedirector(app, options.dav_root)
+    app = WellknownRedirector(app, options.route_prefix)
     server = make_server(options.listen_address, options.port, app)
+    logging.info('Listening on %s:%s', options.listen_address,
+                 options.port)
     server.serve_forever()
 
 

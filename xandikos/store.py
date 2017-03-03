@@ -1,9 +1,9 @@
 # Xandikos
-# Copyright (C) 2016 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; version 2
+# as published by the Free Software Foundation; version 3
 # of the License or (at your option) any later version of
 # the License.
 #
@@ -217,6 +217,14 @@ class Store(object):
         """
         raise NotImplementedError(self.lookup_uid)
 
+    def set_type(self, store_type):
+        """Set store type.
+
+        :param store_type: New store type (one of STORE_TYPE_ADDRESSBOOK,
+            STORE_TYPE_CALENDAR, STORE_TYPE_OTHER)
+        """
+        raise NotImplementedError(self.set_type)
+
     def get_type(self):
         """Get type of this store.
 
@@ -290,6 +298,10 @@ class GitStore(Store):
 
     def __repr__(self):
         return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
+
+    @property
+    def path(self):
+        return self.repo.path
 
     def lookup_uid(self, uid):
         """Lookup an item by UID.
@@ -461,6 +473,7 @@ class GitStore(Store):
         """
         config = self.repo.get_config()
         config.set(b'xandikos', b'comment', comment.encode(DEFAULT_ENCODING))
+        config.write_to_path()
 
     def get_comment(self):
         """Get comment.
@@ -500,6 +513,16 @@ class GitStore(Store):
             return None
         else:
             return displayname.decode(DEFAULT_ENCODING)
+
+    def set_type(self, store_type):
+        """Set store type.
+
+        :param store_type: New store type (one of STORE_TYPE_ADDRESSBOOK,
+            STORE_TYPE_CALENDAR, STORE_TYPE_OTHER)
+        """
+        config = self.repo.get_config()
+        config.set(b'xandikos', b'type', store_type.encode(DEFAULT_ENCODING))
+        config.write_to_path()
 
     def get_type(self):
         """Get store type.

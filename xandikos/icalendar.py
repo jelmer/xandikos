@@ -3,7 +3,7 @@
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; version 2
+# as published by the Free Software Foundation; version 3
 # of the License or (at your option) any later version of
 # the License.
 #
@@ -120,6 +120,10 @@ def describe_calendar_delta(old_cal, new_cal):
                  field.upper() == "PERCENT-COMPLETE"):
                yield "%s marked as %d%% completed." % (
                    description, new_value)
+           elif field.upper() == 'DUE':
+               yield "changed due date for %s from %s to %s" % (
+                   description, old_value.dt if old_value else 'none',
+                   new_value.dt if new_value else 'none')
            else:
                yield "modified field %s in %s" % (field, description)
 
