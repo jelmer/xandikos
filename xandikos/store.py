@@ -104,6 +104,8 @@ def open_by_extension(content, name, extra_file_handlers):
     :return: File instance
     """
     (mime_type, encoding) = mimetypes.guess_type(name)
+    if mime_type is None:
+        mime_type = 'application/octet-stream'
     return open_by_content_type(content, mime_type,
         extra_file_handlers=extra_file_handlers)
 
