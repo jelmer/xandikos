@@ -967,9 +967,14 @@ class WebDAVApp(object):
             return []
         headers = [
             ('ETag', current_etag),
-            ('Content-Type', r.get_content_type()),
             ('Content-Length', str(r.get_content_length())),
         ]
+        try:
+            content_type = r.get_content_type()
+        except KeyError:
+            pass
+        else:
+            headers.append(('Content-Type', content_type))
         try:
             last_modified = r.get_last_modified()
         except KeyError:
