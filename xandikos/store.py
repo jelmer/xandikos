@@ -43,6 +43,7 @@ VALID_STORE_TYPES = (
     STORE_TYPE_OTHER)
 
 
+DEFAULT_MIME_TYPE = 'application/octet-stream'
 DEFAULT_ENCODING = 'utf-8'
 
 
@@ -105,7 +106,7 @@ def open_by_extension(content, name, extra_file_handlers):
     """
     (mime_type, encoding) = mimetypes.guess_type(name)
     if mime_type is None:
-        mime_type = 'application/octet-stream'
+        mime_type = DEFAULT_MIME_TYPE
     return open_by_content_type(content, mime_type,
         extra_file_handlers=extra_file_handlers)
 
@@ -417,6 +418,8 @@ class GitStore(Store):
         """
         for (name, mode, sha) in self._iterblobs(ctag):
             (mime_type, encoding) = mimetypes.guess_type(name)
+            if mime_type is None:
+                mime_type = DEFAULT_MIME_TYPE
             yield (name, mime_type, sha.decode('ascii'))
 
     @classmethod
