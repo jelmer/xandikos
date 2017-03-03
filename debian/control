@@ -17,13 +17,13 @@ Description: Git-backed CalDAV/CardDAV server
  .
  It supports the following standards:
  .
- * RFC4918/RFC2518 (Core WebDAV) - implemented, except for COPY/MOVE/LOCK
- * RFC4791 (CalDAV) - fully implemented
- * RFC6352 (CardDAV) - fully implemented
- * RFC5397 (Current Principal) - fully implemented
- * RFC3253 (Versioning Extensions) - partially implemented
- * RFC3744 (Access Control) - partially implemented
- * RFC5995 (POST to create members) - fully implemented
+  * RFC4918/RFC2518 (Core WebDAV) - implemented, except for COPY/MOVE/LOCK
+  * RFC4791 (CalDAV) - fully implemented
+  * RFC6352 (CardDAV) - fully implemented
+  * RFC5397 (Current Principal) - fully implemented
+  * RFC3253 (Versioning Extensions) - partially implemented
+  * RFC3744 (Access Control) - partially implemented
+  * RFC5995 (POST to create members) - fully implemented
  .
  Xandikos (Δύστρος) takes its name from the name of the February month in the
  ancient Macedonian calendar, used in Macedon in the first millennium BC.
