@@ -608,6 +608,11 @@ class Collection(Resource):
     def get_headervalue(self):
         raise NotImplementedError(self.get_headervalue)
 
+    def destroy(self):
+        """Destroy this collection itself.
+        """
+        raise NotImplementedError(self.destroy)
+
 
 class Principal(Resource):
     """Resource for a DAV Principal."""

@@ -184,6 +184,7 @@ class StoreBasedCollection(object):
             raise KeyError(name)
 
     def delete_member(self, name, etag=None):
+        # TODO: Allow removing subcollections
         self.store.delete_one(name, etag=extract_strong_etag(etag))
 
     def create_member(self, name, contents, content_type):
@@ -238,6 +239,10 @@ class StoreBasedCollection(object):
 
     def get_content_length(self):
         raise KeyError
+
+    def destroy(self):
+        # RFC2518, section 8.6.2 says this should recursively delete.
+        shutil.rmtree(self.store.path)
 
 
 class Collection(StoreBasedCollection,webdav.Collection):
@@ -389,9 +394,11 @@ class CollectionSetResource(webdav.Collection):
         raise KeyError
 
     def delete_member(self, name, etag=None):
-        assert name != ''
-        relpath = posixpath.join(self.relpath, name)
-        p = self.backend._map_to_file_path(relpath)
+        # This doesn't have any non-collection members.
+        self.get_member(name).destroy()
+
+    def destroy(self):
+        p = self.backend._map_to_file_path(self.relpath)
         # RFC2518, section 8.6.2 says this should recursively delete.
         shutil.rmtree(p)
 
