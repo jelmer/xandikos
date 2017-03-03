@@ -45,6 +45,14 @@ Clients that are known not to work:
  - [CalDAV-Sync](https://dmfs.org/caldav/)
  - [CardDAV-Sync](https://dmfs.org/carddav/)
 
+Dependencies
+============
+
+At the moment, Xandikos supports Python 3.5 and higher as well as Pypy 3. It
+also uses [dulwich](https://github.com/jelmer/dulwich),
+[icalendar](https://github.com/collective/icalendar) and
+[defusedxml](https://github.com/tiran/defusedxml).
+
 Running
 =======
 
@@ -95,11 +103,3 @@ Help
 There is a *#xandikos* IRC channel on the [Freenode](https://www.freenode.net/)
 IRC network, and a [xandikos](https://groups.google.com/forum/#!forum/xandikos)
 mailing list.
-
-Dependencies
-============
-
-At the moment, Xandikos supports Python 3.5 and higher as well as Pypy 3. It
-also uses [dulwich](https://github.com/jelmer/dulwich),
-[icalendar](https://github.com/collective/icalendar) and
-[defusedxml](https://github.com/tiran/defusedxml).
