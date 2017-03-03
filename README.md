@@ -53,6 +53,12 @@ also uses [dulwich](https://github.com/jelmer/dulwich),
 [icalendar](https://github.com/collective/icalendar) and
 [defusedxml](https://github.com/tiran/defusedxml).
 
+Install those dependencies. Example given:
+
+```shell
+sudo apt install python3-dulwich python3-defusedxml python3-icalendar
+```
+
 Running
 =======
 
