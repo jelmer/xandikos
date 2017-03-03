@@ -28,6 +28,7 @@ import functools
 import logging
 import os
 import posixpath
+import shutil
 
 from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
 from xandikos.icalendar import ICalendarFile
@@ -386,6 +387,13 @@ class CollectionSetResource(webdav.Collection):
     def get_last_modified(self):
         # TODO(jelmer): Find last modified time using store function
         raise KeyError
+
+    def delete_member(self, name, etag=None):
+        assert name != ''
+        relpath = posixpath.join(self.relpath, name)
+        p = self.backend._map_to_file_path(relpath)
+        # RFC2518, section 8.6.2 says this should recursively delete.
+        shutil.rmtree(p)
 
 
 class RootPage(webdav.Resource):
