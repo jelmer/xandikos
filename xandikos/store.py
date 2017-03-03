@@ -217,6 +217,14 @@ class Store(object):
         """
         raise NotImplementedError(self.lookup_uid)
 
+    def set_type(self, store_type):
+        """Set store type.
+
+        :param store_type: New store type (one of STORE_TYPE_ADDRESSBOOK,
+            STORE_TYPE_CALENDAR, STORE_TYPE_OTHER)
+        """
+        raise NotImplementedError(self.set_type)
+
     def get_type(self):
         """Get type of this store.
 
@@ -465,6 +473,7 @@ class GitStore(Store):
         """
         config = self.repo.get_config()
         config.set(b'xandikos', b'comment', comment.encode(DEFAULT_ENCODING))
+        config.write_to_path()
 
     def get_comment(self):
         """Get comment.
@@ -504,6 +513,16 @@ class GitStore(Store):
             return None
         else:
             return displayname.decode(DEFAULT_ENCODING)
+
+    def set_type(self, store_type):
+        """Set store type.
+
+        :param store_type: New store type (one of STORE_TYPE_ADDRESSBOOK,
+            STORE_TYPE_CALENDAR, STORE_TYPE_OTHER)
+        """
+        config = self.repo.get_config()
+        config.set(b'xandikos', b'type', store_type.encode(DEFAULT_ENCODING))
+        config.write_to_path()
 
     def get_type(self):
         """Get store type.

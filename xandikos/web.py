@@ -602,6 +602,7 @@ def create_principal_defaults(backend, principal):
     except FileExistsError:
         pass
     else:
+        resource.store.set_type(STORE_TYPE_CALENDAR)
         logging.info('Create calendar in %s.', resource.store.path)
     addressbooks_path = posixpath.join(principal.relpath, principal.get_addressbook_home_set()[0])
     try:
@@ -609,6 +610,7 @@ def create_principal_defaults(backend, principal):
     except FileExistsError:
         pass
     else:
+        resource.store.set_type(STORE_TYPE_ADDRESSBOOK)
         logging.info('Create addressbook in %s.', resource.store.path)
 
 
