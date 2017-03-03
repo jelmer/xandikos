@@ -1,5 +1,6 @@
 debhelper-build-stamp
 python3-xandikos/
+xandikos/
 *.debhelper.log
 *.substvars
 files

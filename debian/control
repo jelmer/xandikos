@@ -8,12 +8,22 @@ Standards-Version: 3.9.8
 X-Python3-Version: >= 3.2
 Vcs-Git: https://jelmer.uk/code/xandikos.git -b unstable
 
-Package: python3-xandikos
+Package: xandikos
 Architecture: all
 Depends: ${python3:Depends}, ${misc:Depends}, python3-icalendar, python3-defusedxml, python3-dulwich
 Description: Git-backed CalDAV/CardDAV server
  Xandikos is a standards-compliant CalDAV/CardDAV server that backs onto a
  Git repository.
+ .
+ It supports the following standards:
+ .
+ * RFC4918/RFC2518 (Core WebDAV) - implemented, except for COPY/MOVE/LOCK
+ * RFC4791 (CalDAV) - fully implemented
+ * RFC6352 (CardDAV) - fully implemented
+ * RFC5397 (Current Principal) - fully implemented
+ * RFC3253 (Versioning Extensions) - partially implemented
+ * RFC3744 (Access Control) - partially implemented
+ * RFC5995 (POST to create members) - fully implemented
  .
  Xandikos (Δύστρος) takes its name from the name of the February month in the
  ancient Macedonian calendar, used in Macedon in the first millennium BC.
