@@ -1,6 +1,8 @@
 #!/bin/bash -x
 # Run litmus against xandikos
 
+TESTS="$1"
+
 XANDIKOS_PID=
 DAEMON_LOG=$(mktemp)
 SERVEDIR=$(mktemp -d)
@@ -24,4 +26,4 @@ trap cleanup 0 EXIT
 
 run_xandikos
 
-$(dirname $0)/litmus.sh http://localhost:5233/
+$(dirname $0)/litmus.sh http://localhost:5233/ "$TESTS"

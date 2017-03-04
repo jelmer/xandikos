@@ -1,8 +1,11 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 URL="$1"
 if [ -z "$URL" ]; then
 	echo "Usage: $0 URL"
 	exit 1
+fi
+if [ -n "$2" ]; then
+	TEST_ARG=TESTS="$2"
 fi
 SRCPATH="$(realpath $(dirname $0))"
 VERSION=0.13
@@ -24,4 +27,4 @@ tar xvfz litmus-${VERSION}.tar.gz
 pushd litmus-${VERSION}
 ./configure
 make
-make URL="$URL" check
+make URL="$URL" $TEST_ARG check

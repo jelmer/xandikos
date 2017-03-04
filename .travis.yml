@@ -15,4 +15,5 @@ install:
   - sudo apt-get install -qq libneon27-dev
   - pip install -r requirements.txt
 script:
-  - python -m unittest xandikos.tests.test_suite
+  - make check
+  - make check-litmus

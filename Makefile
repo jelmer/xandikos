@@ -8,8 +8,11 @@ check:
 web:
 	$(PYTHON) -m xandikos.web
 
-check-litmus:
+check-litmus-all:
 	./compat/xandikos-litmus.sh
+
+check-litmus:
+	./compat/xandikos-litmus.sh "basic"
 
 check-caldavtester:
 	cd compat && ./all.sh
