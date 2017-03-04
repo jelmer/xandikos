@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 # Run litmus against xandikos
 
 TESTS="$1"

@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 URL="$1"
 if [ -z "$URL" ]; then
 	echo "Usage: $0 URL"
@@ -7,7 +7,7 @@ fi
 if [ -n "$2" ]; then
 	TEST_ARG=TESTS="$2"
 fi
-SRCPATH="$(realpath $(dirname $0))"
+SRCPATH="$(dirname $(readlink -m $0))"
 VERSION=0.13
 
 scratch=$(mktemp -d)
