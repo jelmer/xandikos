@@ -483,7 +483,10 @@ class Principal(CollectionSetResource):
         to_create.update(p.get_addressbook_home_set())
         to_create.update(p.get_calendar_home_set())
         for n in to_create:
-            backend.create_collection(posixpath.join(relpath, n))
+            try:
+                backend.create_collection(posixpath.join(relpath, n))
+            except FileExistsError:
+                pass
         return p
 
 
