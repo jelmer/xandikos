@@ -333,7 +333,7 @@ class CollectionSetResource(webdav.Collection):
     def create(cls, backend, relpath):
         path = backend._map_to_file_path(relpath)
         if not os.path.isdir(path):
-            os.makedirs(path, exist_ok=True)
+            os.makedirs(path)
             logging.info('Creating %s', path)
         return cls(backend, relpath)
 
@@ -693,7 +693,8 @@ def main(argv):
     backend._mark_as_principal(options.current_user_principal)
 
     if options.autocreate or options.defaults:
-        os.makedirs(options.directory, exist_ok=True)
+        if not os.path.isdir(options.directory):
+            os.makedirs(options.directory)
         principal = Principal.create(backend, options.current_user_principal)
         if options.defaults:
             create_principal_defaults(backend, principal)
