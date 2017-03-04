@@ -13,6 +13,6 @@ cache:
 install:
   - pip install pip --upgrade
   - sudo apt-get install -qq libneon27-dev
+  - pip install -r requirements.txt
 script:
-  - pip install pip --upgrade
   - python -m unittest xandikos.tests.test_suite
