@@ -72,13 +72,13 @@ Testing
 -------
 
 To run a standalone (low-performance, no authentication) instance of Xandikos,
-simply run it (storing data in *$HOME/dav*):
+with a pre-created calendar and addressbook (storing data in *$HOME/dav*):
 
 ```shell
-./bin/xandikos --autocreate -d $HOME/dav
+./bin/xandikos --defaults -d $HOME/dav
 ```
 
-A server should now be running on [localhost:8080](http://localhost:8080/).
+A server should now be listening on [localhost:8080](http://localhost:8080/).
 
 Note that Xandikos does not create any collections by default. You can either
 create collections from your CalDAV/CardDAV client, or by creating git
