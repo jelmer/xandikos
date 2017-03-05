@@ -203,3 +203,10 @@ Fully supported.
 
 ## HTTP Methods
  - POST [supported]
+
+# rfc5689 (Extended MKCOL)
+
+Fully supported
+
+## HTTP Methods
+ - MKCOL [supported]

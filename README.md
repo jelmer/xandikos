@@ -18,6 +18,7 @@ The following standards are implemented:
  - [RFC3744](http://www.rfc-base.org/rfc-3744.html) (Access Control) - *partially implemented*
  - [RFC5995](http://www.rfc-base.org/rfc-5995.html) (POST to create members) - *fully implemented*
  - [RFC7809](http://www.rfc-base.org/rfc-7809.html) (CalDAV Time Zone Extensions) - *not implemented*
+ - [RFC5689](http://www.rfc-base.org/rfc-5689.html) (Extended MKCOL) - *fully implemented*
 
 See [DAV compliance](notes/dav-compliance.md) for more detail on specification compliancy.
 
