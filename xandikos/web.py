@@ -476,6 +476,10 @@ class Principal(CollectionSetResource):
         with open(p, 'r') as f:
             return f.read()
 
+    def get_group_membership(self):
+        """Get group membership URLs."""
+        return []
+
     @classmethod
     def create(cls, backend, relpath):
         p = super(Principal, cls).create(backend, relpath)
@@ -597,6 +601,7 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.AddMemberProperty(),
             caldav.MaxInstancesProperty(),
             caldav.MaxAttendeesPerInstanceProperty(),
+            access.GroupMembershipProperty(),
             ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

@@ -628,6 +628,10 @@ class Principal(Resource):
         """Set inf-it settings string."""
         raise NotImplementedError(self.get_infit_settings)
 
+    def get_group_membership(self):
+        """Get group membership URLs."""
+        raise NotImplementedError(self.get_group_membership)
+
 
 def get_property(href, resource, properties, name):
     """Get a single property on a resource.

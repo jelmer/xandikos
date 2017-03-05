@@ -62,3 +62,18 @@ class OwnerProperty(webdav.Property):
        if owner_href is not None:
            el.append(webdav.create_href(owner_href, base_href=href))
 
+
+class GroupMembershipProperty(webdav.Property):
+    """Group membership.
+
+    See https://www.ietf.org/rfc/rfc3744.txt, section 4.4
+    """
+
+    name = '{DAV:}group-membership'
+    in_allprops = False
+    live = True
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
+
+    def get_value(self, base_href, resource, el):
+        for href in resource.get_group_membership():
+            el.append(webdav.create_href(href, base_href=href))

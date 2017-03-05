@@ -96,7 +96,7 @@ Not really supported
  - DAV:alternate-uri-set [not supported]
  - DAV:principal-URL [supported]
  - DAV:group-member-set [not supported]
- - DAV:group-membership [not supported]
+ - DAV:group-membership [supported]
  - DAV:owner [supported]
  - DAV:group [not supported]
  - DAV:current-user-privilege-set [supported]
