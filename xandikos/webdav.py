@@ -687,9 +687,6 @@ def traverse_resource(base_resource, base_href, depth):
     todo = collections.deque([(base_href, base_resource, depth)])
     while todo:
         (href, resource, depth) = todo.popleft()
-        if COLLECTION_RESOURCE_TYPE in resource.resource_types:
-            # caldavzap/carddavmate require this
-            href += '/'
         yield (href, resource)
         if depth == "0":
             continue
@@ -739,6 +736,8 @@ class Reporter(object):
 
 
 def create_href(href, base_href=None):
+    if '//' in href:
+        logging.warning('invalidly formatted href: %s' % href)
     et = ET.Element('{DAV:}href')
     if base_href is not None:
         href = urllib.parse.urljoin(base_href+'/', href)
