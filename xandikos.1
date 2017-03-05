@@ -31,8 +31,16 @@ Port to listen on.
 \fB\-\-current\-user\-principal\fR=\fI\,CURRENT_USER_PRINCIPAL\/\fR
 Path to current user principal.
 .TP
-\fB\-\-dav\-root\fR=\fI\,DAV_ROOT\/\fR
-Path to DAV root.
+\fB\-\-route\-prefix\fR=\fI\,ROUTE_PREFIX\/\fR
+Path to Xandikos. This is useful when Xandikos is behind a reverse proxy, and e.g. being served from a path.
+.PP
+E.g. if Xandikos is served from http://example.com/dav/, specify --route-prefix=/dav/.
+.TP
+\fB\-\-autocreate\fR
+Automatically create necessary directories for Xandikos to run.
+.TP
+\fB\-\-defaults\fR
+Automatically create a calendar and an addressbook; implies \-\-autocreate.
 .SH SEE ALSO
 .BR calypso(1),
 .BR vdirsyncer(1)
