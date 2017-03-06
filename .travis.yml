@@ -1,19 +1,12 @@
-language: python
-sudo: true
-python:
-  - "3.5"
-  - "pypy3"
-    # Python3.6 is disabled until https://github.com/tiran/defusedxml/issues/3 lands in travis.
-    #  - "3.6"
-env:
-  global: PYTHONHASHSEED=random
-cache:
-  directories:
-    - $HOME/.cache/pip
-install:
-  - pip install pip --upgrade
-  - sudo apt-get install -qq libneon27-dev
-  - pip install -r requirements.txt
+sudo: required
+language: generic
+
+services:
+  - docker
+
 script:
-  - make check
-  - make check-litmus
+  - wget -O- http://travis.debian.net/script.sh | sh -
+
+branches:
+  except:
+    - /^debian\/\d/
