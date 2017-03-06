@@ -1,0 +1,5 @@
+Need per principal config:
+
+* calendar home sets
+* addressbook home sets
+* address set

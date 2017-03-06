@@ -9,3 +9,4 @@ MANIFEST
 htmlcov/
 dist
 .pybuild
+compat/litmus-*.tar.gz

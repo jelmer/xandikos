@@ -67,6 +67,30 @@ class NeedsMultiStatus(Exception):
     """Raised when a response needs multi-status (e.g. for propstat)."""
 
 
+def propstat_by_status(propstat):
+    bystatus = {}
+    for propstat in propstat:
+        bystatus.setdefault(
+            (propstat.statuscode, propstat.responsedescription), []).append(
+                    propstat.prop)
+    return bystatus
+
+
+def propstat_as_xml(propstat):
+    bystatus = propstat_by_status(propstat)
+    for (status, rd), props in sorted(bystatus.items()):
+        propstat = ET.Element('{DAV:}propstat')
+        ET.SubElement(propstat,
+            '{DAV:}status').text = 'HTTP/1.1 ' + status
+        if rd:
+            ET.SubElement(propstat,
+                '{DAV:}responsedescription').text = responsedescription
+        propresp = ET.SubElement(propstat, '{DAV:}prop')
+        for prop in props:
+            propresp.append(prop)
+        yield propstat
+
+
 class Status(object):
     """A DAV response that can be used in multi-status."""
 
@@ -83,37 +107,15 @@ class Status(object):
             type(self).__name__, self.href, self.status, self.responsedescription)
 
     def get_single_body(self, encoding):
-        if self.propstat and len(self._propstat_by_status()) > 1:
+        if self.propstat and len(propstat_by_status(self.propstat)) > 1:
             raise NeedsMultiStatus()
         if self.propstat:
-            [ret] = list(self._propstat_xml())
+            [ret] = list(propstat_as_xml(self.propstat))
             body = ET.tostringlist(ret, encoding)
             return body, ('text/xml; encoding="%s"' % encoding)
         else:
             body = self.responsedescription or ''
             return body, ('text/plain; encoding="%s"' % encoding)
-
-    def _propstat_by_status(self):
-        bystatus = {}
-        for propstat in self.propstat:
-            bystatus.setdefault(
-                (propstat.statuscode, propstat.responsedescription), []).append(
-                        propstat.prop)
-        return bystatus
-
-    def _propstat_xml(self):
-        bystatus = self._propstat_by_status()
-        for (status, rd), props in sorted(bystatus.items()):
-            propstat = ET.Element('{DAV:}propstat')
-            ET.SubElement(propstat,
-                '{DAV:}status').text = 'HTTP/1.1 ' + status
-            if rd:
-                ET.SubElement(propstat,
-                    '{DAV:}responsedescription').text = responsedescription
-            propresp = ET.SubElement(propstat, '{DAV:}prop')
-            for prop in props:
-                propresp.append(prop)
-            yield propstat
 
     def aselement(self):
         ret = ET.Element('{DAV:}response')
@@ -126,7 +128,7 @@ class Status(object):
             ET.SubElement(ret,
                 '{DAV:}responsedescription').text = self.responsedescription
         if self.propstat is not None:
-            for ps in self._propstat_xml():
+            for ps in propstat_as_xml(self.propstat):
                 ret.append(ps)
         return ret
 
@@ -207,6 +209,10 @@ class ResourceTypeProperty(Property):
     def get_value(self, href, resource, el):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
+
+    def set_value(self, href, resource, el):
+        # TODO(jelmer): set resource types
+        raise NotImplementedError(self.set_value)
 
 
 class DisplayNameProperty(Property):
@@ -576,13 +582,6 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.create_member)
 
-    def create_collection(self, name):
-        """Create a subcollection with the specified name.
-
-        :param name: Subcollection name
-        """
-        raise NotImplementedError(self.create_collection)
-
     def get_sync_token(self):
         """Get sync-token for the current state of this collection.
         """
@@ -608,6 +607,11 @@ class Collection(Resource):
     def get_headervalue(self):
         raise NotImplementedError(self.get_headervalue)
 
+    def destroy(self):
+        """Destroy this collection itself.
+        """
+        raise NotImplementedError(self.destroy)
+
 
 class Principal(Resource):
     """Resource for a DAV Principal."""
@@ -629,6 +633,10 @@ class Principal(Resource):
     def set_infit_settings(self, settings):
         """Set inf-it settings string."""
         raise NotImplementedError(self.get_infit_settings)
+
+    def get_group_membership(self):
+        """Get group membership URLs."""
+        raise NotImplementedError(self.get_group_membership)
 
 
 def get_property(href, resource, properties, name):
@@ -685,7 +693,8 @@ def traverse_resource(base_resource, base_href, depth):
     todo = collections.deque([(base_href, base_resource, depth)])
     while todo:
         (href, resource, depth) = todo.popleft()
-        if COLLECTION_RESOURCE_TYPE in resource.resource_types:
+        if (COLLECTION_RESOURCE_TYPE in resource.resource_types
+            and not href.endswith('/')):
             # caldavzap/carddavmate require this
             href += '/'
         yield (href, resource)
@@ -737,6 +746,8 @@ class Reporter(object):
 
 
 def create_href(href, base_href=None):
+    if '//' in href:
+        logging.warning('invalidly formatted href: %s' % href)
     et = ET.Element('{DAV:}href')
     if base_href is not None:
         href = urllib.parse.urljoin(base_href+'/', href)
@@ -872,8 +883,24 @@ class CommentProperty(Property):
 class Backend(object):
     """WebDAV backend."""
 
+    def create_collection(self, relpath):
+        """Create a collection with the specified relpath.
+
+        :param relpath: Collection path
+        """
+        raise NotImplementedError(self.create_collection)
+
     def get_resoure(self, relpath):
         raise NotImplementedError(self.get_resource)
+
+
+def _send_xml_response(start_response, status, et, out_encoding):
+    body_type = 'text/xml; charset="%s"' % out_encoding
+    body = ET.tostringlist(et, encoding=out_encoding)
+    start_response(status, [
+        ('Content-Type', body_type),
+        ('Content-Length', str(sum(map(len, body))))])
+    return body
 
 
 def _send_dav_responses(start_response, responses, out_encoding):
@@ -891,12 +918,8 @@ def _send_dav_responses(start_response, responses, out_encoding):
     ret = ET.Element('{DAV:}multistatus')
     for response in responses:
         ret.append(response.aselement())
-    body_type = 'text/xml; charset="%s"' % out_encoding
-    body = ET.tostringlist(ret, encoding=out_encoding)
-    start_response('207 Multi-Status', [
-        ('Content-Type', body_type),
-        ('Content-Length', str(sum(map(len, body))))])
-    return body
+    return _send_xml_response(start_response, '207 Multi-Status',
+        ret, out_encoding)
 
 
 def _send_simple_dav_error(environ, start_response, statuscode, error):
@@ -967,9 +990,14 @@ class WebDAVApp(object):
             return []
         headers = [
             ('ETag', current_etag),
-            ('Content-Type', r.get_content_type()),
             ('Content-Length', str(r.get_content_length())),
         ]
+        try:
+            content_type = r.get_content_type()
+        except KeyError:
+            pass
+        else:
+            headers.append(('Content-Type', content_type))
         try:
             last_modified = r.get_last_modified()
         except KeyError:
@@ -1082,7 +1110,11 @@ class WebDAVApp(object):
         if r is None:
             return _send_not_found(environ, start_response)
         depth = environ.get("HTTP_DEPTH", "0")
-        et = self._readXmlBody(environ)
+        try:
+            et = self._readXmlBody(environ)
+        except ET.ParseError:
+            start_response('400 Bad Request', [])
+            return [b'Unable to parse body.']
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
@@ -1107,15 +1139,18 @@ class WebDAVApp(object):
         if 'CONTENT_TYPE' not in environ and environ.get('CONTENT_LENGTH') == '0':
             requested = ET.Element('{DAV:}allprop')
         else:
-            et = self._readXmlBody(environ)
+            try:
+                et = self._readXmlBody(environ)
+            except ET.ParseError:
+                return Status(request_uri(environ), '400 Bad Request',
+                    'Unable to parse body.')
             if et.tag != '{DAV:}propfind':
-                # TODO-ERROR(jelmer): What to return here?
                 return Status(
-                    request_uri(environ), '500 Internal Error',
+                    request_uri(environ), '400 Bad Request',
                     'Expected propfind tag, got ' + et.tag)
             try:
                 [requested] = et
-            except IndexError:
+            except ValueError:
                 return Status(request_uri(environ), '400 Bad Request',
                     'Received more than one element in propfind.')
         if requested.tag == '{DAV:}prop':
@@ -1151,7 +1186,6 @@ class WebDAVApp(object):
                 ret.append(Status(href, '200 OK', propstat=propstat))
             return ret
         else:
-            # TODO-ERROR(jelmer): What to return here?
             return Status(
                 request_uri(environ), '400 Bad Request',
                 'Expected prop/allprop/propname tag, got ' + requested.tag)
@@ -1162,25 +1196,29 @@ class WebDAVApp(object):
         resource = self.backend.get_resource(environ['PATH_INFO'])
         if resource is None:
             return Status(request_uri(environ), '404 Not Found')
-        et = self._readXmlBody(environ)
+        try:
+            et = self._readXmlBody(environ)
+        except ET.ParseError:
+            return Status(request_uri(environ), '400 Bad Request',
+                'Unable to parse body.')
+
         if et.tag != '{DAV:}propertyupdate':
-            # TODO-ERROR(jelmer): What to return here?
             return Status(
-                request_uri(environ), '500 Internal Error',
+                request_uri(environ), '400 Bad Request',
                 'Expected properyupdate tag, got ' + et.tag)
         propstat = []
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
-                return Status(request_uri(environ), '500 Internal Error',
+                return Status(request_uri(environ), '400 Bad Request',
                     'Unknown tag %s in propertyupdate' % el.tag)
             try:
                 [requested] = el
             except IndexError:
-                return Status(request_uri(environ), '500 Internal Error',
+                return Status(request_uri(environ), '400 Bad Request',
                     'Received more than one element in propertyupdate/set.')
             if requested.tag != '{DAV:}prop':
                 return Status(
-                    request_uri(environ), '500 Internal Error',
+                    request_uri(environ), '400 Bad Request',
                     'Expected prop tag, got ' + requested.tag)
             for propel in requested:
                 try:
@@ -1212,19 +1250,72 @@ class WebDAVApp(object):
             request_uri(environ), propstat=propstat)]
 
     def do_MKCOL(self, environ, start_response):
-        # TODO(jelmer): Implement extended-mkcol - https://tools.ietf.org/html/rfc5689
+        href = self._request_href(environ)
+        base_content_type = environ.get('CONTENT_TYPE', '').split(';')[0]
+        if base_content_type not in ('text/plain', 'text/xml', 'application/xml', ''):
+            start_response('415 Unsupported Media Type', [])
+            return [('Unsupported media type %r' % base_content_type).encode(DEFAULT_ENCODING)]
         resource = self.backend.get_resource(environ['PATH_INFO'])
         if resource is not None:
             start_response('405 Method Not Allowed', [])
             return []
-        container_path, item_name = posixpath.split(posixpath.normpath(environ['PATH_INFO']))
-        pr = self.backend.get_resource(container_path)
-        if pr is None:
+        try:
+            resource = self.backend.create_collection(environ['PATH_INFO'])
+        except FileNotFoundError:
             start_response('409 Conflict', [])
             return []
-        pr.create_collection(item_name)
-        start_response('201 Created', [])
-        return []
+        if base_content_type in ('text/xml', 'application/xml'):
+            # Extended MKCOL (RFC5689)
+            try:
+                et = self._readXmlBody(environ)
+            except ET.ParseError:
+                start_response('400 Bad Request', [])
+                return [b'Unable to parse body.']
+            if et.tag != '{DAV:}mkcol':
+                start_response('400 Bad Request', [])
+                return [('Expected mkcol tag, got ' + et.tag).encode(DEFAULT_ENCODING)]
+            propstat = []
+            for el in et:
+                if el.tag != '{DAV:}set':
+                    start_response('400 Bad Request', [])
+                    return [('Unknown tag %s in mkcol' % el.tag).encode(DEFAULT_ENCODING)]
+                try:
+                    [requested] = el
+                except IndexError:
+                    start_response('400 Bad Request', [])
+                    return [b'Received more than one element in mkcol/set.']
+                if requested.tag != '{DAV:}prop':
+                    start_response('400 Bad Request', [])
+                    return [('Expected prop tag, got ' + requested.tag).encode(DEFAULT_ENCODING)]
+                for propel in requested:
+                    try:
+                        handler = self.properties[propel.tag]
+                    except KeyError:
+                        logging.warning(
+                            'client attempted to modify unknown property %r on %r',
+                            propel.tag, environ['PATH_INFO'])
+                        propstat.append(
+                            PropStatus('404 Not Found', None,
+                                ET.Element(propel.tag)))
+                    else:
+                        try:
+                            handler.set_value(href, resource, propel)
+                        except NotImplementedError:
+                            # TODO(jelmer): Signal
+                            # {DAV:}cannot-modify-protected-property error
+                            statuscode = '409 Conflict'
+                        else:
+                            statuscode = '200 OK'
+                        propstat.append(
+                            PropStatus(statuscode, None, ET.Element(propel.tag)))
+            ret = ET.Element('{DAV:}mkcol-response')
+            for propstat_el in propstat_as_xml(propstat):
+                ret.append(propstat_el)
+            return _send_xml_response(start_response, '201 Created',
+                ret, DEFAULT_ENCODING)
+        else:
+            start_response('201 Created', [])
+            return []
 
     def do_OPTIONS(self, environ, start_response):
         headers = []

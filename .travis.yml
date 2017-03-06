@@ -1,5 +1,5 @@
 language: python
-sudo: false
+sudo: true
 python:
   - "3.5"
   - "pypy3"
@@ -10,7 +10,10 @@ env:
 cache:
   directories:
     - $HOME/.cache/pip
-script:
+install:
   - pip install pip --upgrade
-  - python -m unittest xandikos.tests.test_suite
-
+  - sudo apt-get install -qq libneon27-dev
+  - pip install -r requirements.txt
+script:
+  - make check
+  - make check-litmus

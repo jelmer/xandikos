@@ -18,6 +18,8 @@ The following standards are implemented:
  - [RFC3744](http://www.rfc-base.org/rfc-3744.html) (Access Control) - *partially implemented*
  - [RFC5995](http://www.rfc-base.org/rfc-5995.html) (POST to create members) - *fully implemented*
  - [RFC7809](http://www.rfc-base.org/rfc-7809.html) (CalDAV Time Zone Extensions) - *not implemented*
+ - [RFC6638](http://www.rfc-base.org/rfc-6638.html) (CalDAV Scheduling Extensions) - *not implemented*
+ - [RFC5689](http://www.rfc-base.org/rfc-5689.html) (Extended MKCOL) - *fully implemented*
 
 See [DAV compliance](notes/dav-compliance.md) for more detail on specification compliancy.
 
@@ -45,6 +47,26 @@ Clients that are known not to work:
  - [CalDAV-Sync](https://dmfs.org/caldav/)
  - [CardDAV-Sync](https://dmfs.org/carddav/)
 
+Dependencies
+============
+
+At the moment, Xandikos supports Python 3.5 and higher as well as Pypy 3. It
+also uses [dulwich](https://github.com/jelmer/dulwich),
+[icalendar](https://github.com/collective/icalendar) and
+[defusedxml](https://github.com/tiran/defusedxml).
+
+E.g. to install those dependencies on Debian:
+
+```shell
+sudo apt install python3-dulwich python3-defusedxml python3-icalendar
+```
+
+Or to install them using pip:
+
+```shell
+pip install -r requirements.txt
+```
+
 Running
 =======
 
@@ -52,13 +74,13 @@ Testing
 -------
 
 To run a standalone (low-performance, no authentication) instance of Xandikos,
-simply run it (storing data in *$HOME/dav*):
+with a pre-created calendar and addressbook (storing data in *$HOME/dav*):
 
 ```shell
-./bin/xandikos --autocreate -d $HOME/dav
+./bin/xandikos --defaults -d $HOME/dav
 ```
 
-A server should now be running on [localhost:8080](http://localhost:8080/).
+A server should now be listening on [localhost:8080](http://localhost:8080/).
 
 Note that Xandikos does not create any collections by default. You can either
 create collections from your CalDAV/CardDAV client, or by creating git
@@ -95,11 +117,3 @@ Help
 There is a *#xandikos* IRC channel on the [Freenode](https://www.freenode.net/)
 IRC network, and a [xandikos](https://groups.google.com/forum/#!forum/xandikos)
 mailing list.
-
-Dependencies
-============
-
-At the moment, Xandikos supports Python 3.5 and higher as well as Pypy 3. It
-also uses [dulwich](https://github.com/jelmer/dulwich),
-[icalendar](https://github.com/collective/icalendar) and
-[defusedxml](https://github.com/tiran/defusedxml).

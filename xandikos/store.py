@@ -26,6 +26,7 @@ are always strong, and should be returned without wrapping quotes.
 import logging
 import mimetypes
 import os
+import shutil
 import stat
 import uuid
 
@@ -43,6 +44,7 @@ VALID_STORE_TYPES = (
     STORE_TYPE_OTHER)
 
 
+DEFAULT_MIME_TYPE = 'application/octet-stream'
 DEFAULT_ENCODING = 'utf-8'
 
 
@@ -104,6 +106,8 @@ def open_by_extension(content, name, extra_file_handlers):
     :return: File instance
     """
     (mime_type, encoding) = mimetypes.guess_type(name)
+    if mime_type is None:
+        mime_type = DEFAULT_MIME_TYPE
     return open_by_content_type(content, mime_type,
         extra_file_handlers=extra_file_handlers)
 
@@ -282,6 +286,10 @@ class Store(object):
         """
         raise NotImplementedError(self.set_comment)
 
+    def destroy(self):
+        """Destroy this store."""
+        raise NotImplementedError(self.destroy)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository.
@@ -415,6 +423,8 @@ class GitStore(Store):
         """
         for (name, mode, sha) in self._iterblobs(ctag):
             (mime_type, encoding) = mimetypes.guess_type(name)
+            if mime_type is None:
+                mime_type = DEFAULT_MIME_TYPE
             yield (name, mime_type, sha.decode('ascii'))
 
     @classmethod
@@ -570,6 +580,9 @@ class GitStore(Store):
         for (name, (old_content_type, old_etag)) in previous.items():
             yield (name, old_content_type, old_etag, None)
 
+    def destroy(self):
+        """Destroy this store."""
+        shutil.rmtree(self.path)
 
 class BareGitStore(GitStore):
     """A Store backed by a bare git repository."""

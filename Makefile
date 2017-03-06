@@ -8,10 +8,16 @@ check:
 web:
 	$(PYTHON) -m xandikos.web
 
-check-compat:
+check-litmus-all:
+	./compat/xandikos-litmus.sh
+
+check-litmus:
+	./compat/xandikos-litmus.sh "basic"
+
+check-caldavtester:
 	cd compat && ./all.sh
 
-check-all: check check-compat
+check-all: check check-caldavtester check-litmus
 
 coverage:
 	$(COVERAGE) run --source=xandikos -m unittest $(TESTSUITE)
