@@ -1,0 +1,3 @@
+Tests: litmus
+Depends: litmus
+Restrictions: allow-stderr
