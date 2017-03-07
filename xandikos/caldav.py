@@ -32,7 +32,7 @@ from icalendar.cal import (
     Calendar as ICalendar,
     FreeBusy,
     )
-from icalendar.prop import vDDDTypes, vPeriod
+from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
 
 from xandikos import davcommon, webdav
 from xandikos.webdav import (
@@ -477,12 +477,11 @@ def get_pytz_from_text(tztext):
     return pytz.timezone(tzid)
 
 
-def get_calendar_timezone(calendar):
+def get_calendar_timezone(resource):
     try:
-        tztext = base_resource.get_calendar_timezone()
+        tztext = resource.get_calendar_timezone()
     except KeyError:
-        # TODO(jelmer): Or perhaps the servers' local timezone?
-        return  pytz.timezone('UTC')
+        return LocalTimezone()
     else:
         return get_pytz_from_text(tztext)
 
@@ -673,7 +672,6 @@ def extract_freebusy(comp, tzify):
     kind = map_freebusy(comp)
     if kind == 'FREE':
         return None
-    # TODO(jelmer): Convert to Zulu?
     if 'DTEND' in comp:
         ret = vPeriod((tzify(comp['DTSTART'].dt), tzify(comp['DTEND'].dt)))
     if 'DURATION' in comp:
@@ -716,7 +714,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
             else:
                 raise AssertionError("unexpected XML element")
         tz = get_calendar_timezone(base_resource)
-        tzify = lambda dt: as_tz_aware_ts(dt, tz).astimezone(pytz.timezone('UTC'))
+        tzify = lambda dt: as_tz_aware_ts(dt, tz).astimezone(pytz.utc)
         (start, end) = _parse_time_range(requested)
         assert start.tzinfo
         assert end.tzinfo
