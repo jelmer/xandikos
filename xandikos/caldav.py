@@ -326,13 +326,22 @@ def apply_time_range_vevent(start, end, comp, tzify):
     if 'DURATION' in comp:
         return (start < tzify(comp['DTSTART'].dt) + comp['DURATION'].dt)
     if getattr(comp['DTSTART'].dt, 'time', None) is not None:
-        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
+        return (start <= tzify(comp['DTSTART'].dt))
     else:
-        return (start <= comp['DTSTART'].dt)
+        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
 
 
 def apply_time_range_vjournal(start, end, comp, tzify):
-    raise NotImplementedError(apply_time_range_vjournal)
+    if not 'DTSTART' in comp:
+        return False
+
+    if not (end > tzify(comp['DTSTART'].dt)):
+        return False
+
+    if getattr(comp['DTSTART'].dt, 'time', None) is not None:
+        return (start <= tzify(comp['DTSTART'].dt))
+    else:
+        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
 
 
 def apply_time_range_vtodo(start, end, comp, tzify):
@@ -361,7 +370,14 @@ def apply_time_range_vtodo(start, end, comp, tzify):
 
 
 def apply_time_range_vfreebusy(start, end, comp, tzify):
-    raise NotImplementedError(apply_time_range_vfreebusy)
+    if 'DTSTART' in comp and 'DTEND' in comp:
+        return (start <= tzify(comp['DTEND'].dt) and end > tzify(comp['DTEND'].dt))
+
+    for period in comp.get('FREEBUSY', []):
+        if start < period.end and end > period.start:
+            return True
+
+    return False
 
 
 def apply_time_range_valarm(start, end, comp, tzify):
