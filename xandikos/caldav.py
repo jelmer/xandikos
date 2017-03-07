@@ -723,8 +723,8 @@ class FreeBusyQueryReporter(webdav.Reporter):
         ret['PRODID'] = PRODID
         fb = FreeBusy()
         fb['DTSTAMP'] = vDDDTypes(tzify(datetime.datetime.now()))
-        fb['DTSTART'] = start
-        fb['DTEND'] = end
+        fb['DTSTART'] = vDDDTypes(start)
+        fb['DTEND'] = vDDDTypes(end)
         fb['FREEBUSY'] = list(iter_freebusy(
             traverse_resource(base_resource, base_href, depth),
             start, end, tzify))
