@@ -308,7 +308,6 @@ def as_tz_aware_ts(dt, default_timezone):
     if not getattr(dt, 'time', None):
         dt = datetime.datetime.combine(dt, datetime.time())
     if dt.tzinfo is None:
-        # TODO(jelmer): Use user-supplied tzid
         dt = dt.replace(tzinfo=default_timezone)
     assert dt.tzinfo
     return dt
@@ -473,6 +472,21 @@ def extract_tzid(cal):
     return cal.subcomponents[0]['TZID']
 
 
+def get_pytz_from_text(tztext):
+    tzid = extract_tzid(ICalendar.from_ical(tztext))
+    return pytz.timezone(tzid)
+
+
+def get_calendar_timezone(calendar):
+    try:
+        tztext = base_resource.get_calendar_timezone()
+    except KeyError:
+        # TODO(jelmer): Or perhaps the servers' local timezone?
+        return  pytz.timezone('UTC')
+    else:
+        return get_pytz_from_text(tztext)
+
+
 class CalendarQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
@@ -495,20 +509,11 @@ class CalendarQueryReporter(webdav.Reporter):
                 tztext = el.text
             else:
                 raise NotImplementedError(tag.name)
-        if tztext is None:
-            try:
-                tztext = base_resource.get_calendar_timezone()
-            except KeyError:
-                tztext = None
         if tztext is not None:
-            try:
-                tzid = extract_tzid(ICalendar.from_ical(tztext))
-            except KeyError:
-                # TODO(jelmer): Or perhaps the servers' local timezone?
-                tzid = 'UTC'
+            tz = get_pytz_from_text(tztext)
         else:
-            tzid = 'UTC'
-        tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
+            tz = get_calendar_timezone(base_resource)
+        tzify = lambda dt: as_tz_aware_ts(dt, tz)
         for (href, resource) in traverse_resource(
                 base_resource, base_href, depth):
             if not apply_filter(filter_el, resource, tzify):
@@ -710,15 +715,16 @@ class FreeBusyQueryReporter(webdav.Reporter):
                 requested = el
             else:
                 raise AssertionError("unexpected XML element")
-        # TODO(jelmer): Right timezone?
-        tzid = 'UTC'
-        tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
+        tz = get_calendar_timezone(base_resource)
+        tzify = lambda dt: as_tz_aware_ts(dt, tz).astimezone(pytz.timezone('UTC'))
         (start, end) = _parse_time_range(requested)
+        assert start.tzinfo
+        assert end.tzinfo
         ret = ICalendar()
         ret['VERSION'] = '2.0'
         ret['PRODID'] = PRODID
         fb = FreeBusy()
-        fb['DTSTAMP'] = vDDDTypes(datetime.datetime.now())
+        fb['DTSTAMP'] = vDDDTypes(tzify(datetime.datetime.now()))
         fb['DTSTART'] = start
         fb['DTEND'] = end
         fb['FREEBUSY'] = list(iter_freebusy(
