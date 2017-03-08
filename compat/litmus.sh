@@ -4,8 +4,8 @@ if [ -z "$URL" ]; then
 	echo "Usage: $0 URL"
 	exit 1
 fi
-if [ -n "$2" ]; then
-	TEST_ARG=TESTS="$2"
+if [ -n "$TESTS" ]; then
+	TEST_ARG=TESTS="$TESTS"
 fi
 SRCPATH="$(dirname $(readlink -m $0))"
 VERSION=0.13

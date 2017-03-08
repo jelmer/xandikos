@@ -32,7 +32,7 @@ from icalendar.cal import (
     Calendar as ICalendar,
     FreeBusy,
     )
-from icalendar.prop import vDDDTypes, vPeriod
+from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
 
 from xandikos import davcommon, webdav
 from xandikos.webdav import (
@@ -308,7 +308,6 @@ def as_tz_aware_ts(dt, default_timezone):
     if not getattr(dt, 'time', None):
         dt = datetime.datetime.combine(dt, datetime.time())
     if dt.tzinfo is None:
-        # TODO(jelmer): Use user-supplied tzid
         dt = dt.replace(tzinfo=default_timezone)
     assert dt.tzinfo
     return dt
@@ -326,13 +325,22 @@ def apply_time_range_vevent(start, end, comp, tzify):
     if 'DURATION' in comp:
         return (start < tzify(comp['DTSTART'].dt) + comp['DURATION'].dt)
     if getattr(comp['DTSTART'].dt, 'time', None) is not None:
-        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
+        return (start <= tzify(comp['DTSTART'].dt))
     else:
-        return (start <= comp['DTSTART'].dt)
+        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
 
 
 def apply_time_range_vjournal(start, end, comp, tzify):
-    raise NotImplementedError(apply_time_range_vjournal)
+    if not 'DTSTART' in comp:
+        return False
+
+    if not (end > tzify(comp['DTSTART'].dt)):
+        return False
+
+    if getattr(comp['DTSTART'].dt, 'time', None) is not None:
+        return (start <= tzify(comp['DTSTART'].dt))
+    else:
+        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
 
 
 def apply_time_range_vtodo(start, end, comp, tzify):
@@ -361,7 +369,14 @@ def apply_time_range_vtodo(start, end, comp, tzify):
 
 
 def apply_time_range_vfreebusy(start, end, comp, tzify):
-    raise NotImplementedError(apply_time_range_vfreebusy)
+    if 'DTSTART' in comp and 'DTEND' in comp:
+        return (start <= tzify(comp['DTEND'].dt) and end > tzify(comp['DTEND'].dt))
+
+    for period in comp.get('FREEBUSY', []):
+        if start < period.end and end > period.start:
+            return True
+
+    return False
 
 
 def apply_time_range_valarm(start, end, comp, tzify):
@@ -457,6 +472,20 @@ def extract_tzid(cal):
     return cal.subcomponents[0]['TZID']
 
 
+def get_pytz_from_text(tztext):
+    tzid = extract_tzid(ICalendar.from_ical(tztext))
+    return pytz.timezone(tzid)
+
+
+def get_calendar_timezone(resource):
+    try:
+        tztext = resource.get_calendar_timezone()
+    except KeyError:
+        return LocalTimezone()
+    else:
+        return get_pytz_from_text(tztext)
+
+
 class CalendarQueryReporter(webdav.Reporter):
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
@@ -479,20 +508,11 @@ class CalendarQueryReporter(webdav.Reporter):
                 tztext = el.text
             else:
                 raise NotImplementedError(tag.name)
-        if tztext is None:
-            try:
-                tztext = base_resource.get_calendar_timezone()
-            except KeyError:
-                tztext = None
         if tztext is not None:
-            try:
-                tzid = extract_tzid(ICalendar.from_ical(tztext))
-            except KeyError:
-                # TODO(jelmer): Or perhaps the servers' local timezone?
-                tzid = 'UTC'
+            tz = get_pytz_from_text(tztext)
         else:
-            tzid = 'UTC'
-        tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
+            tz = get_calendar_timezone(base_resource)
+        tzify = lambda dt: as_tz_aware_ts(dt, tz)
         for (href, resource) in traverse_resource(
                 base_resource, base_href, depth):
             if not apply_filter(filter_el, resource, tzify):
@@ -652,7 +672,6 @@ def extract_freebusy(comp, tzify):
     kind = map_freebusy(comp)
     if kind == 'FREE':
         return None
-    # TODO(jelmer): Convert to Zulu?
     if 'DTEND' in comp:
         ret = vPeriod((tzify(comp['DTSTART'].dt), tzify(comp['DTEND'].dt)))
     if 'DURATION' in comp:
@@ -694,17 +713,18 @@ class FreeBusyQueryReporter(webdav.Reporter):
                 requested = el
             else:
                 raise AssertionError("unexpected XML element")
-        # TODO(jelmer): Right timezone?
-        tzid = 'UTC'
-        tzify = lambda dt: as_tz_aware_ts(dt, pytz.timezone(tzid))
+        tz = get_calendar_timezone(base_resource)
+        tzify = lambda dt: as_tz_aware_ts(dt, tz).astimezone(pytz.utc)
         (start, end) = _parse_time_range(requested)
+        assert start.tzinfo
+        assert end.tzinfo
         ret = ICalendar()
         ret['VERSION'] = '2.0'
         ret['PRODID'] = PRODID
         fb = FreeBusy()
-        fb['DTSTAMP'] = vDDDTypes(datetime.datetime.now())
-        fb['DTSTART'] = start
-        fb['DTEND'] = end
+        fb['DTSTAMP'] = vDDDTypes(tzify(datetime.datetime.now()))
+        fb['DTSTART'] = vDDDTypes(start)
+        fb['DTEND'] = vDDDTypes(end)
         fb['FREEBUSY'] = list(iter_freebusy(
             traverse_resource(base_resource, base_href, depth),
             start, end, tzify))

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 # Run litmus against xandikos
 
 TESTS="$1"
@@ -26,4 +26,10 @@ trap cleanup 0 EXIT
 
 run_xandikos
 
-$(dirname $0)/litmus.sh http://localhost:5233/ "$TESTS"
+if which litmus >/dev/null; then
+    LITMUS=litmus
+else
+    LITMUS="$(dirname $0)/litmus.sh"
+fi
+
+TESTS="$TESTS" $LITMUS http://localhost:5233/
