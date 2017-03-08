@@ -1235,14 +1235,17 @@ class WebDAVApp(object):
                         newval = None
                     elif el.tag == '{DAV:}set':
                         newval = propel
-                    try:
-                        handler.set_value(href, resource, newval)
-                    except NotImplementedError:
-                        # TODO(jelmer): Signal
-                        # {DAV:}cannot-modify-protected-property error
-                        statuscode = '409 Conflict'
+                    if not handler.supported_on(resource):
+                        statuscode = '404 Not Found'
                     else:
-                        statuscode = '200 OK'
+                        try:
+                            handler.set_value(href, resource, newval)
+                        except NotImplementedError:
+                            # TODO(jelmer): Signal
+                            # {DAV:}cannot-modify-protected-property error
+                            statuscode = '409 Conflict'
+                        else:
+                            statuscode = '200 OK'
                     propstat.append(
                         PropStatus(statuscode, None, ET.Element(propel.tag)))
 
@@ -1298,14 +1301,17 @@ class WebDAVApp(object):
                             PropStatus('404 Not Found', None,
                                 ET.Element(propel.tag)))
                     else:
-                        try:
-                            handler.set_value(href, resource, propel)
-                        except NotImplementedError:
-                            # TODO(jelmer): Signal
-                            # {DAV:}cannot-modify-protected-property error
-                            statuscode = '409 Conflict'
+                        if not handler.supported_on(resource):
+                            statuscode = '404 Not Found'
                         else:
-                            statuscode = '200 OK'
+                            try:
+                                handler.set_value(href, resource, propel)
+                            except NotImplementedError:
+                                # TODO(jelmer): Signal
+                                # {DAV:}cannot-modify-protected-property error
+                                statuscode = '409 Conflict'
+                            else:
+                                statuscode = '200 OK'
                         propstat.append(
                             PropStatus(statuscode, None, ET.Element(propel.tag)))
             ret = ET.Element('{DAV:}mkcol-response')
