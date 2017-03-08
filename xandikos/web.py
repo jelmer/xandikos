@@ -25,6 +25,7 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import functools
+import hashlib
 import logging
 import os
 import posixpath
@@ -428,7 +429,7 @@ class RootPage(webdav.Resource):
     def get_etag(self):
         h = hashlib.md5()
         for c in self.get_body():
-            m.update(c)
+            h.update(c)
         return h.hexdigest()
 
     def get_last_modified(self):
