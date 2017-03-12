@@ -212,15 +212,6 @@ class Store(object):
         """
         raise NotImplementedError(self.delete_one)
 
-    def lookup_uid(self, uid):
-        """Lookup an item by UID.
-
-        :param uid: UID to look up as string
-        :raise KeyError: if no such uid exists
-        :return: (name, etag) tuple
-        """
-        raise NotImplementedError(self.lookup_uid)
-
     def set_type(self, store_type):
         """Set store type.
 
@@ -311,21 +302,11 @@ class GitStore(Store):
     def path(self):
         return self.repo.path
 
-    def lookup_uid(self, uid):
-        """Lookup an item by UID.
-
-        :param uid: UID to look up as string
-        :raise KeyError: if no such uid exists
-        :return: (name, etag) tuple
-        """
-        self._scan_ids()
-        return self._uid_to_fname[uid]
-
     def _check_duplicate(self, uid, name, replace_etag):
         self._scan_ids()
         if uid is not None:
             try:
-                (existing_name, _) = self.lookup_uid(uid)
+                (existing_name, _) = self._uid_to_fname[uid]
             except KeyError:
                 pass
             else:

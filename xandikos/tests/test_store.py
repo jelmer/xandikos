@@ -170,17 +170,6 @@ class BaseStoreTest(object):
                  ('bar.ics', 'text/calendar', etag2)]),
             set(gc.iter_with_etag()))
 
-    def test_lookup_uid_nonexistant(self):
-        gc = self.create_store()
-        self.assertRaises(KeyError, gc.lookup_uid, 'someuid')
-
-    def test_lookup_uid(self):
-        gc = self.create_store()
-        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        self.assertEqual(
-            ('foo.ics', etag),
-            gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
-
 
 class BaseGitStoreTest(BaseStoreTest):
 
@@ -215,9 +204,6 @@ class BaseGitStoreTest(BaseStoreTest):
         self.assertEqual(
             [('foo.ics', 'text/calendar', bid)],
             list(gc.iter_with_etag()))
-        self.assertEqual(
-            ('foo.ics', bid),
-            gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
 
     def test_get_description(self):
         gc = self.create_store()
