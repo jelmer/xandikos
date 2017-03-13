@@ -286,12 +286,13 @@ class GitStore(Store):
     """A Store backed by a Git Repository.
     """
 
-    def __init__(self, repo, ref=b'refs/heads/master'):
+    def __init__(self, repo, ref=b'refs/heads/master', check_for_duplicate_uids=True):
         super(GitStore, self).__init__()
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
         self._uid_to_fname = {}
+        self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
 
@@ -303,8 +304,8 @@ class GitStore(Store):
         return self.repo.path
 
     def _check_duplicate(self, uid, name, replace_etag):
-        self._scan_ids()
-        if uid is not None:
+        if uid is not None and self._check_for_duplicate_uids:
+            self._scan_uids()
             try:
                 (existing_name, _) = self._uid_to_fname[uid]
             except KeyError:
@@ -365,7 +366,7 @@ class GitStore(Store):
         blob = self.repo.object_store[etag.encode('ascii')]
         return blob.chunked
 
-    def _scan_ids(self):
+    def _scan_uids(self):
         removed = set(self._fname_to_uid.keys())
         for (name, mode, sha) in self._iterblobs():
             etag = sha.decode('ascii')
@@ -564,6 +565,7 @@ class GitStore(Store):
     def destroy(self):
         """Destroy this store."""
         shutil.rmtree(self.path)
+
 
 class BareGitStore(GitStore):
     """A Store backed by a bare git repository."""

@@ -195,7 +195,7 @@ class BaseGitStoreTest(BaseStoreTest):
         self.assertEqual(
             [('foo.ics', 'text/calendar', bid)],
             list(gc.iter_with_etag()))
-        gc._scan_ids()
+        gc._scan_uids()
         logging.getLogger('').setLevel(logging.NOTSET)
 
     def test_iter_with_etag(self):
