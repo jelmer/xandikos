@@ -7,6 +7,7 @@ webdav server:
 
 - run caldav tester
 
+- cross-check UIDs for vcard files
 - support returning components in addressbook-data
 
 - properties:
