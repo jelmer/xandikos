@@ -356,7 +356,8 @@ class CurrentUserPrincipalProperty(Property):
 
     def __init__(self, current_user_principal):
         super(CurrentUserPrincipalProperty, self).__init__()
-        self.current_user_principal = current_user_principal
+        self.current_user_principal = ensure_trailing_slash(
+            current_user_principal)
 
     def get_value(self, href, resource, el):
         """Get property with specified name.
@@ -378,7 +379,8 @@ class PrincipalURLProperty(Property):
 
         :param name: A property name.
         """
-        el.append(create_href(resource.get_principal_url(), href))
+        el.append(create_href(
+            ensure_trailing_slash(resource.get_principal_url()), href))
 
 
 class SupportedReportSetProperty(Property):
@@ -682,6 +684,19 @@ def get_properties(href, resource, properties, requested):
         yield get_property(href, resource, properties, propreq.tag)
 
 
+def ensure_trailing_slash(href):
+    """Ensure that a href has a trailing slash.
+
+    Useful for collection hrefs, e.g. when used with urljoin.
+
+    :param href: href to possibly add slash to
+    :return: href with trailing slash
+    """
+    if href.endswith('/'):
+        return href
+    return href + '/'
+
+
 def traverse_resource(base_resource, base_href, depth):
     """Traverse a resource.
 
@@ -693,10 +708,9 @@ def traverse_resource(base_resource, base_href, depth):
     todo = collections.deque([(base_href, base_resource, depth)])
     while todo:
         (href, resource, depth) = todo.popleft()
-        if (COLLECTION_RESOURCE_TYPE in resource.resource_types
-            and not href.endswith('/')):
+        if COLLECTION_RESOURCE_TYPE in resource.resource_types:
             # caldavzap/carddavmate require this
-            href += '/'
+            href = ensure_trailing_slash(href)
         yield (href, resource)
         if depth == "0":
             continue
@@ -708,7 +722,7 @@ def traverse_resource(base_resource, base_href, depth):
             raise AssertionError("invalid depth %r" % depth)
         if COLLECTION_RESOURCE_TYPE in base_resource.resource_types:
             for (child_name, child_resource) in resource.members():
-                child_href = urllib.parse.urljoin(href+'/', child_name)
+                child_href = urllib.parse.urljoin(href, child_name)
                 todo.append((child_href, child_resource, nextdepth))
 
 

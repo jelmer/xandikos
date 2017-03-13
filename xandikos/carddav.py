@@ -48,6 +48,7 @@ class AddressbookHomeSetProperty(webdav.Property):
 
     def get_value(self, base_href, resource, el):
         for href in resource.get_addressbook_home_set():
+            href = webdav.ensure_trailing_slash(href)
             el.append(webdav.create_href(href, base_href))
 
 
