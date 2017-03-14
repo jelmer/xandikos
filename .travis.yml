@@ -10,7 +10,7 @@ env:
 install:
   - pip install pip --upgrade
   - sudo apt-get install -qq libneon27-dev
-  - pip install -r requirements.txt
+  - python setup.py develop
 script:
   - make check
   - make check-litmus
