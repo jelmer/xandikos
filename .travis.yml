@@ -1,4 +1,5 @@
 language: python
+cache: pip
 sudo: true
 python:
   - "3.5"
@@ -7,9 +8,6 @@ python:
     #  - "3.6"
 env:
   global: PYTHONHASHSEED=random
-cache:
-  directories:
-    - $HOME/.cache/pip
 install:
   - pip install pip --upgrade
   - sudo apt-get install -qq libneon27-dev
