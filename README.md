@@ -64,7 +64,7 @@ sudo apt install python3-dulwich python3-defusedxml python3-icalendar
 Or to install them using pip:
 
 ```shell
-pip install -r requirements.txt
+python setup.py develop
 ```
 
 Running
