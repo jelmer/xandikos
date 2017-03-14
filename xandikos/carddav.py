@@ -21,7 +21,6 @@
 
 https://tools.ietf.org/html/rfc6352
 """
-import defusedxml.ElementTree
 from xml.etree import ElementTree as ET
 
 from xandikos import davcommon, webdav

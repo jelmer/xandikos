@@ -19,9 +19,6 @@
 
 """Inf-It properties.
 """
-import defusedxml.ElementTree
-from xml.etree import ElementTree as ET
-
 from xandikos import webdav, carddav
 
 

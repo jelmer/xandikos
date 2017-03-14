@@ -22,9 +22,6 @@
 See https://tools.ietf.org/html/rfc6638
 """
 
-from defusedxml.ElementTree import fromstring as xmlparse
-from xml.etree import ElementTree as ET
-
 from xandikos import caldav, webdav
 
 

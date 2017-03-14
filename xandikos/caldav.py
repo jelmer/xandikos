@@ -22,7 +22,6 @@
 https://tools.ietf.org/html/rfc4791
 """
 import datetime
-import defusedxml.ElementTree
 import logging
 import pytz
 from xml.etree import ElementTree as ET
@@ -36,7 +35,6 @@ from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
 
 from xandikos import davcommon, webdav
 from xandikos.webdav import (
-    WebDAVApp,
     traverse_resource,
     )
 

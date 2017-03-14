@@ -26,7 +26,6 @@ functionality should live in xandikos.caldav/xandikos.carddav respectively.
 # TODO(jelmer): Add authorization support
 
 import collections
-import hashlib
 import logging
 import posixpath
 import urllib.parse

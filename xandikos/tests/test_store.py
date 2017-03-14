@@ -24,16 +24,13 @@ import shutil
 import stat
 import unittest
 
-from icalendar.cal import Calendar
-
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
-    File, InvalidETag, NoSuchItem,
-    logger as store_logger)
+    File, InvalidETag, NoSuchItem)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
