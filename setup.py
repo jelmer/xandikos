@@ -20,7 +20,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from distutils.core import setup
+from setuptools import setup
 
 version = "0.0.1"
 
@@ -31,7 +31,7 @@ setup(name="xandikos",
       author_email="jelmer@jelmer.uk",
       license="GNU GPLv3 or later",
       url="https://www.jelmer.uk/projects/xandikos",
-      requires=['icalendar', 'dulwich', 'defusedxml'],
+      install_requires=['icalendar', 'dulwich', 'defusedxml'],
       packages=['xandikos'],
       scripts=['bin/xandikos'],
       classifiers=[
