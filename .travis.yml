@@ -2,10 +2,9 @@ language: python
 cache: pip
 sudo: true
 python:
-  - "3.5"
-  - "pypy3"
-    # Python3.6 is disabled until https://github.com/tiran/defusedxml/issues/3 lands in travis.
-    #  - "3.6"
+  - 3.5
+  - 3.6
+  - pypy3
 env:
   global: PYTHONHASHSEED=random
 install:
