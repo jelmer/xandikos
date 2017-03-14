@@ -20,8 +20,7 @@
 from io import BytesIO
 import logging
 import unittest
-import defusedxml.ElementTree
-from wsgiref.util import request_uri, setup_testing_defaults
+from wsgiref.util import setup_testing_defaults
 from xml.etree import ElementTree as ET
 
 from xandikos.webdav import (
