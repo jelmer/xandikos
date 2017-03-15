@@ -961,11 +961,12 @@ def _send_method_not_allowed(environ, start_response, allowed_methods):
     return []
 
 
-def apply_modify_prop(el, resource, properties):
+def apply_modify_prop(el, href, resource, properties):
     """Apply property set/remove operations.
 
     :param el: set element to apply.
-    :param resource: Resoure to apply property modifications on
+    :param href: Resource href
+    :param resource: Resource to apply property modifications on
     :param properties: Known properties
     :yield: PropStatus objects
     """
@@ -1262,7 +1263,7 @@ class WebDAVApp(object):
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
                 raise BadRequestError('Unknown tag %s in propertyupdate' % el.tag)
-            propstat.extend(apply_modify_prop(el, resource, self.properties))
+            propstat.extend(apply_modify_prop(el, href, resource, self.properties))
         return [Status(
             request_uri(environ), propstat=propstat)]
 
@@ -1292,7 +1293,7 @@ class WebDAVApp(object):
             for el in et:
                 if el.tag != '{DAV:}set':
                     raise BadRequestError('Unknown tag %s in mkcalendar' % el.tag)
-                propstat.extend(apply_modify_prop(el, resource, self.properties))
+                propstat.extend(apply_modify_prop(el, href, resource, self.properties))
             ret = ET.Element('{DAV:}mkcalendar-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
@@ -1324,7 +1325,7 @@ class WebDAVApp(object):
             for el in et:
                 if el.tag != '{DAV:}set':
                     raise BadRequestError('Unknown tag %s in mkcol' % el.tag)
-                propstat.extend(apply_modify_prop(el, resource, self.properties))
+                propstat.extend(apply_modify_prop(el, href, resource, self.properties))
             ret = ET.Element('{DAV:}mkcol-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
