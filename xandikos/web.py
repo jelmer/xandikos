@@ -519,6 +519,12 @@ class XandikosBackend(webdav.Backend):
         # Why bare store, not a tree store?
         return Collection(TreeGitStore.create(p))
 
+    def create_principal(self, relpath, create_defaults=False):
+        principal = Principal.create(self, relpath)
+        self._mark_as_principal(relpath)
+        if create_defaults:
+            create_principal_defaults(self, principal)
+
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
         if relpath == '/':
@@ -704,9 +710,9 @@ def main(argv):
     if options.autocreate or options.defaults:
         if not os.path.isdir(options.directory):
             os.makedirs(options.directory)
-        principal = Principal.create(backend, options.current_user_principal)
-        if options.defaults:
-            create_principal_defaults(backend, principal)
+        backend.create_principal(
+            options.current_user_principal,
+            create_defaults=options.defaults)
 
     if not os.path.isdir(options.directory):
         logging.warning(
