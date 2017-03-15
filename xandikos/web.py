@@ -516,7 +516,6 @@ class XandikosBackend(webdav.Backend):
 
     def create_collection(self, relpath):
         p = self._map_to_file_path(relpath)
-        # Why bare store, not a tree store?
         return Collection(TreeGitStore.create(p))
 
     def create_principal(self, relpath, create_defaults=False):

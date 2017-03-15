@@ -45,6 +45,14 @@ PropStatus = collections.namedtuple(
     'PropStatus', ['statuscode', 'responsedescription', 'prop'])
 
 
+class BadRequestError(Exception):
+    """Base class for bad request errors."""
+
+    def __init__(self, message):
+        super(Exception, self).__init__(message)
+        self.message = message
+
+
 def etag_matches(condition, actual_etag):
     """Check if an etag matches an If-Matches condition.
 
@@ -953,6 +961,54 @@ def _send_method_not_allowed(environ, start_response, allowed_methods):
     return []
 
 
+def apply_modify_prop(el, resource, properties):
+    """Apply property set/remove operations.
+
+    :param el: set element to apply.
+    :param resource: Resoure to apply property modifications on
+    :param properties: Known properties
+    :yield: PropStatus objects
+    """
+    if el.tag not in ('{DAV:}set', '{DAV:}remove'):
+        # callers should check tag
+        raise AssertionError
+    try:
+        [requested] = el
+    except IndexError:
+        raise BadRequestError('Received more than one element in {DAV:}set element.')
+    if requested.tag != '{DAV:}prop':
+        raise BadRequestError('Expected prop tag, got ' + requested.tag)
+    for propel in requested:
+        try:
+            handler = properties[propel.tag]
+        except KeyError:
+            logging.warning(
+                'client attempted to modify unknown property %r on %r',
+                propel.tag, environ['PATH_INFO'])
+            propstat.append(
+                PropStatus('404 Not Found', None,
+                    ET.Element(propel.tag)))
+        else:
+            if el.tag == '{DAV:}remove':
+                newval = None
+            elif el.tag == '{DAV:}set':
+                newval = propel
+            else:
+                raise AssertionError
+            if not handler.supported_on(resource):
+                statuscode = '404 Not Found'
+            else:
+                try:
+                    handler.set_value(href, resource, newval)
+                except NotImplementedError:
+                    # TODO(jelmer): Signal
+                    # {DAV:}cannot-modify-protected-property error
+                    statuscode = '409 Conflict'
+                else:
+                    statuscode = '200 OK'
+            yield PropStatus(statuscode, None, ET.Element(propel.tag))
+
+
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
@@ -1226,45 +1282,61 @@ class WebDAVApp(object):
                 return Status(request_uri(environ), '400 Bad Request',
                     'Unknown tag %s in propertyupdate' % el.tag)
             try:
-                [requested] = el
-            except IndexError:
-                return Status(request_uri(environ), '400 Bad Request',
-                    'Received more than one element in propertyupdate/set.')
-            if requested.tag != '{DAV:}prop':
-                return Status(
-                    request_uri(environ), '400 Bad Request',
-                    'Expected prop tag, got ' + requested.tag)
-            for propel in requested:
-                try:
-                    handler = self.properties[propel.tag]
-                except KeyError:
-                    logging.warning(
-                        'client attempted to modify unknown property %r on %r',
-                        propel.tag, environ['PATH_INFO'])
-                    propstat.append(
-                        PropStatus('404 Not Found', None,
-                            ET.Element(propel.tag)))
-                else:
-                    if el.tag == '{DAV:}remove':
-                        newval = None
-                    elif el.tag == '{DAV:}set':
-                        newval = propel
-                    if not handler.supported_on(resource):
-                        statuscode = '404 Not Found'
-                    else:
-                        try:
-                            handler.set_value(href, resource, newval)
-                        except NotImplementedError:
-                            # TODO(jelmer): Signal
-                            # {DAV:}cannot-modify-protected-property error
-                            statuscode = '409 Conflict'
-                        else:
-                            statuscode = '200 OK'
-                    propstat.append(
-                        PropStatus(statuscode, None, ET.Element(propel.tag)))
+                propstat.extend(apply_modify_prop(el, resource, self.properties))
+            except BadRequestError as e:
+                start_response('400 Bad Request', [])
+                return [e.message.encode(DEFAULT_ENCODING)]
 
         return [Status(
             request_uri(environ), propstat=propstat)]
+
+    # TODO(jelmer): This should really live in xandikos.caldav
+    def do_MKCALENDAR(self, environ, start_response):
+        href = self._request_href(environ)
+        base_content_type = environ.get('CONTENT_TYPE', '').split(';')[0]
+        if base_content_type not in ('text/xml', 'application/xml', '', 'text/plain'):
+            start_response('415 Unsupported Media Type', [])
+            return [('Unsupported media type %r' % base_content_type).encode(DEFAULT_ENCODING)]
+        resource = self.backend.get_resource(environ['PATH_INFO'])
+        if resource is not None:
+            start_response('405 Method Not Allowed', [])
+            return []
+        try:
+            resource = self.backend.create_collection(environ['PATH_INFO'])
+        except FileNotFoundError:
+            start_response('409 Conflict', [])
+            return []
+        el = ET.Element('{DAV:}resourcetype')
+        existing_resource_types = self.properties['{DAV:}resourcetype'].get_value(href, resource, el)
+        ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
+        self.properties['{DAV:}resourcetype'].set_value(href, resource, el)
+        if base_content_type in ('text/xml', 'application/xml'):
+            try:
+                et = self._readXmlBody(environ)
+            except ET.ParseError:
+                start_response('400 Bad Request', [])
+                return [b'Unable to parse body.']
+            if et.tag != '{DAV:}mkcalendar':
+                start_response('400 Bad Request', [])
+                return [('Expected mkcalendar tag, got ' + et.tag).encode(DEFAULT_ENCODING)]
+            propstat = []
+            for el in et:
+                if el.tag != '{DAV:}set':
+                    start_response('400 Bad Request', [])
+                    return [('Unknown tag %s in mkcalendar' % el.tag).encode(DEFAULT_ENCODING)]
+                try:
+                    propstat.extend(apply_modify_prop(el, resource, self.properties))
+                except BadRequestError as e:
+                    start_response('400 Bad Request', [])
+                    return [e.message.encode(DEFAULT_ENCODING)]
+            ret = ET.Element('{DAV:}mkcalendar-response')
+            for propstat_el in propstat_as_xml(propstat):
+                ret.append(propstat_el)
+            return _send_xml_response(start_response, '201 Created',
+                ret, DEFAULT_ENCODING)
+        else:
+            start_response('201 Created', [])
+            return []
 
     def do_MKCOL(self, environ, start_response):
         href = self._request_href(environ)
@@ -1297,37 +1369,10 @@ class WebDAVApp(object):
                     start_response('400 Bad Request', [])
                     return [('Unknown tag %s in mkcol' % el.tag).encode(DEFAULT_ENCODING)]
                 try:
-                    [requested] = el
-                except IndexError:
+                    propstat.extend(apply_modify_prop(el, resource, self.properties))
+                except BadRequestError as e:
                     start_response('400 Bad Request', [])
-                    return [b'Received more than one element in mkcol/set.']
-                if requested.tag != '{DAV:}prop':
-                    start_response('400 Bad Request', [])
-                    return [('Expected prop tag, got ' + requested.tag).encode(DEFAULT_ENCODING)]
-                for propel in requested:
-                    try:
-                        handler = self.properties[propel.tag]
-                    except KeyError:
-                        logging.warning(
-                            'client attempted to modify unknown property %r on %r',
-                            propel.tag, environ['PATH_INFO'])
-                        propstat.append(
-                            PropStatus('404 Not Found', None,
-                                ET.Element(propel.tag)))
-                    else:
-                        if not handler.supported_on(resource):
-                            statuscode = '404 Not Found'
-                        else:
-                            try:
-                                handler.set_value(href, resource, propel)
-                            except NotImplementedError:
-                                # TODO(jelmer): Signal
-                                # {DAV:}cannot-modify-protected-property error
-                                statuscode = '409 Conflict'
-                            else:
-                                statuscode = '200 OK'
-                        propstat.append(
-                            PropStatus(statuscode, None, ET.Element(propel.tag)))
+                    return [e.message.encode(DEFAULT_ENCODING)]
             ret = ET.Element('{DAV:}mkcol-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
