@@ -1183,8 +1183,7 @@ class WebDAVApp(object):
         try:
             et = self._readXmlBody(environ)
         except ET.ParseError:
-            start_response('400 Bad Request', [])
-            return [b'Unable to parse body.']
+            raise BadRequestError('Unable to parse body.')
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
@@ -1212,17 +1211,13 @@ class WebDAVApp(object):
             try:
                 et = self._readXmlBody(environ)
             except ET.ParseError:
-                return Status(request_uri(environ), '400 Bad Request',
-                    'Unable to parse body.')
+                raise BadRequestError('Unable to parse body.')
             if et.tag != '{DAV:}propfind':
-                return Status(
-                    request_uri(environ), '400 Bad Request',
-                    'Expected propfind tag, got ' + et.tag)
+                raise BadRequestError('Expected propfind tag, got ' + et.tag)
             try:
                 [requested] = et
             except ValueError:
-                return Status(request_uri(environ), '400 Bad Request',
-                    'Received more than one element in propfind.')
+                raise BadRequestError('Received more than one element in propfind.')
         if requested.tag == '{DAV:}prop':
             ret = []
             for href, resource in traverse_resource(
@@ -1256,9 +1251,7 @@ class WebDAVApp(object):
                 ret.append(Status(href, '200 OK', propstat=propstat))
             return ret
         else:
-            return Status(
-                request_uri(environ), '400 Bad Request',
-                'Expected prop/allprop/propname tag, got ' + requested.tag)
+            raise BadRequestError('Expected prop/allprop/propname tag, got ' + requested.tag)
 
     @multistatus
     def do_PROPPATCH(self, environ):
@@ -1269,24 +1262,15 @@ class WebDAVApp(object):
         try:
             et = self._readXmlBody(environ)
         except ET.ParseError:
-            return Status(request_uri(environ), '400 Bad Request',
-                'Unable to parse body.')
+            raise BadRequestError('Unable to parse body.')
 
         if et.tag != '{DAV:}propertyupdate':
-            return Status(
-                request_uri(environ), '400 Bad Request',
-                'Expected properyupdate tag, got ' + et.tag)
+            raise BadRequestError('Expected properyupdate tag, got ' + et.tag)
         propstat = []
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
-                return Status(request_uri(environ), '400 Bad Request',
-                    'Unknown tag %s in propertyupdate' % el.tag)
-            try:
-                propstat.extend(apply_modify_prop(el, resource, self.properties))
-            except BadRequestError as e:
-                start_response('400 Bad Request', [])
-                return [e.message.encode(DEFAULT_ENCODING)]
-
+                raise BadRequestError('Unknown tag %s in propertyupdate' % el.tag)
+            propstat.extend(apply_modify_prop(el, resource, self.properties))
         return [Status(
             request_uri(environ), propstat=propstat)]
 
@@ -1314,21 +1298,14 @@ class WebDAVApp(object):
             try:
                 et = self._readXmlBody(environ)
             except ET.ParseError:
-                start_response('400 Bad Request', [])
-                return [b'Unable to parse body.']
+                raise BadRequestError('Unable to parse body.')
             if et.tag != '{DAV:}mkcalendar':
-                start_response('400 Bad Request', [])
-                return [('Expected mkcalendar tag, got ' + et.tag).encode(DEFAULT_ENCODING)]
+                raise BadRequestError('Expected mkcalendar tag, got ' + et.tag)
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
-                    start_response('400 Bad Request', [])
-                    return [('Unknown tag %s in mkcalendar' % el.tag).encode(DEFAULT_ENCODING)]
-                try:
-                    propstat.extend(apply_modify_prop(el, resource, self.properties))
-                except BadRequestError as e:
-                    start_response('400 Bad Request', [])
-                    return [e.message.encode(DEFAULT_ENCODING)]
+                    raise BadRequestError('Unknown tag %s in mkcalendar' % el.tag)
+                propstat.extend(apply_modify_prop(el, resource, self.properties))
             ret = ET.Element('{DAV:}mkcalendar-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
@@ -1358,21 +1335,14 @@ class WebDAVApp(object):
             try:
                 et = self._readXmlBody(environ)
             except ET.ParseError:
-                start_response('400 Bad Request', [])
-                return [b'Unable to parse body.']
+                raise BadRequestError('Unable to parse body.')
             if et.tag != '{DAV:}mkcol':
-                start_response('400 Bad Request', [])
-                return [('Expected mkcol tag, got ' + et.tag).encode(DEFAULT_ENCODING)]
+                raise BadRequestError('Expected mkcol tag, got ' + et.tag)
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
-                    start_response('400 Bad Request', [])
-                    return [('Unknown tag %s in mkcol' % el.tag).encode(DEFAULT_ENCODING)]
-                try:
-                    propstat.extend(apply_modify_prop(el, resource, self.properties))
-                except BadRequestError as e:
-                    start_response('400 Bad Request', [])
-                    return [e.message.encode(DEFAULT_ENCODING)]
+                    raise BadRequestError('Unknown tag %s in mkcol' % el.tag)
+                propstat.extend(apply_modify_prop(el, resource, self.properties))
             ret = ET.Element('{DAV:}mkcol-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
@@ -1403,7 +1373,11 @@ class WebDAVApp(object):
 
     def __call__(self, environ, start_response):
         method = environ['REQUEST_METHOD']
-        do = getattr(self, 'do_' + method, None)
+        try:
+            do = getattr(self, 'do_' + method, None)
+        except BadRequestError as e:
+            start_response('400 Bad Request', [])
+            return [e.message.encode(DEFAULT_ENCODING)]
         if do is not None:
             return do(environ, start_response)
         return _send_method_not_allowed(environ, start_response,
