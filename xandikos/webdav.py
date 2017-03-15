@@ -1157,11 +1157,17 @@ class WebDAVApp(object):
         else:
             return [environ['wsgi.input'].read(request_body_size)]
 
-    def _readXmlBody(self, environ):
+    def _readXmlBody(self, environ, expected_tag=None):
         #TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
         body = b''.join(self._readBody(environ))
-        return xmlparse(body)
+        try:
+            et = xmlparse(body)
+        except ET.ParseError:
+            raise BadRequestError('Unable to parse body.')
+        if expected_tag is not None and et.tag != expected_tag:
+            raise BadRequestError('Expected %s tag, got %s' % (expected_tag, et.tag))
+        return et
 
     def _get_resources_by_hrefs(self, environ, hrefs):
         """Retrieve multiple resources by href.
@@ -1180,10 +1186,7 @@ class WebDAVApp(object):
         if r is None:
             return _send_not_found(environ, start_response)
         depth = environ.get("HTTP_DEPTH", "0")
-        try:
-            et = self._readXmlBody(environ)
-        except ET.ParseError:
-            raise BadRequestError('Unable to parse body.')
+        et = self._readXmlBody(environ, None)
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
@@ -1208,12 +1211,7 @@ class WebDAVApp(object):
         if 'CONTENT_TYPE' not in environ and environ.get('CONTENT_LENGTH') == '0':
             requested = ET.Element('{DAV:}allprop')
         else:
-            try:
-                et = self._readXmlBody(environ)
-            except ET.ParseError:
-                raise BadRequestError('Unable to parse body.')
-            if et.tag != '{DAV:}propfind':
-                raise BadRequestError('Expected propfind tag, got ' + et.tag)
+            et = self._readXmlBody(environ, '{DAV:}propfind')
             try:
                 [requested] = et
             except ValueError:
@@ -1259,13 +1257,7 @@ class WebDAVApp(object):
         resource = self.backend.get_resource(environ['PATH_INFO'])
         if resource is None:
             return Status(request_uri(environ), '404 Not Found')
-        try:
-            et = self._readXmlBody(environ)
-        except ET.ParseError:
-            raise BadRequestError('Unable to parse body.')
-
-        if et.tag != '{DAV:}propertyupdate':
-            raise BadRequestError('Expected properyupdate tag, got ' + et.tag)
+        et = self._readXmlBody(environ, '{DAV:}propertyupdate')
         propstat = []
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
@@ -1295,12 +1287,7 @@ class WebDAVApp(object):
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         self.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):
-            try:
-                et = self._readXmlBody(environ)
-            except ET.ParseError:
-                raise BadRequestError('Unable to parse body.')
-            if et.tag != '{DAV:}mkcalendar':
-                raise BadRequestError('Expected mkcalendar tag, got ' + et.tag)
+            et = self._readXmlBody(environ, '{DAV:}mkcalendar')
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
@@ -1332,12 +1319,7 @@ class WebDAVApp(object):
             return []
         if base_content_type in ('text/xml', 'application/xml'):
             # Extended MKCOL (RFC5689)
-            try:
-                et = self._readXmlBody(environ)
-            except ET.ParseError:
-                raise BadRequestError('Unable to parse body.')
-            if et.tag != '{DAV:}mkcol':
-                raise BadRequestError('Expected mkcol tag, got ' + et.tag)
+            et = self._readXmlBody(environ, '{DAV:}mkcol')
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
