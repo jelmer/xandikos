@@ -21,9 +21,9 @@
 
 https://tools.ietf.org/html/rfc6352
 """
-from xml.etree import ElementTree as ET
-
 from xandikos import davcommon, webdav
+
+ET = webdav.ET
 
 WELLKNOWN_CARDDAV_PATH = "/.well-known/carddav"
 

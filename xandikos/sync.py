@@ -23,9 +23,10 @@ See https://tools.ietf.org/html/rfc6578
 """
 
 import urllib.parse
-from xml.etree import ElementTree as ET
 
 from xandikos import webdav
+
+ET = webdav.ET
 
 
 class SyncToken(object):

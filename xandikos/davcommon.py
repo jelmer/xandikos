@@ -19,10 +19,9 @@
 
 """Common functions for DAV implementations."""
 
-# Hmm, defusedxml doesn't have XML generation functions? :(
-from xml.etree import ElementTree as ET
-
 from xandikos import webdav
+
+ET = webdav.ET
 
 
 class SubbedProperty(webdav.Property):

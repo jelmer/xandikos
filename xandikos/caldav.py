@@ -24,7 +24,6 @@ https://tools.ietf.org/html/rfc4791
 import datetime
 import logging
 import pytz
-from xml.etree import ElementTree as ET
 
 from icalendar.cal import (
     component_factory,
@@ -34,9 +33,8 @@ from icalendar.cal import (
 from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
 
 from xandikos import davcommon, webdav
-from xandikos.webdav import (
-    traverse_resource,
-    )
+
+ET = webdav.ET
 
 PRODID = '-//Jelmer Vernooĳ//Xandikos//EN'
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
@@ -512,7 +510,7 @@ class CalendarQueryReporter(webdav.Reporter):
         else:
             tz = get_calendar_timezone(base_resource)
         tzify = lambda dt: as_tz_aware_ts(dt, tz)
-        for (href, resource) in traverse_resource(
+        for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth):
             if not apply_filter(filter_el, resource, tzify):
                 continue
@@ -725,7 +723,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
         fb['DTSTART'] = vDDDTypes(start)
         fb['DTEND'] = vDDDTypes(end)
         fb['FREEBUSY'] = list(iter_freebusy(
-            traverse_resource(base_resource, base_href, depth),
+            webdav.traverse_resource(base_resource, base_href, depth),
             start, end, tzify))
         ret.add_component(fb)
         start_response('200 OK', [])

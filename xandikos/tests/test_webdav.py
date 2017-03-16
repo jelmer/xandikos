@@ -21,10 +21,10 @@ from io import BytesIO
 import logging
 import unittest
 from wsgiref.util import setup_testing_defaults
-from xml.etree import ElementTree as ET
 
 from xandikos.webdav import (
     Collection,
+    ET,
     Property,
     Resource,
     WebDAVApp,

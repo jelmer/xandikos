@@ -22,9 +22,9 @@
 See http://www.webdav.org/specs/rfc3744.html
 """
 
-from xml.etree import ElementTree as ET
-
 from xandikos import webdav
+
+ET = webdav.ET
 
 # Feature to advertise access control support.
 FEATURE = 'access-control'
