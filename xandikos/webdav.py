@@ -52,6 +52,14 @@ class BadRequestError(Exception):
         self.message = message
 
 
+class PreconditionFailure(Exception):
+    """A precondition failed."""
+
+    def __init__(self, precondition, description):
+        self.precondition = precondition
+        self.description = description
+
+
 def etag_matches(condition, actual_etag):
     """Check if an etag matches an If-Matches condition.
 
@@ -1117,7 +1125,12 @@ class WebDAVApp(object):
             start_response('405 Method Not Allowed', [])
             return []
         content_type = environ['CONTENT_TYPE'].split(';')[0]
-        (name, etag) = r.create_member(None, new_contents, content_type)
+        try:
+            (name, etag) = r.create_member(None, new_contents, content_type)
+        except PreconditionFailure as e:
+            return _send_simple_dav_error(
+                environ, start_response, '412 Precondition Failed',
+                error=ET.Element(e.precondition))
         href = environ['SCRIPT_NAME'] + urllib.parse.urljoin(path+'/', name)
         start_response('200 OK', [
             ('Location', href)
@@ -1137,7 +1150,12 @@ class WebDAVApp(object):
             start_response('412 Precondition Failed', [])
             return []
         if r is not None:
-            new_etag = r.set_body(new_contents, current_etag)
+            try:
+                new_etag = r.set_body(new_contents, current_etag)
+            except PreconditionFailure as e:
+                return _send_simple_dav_error(
+                    environ, start_response, '412 Precondition Failed',
+                    error=ET.Element(e.precondition))
             start_response('204 No Content', [
                 ('ETag', new_etag)])
             return []
@@ -1145,8 +1163,13 @@ class WebDAVApp(object):
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)
         if r is not None:
-            (new_name, new_etag) = r.create_member(
-                name, new_contents, content_type)
+            try:
+                (new_name, new_etag) = r.create_member(
+                    name, new_contents, content_type)
+            except PreconditionFailure as e:
+                return _send_simple_dav_error(
+                    environ, start_response, '412 Precondition Failed',
+                    error=ET.Element(e.precondition))
             start_response('201 Created', [
                 ('ETag', new_etag)])
             return []

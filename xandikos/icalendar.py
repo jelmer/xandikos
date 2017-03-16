@@ -24,7 +24,7 @@
 import logging
 
 from icalendar.cal import Calendar, component_factory
-from xandikos.store import File
+from xandikos.store import File, InvalidFileContents
 
 
 def calendar_component_delta(old_cal, new_cal):
@@ -138,6 +138,13 @@ class ICalendarFile(File):
     def __init__(self, content, content_type):
         super(ICalendarFile, self).__init__(content, content_type)
         self._calendar = None
+
+    def validate(self):
+        """Verify that file contents are valid."""
+        try:
+            self.calendar
+        except ValueError:
+            raise InvalidFileContents(self.content_type, self.content)
 
     @property
     def calendar(self):

@@ -36,6 +36,7 @@ from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     TreeGitStore,
     GitStore,
+    InvalidFileContents,
     NoSuchItem,
     NotStoreError,
     STORE_TYPE_ADDRESSBOOK,
@@ -102,9 +103,15 @@ class ObjectResource(webdav.Resource):
         return self.file.content
 
     def set_body(self, data, replace_etag=None):
-        (name, etag) = self.store.import_one(
-            self.name, self.content_type, data,
-            replace_etag=extract_strong_etag(replace_etag))
+        try:
+            (name, etag) = self.store.import_one(
+                self.name, self.content_type, data,
+                replace_etag=extract_strong_etag(replace_etag))
+        except InvalidFileContents:
+            # TODO(jelmer): Not every invalid file is a calendar file..
+            raise webdav.PreconditionFailure(
+                '{%s}valid-calendar-data' % caldav.NAMESPACE,
+                'Not a valid calendar file.')
         return create_strong_etag(etag)
 
     def get_content_language(self):
@@ -198,8 +205,14 @@ class StoreBasedCollection(object):
             shutil.rmtree(os.path.join(self.store.path, name))
 
     def create_member(self, name, contents, content_type):
-        (name, etag) = self.store.import_one(name, content_type,
-            contents)
+        try:
+            (name, etag) = self.store.import_one(name, content_type,
+                contents)
+        except InvalidFileContents:
+            # TODO(jelmer): Not every invalid file is a calendar file..
+            raise webdav.PreconditionFailure(
+                '{%s}valid-calendar-data' % caldav.NAMESPACE,
+                'Not a valid calendar file.')
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(self, old_token, new_token):

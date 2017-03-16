@@ -58,6 +58,13 @@ class File(object):
         self.content = content
         self.content_type = content_type
 
+    def validate(self):
+        """Verify that file contents are valid.
+
+        :raise InvalidFileContents: Raised if a file is not valid
+        """
+        pass
+
     def describe(self, name):
         """Describe the contents of this file.
 
@@ -142,6 +149,14 @@ class NotStoreError(Exception):
 
     def __init__(self, path):
         self.path = path
+
+
+class InvalidFileContents(Exception):
+    """Invalid file contents."""
+
+    def __init__(self, content_type, data):
+        self.content_type = content_type
+        self.data = data
 
 
 class Store(object):
@@ -344,7 +359,7 @@ class GitStore(Store):
         fi = open_by_content_type(data, content_type, self.extra_file_handlers)
         if name is None:
             name = str(uuid.uuid4()) + mimetypes.guess_extension(content_type)
-        # TODO(jelmer): Verify that 'data' actually represents a valid object
+        fi.validate()
         try:
             uid = fi.get_uid()
         except (KeyError, NotImplementedError):
