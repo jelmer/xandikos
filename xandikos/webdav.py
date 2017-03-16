@@ -1149,6 +1149,10 @@ class WebDAVApp(object):
         if if_match is not None and not etag_matches(if_match, current_etag):
             start_response('412 Precondition Failed', [])
             return []
+        if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
+        if if_none_match and etag_matches(if_none_match, current_etag):
+            start_response('412 Precondition Failed', [])
+            return []
         if r is not None:
             try:
                 new_etag = r.set_body(new_contents, current_etag)
