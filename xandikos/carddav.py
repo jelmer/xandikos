@@ -106,6 +106,9 @@ class Addressbook(webdav.Collection):
     def get_addressbook_color(self):
         raise NotImplementedError(self.get_addressbook_color)
 
+    def set_addressbook_color(self, color):
+        raise NotImplementedError(self.set_addressbook_color)
+
     def get_supported_address_data_types(self):
         """Get list of supported data types.
 

@@ -53,8 +53,7 @@ class AddressbookColorProperty(webdav.Property):
         el.text = resource.get_addressbook_color()
 
     def set_value(self, href, resource, el):
-        # TODO
-        raise NotImplementedError
+        resource.set_addressbook_color(el.text)
 
 
 class HeaderValueProperty(webdav.Property):

@@ -288,6 +288,9 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
             color = '#' + color
         return color
 
+    def set_calendar_color(self, color):
+        self.store.set_color(color)
+
     def get_calendar_timezone(self):
         # TODO(jelmer): Read a magic file from the store?
         raise KeyError
@@ -330,6 +333,9 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
     def get_max_image_size(self):
         # No resource limit
         raise KeyError
+
+    def set_addressbook_color(self, color):
+        self.store.set_color(color)
 
     def get_addressbook_color(self):
         color = self.store.get_color()

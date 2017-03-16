@@ -277,6 +277,10 @@ class Store(object):
         """Get the color code for this store."""
         raise NotImplementedError(self.get_color)
 
+    def set_color(self, color):
+        """Set the color code for this store."""
+        raise NotImplementedError(self.set_color)
+
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.
 
@@ -516,6 +520,12 @@ class GitStore(Store):
         else:
             return color.decode(DEFAULT_ENCODING)
 
+    def set_color(self, color):
+        """Set the color code for this store."""
+        config = self.repo.get_config()
+        config.get(b'xandikos', b'color', color.encode(DEFAULT_ENCODING))
+        config.write_to_path()
+
     def get_displayname(self):
         """Get display name.
 
@@ -536,6 +546,7 @@ class GitStore(Store):
         """
         config = self.repo.get_config()
         config.set(b'xandikos', b'displayname', displayname.encode(DEFAULT_ENCODING))
+        config.write_to_path()
 
     def set_type(self, store_type):
         """Set store type.

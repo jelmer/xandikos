@@ -60,6 +60,10 @@ class Calendar(webdav.Collection):
         """Return the calendar color."""
         raise NotImplementedError(self.get_calendar_color)
 
+    def set_calendar_color(self, color):
+        """Set the calendar color."""
+        raise NotImplementedError(self.set_calendar_color)
+
     def get_calendar_timezone(self):
         """Return calendar timezone.
 
@@ -530,6 +534,9 @@ class CalendarColorProperty(webdav.Property):
 
     def get_value(self, href, resource, el):
         el.text = resource.get_calendar_color()
+
+    def set_value(self, href, resource, el):
+        resource.set_calendar_color(el.text)
 
 
 class SupportedCalendarComponentSetProperty(webdav.Property):
