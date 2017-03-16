@@ -161,6 +161,9 @@ class StoreBasedCollection(object):
             return os.path.basename(self.store.repo.path)
         return displayname
 
+    def set_displayname(self, displayname):
+        self.store.set_displayname(displayname)
+
     def get_sync_token(self):
         return self.store.get_ctag()
 
@@ -186,6 +189,7 @@ class StoreBasedCollection(object):
             raise KeyError(name)
 
     def delete_member(self, name, etag=None):
+        assert name != ''
         try:
             self.store.delete_one(name, etag=extract_strong_etag(etag))
         except NoSuchItem:

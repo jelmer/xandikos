@@ -234,9 +234,8 @@ class DisplayNameProperty(Property):
     def get_value(self, href, resource, el):
         el.text = resource.get_displayname()
 
-    # TODO(jelmer): allow modification of this property
     def set_value(self, href, resource, el):
-        raise NotImplementedError
+        resource.set_displayname(el.text)
 
 
 class GetETagProperty(Property):
@@ -456,6 +455,10 @@ class Resource(object):
     def get_displayname(self):
         """Get the resource display name."""
         raise KeyError
+
+    def set_displayname(self, displayname):
+        """Set the resource display name."""
+        raise NotImplementedError(self.set_displayname)
 
     def get_creationdate(self):
         """Get the resource creation date.

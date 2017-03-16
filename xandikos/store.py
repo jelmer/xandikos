@@ -250,6 +250,11 @@ class Store(object):
         """
         raise NotImplementedError(self.get_displayname)
 
+    def set_displayname(self):
+        """Set the display name of this store.
+        """
+        raise NotImplementedError(self.set_displayname)
+
     def get_color(Self):
         """Get the color code for this store."""
         raise NotImplementedError(self.get_color)
@@ -505,6 +510,14 @@ class GitStore(Store):
             return None
         else:
             return displayname.decode(DEFAULT_ENCODING)
+
+    def set_displayname(self, displayname):
+        """Set the display name.
+
+        :param displayname: New display name
+        """
+        config = self.repo.get_config()
+        config.set(b'xandikos', b'displayname', displayname.encode(DEFAULT_ENCODING))
 
     def set_type(self, store_type):
         """Set store type.
