@@ -88,10 +88,13 @@ class File(object):
         :param previous: Previous file to compare to.
         :return: List of strings describing change
         """
+        assert name is not None
+        item_description = self.describe(name)
+        assert item_description is not None
         if previous is None:
-            yield "Added " + self.describe(name)
+            yield "Added " + item_description
         else:
-            yield "Modified " + self.describe(name)
+            yield "Modified " + item_description
 
 
 def open_by_content_type(content, content_type, extra_file_handlers):

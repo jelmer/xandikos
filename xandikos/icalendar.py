@@ -168,6 +168,7 @@ class ICalendarFile(File):
                 return describe_component(component)
             except KeyError:
                 pass
+        return super(ICalendarFile, self).describe(name)
 
     def get_uid(self):
         """Extract the UID from a VCalendar file.
