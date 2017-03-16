@@ -1384,6 +1384,10 @@ class WebDAVApp(object):
         return []
 
     def __call__(self, environ, start_response):
+        # Re-encode PATH_INFO using DEFAULT_ENCODING. PEP-3333 says that
+        # PATH_INFO will always be decoded using iso-8859-1.
+        # See also https://bugs.python.org/issue16679
+        environ['PATH_INFO'] = environ['PATH_INFO'].encode('iso-8859-1').decode(DEFAULT_ENCODING)
         method = environ['REQUEST_METHOD']
         try:
             do = getattr(self, 'do_' + method, None)
