@@ -1044,10 +1044,11 @@ class WebDAVApp(object):
         self.properties = {}
         self.reporters = {}
 
-    def _request_href(self, environ):
-        """Returns a href that can be used externally."""
-        return (environ['SCRIPT_NAME'] +
-                path_from_environ(environ, 'PATH_INFO'))
+    def _get_resource_from_environ(self, environ):
+        path = path_from_environ(environ, 'PATH_INFO')
+        href = (environ['SCRIPT_NAME'] + path)
+        r = self.backend.get_resource(path)
+        return (href, path, r)
 
     def register_properties(self, properties):
         for p in properties:
@@ -1073,7 +1074,7 @@ class WebDAVApp(object):
         return self._do_get(environ, start_response, send_body=True)
 
     def _do_get(self, environ, start_response, send_body):
-        r = self.backend.get_resource(path_from_environ(environ, 'PATH_INFO'))
+        unused_href, unused_path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
         current_etag = r.get_etag()
@@ -1110,10 +1111,10 @@ class WebDAVApp(object):
             return []
 
     def do_DELETE(self, environ, start_response):
-        r = self.backend.get_resource(path_from_environ(environ, 'PATH_INFO'))
+        unused_href, path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
-        container_path, item_name = posixpath.split(path_from_environ(environ, 'PATH_INFO'))
+        container_path, item_name = posixpath.split(path)
         pr = self.backend.get_resource(container_path)
         if pr is None:
             return _send_not_found(environ, start_response)
@@ -1129,8 +1130,7 @@ class WebDAVApp(object):
     def do_POST(self, environ, start_response):
         # see RFC5995
         new_contents = self._readBody(environ)
-        path = path_from_environ(environ, 'PATH_INFO')
-        r = self.backend.get_resource(path)
+        unused_href, path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
         if not COLLECTION_RESOURCE_TYPE in r.resource_types:
@@ -1151,8 +1151,7 @@ class WebDAVApp(object):
 
     def do_PUT(self, environ, start_response):
         new_contents = self._readBody(environ)
-        path = path_from_environ(environ, 'PATH_INFO')
-        r = self.backend.get_resource(path)
+        unused_href, path, r = self._get_resource_from_environ(environ)
         if r is not None:
             current_etag = r.get_etag()
         else:
@@ -1225,7 +1224,7 @@ class WebDAVApp(object):
 
     def do_REPORT(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
-        r = self.backend.get_resource(path_from_environ(environ, 'PATH_INFO'))
+        base_href, unused_path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
         depth = environ.get("HTTP_DEPTH", "0")
@@ -1242,11 +1241,11 @@ class WebDAVApp(object):
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
         return reporter.report(
             environ, start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
-            self.properties, self._request_href(environ), r, depth)
+            self.properties, base_href, r, depth)
 
     @multistatus
     def do_PROPFIND(self, environ):
-        base_resource = self.backend.get_resource(path_from_environ(environ, 'PATH_INFO'))
+        base_href, unused_path, base_resource = self._get_resource_from_environ(environ)
         if base_resource is None:
             return Status(request_uri(environ), '404 Not Found')
         # Default depth is infinity, per RFC2518
@@ -1262,7 +1261,7 @@ class WebDAVApp(object):
         if requested.tag == '{DAV:}prop':
             ret = []
             for href, resource in traverse_resource(
-                    base_resource, self._request_href(environ), depth):
+                    base_resource, base_href, depth):
                 propstat = get_properties(
                     href, resource, self.properties, requested)
                 ret.append(Status(href, '200 OK', propstat=list(propstat)))
@@ -1273,7 +1272,7 @@ class WebDAVApp(object):
         elif requested.tag == '{DAV:}allprop':
             ret = []
             for href, resource in traverse_resource(
-                    base_resource, self._request_href(environ), depth):
+                    base_resource, base_href, depth):
                 propstat = []
                 for name in self.properties:
                     ps = get_property(href, resource, self.properties, name)
@@ -1284,7 +1283,7 @@ class WebDAVApp(object):
         elif requested.tag == '{DAV:}propname':
             ret = []
             for href, resource in traverse_resource(
-                    base_resource, self._request_href(environ), depth):
+                    base_resource, base_href, depth):
                 propstat = []
                 for name, prop in self.properties.items():
                     if prop.is_set(resource):
@@ -1296,8 +1295,7 @@ class WebDAVApp(object):
 
     @multistatus
     def do_PROPPATCH(self, environ):
-        href = self._request_href(environ)
-        resource = self.backend.get_resource(path_from_environ(environ, 'PATH_INFO'))
+        href, unused_path, resource = self._get_resource_from_environ(environ)
         if resource is None:
             return Status(request_uri(environ), '404 Not Found')
         et = self._readXmlBody(environ, '{DAV:}propertyupdate')
@@ -1311,17 +1309,16 @@ class WebDAVApp(object):
 
     # TODO(jelmer): This should really live in xandikos.caldav
     def do_MKCALENDAR(self, environ, start_response):
-        href = self._request_href(environ)
         base_content_type = environ.get('CONTENT_TYPE', '').split(';')[0]
         if base_content_type not in ('text/xml', 'application/xml', '', 'text/plain'):
             start_response('415 Unsupported Media Type', [])
             return [('Unsupported media type %r' % base_content_type).encode(DEFAULT_ENCODING)]
-        resource = self.backend.get_resource(path_from_environ(environ, 'PATH_INFO'))
+        href, path, resource = self._get_resource_from_environ(environ)
         if resource is not None:
             start_response('405 Method Not Allowed', [])
             return []
         try:
-            resource = self.backend.create_collection(path_from_environ(environ, 'PATH_INFO'))
+            resource = self.backend.create_collection(path)
         except FileNotFoundError:
             start_response('409 Conflict', [])
             return []
@@ -1346,17 +1343,16 @@ class WebDAVApp(object):
             return []
 
     def do_MKCOL(self, environ, start_response):
-        href = self._request_href(environ)
         base_content_type = environ.get('CONTENT_TYPE', '').split(';')[0]
         if base_content_type not in ('text/plain', 'text/xml', 'application/xml', ''):
             start_response('415 Unsupported Media Type', [])
             return [('Unsupported media type %r' % base_content_type).encode(DEFAULT_ENCODING)]
-        resource = self.backend.get_resource(path_from_environ(environ, 'PATH_INFO'))
+        href, path, resource = self._get_resource_from_environ(environ)
         if resource is not None:
             start_response('405 Method Not Allowed', [])
             return []
         try:
-            resource = self.backend.create_collection(path_from_environ(environ, 'PATH_INFO'))
+            resource = self.backend.create_collection(path)
         except FileNotFoundError:
             start_response('409 Conflict', [])
             return []
@@ -1380,7 +1376,7 @@ class WebDAVApp(object):
     def do_OPTIONS(self, environ, start_response):
         headers = []
         if environ['PATH_INFO'] != '*':
-            r = self.backend.get_resource(path_from_environ(environ, 'PATH_INFO'))
+            unused_href, unused_path, r = self._get_resource_from_environ(environ)
             if r is None:
                 return _send_not_found(environ, start_response)
             dav_features = self._get_dav_features(r)
