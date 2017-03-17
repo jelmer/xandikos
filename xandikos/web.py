@@ -43,6 +43,7 @@ from xandikos.store import (
     STORE_TYPE_CALENDAR,
     STORE_TYPE_OTHER,
     )
+from xandikos.vcard import VCardFile
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 
@@ -522,6 +523,7 @@ class Principal(CollectionSetResource):
 def open_store_from_path(path):
     store = GitStore.open_from_path(path)
     store.load_extra_file_handler(ICalendarFile)
+    store.load_extra_file_handler(VCardFile)
     return store
 
 
