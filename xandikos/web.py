@@ -153,15 +153,19 @@ class ObjectResource(webdav.Resource):
 
 class StoreBasedCollection(object):
 
-    def __init__(self, store):
+    def __init__(self, backend, relpath, store):
+        self.backend = backend
+        self.relpath = relpath
         self.store = store
 
     def __repr__(self):
-        return "%s(%r)" % (
-            type(self).__name__, self.store)
+        return "%s(%r)" % (type(self).__name__, self.store)
 
     def _get_resource(self, name, content_type, etag):
         return ObjectResource(self.store, name, content_type, etag)
+
+    def _get_subcollection(self, name):
+        return self.backend.get_resource(posixpath.join(self.relpath, name))
 
     def get_displayname(self):
         displayname = self.store.get_displayname()
@@ -186,6 +190,12 @@ class StoreBasedCollection(object):
         for (name, content_type, etag) in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
             ret.append((name, resource))
+        # TODO(jelmer): Get subcollections from store; e.g. from submodules.
+        for name in os.listdir(self.store.path):
+            p = os.path.join(self.store.path, name)
+            if not os.path.isdir(p):
+                continue
+            ret.append((name, self._get_subcollection(name)))
         return ret
 
     def get_member(self, name):
@@ -194,6 +204,9 @@ class StoreBasedCollection(object):
             if name == fname:
                 return self._get_resource(name, content_type, fetag)
         else:
+            p = os.path.join(self.store.path, name)
+            if os.path.isdir(p):
+                return self._get_subcollection(name)
             raise KeyError(name)
 
     def delete_member(self, name, etag=None):
@@ -271,9 +284,6 @@ class StoreBasedCollection(object):
 
 class Collection(StoreBasedCollection,webdav.Collection):
     """A generic WebDAV collection."""
-
-    def __init__(self, store):
-        self.store = store
 
 
 class CalendarResource(StoreBasedCollection,caldav.Calendar):
@@ -541,7 +551,7 @@ class XandikosBackend(webdav.Backend):
 
     def create_collection(self, relpath):
         p = self._map_to_file_path(relpath)
-        return Collection(TreeGitStore.create(p))
+        return Collection(self, relpath, TreeGitStore.create(p))
 
     def create_principal(self, relpath, create_defaults=False):
         principal = Principal.create(self, relpath)
@@ -566,7 +576,7 @@ class XandikosBackend(webdav.Backend):
             else:
                 return {STORE_TYPE_CALENDAR: CalendarResource,
                         STORE_TYPE_ADDRESSBOOK: AddressbookResource,
-                        STORE_TYPE_OTHER: Collection}[store.get_type()](store)
+                        STORE_TYPE_OTHER: Collection}[store.get_type()](self, relpath, store)
         else:
             (basepath, name) = os.path.split(relpath)
             assert name != '', 'path is %r' % relpath
