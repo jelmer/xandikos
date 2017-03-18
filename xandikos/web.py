@@ -26,6 +26,7 @@ the carddav support, the caldav support and the DAV store.
 
 import functools
 import hashlib
+import jinja2
 import logging
 import os
 import posixpath
@@ -53,14 +54,8 @@ CALENDAR_HOME_SET = ['calendars']
 ADDRESSBOOK_HOME_SET = ['contacts']
 USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 
-ROOT_PAGE_CONTENTS = b"""\
-<html>
-  <body>
-    This is a Xandikos WebDAV server. See
-    <a href="https://github.com/jelmer/xandikos">
-    https://github.com/jelmer/xandikos</a>.
-  </body>
-</html>"""
+TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
+jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
 
 
 def create_strong_etag(etag):
@@ -277,6 +272,10 @@ class StoreBasedCollection(object):
         # RFC2518, section 8.6.2 says this should recursively delete.
         self.store.destroy()
 
+    def get_body(self):
+        template = jinja_env.get_template('collection.html')
+        return [template.render(collection=self).encode('utf-8')]
+
 
 class Collection(StoreBasedCollection,webdav.Collection):
     """A generic WebDAV collection."""
@@ -442,7 +441,8 @@ class RootPage(webdav.Resource):
         self.backend = backend
 
     def get_body(self):
-        return [ROOT_PAGE_CONTENTS]
+        template = jinja_env.get_template('root.html')
+        return [template.render().encode('utf-8')]
 
     def get_content_length(self):
         return len(b''.join(self.get_body()))
