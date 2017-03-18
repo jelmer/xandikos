@@ -32,6 +32,7 @@ import os
 import posixpath
 import shutil
 
+from xandikos import __version__ as xandikos_version
 from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
@@ -56,6 +57,21 @@ USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
+
+
+def render_jinja_page(name, accepted_content_languages, **kwargs):
+    """Render a HTML page from jinja template.
+
+    :param name: Name of the page
+    :param accepted_content_languages: List of accepted content languages
+    :return: TUple of (body, content_length, etag, content_type, languages)
+    """
+    # TODO(jelmer): Support rendering other languages
+    encoding = 'utf-8'
+    template = jinja_env.get_template(name)
+    body = template.render(version=xandikos_version, **kwargs).encode(encoding)
+    return ([body], len(body), None, 'text/html; encoding=%s' % encoding,
+            ['en-UK'])
 
 
 def create_strong_etag(etag):
@@ -276,15 +292,11 @@ class StoreBasedCollection(object):
         raise NotImplementedError(self.get_body)
 
     def render(self, accepted_content_types, accepted_content_languages):
-        # TODO(jelmer): Support rendering other languages
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        encoding = 'utf-8'
-        template = jinja_env.get_template('collection.html')
-        body = template.render(collection=self).encode(encoding)
-        return ([body], len(body), None, 'text/html; encoding=%s' % encoding,
-                'en-UK')
+        return render_jinja_page(
+            'collection.html', accepted_content_languages, collection=self)
 
 
 class Collection(StoreBasedCollection,webdav.Collection):
@@ -441,6 +453,12 @@ class CollectionSetResource(webdav.Collection):
         # RFC2518, section 8.6.2 says this should recursively delete.
         shutil.rmtree(p)
 
+    def render(self, accepted_content_types, accepted_content_languages):
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ['text/html'])
+        assert content_types == ['text/html']
+        return render_jinja_page('root.html', accepted_content_languages)
+
 
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
@@ -451,15 +469,10 @@ class RootPage(webdav.Resource):
         self.backend = backend
 
     def render(self, accepted_content_types, accepted_content_languages):
-        # TODO(jelmer): Support rendering other languages
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        encoding = 'utf-8'
-        template = jinja_env.get_template('root.html')
-        body = template.render(collection=self).encode(encoding)
-        return ([body], len(body), None, 'text/html; encoding=%s' % encoding,
-                'en-UK')
+        return render_jinja_page('root.html', accepted_content_languages)
 
     def get_body(self):
         raise NotImplementedError(self.get_body)
