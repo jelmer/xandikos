@@ -530,7 +530,11 @@ class GitStore(Store):
     def set_color(self, color):
         """Set the color code for this store."""
         config = self.repo.get_config()
-        config.get(b'xandikos', b'color', color.encode(DEFAULT_ENCODING))
+        # Strip leading # to work around https://github.com/jelmer/dulwich/issues/511
+        # TODO(jelmer): Drop when that bug gets fixed.
+        config.set(
+            b'xandikos', b'color',
+            color.lstrip('#').encode(DEFAULT_ENCODING) if color else b'')
         config.write_to_path()
 
     def get_displayname(self):
