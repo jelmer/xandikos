@@ -190,11 +190,8 @@ class StoreBasedCollection(object):
         for (name, content_type, etag) in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
             ret.append((name, resource))
-        # TODO(jelmer): Get subcollections from store; e.g. from submodules.
-        for name in os.listdir(self.store.path):
+        for name in self.store.subdirectories():
             p = os.path.join(self.store.path, name)
-            if not os.path.isdir(p):
-                continue
             ret.append((name, self._get_subcollection(name)))
         return ret
 
@@ -204,8 +201,7 @@ class StoreBasedCollection(object):
             if name == fname:
                 return self._get_resource(name, content_type, fetag)
         else:
-            p = os.path.join(self.store.path, name)
-            if os.path.isdir(p):
+            if name in self.store.subdirectories():
                 return self._get_subcollection(name)
             raise KeyError(name)
 

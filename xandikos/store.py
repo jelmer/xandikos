@@ -308,6 +308,13 @@ class Store(object):
         """Destroy this store."""
         raise NotImplementedError(self.destroy)
 
+    def subdirectories(self):
+        """Returns subdirectories to probe for other stores.
+
+        :return: List of names
+        """
+        raise NotImplementedError(self.subdirectories)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository.
@@ -712,6 +719,15 @@ class BareGitStore(GitStore):
         os.mkdir(path)
         return cls(dulwich.repo.Repo.init_bare(path))
 
+    def subdirectories(self):
+        """Returns subdirectories to probe for other stores.
+
+        :return: List of names
+        """
+        # Or perhaps just return all subdirectories but filter out
+        # Git-owned ones?
+        return []
+
 
 class TreeGitStore(GitStore):
     """A Store that backs onto a treefull Git repository."""
@@ -804,6 +820,20 @@ class TreeGitStore(GitStore):
             for (name, sha, mode) in index.iterblobs():
                 name = name.decode(DEFAULT_ENCODING)
                 yield (name, mode, sha)
+
+    def subdirectories(self):
+        """Returns subdirectories to probe for other stores.
+
+        :return: List of names
+        """
+        ret = []
+        for name in os.listdir(self.path):
+            if name == dulwich.repo.CONTROLDIR:
+                continue
+            p = os.path.join(self.path, name)
+            if os.path.isdir(p):
+                ret.append(name)
+        return ret
 
 
 def open_store(location):

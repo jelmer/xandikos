@@ -228,6 +228,10 @@ class BaseGitStoreTest(BaseStoreTest):
             c.write_to_path()
         self.assertEqual('334433', gc.get_color())
 
+    def test_default_no_subdirectories(self):
+        gc = self.create_store()
+        self.assertEqual([], gc.subdirectories())
+
 
 class GitStoreTest(unittest.TestCase):
 
