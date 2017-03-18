@@ -26,6 +26,7 @@ functionality should live in xandikos.caldav/xandikos.carddav respectively.
 # TODO(jelmer): Add authorization support
 
 import collections
+import fnmatch
 import logging
 import posixpath
 import urllib.parse
@@ -50,6 +51,63 @@ class BadRequestError(Exception):
     def __init__(self, message):
         super(Exception, self).__init__(message)
         self.message = message
+
+
+class NotAcceptableError(Exception):
+    """Base class for not acceptable errors."""
+
+    def __init__(self, available_content_types, acceptable_content_types):
+        super(Exception, self).__init__(
+            "Unable to convert from content types %r to one of %r" % (
+                available_content_types, acceptable_content_types))
+        self.available_content_types = available_content_types
+        self.acceptable_content_types = acceptable_content_types
+
+
+def pick_content_types(accepted_content_types, available_content_types):
+    """Pick best content types for a client.
+
+    :param accepted_content_types: Accept variable (as name, params tuples)
+    :raise NotAcceptableError: If there are no overlapping content types
+    """
+    available_content_types = set(available_content_types)
+    acceptable_by_q = {}
+    for ct, params in accepted_content_types:
+        acceptable_by_q.setdefault(float(params.get('q', '1')), []).append(ct)
+    if 0 in acceptable_by_q:
+        # Items with q=0 are not acceptable
+        for pat in acceptable_by_q[0]:
+            available_content_types -= set(fnmatch.filter(available_content_types, pat))
+        del acceptable_by_q[0]
+    for q, pats in sorted(acceptable_by_q.items(), reverse=True):
+        ret = []
+        for pat in pats:
+            ret.extend(fnmatch.filter(available_content_types, pat))
+        if ret:
+            return ret
+    raise NotAcceptableError(
+        available_content_types, accepted_content_types)
+
+
+def parse_accept_header(accept):
+    """Parse a HTTP Accept or Accept-Language header.
+
+    :param accept: Accept header contents
+    :return: List of (content_type, params) tuples
+    """
+    ret = []
+    for part in accept.split(','):
+        params = {}
+        try:
+            (ct, rest) = part.split(';', 1)
+        except ValueError:
+            ct = part
+        else:
+            for param in rest.split(';'):
+                (key, val) = param.split('=')
+                params[key] = val
+        ret.append((ct, params))
+    return ret
 
 
 class PreconditionFailure(Exception):
@@ -529,6 +587,31 @@ class Resource(object):
 
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
+
+    def render(self, accepted_content_types, accepted_languages):
+        """'Render' this resource in the specified content type.
+
+        The default implementation just checks that the
+        resource' content type is acceptable and if so returns
+        (get_body(), get_content_type(), get_content_language()).
+
+        :param accepted_content_types: List of accepted content types
+        :param accepted_languages: List of accepted languages
+        :raise NotAcceptableError: if there is no acceptable content type
+        :return: Tuple with
+            (content_body, content_length, etag, content_type, content_language)
+        """
+        # TODO(jelmer): Check content_language
+        content_types = pick_content_types(
+            accepted_content_types, [self.get_content_type()])
+        assert content_types == [self.get_content_type()]
+        body = self.get_body()
+        try:
+            content_language = self.get_content_language()
+        except KeyError:
+            content_language = None
+        return (body, sum(map(len, body)), self.get_etag(),
+                self.get_content_type(), content_language)
 
     def get_content_length(self):
         """Get content length.
@@ -1077,20 +1160,23 @@ class WebDAVApp(object):
         unused_href, unused_path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
-        current_etag = r.get_etag()
+        # TODO(jelmer): Support e.g. parsing q variables
+        accept_content_types = parse_accept_header(environ.get('HTTP_ACCEPT', '*/*'))
+        # TODO(jelmer): Support e.g. parsing q variables
+        accept_content_languages = environ.get('HTTP_ACCEPT_LANGUAGES', '*').split(',')
+        (body, content_length, current_etag, content_type, content_languages) = r.render(
+            accept_content_types, accept_content_languages)
         if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
-        if if_none_match and etag_matches(if_none_match, current_etag):
+        if (if_none_match and current_etag is not None and
+            etag_matches(if_none_match, current_etag)):
             start_response('304 Not Modified', [])
             return []
         headers = [
-            ('ETag', current_etag),
-            ('Content-Length', str(r.get_content_length())),
+            ('Content-Length', str(content_length)),
         ]
-        try:
-            content_type = r.get_content_type()
-        except KeyError:
-            pass
-        else:
+        if current_etag is not None:
+            headers.append(('ETag', current_etag))
+        if content_type is not None:
             headers.append(('Content-Type', content_type))
         try:
             last_modified = r.get_last_modified()
@@ -1098,15 +1184,11 @@ class WebDAVApp(object):
             pass
         else:
             headers.append(('Last-Modified', last_modified))
-        try:
-            languages = r.get_content_language()
-        except KeyError:
-            pass
-        else:
-            headers.append(('Content-Language', ', '.join(languages)))
+        if content_languages is not None:
+            headers.append(('Content-Language', ', '.join(content_languages)))
         start_response('200 OK', headers)
         if send_body:
-            return r.get_body()
+            return body
         else:
             return []
 
@@ -1398,6 +1480,9 @@ class WebDAVApp(object):
             do = getattr(self, 'do_' + method, None)
         except BadRequestError as e:
             start_response('400 Bad Request', [])
+            return [e.message.encode(DEFAULT_ENCODING)]
+        except NotAcceptableError as e:
+            start_response('406 Not Acceptable', [])
             return [e.message.encode(DEFAULT_ENCODING)]
         if do is not None:
             return do(environ, start_response)

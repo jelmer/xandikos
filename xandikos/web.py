@@ -273,8 +273,18 @@ class StoreBasedCollection(object):
         self.store.destroy()
 
     def get_body(self):
+        raise NotImplementedError(self.get_body)
+
+    def render(self, accepted_content_types, accepted_content_languages):
+        # TODO(jelmer): Support rendering other languages
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ['text/html'])
+        assert content_types == ['text/html']
+        encoding = 'utf-8'
         template = jinja_env.get_template('collection.html')
-        return [template.render(collection=self).encode('utf-8')]
+        body = template.render(collection=self).encode(encoding)
+        return ([body], len(body), None, 'text/html; encoding=%s' % encoding,
+                'en-UK')
 
 
 class Collection(StoreBasedCollection,webdav.Collection):
@@ -440,12 +450,22 @@ class RootPage(webdav.Resource):
     def __init__(self, backend):
         self.backend = backend
 
-    def get_body(self):
+    def render(self, accepted_content_types, accepted_content_languages):
+        # TODO(jelmer): Support rendering other languages
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ['text/html'])
+        assert content_types == ['text/html']
+        encoding = 'utf-8'
         template = jinja_env.get_template('root.html')
-        return [template.render().encode('utf-8')]
+        body = template.render(collection=self).encode(encoding)
+        return ([body], len(body), None, 'text/html; encoding=%s' % encoding,
+                'en-UK')
+
+    def get_body(self):
+        raise NotImplementedError(self.get_body)
 
     def get_content_length(self):
-        return len(b''.join(self.get_body()))
+        raise NotImplementedError(self.get_content_length)
 
     def get_content_type(self):
         return 'text/html'
