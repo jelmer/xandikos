@@ -172,6 +172,21 @@ class StoreBasedCollection(object):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.store)
 
+    def set_resource_types(self, resource_types):
+        # TODO(jelmer): Allow more than just this set; allow combining
+        # addressbook/calendar.
+        if set(resource_types) == set(
+            [caldav.CALENDAR_RESOURCE_TYPE, webdav.COLLECTION_RESOURCE_TYPE]):
+            self.store.set_type(STORE_TYPE_CALENDAR)
+        elif set(resource_types) == set(
+            [carddav.ADDRESSBOOK_RESOURCE_TYPE,
+             webdav.COLLECTION_RESOURCE_TYPE]):
+            self.store.set_type(STORE_TYPE_ADDRESSBOOK)
+        elif set(resource_types) == set([webdav.COLLECTION_RESOURCE_TYPE]):
+            self.store.set_type(STORE_TYPE_OTHER)
+        else:
+            raise NotImplementedError(self.set_resource_types)
+
     def _get_resource(self, name, content_type, etag):
         return ObjectResource(self.store, name, content_type, etag)
 

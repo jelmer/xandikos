@@ -295,8 +295,7 @@ class ResourceTypeProperty(Property):
             ET.SubElement(el, rt)
 
     def set_value(self, href, resource, el):
-        # TODO(jelmer): set resource types
-        raise NotImplementedError(self.set_value)
+        resource.set_resource_types([e.tag for e in el])
 
 
 class DisplayNameProperty(Property):
@@ -528,6 +527,11 @@ class Resource(object):
 
     # A list of resource type names (e.g. '{DAV:}collection')
     resource_types = []
+
+    # TODO(jelmer): Be consistent in using get/set functions vs properties.
+    def set_resource_types(self, resource_types):
+        """Set the resource types."""
+        raise NotImplementedError(self.set_resource_types)
 
     def get_displayname(self):
         """Get the resource display name."""
