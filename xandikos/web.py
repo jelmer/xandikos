@@ -775,15 +775,13 @@ def main(argv):
     parser.add_option(
         "--current-user-principal", default="/user/",
         help="Path to current user principal. [%default]")
-    parser.add_option("--autocreate",
-                      action="store_true",
-                      dest="autocreate",
-                      help="Automatically create necessary directories.")
-    parser.add_option("--defaults",
-                      action="store_true",
-                      dest="defaults",
-                      help=("Create initial calendar and address book. "
-                            "Implies --autocreate."))
+    parser.add_option(
+        "--autocreate", action="store_true", dest="autocreate",
+        help="Automatically create necessary directories.")
+    parser.add_option(
+        "--defaults", action="store_true", dest="defaults",
+        help=("Create initial calendar and address book. "
+              "Implies --autocreate."))
     options, args = parser.parse_args(argv)
 
     if options.directory is None:
