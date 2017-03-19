@@ -81,30 +81,38 @@ class BaseStoreTest(object):
 
     def test_import_one(self):
         gc = self.create_store()
-        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar',
+                                     [EXAMPLE_VCALENDAR1])
         self.assertIsInstance(etag, str)
-        self.assertEqual([('foo.ics', 'text/calendar', etag)], list(gc.iter_with_etag()))
+        self.assertEqual([('foo.ics', 'text/calendar', etag)],
+                         list(gc.iter_with_etag()))
 
     def test_import_one_duplicate_uid(self):
         gc = self.create_store()
-        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar',
+                                     [EXAMPLE_VCALENDAR1])
         self.assertRaises(
             DuplicateUidError, gc.import_one, 'bar.ics',
             'text/calendar', [EXAMPLE_VCALENDAR1])
 
     def test_import_one_duplicate_name(self):
         gc = self.create_store()
-        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR2],
-                                     replace_etag=etag)
-        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar',
+                                     [EXAMPLE_VCALENDAR1])
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar',
+                                     [EXAMPLE_VCALENDAR2], replace_etag=etag)
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar',
+                                     [EXAMPLE_VCALENDAR1])
         self.assertRaises(InvalidETag, gc.import_one, 'foo.ics',
-                          'text/calendar', [EXAMPLE_VCALENDAR2], replace_etag='invalidetag')
+                          'text/calendar', [EXAMPLE_VCALENDAR2],
+                          replace_etag='invalidetag')
 
     def test_get_raw(self):
         gc = self.create_store()
-        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        (name2, etag2) = gc.import_one('bar.ics', 'text/calendar', [EXAMPLE_VCALENDAR2])
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one('bar.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR2])
         self.assertEqual(
             EXAMPLE_VCALENDAR1,
             b''.join(gc._get_raw('foo.ics', etag1)))
@@ -117,8 +125,10 @@ class BaseStoreTest(object):
 
     def test_get_file(self):
         gc = self.create_store()
-        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        (name1, etag2) = gc.import_one('bar.ics', 'text/calendar', [EXAMPLE_VCALENDAR2])
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR1])
+        (name1, etag2) = gc.import_one('bar.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR2])
         f1 = gc.get_file('foo.ics', 'text/calendar', etag1)
         self.assertEqual(EXAMPLE_VCALENDAR1, b''.join(f1.content))
         self.assertEqual('text/calendar', f1.content_type)
@@ -132,7 +142,8 @@ class BaseStoreTest(object):
     def test_delete_one(self):
         gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
-        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR1])
         self.assertEqual(
             [('foo.ics', 'text/calendar', etag1)],
             list(gc.iter_with_etag()))
@@ -142,7 +153,8 @@ class BaseStoreTest(object):
     def test_delete_one_with_etag(self):
         gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
-        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR1])
         self.assertEqual(
             [('foo.ics', 'text/calendar', etag1)],
             list(gc.iter_with_etag()))
@@ -156,8 +168,10 @@ class BaseStoreTest(object):
     def test_delete_one_invalid_etag(self):
         gc = self.create_store()
         self.assertEqual([], list(gc.iter_with_etag()))
-        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        (name2, etag2) = gc.import_one('bar.ics', 'text/calendar', [EXAMPLE_VCALENDAR2])
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one('bar.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR2])
         self.assertEqual(
             set([('foo.ics', 'text/calendar', etag1),
                 ('bar.ics', 'text/calendar', etag2)]),
@@ -208,7 +222,8 @@ class BaseGitStoreTest(BaseStoreTest):
         try:
             gc.repo.set_description(b'a repo description')
         except NotImplementedError:
-            self.skipTest('old dulwich version without MemoryRepo.set_description')
+            self.skipTest('old dulwich version without '
+                          'MemoryRepo.set_description')
         self.assertEqual(gc.get_description(), 'a repo description')
 
     def test_displayname(self):

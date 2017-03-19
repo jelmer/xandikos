@@ -226,7 +226,8 @@ class WebTests(unittest.TestCase):
 
             def set_value(unused_self, href, resource, ret):
                 self.assertEqual(
-                    ['{DAV:}collection', '{urn:ietf:params:xml:ns:caldav}calendar'],
+                    ['{DAV:}collection',
+                     '{urn:ietf:params:xml:ns:caldav}calendar'],
                     [x.tag for x in ret])
 
         app = WebDAVApp(Backend())
@@ -251,7 +252,8 @@ class WebTests(unittest.TestCase):
 
             def delete_member(unused_self, name, etag=None):
                 self.assertEqual(name, 'resource')
-        app = self.makeApp({'/': TestResource(), '/resource': TestResource()}, [])
+        app = self.makeApp({'/': TestResource(), '/resource': TestResource()},
+                           [])
         code, headers, contents = self.delete(app, '/resource')
         self.assertEqual('204 No Content', code)
         self.assertEqual(b'', contents)
@@ -272,7 +274,8 @@ class WebTests(unittest.TestCase):
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:href>/resource</ns0:href>'
+            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
             '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
             '</ns0:response></ns0:multistatus>')
@@ -290,7 +293,8 @@ class WebTests(unittest.TestCase):
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:href>/resource</ns0:href>'
+            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
             '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
             '</ns0:response></ns0:multistatus>')
@@ -309,7 +313,8 @@ class WebTests(unittest.TestCase):
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:href>/resource</ns0:href>'
+            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
             '</ns0:current-user-principal></ns0:prop></ns0:propstat>'
@@ -339,7 +344,8 @@ class WebTests(unittest.TestCase):
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:href>/resource</ns0:href>'
+            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
             '</ns0:current-user-principal><ns0:somethingelse /></ns0:prop>'

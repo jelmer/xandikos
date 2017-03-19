@@ -33,7 +33,8 @@ import posixpath
 import shutil
 
 from xandikos import __version__ as xandikos_version
-from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
+from xandikos import (access, caldav, carddav, sync, webdav, infit, scheduling,
+                      timezones)
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     TreeGitStore,
@@ -47,7 +48,8 @@ from xandikos.store import (
 )
 from xandikos.vcard import VCardFile
 
-WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
+WELLKNOWN_DAV_PATHS = {caldav.WELLKNOWN_CALDAV_PATH,
+                       carddav.WELLKNOWN_CARDDAV_PATH}
 
 STORE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
@@ -109,7 +111,8 @@ class ObjectResource(webdav.Resource):
     @property
     def file(self):
         if self._file is None:
-            self._file = self.store.get_file(self.name, self.content_type, self.etag)
+            self._file = self.store.get_file(self.name, self.content_type,
+                                             self.etag)
         return self._file
 
     def get_body(self):
@@ -251,8 +254,9 @@ class StoreBasedCollection(object):
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(self, old_token, new_token):
-        for (name, content_type, old_etag, new_etag) in self.store.iter_changes(
-                old_token, new_token):
+        for (name, content_type,
+             old_etag, new_etag) in self.store.iter_changes(
+                 old_token, new_token):
             if old_etag is not None:
                 old_resource = self._get_resource(name, content_type, old_etag)
             else:
@@ -526,7 +530,8 @@ class RootPage(webdav.Resource):
 class Principal(CollectionSetResource):
     """Principal user resource."""
 
-    resource_types = webdav.Collection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
+    resource_types = (webdav.Collection.resource_types +
+                      [webdav.PRINCIPAL_RESOURCE_TYPE])
 
     def get_principal_url(self):
         return '.'
@@ -617,9 +622,11 @@ class XandikosBackend(webdav.Backend):
             except NotStoreError:
                 return CollectionSetResource(self, relpath)
             else:
-                return {STORE_TYPE_CALENDAR: CalendarResource,
-                        STORE_TYPE_ADDRESSBOOK: AddressbookResource,
-                        STORE_TYPE_OTHER: Collection}[store.get_type()](self, relpath, store)
+                return {
+                    STORE_TYPE_CALENDAR: CalendarResource,
+                    STORE_TYPE_ADDRESSBOOK: AddressbookResource,
+                    STORE_TYPE_OTHER: Collection
+                }[store.get_type()](self, relpath, store)
         else:
             (basepath, name) = os.path.split(relpath)
             assert name != '', 'path is %r' % relpath

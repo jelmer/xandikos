@@ -52,7 +52,8 @@ def calendar_component_delta(old_cal, new_cal):
         except KeyError:
             if not by_content.pop(component.to_ical(), None):
                 # Not previously present
-                yield (by_idx.get(idx, component_factory[component.name]()), component)
+                yield (by_idx.get(idx, component_factory[component.name]()),
+                       component)
             by_idx.pop(idx, None)
         else:
             yield (old_component, component)
@@ -97,7 +98,8 @@ def describe_calendar_delta(old_cal, new_cal):
     :yield: Lines describing changes
     """
     # TODO(jelmer): Extend
-    for old_component, new_component in calendar_component_delta(old_cal, new_cal):
+    for old_component, new_component in calendar_component_delta(old_cal,
+                                                                 new_cal):
         if not new_component:
             yield "Deleted %s" % describe_component(old_component)
             continue
@@ -105,13 +107,17 @@ def describe_calendar_delta(old_cal, new_cal):
         if not old_component:
             yield "Added %s" % describe_component(new_component)
             continue
-        for field, old_value, new_value in calendar_prop_delta(old_component, new_component):
+        for field, old_value, new_value in calendar_prop_delta(old_component,
+                                                               new_component):
             if field.upper() in DELTA_IGNORE_FIELDS:
                 continue
             logging.debug("Changed %s/%s or %s/%s from %s to %s.",
                           old_component.name, field, new_component.name, field,
                           old_value, new_value)
-            if old_component.name.upper() == "VTODO" and field.upper() == "STATUS":
+            if (
+                old_component.name.upper() == "VTODO" and
+                field.upper() == "STATUS"
+            ):
                 yield "%s marked as %s" % (description, new_value)
             elif field.upper() == 'DESCRIPTION':
                 yield "changed description of %s" % description

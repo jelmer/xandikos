@@ -203,7 +203,8 @@ class Store(object):
         """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
 
-    def import_one(self, name, data, message=None, author=None, replace_etag=None):
+    def import_one(self, name, data, message=None, author=None,
+                   replace_etag=None):
         """Import a single object.
 
         :param name: Name of the object
@@ -240,7 +241,8 @@ class Store(object):
     def get_type(self):
         """Get type of this store.
 
-        :return: one of [STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR, STORE_TYPE_OTHER]
+        :return: one of [STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
+                         STORE_TYPE_OTHER]
         """
         ret = STORE_TYPE_OTHER
         for (name, content_type, etag) in self.iter_with_etag():
@@ -319,7 +321,8 @@ class GitStore(Store):
     """A Store backed by a Git Repository.
     """
 
-    def __init__(self, repo, ref=b'refs/heads/master', check_for_duplicate_uids=True):
+    def __init__(self, repo, ref=b'refs/heads/master',
+                 check_for_duplicate_uids=True):
         super(GitStore, self).__init__()
         self.ref = ref
         self.repo = repo
@@ -365,7 +368,8 @@ class GitStore(Store):
         :param message: Commit message
         :param author: Optional author
         :param replace_etag: optional etag of object to replace
-        :raise InvalidETag: when the name already exists but with different etag
+        :raise InvalidETag: when the name already exists but with different
+                            etag
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
@@ -404,7 +408,8 @@ class GitStore(Store):
                self._fname_to_uid[name][0] == etag:
                 continue
             blob = self.repo.object_store[sha]
-            fi = open_by_extension(blob.chunked, name, self.extra_file_handlers)
+            fi = open_by_extension(blob.chunked, name,
+                                   self.extra_file_handlers)
             try:
                 uid = fi.get_uid()
             except KeyError:
@@ -524,7 +529,8 @@ class GitStore(Store):
     def set_color(self, color):
         """Set the color code for this store."""
         config = self.repo.get_config()
-        # Strip leading # to work around https://github.com/jelmer/dulwich/issues/511
+        # Strip leading # to work around
+        # https://github.com/jelmer/dulwich/issues/511
         # TODO(jelmer): Drop when that bug gets fixed.
         config.set(
             b'xandikos', b'color',
@@ -550,7 +556,8 @@ class GitStore(Store):
         :param displayname: New display name
         """
         config = self.repo.get_config()
-        config.set(b'xandikos', b'displayname', displayname.encode(DEFAULT_ENCODING))
+        config.set(b'xandikos', b'displayname',
+                   displayname.encode(DEFAULT_ENCODING))
         config.write_to_path()
 
     def set_type(self, store_type):
@@ -594,8 +601,10 @@ class GitStore(Store):
             old_ctag = t.id.decode('ascii')
         previous = {
             name: (content_type, etag)
-            for (name, content_type, etag) in self.iter_with_etag(old_ctag)}
-        for (name, new_content_type, new_etag) in self.iter_with_etag(new_ctag):
+            for (name, content_type, etag) in self.iter_with_etag(old_ctag)
+        }
+        for (name, new_content_type, new_etag) in \
+                self.iter_with_etag(new_ctag):
             try:
                 (old_content_type, old_etag) = previous[name]
             except KeyError:
