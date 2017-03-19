@@ -43,6 +43,9 @@ VALID_STORE_TYPES = (
     STORE_TYPE_CALENDAR,
     STORE_TYPE_OTHER)
 
+MIMETYPES = mimetypes.MimeTypes()
+MIMETYPES.add_type('text/calendar', '.ics')
+MIMETYPES.add_type('text/vcard', '.vcf')
 
 DEFAULT_MIME_TYPE = 'application/octet-stream'
 DEFAULT_ENCODING = 'utf-8'
@@ -115,7 +118,7 @@ def open_by_extension(content, name, extra_file_handlers):
     :param name: Name of file to open
     :return: File instance
     """
-    (mime_type, encoding) = mimetypes.guess_type(name)
+    (mime_type, _) = MIMETYPES.guess_type(name)
     if mime_type is None:
         mime_type = DEFAULT_MIME_TYPE
     return open_by_content_type(content, mime_type,
@@ -375,7 +378,7 @@ class GitStore(Store):
         """
         fi = open_by_content_type(data, content_type, self.extra_file_handlers)
         if name is None:
-            name = str(uuid.uuid4()) + mimetypes.guess_extension(content_type)
+            name = str(uuid.uuid4()) + MIMETYPES.guess_extension(content_type)
         fi.validate()
         try:
             uid = fi.get_uid()
@@ -442,7 +445,7 @@ class GitStore(Store):
         :yield: (name, content_type, etag) tuples
         """
         for (name, mode, sha) in self._iterblobs(ctag):
-            (mime_type, encoding) = mimetypes.guess_type(name)
+            (mime_type, _) = MIMETYPES.guess_type(name)
             if mime_type is None:
                 mime_type = DEFAULT_MIME_TYPE
             yield (name, mime_type, sha.decode('ascii'))
