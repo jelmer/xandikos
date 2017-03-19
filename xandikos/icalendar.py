@@ -67,9 +67,11 @@ def calendar_prop_delta(old_component, new_component):
     for field in fields:
         old_value = old_component.get(field)
         new_value = new_component.get(field)
-        if getattr(old_value, 'to_ical', None) is None or \
-           getattr(new_value, 'to_ical', None) is None or \
-           old_value.to_ical() != new_value.to_ical():
+        if (
+            getattr(old_value, 'to_ical', None) is None or
+            getattr(new_value, 'to_ical', None) is None or
+            old_value.to_ical() != new_value.to_ical()
+        ):
             yield (field, old_value, new_value)
 
 

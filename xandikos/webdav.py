@@ -144,10 +144,9 @@ class NeedsMultiStatus(Exception):
 def propstat_by_status(propstat):
     bystatus = {}
     for propstat in propstat:
-        bystatus \
-            .setdefault((propstat.statuscode,
-                         propstat.responsedescription), []) \
-            .append(propstat.prop)
+        (bystatus
+         .setdefault((propstat.statuscode, propstat.responsedescription), [])
+         .append(propstat.prop))
     return bystatus
 
 
@@ -1182,8 +1181,10 @@ class WebDAVApp(object):
         ) = r.render(accept_content_types, accept_content_languages)
 
         if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
-        if if_none_match and current_etag is not None and \
-           etag_matches(if_none_match, current_etag):
+        if (
+            if_none_match and current_etag is not None and
+            etag_matches(if_none_match, current_etag)
+        ):
             start_response('304 Not Modified', [])
             return []
         headers = [
