@@ -13,6 +13,9 @@ install:
   - pip install coverage
   - sudo apt-get install -qq libneon27-dev
   - python setup.py develop
+  - pip install codecov
 script:
   - make coverage
   - make check-litmus
+after_success:
+  - codecov
