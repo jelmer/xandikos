@@ -10,8 +10,9 @@ env:
   global: PYTHONHASHSEED=random
 install:
   - pip install pip --upgrade
+  - pip install coverage
   - sudo apt-get install -qq libneon27-dev
   - python setup.py develop
 script:
-  - make check
+  - make coverage
   - make check-litmus
