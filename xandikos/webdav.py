@@ -157,7 +157,7 @@ def propstat_as_xml(propstat):
             '{DAV:}status').text = 'HTTP/1.1 ' + status
         if rd:
             ET.SubElement(propstat,
-                '{DAV:}responsedescription').text = responsedescription
+                '{DAV:}responsedescription').text = rd
         propresp = ET.SubElement(propstat, '{DAV:}prop')
         for prop in props:
             propresp.append(prop)
@@ -1094,9 +1094,7 @@ def apply_modify_prop(el, href, resource, properties):
             logging.warning(
                 'client attempted to modify unknown property %r on %r',
                 propel.tag, href)
-            propstat.append(
-                PropStatus('404 Not Found', None,
-                    ET.Element(propel.tag)))
+            yield PropStatus('404 Not Found', None, ET.Element(propel.tag))
         else:
             if el.tag == '{DAV:}remove':
                 newval = None

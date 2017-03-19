@@ -508,7 +508,8 @@ class CalendarQueryReporter(webdav.Reporter):
             elif el.tag == '{urn:ietf:params:xml:ns:caldav}timezone':
                 tztext = el.text
             else:
-                raise NotImplementedError(tag.name)
+                raise webdav.BadRequestError(
+                    'Unknown tag %s in report %s' % (el.tag, self.name))
         if tztext is not None:
             tz = get_pytz_from_text(tztext)
         else:

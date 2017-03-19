@@ -36,10 +36,10 @@ class ScheduleInbox(caldav.Calendar):
     resource_types = caldav.Calendar.resource_types + [SCHEDULE_INBOX_RESOURCE_TYPE]
 
     def get_schedule_inbox_url(self):
-        raise NotImplementedError(elf.get_schedule_inbox_url)
+        raise NotImplementedError(self.get_schedule_inbox_url)
 
     def get_schedule_outbox_url(self):
-        raise NotImplementedError(elf.get_schedule_inbox_url)
+        raise NotImplementedError(self.get_schedule_inbox_url)
 
     def get_calendar_user_type(self):
         # Default, per section 2.4.2

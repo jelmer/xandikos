@@ -273,7 +273,7 @@ class Store(object):
         """
         raise NotImplementedError(self.set_displayname)
 
-    def get_color(Self):
+    def get_color(self):
         """Get the color code for this store."""
         raise NotImplementedError(self.get_color)
 
@@ -449,7 +449,7 @@ class GitStore(Store):
 
         :return: A `GitStore`
         """
-        raise NotImplementedError(self.create)
+        raise NotImplementedError(cls.create)
 
     @classmethod
     def open_from_path(cls, path):
