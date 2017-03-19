@@ -119,7 +119,7 @@ def open_by_extension(content, name, extra_file_handlers):
     if mime_type is None:
         mime_type = DEFAULT_MIME_TYPE
     return open_by_content_type(content, mime_type,
-        extra_file_handlers=extra_file_handlers)
+                                extra_file_handlers=extra_file_handlers)
 
 
 class DuplicateUidError(Exception):
@@ -203,8 +203,7 @@ class Store(object):
         """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
 
-    def import_one(self, name, data, message=None, author=None,
-            replace_etag=None):
+    def import_one(self, name, data, message=None, author=None, replace_etag=None):
         """Import a single object.
 
         :param name: Name of the object
@@ -357,7 +356,7 @@ class GitStore(Store):
         return etag
 
     def import_one(self, name, content_type, data, message=None, author=None,
-            replace_etag=None):
+                   replace_etag=None):
         """Import a single object.
 
         :param name: name of the object
@@ -374,11 +373,6 @@ class GitStore(Store):
         if name is None:
             name = str(uuid.uuid4()) + mimetypes.guess_extension(content_type)
         fi.validate()
-        try:
-            uid = fi.get_uid()
-        except (KeyError, NotImplementedError):
-            uid = None
-        modified = bool(self._check_duplicate(uid, name, replace_etag))
         if message is None:
             try:
                 old_fi = self.get_file(name, content_type, replace_etag)
@@ -406,8 +400,8 @@ class GitStore(Store):
             etag = sha.decode('ascii')
             if name in removed:
                 removed.remove(name)
-            if (name in self._fname_to_uid and
-                self._fname_to_uid[name][0] == etag):
+            if name in self._fname_to_uid and \
+               self._fname_to_uid[name][0] == etag:
                 continue
             blob = self.repo.object_store[sha]
             fi = open_by_extension(blob.chunked, name, self.extra_file_handlers)
@@ -664,8 +658,8 @@ class BareGitStore(GitStore):
             committer = self.repo._get_user_identity()
         except KeyError:
             committer = _DEFAULT_COMMITTER_IDENTITY
-        return self.repo.do_commit(message=message, tree=tree_id,
-                ref=self.ref, committer=committer, author=author)
+        return self.repo.do_commit(message=message, tree=tree_id, ref=self.ref,
+                                   committer=committer, author=author)
 
     def _import_one(self, name, data, message, author=None):
         """Import a single object.
@@ -680,10 +674,10 @@ class BareGitStore(GitStore):
         b.chunked = data
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
-        tree[name_enc] = (0o644|stat.S_IFREG, b.id)
+        tree[name_enc] = (0o644 | stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
-            author=author)
+                          author=author)
         return b.id
 
     def delete_one(self, name, message=None, author=None, etag=None):
@@ -712,7 +706,7 @@ class BareGitStore(GitStore):
                 self.extra_file_handlers)
             message = "Delete " + fi.describe(name)
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
-            author=author)
+                          author=author)
 
     @classmethod
     def create(cls, path):
@@ -756,7 +750,7 @@ class TreeGitStore(GitStore):
         except KeyError:
             committer = _DEFAULT_COMMITTER_IDENTITY
         return self.repo.do_commit(message=message, committer=committer,
-            author=author)
+                                   author=author)
 
     def _import_one(self, name, data, message, author=None):
         """Import a single object.
@@ -793,7 +787,7 @@ class TreeGitStore(GitStore):
             raise NoSuchItem(name)
         if message is None:
             fi = open_by_extension(current_blob.chunked, name,
-                self.extra_file_handlers)
+                                   self.extra_file_handlers)
             message = 'Delete ' + fi.describe(name)
         if etag is not None:
             with open(p, 'rb') as f:

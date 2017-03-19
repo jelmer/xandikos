@@ -89,16 +89,17 @@ class BaseStoreTest(object):
         gc = self.create_store()
         (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
         self.assertRaises(
-                DuplicateUidError, gc.import_one, 'bar.ics',
-                'text/calendar', [EXAMPLE_VCALENDAR1])
+            DuplicateUidError, gc.import_one, 'bar.ics',
+            'text/calendar', [EXAMPLE_VCALENDAR1])
 
     def test_import_one_duplicate_name(self):
         gc = self.create_store()
         (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR2], replace_etag=etag)
+        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR2],
+                                     replace_etag=etag)
         (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
         self.assertRaises(InvalidETag, gc.import_one, 'foo.ics',
-                'text/calendar', [EXAMPLE_VCALENDAR2], replace_etag='invalidetag')
+                          'text/calendar', [EXAMPLE_VCALENDAR2], replace_etag='invalidetag')
 
     def test_get_raw(self):
         gc = self.create_store()
@@ -252,7 +253,7 @@ class GitStoreTest(unittest.TestCase):
         self.assertEqual(gc.repo.path, d)
 
 
-class BareGitStoreTest(BaseGitStoreTest,unittest.TestCase):
+class BareGitStoreTest(BaseGitStoreTest, unittest.TestCase):
 
     kls = BareGitStore
 
@@ -268,7 +269,7 @@ class BareGitStoreTest(BaseGitStoreTest,unittest.TestCase):
     def add_blob(self, gc, name, contents):
         b = Blob.from_string(contents)
         t = Tree()
-        t.add(name.encode('utf-8'), 0o644|stat.S_IFREG, b.id)
+        t.add(name.encode('utf-8'), 0o644 | stat.S_IFREG, b.id)
         c = Commit()
         c.tree = t.id
         c.committer = c.author = b'Somebody <foo@example.com>'
@@ -288,7 +289,7 @@ class BareGitStoreTest(BaseGitStoreTest,unittest.TestCase):
             gc.get_ctag())
 
 
-class TreeGitStoreTest(BaseGitStoreTest,unittest.TestCase):
+class TreeGitStoreTest(BaseGitStoreTest, unittest.TestCase):
 
     kls = TreeGitStore
 

@@ -44,7 +44,7 @@ from xandikos.store import (
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
     STORE_TYPE_OTHER,
-    )
+)
 from xandikos.vcard import VCardFile
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
@@ -103,7 +103,8 @@ class ObjectResource(webdav.Resource):
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
             type(self).__name__, self.store, self.name, self.etag,
-             self.get_content_type())
+            self.get_content_type()
+        )
 
     @property
     def file(self):
@@ -175,14 +176,14 @@ class StoreBasedCollection(object):
     def set_resource_types(self, resource_types):
         # TODO(jelmer): Allow more than just this set; allow combining
         # addressbook/calendar.
-        if set(resource_types) == set(
-            [caldav.CALENDAR_RESOURCE_TYPE, webdav.COLLECTION_RESOURCE_TYPE]):
+        resource_types = set(resource_types)
+        if resource_types == {caldav.CALENDAR_RESOURCE_TYPE,
+                              webdav.COLLECTION_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_CALENDAR)
-        elif set(resource_types) == set(
-            [carddav.ADDRESSBOOK_RESOURCE_TYPE,
-             webdav.COLLECTION_RESOURCE_TYPE]):
+        elif resource_types == {carddav.ADDRESSBOOK_RESOURCE_TYPE,
+                                webdav.COLLECTION_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_ADDRESSBOOK)
-        elif set(resource_types) == set([webdav.COLLECTION_RESOURCE_TYPE]):
+        elif resource_types == {webdav.COLLECTION_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_OTHER)
         else:
             raise NotImplementedError(self.set_resource_types)
@@ -217,7 +218,6 @@ class StoreBasedCollection(object):
             resource = self._get_resource(name, content_type, etag)
             ret.append((name, resource))
         for name in self.store.subdirectories():
-            p = os.path.join(self.store.path, name)
             ret.append((name, self._get_subcollection(name)))
         return ret
 
@@ -242,8 +242,7 @@ class StoreBasedCollection(object):
 
     def create_member(self, name, contents, content_type):
         try:
-            (name, etag) = self.store.import_one(name, content_type,
-                contents)
+            (name, etag) = self.store.import_one(name, content_type, contents)
         except InvalidFileContents:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
@@ -314,11 +313,11 @@ class StoreBasedCollection(object):
             'collection.html', accepted_content_languages, collection=self)
 
 
-class Collection(StoreBasedCollection,webdav.Collection):
+class Collection(StoreBasedCollection, webdav.Collection):
     """A generic WebDAV collection."""
 
 
-class CalendarResource(StoreBasedCollection,caldav.Calendar):
+class CalendarResource(StoreBasedCollection, caldav.Calendar):
 
     def get_calendar_description(self):
         return self.store.get_description()
@@ -361,7 +360,7 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
         raise KeyError
 
 
-class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
+class AddressbookResource(StoreBasedCollection, carddav.Addressbook):
 
     def get_addressbook_description(self):
         return self.store.get_description()
@@ -625,8 +624,8 @@ class XandikosBackend(webdav.Backend):
             (basepath, name) = os.path.split(relpath)
             assert name != '', 'path is %r' % relpath
             store = self.get_resource(basepath)
-            if (store is None or
-                webdav.COLLECTION_RESOURCE_TYPE not in store.resource_types):
+            if store is None or \
+               webdav.COLLECTION_RESOURCE_TYPE not in store.resource_types:
                 return None
             try:
                 return store.get_member(name)
@@ -687,7 +686,7 @@ class XandikosApp(webdav.WebDAVApp):
             caldav.MaxInstancesProperty(),
             caldav.MaxAttendeesPerInstanceProperty(),
             access.GroupMembershipProperty(),
-            ])
+        ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
             caldav.CalendarQueryReporter(),
@@ -695,7 +694,7 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.ExpandPropertyReporter(),
             sync.SyncCollectionReporter(),
             caldav.FreeBusyQueryReporter(),
-            ])
+        ])
 
 
 class WellknownRedirector(object):
@@ -721,7 +720,9 @@ def create_principal_defaults(backend, principal):
     :param backend: Backend in which the principal exists.
     :param principal: Principal object
     """
-    calendar_path = posixpath.join(principal.relpath, principal.get_calendar_home_set()[0], 'calendar')
+    calendar_path = posixpath.join(principal.relpath,
+                                   principal.get_calendar_home_set()[0],
+                                   'calendar')
     try:
         resource = backend.create_collection(calendar_path)
     except FileExistsError:
@@ -729,7 +730,9 @@ def create_principal_defaults(backend, principal):
     else:
         resource.store.set_type(STORE_TYPE_CALENDAR)
         logging.info('Create calendar in %s.', resource.store.path)
-    addressbook_path = posixpath.join(principal.relpath, principal.get_addressbook_home_set()[0], 'addressbook')
+    addressbook_path = posixpath.join(principal.relpath,
+                                      principal.get_addressbook_home_set()[0],
+                                      'addressbook')
     try:
         resource = backend.create_collection(addressbook_path)
     except FileExistsError:
@@ -747,24 +750,24 @@ def main(argv):
     parser.usage = "%prog -d ROOT-DIR [OPTIONS]"
 
     access_group = optparse.OptionGroup(parser, "Access Options")
-    access_group.add_option("-l", "--listen_address", dest="listen_address",
-                      default="localhost",
-                      help="Binding IP address. [%default]")
-    access_group.add_option("-p", "--port", dest="port", type=int,
-                      default=8080,
-                      help="Port to listen on. [%default]")
-    access_group.add_option("--route-prefix",
-                      default="/",
-                      help=("Path to Xandikos. " +
-                            "(useful when Xandikos is behind a reverse proxy) "
-                            "[%default]"))
+    access_group.add_option(
+        "-l", "--listen_address", dest="listen_address", default="localhost",
+        help="Binding IP address. [%default]")
+    access_group.add_option(
+        "-p", "--port", dest="port", type=int, default=8080,
+        help="Port to listen on. [%default]")
+    access_group.add_option(
+        "--route-prefix", default="/", help=(
+            "Path to Xandikos. "
+            "(useful when Xandikos is behind a reverse proxy) "
+            "[%default]"))
     parser.add_option_group(access_group)
-    parser.add_option("-d", "--directory", dest="directory",
-                      default=None,
-                      help="Directory to serve from.")
-    parser.add_option("--current-user-principal",
-                      default="/user/",
-                      help="Path to current user principal. [%default]")
+    parser.add_option(
+        "-d", "--directory", dest="directory", default=None,
+        help="Directory to serve from.")
+    parser.add_option(
+        "--current-user-principal", default="/user/",
+        help="Path to current user principal. [%default]")
     parser.add_option("--autocreate",
                       action="store_true",
                       dest="autocreate",

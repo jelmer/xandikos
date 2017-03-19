@@ -10,12 +10,13 @@ env:
   global: PYTHONHASHSEED=random
 install:
   - pip install pip --upgrade
-  - pip install coverage
+  - pip install coverage codecov flake8
   - sudo apt-get install -qq libneon27-dev
   - python setup.py develop
-  - pip install codecov
 script:
   - make coverage
+  - make style
+  - make check
   - make check-litmus
 after_success:
   - codecov

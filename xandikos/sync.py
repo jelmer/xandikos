@@ -86,7 +86,7 @@ class SyncCollectionReporter(webdav.Reporter):
                 for prop in requested:
                     propstat.append(
                         webdav.PropStatus('404 Not Found', None,
-                            ET.Element(prop.tag)))
+                                          ET.Element(prop.tag)))
             else:
                 for prop in requested:
                     if old_resource is not None:
@@ -95,11 +95,11 @@ class SyncCollectionReporter(webdav.Reporter):
                     else:
                         old_propstat = None
                     new_propstat = webdav.get_property(
-                            href, new_resource, properties, prop.tag)
+                        href, new_resource, properties, prop.tag)
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
             yield webdav.Status(
-                urllib.parse.urljoin(href+'/', name), propstat=propstat)
+                urllib.parse.urljoin(href + '/', name), propstat=propstat)
         # TODO(jelmer): This is a bit of a hack..
         yield SyncToken(new_token)
 

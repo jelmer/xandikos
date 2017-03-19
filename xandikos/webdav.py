@@ -143,9 +143,9 @@ class NeedsMultiStatus(Exception):
 def propstat_by_status(propstat):
     bystatus = {}
     for propstat in propstat:
-        bystatus.setdefault(
-            (propstat.statuscode, propstat.responsedescription), []).append(
-                    propstat.prop)
+        bystatus \
+            .setdefault((propstat.statuscode, propstat.responsedescription), []) \
+            .append(propstat.prop)
     return bystatus
 
 
@@ -153,8 +153,7 @@ def propstat_as_xml(propstat):
     bystatus = propstat_by_status(propstat)
     for (status, rd), props in sorted(bystatus.items()):
         propstat = ET.Element('{DAV:}propstat')
-        ET.SubElement(propstat,
-            '{DAV:}status').text = 'HTTP/1.1 ' + status
+        ET.SubElement(propstat, '{DAV:}status').text = 'HTTP/1.1 ' + status
         if rd:
             ET.SubElement(propstat,
                 '{DAV:}responsedescription').text = rd
@@ -209,8 +208,7 @@ class Status(object):
         if self.error:
             ET.SubElement(ret, '{DAV:}error').append(self.error)
         if self.responsedescription:
-            ET.SubElement(ret,
-                '{DAV:}responsedescription').text = self.responsedescription
+            ET.SubElement(ret, '{DAV:}responsedescription').text = self.responsedescription
         if self.propstat is not None:
             for ps in propstat_as_xml(self.propstat):
                 ret.append(ps)
@@ -221,8 +219,7 @@ def multistatus(req_fn):
 
     def wrapper(self, environ, start_response, *args, **kwargs):
         responses = req_fn(self, environ, *args, **kwargs)
-        return _send_dav_responses(start_response, responses,
-                DEFAULT_ENCODING)
+        return _send_dav_responses(start_response, responses, DEFAULT_ENCODING)
 
     return wrapper
 
@@ -518,7 +515,7 @@ LOCK_TYPE_WRITE = '{DAV:}write'
 
 ActiveLock = collections.namedtuple(
     'ActiveLock',
-    ['lockscope', 'locktype', 'depth', 'owner', 'timeout','locktoken',
+    ['lockscope', 'locktype', 'depth', 'owner', 'timeout', 'locktoken',
         'lockroot'])
 
 
@@ -880,7 +877,7 @@ def create_href(href, base_href=None):
         logging.warning('invalidly formatted href: %s' % href)
     et = ET.Element('{DAV:}href')
     if base_href is not None:
-        href = urllib.parse.urljoin(base_href+'/', href)
+        href = urllib.parse.urljoin(base_href + '/', href)
     et.text = urllib.parse.quote(href)
     return et
 
@@ -1048,8 +1045,7 @@ def _send_dav_responses(start_response, responses, out_encoding):
     ret = ET.Element('{DAV:}multistatus')
     for response in responses:
         ret.append(response.aselement())
-    return _send_xml_response(start_response, '207 Multi-Status',
-        ret, out_encoding)
+    return _send_xml_response(start_response, '207 Multi-Status', ret, out_encoding)
 
 
 def _send_simple_dav_error(environ, start_response, statuscode, error):
@@ -1169,8 +1165,8 @@ class WebDAVApp(object):
         (body, content_length, current_etag, content_type, content_languages) = r.render(
             accept_content_types, accept_content_languages)
         if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
-        if (if_none_match and current_etag is not None and
-            etag_matches(if_none_match, current_etag)):
+        if if_none_match and current_etag is not None and \
+           etag_matches(if_none_match, current_etag):
             start_response('304 Not Modified', [])
             return []
         headers = [
@@ -1217,7 +1213,7 @@ class WebDAVApp(object):
         unused_href, path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
-        if not COLLECTION_RESOURCE_TYPE in r.resource_types:
+        if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             start_response('405 Method Not Allowed', [])
             return []
         content_type = environ['CONTENT_TYPE'].split(';')[0]
@@ -1227,10 +1223,8 @@ class WebDAVApp(object):
             return _send_simple_dav_error(
                 environ, start_response, '412 Precondition Failed',
                 error=ET.Element(e.precondition))
-        href = environ['SCRIPT_NAME'] + urllib.parse.urljoin(path+'/', name)
-        start_response('200 OK', [
-            ('Location', href)
-            ])
+        href = environ['SCRIPT_NAME'] + urllib.parse.urljoin(path + '/', name)
+        start_response('200 OK', [('Location', href)])
         return []
 
     def do_PUT(self, environ, start_response):
@@ -1283,7 +1277,7 @@ class WebDAVApp(object):
             return [environ['wsgi.input'].read(request_body_size)]
 
     def _readXmlBody(self, environ, expected_tag=None):
-        #TODO(jelmer): check Content-Type; should be something like
+        # TODO(jelmer): check Content-Type; should be something like
         # 'text/xml; charset="utf-8"'
         body = b''.join(self._readBody(environ))
         try:
@@ -1316,13 +1310,16 @@ class WebDAVApp(object):
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
-            logging.warning( 'Client requested unknown REPORT %s',
-                et.tag)
-            return _send_simple_dav_error(environ, start_response,
-                '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
+            logging.warning('Client requested unknown REPORT %s', et.tag)
+            return _send_simple_dav_error(
+                environ, start_response,
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report')
+            )
         if not reporter.supported_on(r):
-            return _send_simple_dav_error(environ, start_response,
-                '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
+            return _send_simple_dav_error(
+                environ, start_response,
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report')
+            )
         return reporter.report(
             environ, start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
             self.properties, base_href, r, depth)
@@ -1407,7 +1404,6 @@ class WebDAVApp(object):
             start_response('409 Conflict', [])
             return []
         el = ET.Element('{DAV:}resourcetype')
-        existing_resource_types = self.properties['{DAV:}resourcetype'].get_value(href, resource, el)
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         self.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):
@@ -1421,7 +1417,7 @@ class WebDAVApp(object):
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
             return _send_xml_response(start_response, '201 Created',
-                ret, DEFAULT_ENCODING)
+                                      ret, DEFAULT_ENCODING)
         else:
             start_response('201 Created', [])
             return []
@@ -1451,8 +1447,7 @@ class WebDAVApp(object):
             ret = ET.Element('{DAV:}mkcol-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
-            return _send_xml_response(start_response, '201 Created',
-                ret, DEFAULT_ENCODING)
+            return _send_xml_response(start_response, '201 Created', ret, DEFAULT_ENCODING)
         else:
             start_response('201 Created', [])
             return []
@@ -1489,4 +1484,4 @@ class WebDAVApp(object):
         if do is not None:
             return do(environ, start_response)
         return _send_method_not_allowed(environ, start_response,
-            self._get_allowed_methods(environ))
+                                        self._get_allowed_methods(environ))
