@@ -24,7 +24,7 @@
 import logging
 
 from icalendar.cal import Calendar, component_factory
-from xandikos.store import File
+from xandikos.store import File, InvalidFileContents
 
 
 def calendar_component_delta(old_cal, new_cal):
@@ -139,6 +139,13 @@ class ICalendarFile(File):
         super(ICalendarFile, self).__init__(content, content_type)
         self._calendar = None
 
+    def validate(self):
+        """Verify that file contents are valid."""
+        try:
+            self.calendar
+        except ValueError:
+            raise InvalidFileContents(self.content_type, self.content)
+
     @property
     def calendar(self):
         if self._calendar is None:
@@ -161,6 +168,7 @@ class ICalendarFile(File):
                 return describe_component(component)
             except KeyError:
                 pass
+        return super(ICalendarFile, self).describe(name)
 
     def get_uid(self):
         """Extract the UID from a VCalendar file.

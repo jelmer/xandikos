@@ -21,10 +21,9 @@
 
 https://tools.ietf.org/html/rfc6352
 """
-import defusedxml.ElementTree
-from xml.etree import ElementTree as ET
-
 from xandikos import davcommon, webdav
+
+ET = webdav.ET
 
 WELLKNOWN_CARDDAV_PATH = "/.well-known/carddav"
 
@@ -48,6 +47,7 @@ class AddressbookHomeSetProperty(webdav.Property):
 
     def get_value(self, base_href, resource, el):
         for href in resource.get_addressbook_home_set():
+            href = webdav.ensure_trailing_slash(href)
             el.append(webdav.create_href(href, base_href))
 
 
@@ -105,6 +105,9 @@ class Addressbook(webdav.Collection):
 
     def get_addressbook_color(self):
         raise NotImplementedError(self.get_addressbook_color)
+
+    def set_addressbook_color(self, color):
+        raise NotImplementedError(self.set_addressbook_color)
 
     def get_supported_address_data_types(self):
         """Get list of supported data types.

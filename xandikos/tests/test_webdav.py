@@ -20,12 +20,11 @@
 from io import BytesIO
 import logging
 import unittest
-import defusedxml.ElementTree
-from wsgiref.util import request_uri, setup_testing_defaults
-from xml.etree import ElementTree as ET
+from wsgiref.util import setup_testing_defaults
 
 from xandikos.webdav import (
     Collection,
+    ET,
     Property,
     Resource,
     WebDAVApp,
@@ -60,6 +59,18 @@ class WebTests(unittest.TestCase):
 
     def lock(self, app, path):
         return self._method(app, 'LOCK', path)
+
+    def mkcalendar(self, app, path):
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCALENDAR',
+                   'SCRIPT_NAME': ''}
+        setup_testing_defaults(environ)
+        _code = []
+        _headers = []
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+        contents = b''.join(app(environ, start_response))
+        return _code[0], _headers, contents
 
     def mkcol(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL',
@@ -175,7 +186,7 @@ class WebTests(unittest.TestCase):
         code, headers, contents = self.lock(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertIn(
-            ('Allow', 'DELETE, GET, HEAD, MKCOL, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT'),
+            ('Allow', 'DELETE, GET, HEAD, MKCALENDAR, MKCOL, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT'),
             headers)
         self.assertEqual(b'', contents)
 
@@ -187,6 +198,29 @@ class WebTests(unittest.TestCase):
                 return None
         app = WebDAVApp(Backend())
         code, headers, contents = self.mkcol(app, '/resource/bla')
+        self.assertEqual('201 Created', code)
+        self.assertEqual(b'', contents)
+
+    def test_mkcalendar_ok(self):
+        class Backend(object):
+            def create_collection(self, relpath):
+                pass
+            def get_resource(self, relpath):
+                return None
+        class ResourceTypeProperty(Property):
+            name = '{DAV:}resourcetype'
+
+            def get_value(unused_self, href, resource, ret):
+                ET.SubElement(ret, '{DAV:}collection')
+
+            def set_value(unused_self, href, resource, ret):
+                self.assertEqual(
+                    ['{DAV:}collection', '{urn:ietf:params:xml:ns:caldav}calendar'],
+                    [x.tag for x in ret])
+
+        app = WebDAVApp(Backend())
+        app.register_properties([ResourceTypeProperty()])
+        code, headers, contents = self.mkcalendar(app, '/resource/bla')
         self.assertEqual('201 Created', code)
         self.assertEqual(b'', contents)
 

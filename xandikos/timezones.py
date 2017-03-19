@@ -22,10 +22,7 @@
 See http://www.webdav.org/specs/rfc7809.html
 """
 
-from defusedxml.ElementTree import fromstring as xmlparse
-from xml.etree import ElementTree as ET
-
-from xandikos import caldav, webdav
+from xandikos import webdav
 
 
 class TimezoneServiceSetProperty(webdav.Property):

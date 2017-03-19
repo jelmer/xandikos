@@ -22,10 +22,8 @@
 https://tools.ietf.org/html/rfc4791
 """
 import datetime
-import defusedxml.ElementTree
 import logging
 import pytz
-from xml.etree import ElementTree as ET
 
 from icalendar.cal import (
     component_factory,
@@ -35,10 +33,8 @@ from icalendar.cal import (
 from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
 
 from xandikos import davcommon, webdav
-from xandikos.webdav import (
-    WebDAVApp,
-    traverse_resource,
-    )
+
+ET = webdav.ET
 
 PRODID = '-//Jelmer Vernooĳ//Xandikos//EN'
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
@@ -63,6 +59,10 @@ class Calendar(webdav.Collection):
     def get_calendar_color(self):
         """Return the calendar color."""
         raise NotImplementedError(self.get_calendar_color)
+
+    def set_calendar_color(self, color):
+        """Set the calendar color."""
+        raise NotImplementedError(self.set_calendar_color)
 
     def get_calendar_timezone(self):
         """Return calendar timezone.
@@ -146,6 +146,7 @@ class CalendarHomeSetProperty(webdav.Property):
 
     def get_value(self, base_href, resource, el):
         for href in resource.get_calendar_home_set():
+            href = webdav.ensure_trailing_slash(href)
             el.append(webdav.create_href(href, base_href))
 
 
@@ -507,13 +508,14 @@ class CalendarQueryReporter(webdav.Reporter):
             elif el.tag == '{urn:ietf:params:xml:ns:caldav}timezone':
                 tztext = el.text
             else:
-                raise NotImplementedError(tag.name)
+                raise webdav.BadRequestError(
+                    'Unknown tag %s in report %s' % (el.tag, self.name))
         if tztext is not None:
             tz = get_pytz_from_text(tztext)
         else:
             tz = get_calendar_timezone(base_resource)
         tzify = lambda dt: as_tz_aware_ts(dt, tz)
-        for (href, resource) in traverse_resource(
+        for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth):
             if not apply_filter(filter_el, resource, tzify):
                 continue
@@ -533,6 +535,9 @@ class CalendarColorProperty(webdav.Property):
 
     def get_value(self, href, resource, el):
         el.text = resource.get_calendar_color()
+
+    def set_value(self, href, resource, el):
+        resource.set_calendar_color(el.text)
 
 
 class SupportedCalendarComponentSetProperty(webdav.Property):
@@ -726,7 +731,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
         fb['DTSTART'] = vDDDTypes(start)
         fb['DTEND'] = vDDDTypes(end)
         fb['FREEBUSY'] = list(iter_freebusy(
-            traverse_resource(base_resource, base_href, depth),
+            webdav.traverse_resource(base_resource, base_href, depth),
             start, end, tzify))
         ret.add_component(fb)
         start_response('200 OK', [])

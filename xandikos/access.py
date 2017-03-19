@@ -22,10 +22,9 @@
 See http://www.webdav.org/specs/rfc3744.html
 """
 
-from defusedxml.ElementTree import fromstring as xmlparse
-from xml.etree import ElementTree as ET
-
 from xandikos import webdav
+
+ET = webdav.ET
 
 # Feature to advertise access control support.
 FEATURE = 'access-control'
@@ -60,7 +59,7 @@ class OwnerProperty(webdav.Property):
     def get_value(self, base_href, resource, el):
        owner_href = resource.get_owner()
        if owner_href is not None:
-           el.append(webdav.create_href(owner_href, base_href=href))
+           el.append(webdav.create_href(owner_href, base_href=base_href))
 
 
 class GroupMembershipProperty(webdav.Property):

@@ -24,16 +24,13 @@ import shutil
 import stat
 import unittest
 
-from icalendar.cal import Calendar
-
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
-    File, InvalidETag, NoSuchItem,
-    logger as store_logger)
+    File, InvalidETag, NoSuchItem)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -170,17 +167,6 @@ class BaseStoreTest(object):
                  ('bar.ics', 'text/calendar', etag2)]),
             set(gc.iter_with_etag()))
 
-    def test_lookup_uid_nonexistant(self):
-        gc = self.create_store()
-        self.assertRaises(KeyError, gc.lookup_uid, 'someuid')
-
-    def test_lookup_uid(self):
-        gc = self.create_store()
-        (name, etag) = gc.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        self.assertEqual(
-            ('foo.ics', etag),
-            gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
-
 
 class BaseGitStoreTest(BaseStoreTest):
 
@@ -206,7 +192,7 @@ class BaseGitStoreTest(BaseStoreTest):
         self.assertEqual(
             [('foo.ics', 'text/calendar', bid)],
             list(gc.iter_with_etag()))
-        gc._scan_ids()
+        gc._scan_uids()
         logging.getLogger('').setLevel(logging.NOTSET)
 
     def test_iter_with_etag(self):
@@ -215,9 +201,6 @@ class BaseGitStoreTest(BaseStoreTest):
         self.assertEqual(
             [('foo.ics', 'text/calendar', bid)],
             list(gc.iter_with_etag()))
-        self.assertEqual(
-            ('foo.ics', bid),
-            gc.lookup_uid('bdc22720-b9e1-42c9-89c2-a85405d8fbff'))
 
     def test_get_description(self):
         gc = self.create_store()
@@ -244,6 +227,10 @@ class BaseGitStoreTest(BaseStoreTest):
         if getattr(c, 'path', None):
             c.write_to_path()
         self.assertEqual('334433', gc.get_color())
+
+    def test_default_no_subdirectories(self):
+        gc = self.create_store()
+        self.assertEqual([], gc.subdirectories())
 
 
 class GitStoreTest(unittest.TestCase):

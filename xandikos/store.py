@@ -58,6 +58,13 @@ class File(object):
         self.content = content
         self.content_type = content_type
 
+    def validate(self):
+        """Verify that file contents are valid.
+
+        :raise InvalidFileContents: Raised if a file is not valid
+        """
+        pass
+
     def describe(self, name):
         """Describe the contents of this file.
 
@@ -81,10 +88,13 @@ class File(object):
         :param previous: Previous file to compare to.
         :return: List of strings describing change
         """
+        assert name is not None
+        item_description = self.describe(name)
+        assert item_description is not None
         if previous is None:
-            yield "Added " + self.describe(name)
+            yield "Added " + item_description
         else:
-            yield "Modified " + self.describe(name)
+            yield "Modified " + item_description
 
 
 def open_by_content_type(content, content_type, extra_file_handlers):
@@ -142,6 +152,14 @@ class NotStoreError(Exception):
 
     def __init__(self, path):
         self.path = path
+
+
+class InvalidFileContents(Exception):
+    """Invalid file contents."""
+
+    def __init__(self, content_type, data):
+        self.content_type = content_type
+        self.data = data
 
 
 class Store(object):
@@ -212,15 +230,6 @@ class Store(object):
         """
         raise NotImplementedError(self.delete_one)
 
-    def lookup_uid(self, uid):
-        """Lookup an item by UID.
-
-        :param uid: UID to look up as string
-        :raise KeyError: if no such uid exists
-        :return: (name, etag) tuple
-        """
-        raise NotImplementedError(self.lookup_uid)
-
     def set_type(self, store_type):
         """Set store type.
 
@@ -259,9 +268,18 @@ class Store(object):
         """
         raise NotImplementedError(self.get_displayname)
 
-    def get_color(Self):
+    def set_displayname(self):
+        """Set the display name of this store.
+        """
+        raise NotImplementedError(self.set_displayname)
+
+    def get_color(self):
         """Get the color code for this store."""
         raise NotImplementedError(self.get_color)
+
+    def set_color(self, color):
+        """Set the color code for this store."""
+        raise NotImplementedError(self.set_color)
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.
@@ -290,17 +308,25 @@ class Store(object):
         """Destroy this store."""
         raise NotImplementedError(self.destroy)
 
+    def subdirectories(self):
+        """Returns subdirectories to probe for other stores.
+
+        :return: List of names
+        """
+        raise NotImplementedError(self.subdirectories)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository.
     """
 
-    def __init__(self, repo, ref=b'refs/heads/master'):
+    def __init__(self, repo, ref=b'refs/heads/master', check_for_duplicate_uids=True):
         super(GitStore, self).__init__()
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
         self._uid_to_fname = {}
+        self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
 
@@ -311,21 +337,11 @@ class GitStore(Store):
     def path(self):
         return self.repo.path
 
-    def lookup_uid(self, uid):
-        """Lookup an item by UID.
-
-        :param uid: UID to look up as string
-        :raise KeyError: if no such uid exists
-        :return: (name, etag) tuple
-        """
-        self._scan_ids()
-        return self._uid_to_fname[uid]
-
     def _check_duplicate(self, uid, name, replace_etag):
-        self._scan_ids()
-        if uid is not None:
+        if uid is not None and self._check_for_duplicate_uids:
+            self._scan_uids()
             try:
-                (existing_name, _) = self.lookup_uid(uid)
+                (existing_name, _) = self._uid_to_fname[uid]
             except KeyError:
                 pass
             else:
@@ -357,7 +373,7 @@ class GitStore(Store):
         fi = open_by_content_type(data, content_type, self.extra_file_handlers)
         if name is None:
             name = str(uuid.uuid4()) + mimetypes.guess_extension(content_type)
-        # TODO(jelmer): Verify that 'data' actually represents a valid object
+        fi.validate()
         try:
             uid = fi.get_uid()
         except (KeyError, NotImplementedError):
@@ -384,7 +400,7 @@ class GitStore(Store):
         blob = self.repo.object_store[etag.encode('ascii')]
         return blob.chunked
 
-    def _scan_ids(self):
+    def _scan_uids(self):
         removed = set(self._fname_to_uid.keys())
         for (name, mode, sha) in self._iterblobs():
             etag = sha.decode('ascii')
@@ -433,7 +449,7 @@ class GitStore(Store):
 
         :return: A `GitStore`
         """
-        raise NotImplementedError(self.create)
+        raise NotImplementedError(cls.create)
 
     @classmethod
     def open_from_path(cls, path):
@@ -511,6 +527,16 @@ class GitStore(Store):
         else:
             return color.decode(DEFAULT_ENCODING)
 
+    def set_color(self, color):
+        """Set the color code for this store."""
+        config = self.repo.get_config()
+        # Strip leading # to work around https://github.com/jelmer/dulwich/issues/511
+        # TODO(jelmer): Drop when that bug gets fixed.
+        config.set(
+            b'xandikos', b'color',
+            color.lstrip('#').encode(DEFAULT_ENCODING) if color else b'')
+        config.write_to_path()
+
     def get_displayname(self):
         """Get display name.
 
@@ -523,6 +549,15 @@ class GitStore(Store):
             return None
         else:
             return displayname.decode(DEFAULT_ENCODING)
+
+    def set_displayname(self, displayname):
+        """Set the display name.
+
+        :param displayname: New display name
+        """
+        config = self.repo.get_config()
+        config.set(b'xandikos', b'displayname', displayname.encode(DEFAULT_ENCODING))
+        config.write_to_path()
 
     def set_type(self, store_type):
         """Set store type.
@@ -583,6 +618,7 @@ class GitStore(Store):
     def destroy(self):
         """Destroy this store."""
         shutil.rmtree(self.path)
+
 
 class BareGitStore(GitStore):
     """A Store backed by a bare git repository."""
@@ -687,6 +723,15 @@ class BareGitStore(GitStore):
         os.mkdir(path)
         return cls(dulwich.repo.Repo.init_bare(path))
 
+    def subdirectories(self):
+        """Returns subdirectories to probe for other stores.
+
+        :return: List of names
+        """
+        # Or perhaps just return all subdirectories but filter out
+        # Git-owned ones?
+        return []
+
 
 class TreeGitStore(GitStore):
     """A Store that backs onto a treefull Git repository."""
@@ -779,6 +824,20 @@ class TreeGitStore(GitStore):
             for (name, sha, mode) in index.iterblobs():
                 name = name.decode(DEFAULT_ENCODING)
                 yield (name, mode, sha)
+
+    def subdirectories(self):
+        """Returns subdirectories to probe for other stores.
+
+        :return: List of names
+        """
+        ret = []
+        for name in os.listdir(self.path):
+            if name == dulwich.repo.CONTROLDIR:
+                continue
+            p = os.path.join(self.path, name)
+            if os.path.isdir(p):
+                ret.append(name)
+        return ret
 
 
 def open_store(location):

@@ -1,5 +1,5 @@
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2017 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -16,3 +16,19 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
+
+"""VCard file handling.
+
+"""
+
+from .store import File, InvalidFileContents
+
+
+class VCardFile(File):
+    content_type = 'text/vcard'
+
+    def validate(self):
+        c = b''.join(self.content)
+        if not c.startswith((b'BEGIN:VCARD\r\n', b'BEGIN:VCARD\n')) or \
+           not c.endswith(b'\nEND:VCARD'):
+            raise InvalidFileContents(self.content_type, self.content)

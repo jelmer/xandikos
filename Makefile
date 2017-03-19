@@ -1,5 +1,6 @@
 PYTHON ?= python3
-COVERAGE ?= python3-coverage
+COVERAGE ?= $(PYTHON) -m coverage
+COVERAGE_RUN_OPTIONS ?=
 TESTSUITE = xandikos.tests.test_suite
 
 check:
@@ -20,7 +21,7 @@ check-caldavtester:
 check-all: check check-caldavtester check-litmus
 
 coverage:
-	$(COVERAGE) run --source=xandikos -m unittest $(TESTSUITE)
+	$(COVERAGE) run $(COVERAGE_RUN_OPTIONS) --source=xandikos -m unittest $(TESTSUITE)
 
 coverage-html: coverage
 	$(COVERAGE) html

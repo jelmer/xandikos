@@ -19,11 +19,9 @@
 
 """Common functions for DAV implementations."""
 
-from defusedxml.ElementTree import fromstring as xmlparse
-# Hmm, defusedxml doesn't have XML generation functions? :(
-from xml.etree import ElementTree as ET
-
 from xandikos import webdav
+
+ET = webdav.ET
 
 
 class SubbedProperty(webdav.Property):
@@ -75,7 +73,8 @@ class MultiGetReporter(webdav.Reporter):
             elif el.tag == '{DAV:}href':
                 hrefs.append(webdav.read_href_element(el))
             else:
-                raise NotImplementedError(tag.name)
+                raise webdav.BadRequestError(
+                    'Unknown tag %s in report %s' % (el.tag, self.name))
         for (href, resource) in resources_by_hrefs(hrefs):
             if resource is None:
                 yield webdav.Status(href, '404 Not Found', propstat=[])

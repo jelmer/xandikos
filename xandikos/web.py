@@ -25,22 +25,27 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import functools
+import hashlib
+import jinja2
 import logging
 import os
 import posixpath
 import shutil
 
+from xandikos import __version__ as xandikos_version
 from xandikos import access, caldav, carddav, sync, webdav, infit, scheduling, timezones
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     TreeGitStore,
     GitStore,
+    InvalidFileContents,
     NoSuchItem,
     NotStoreError,
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
     STORE_TYPE_OTHER,
     )
+from xandikos.vcard import VCardFile
 
 WELLKNOWN_DAV_PATHS = set([caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH])
 
@@ -50,14 +55,23 @@ CALENDAR_HOME_SET = ['calendars']
 ADDRESSBOOK_HOME_SET = ['contacts']
 USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 
-ROOT_PAGE_CONTENTS = b"""\
-<html>
-  <body>
-    This is a Xandikos WebDAV server. See
-    <a href="https://github.com/jelmer/xandikos">
-    https://github.com/jelmer/xandikos</a>.
-  </body>
-</html>"""
+TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
+jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
+
+
+def render_jinja_page(name, accepted_content_languages, **kwargs):
+    """Render a HTML page from jinja template.
+
+    :param name: Name of the page
+    :param accepted_content_languages: List of accepted content languages
+    :return: TUple of (body, content_length, etag, content_type, languages)
+    """
+    # TODO(jelmer): Support rendering other languages
+    encoding = 'utf-8'
+    template = jinja_env.get_template(name)
+    body = template.render(version=xandikos_version, **kwargs).encode(encoding)
+    return ([body], len(body), None, 'text/html; encoding=%s' % encoding,
+            ['en-UK'])
 
 
 def create_strong_etag(etag):
@@ -101,9 +115,15 @@ class ObjectResource(webdav.Resource):
         return self.file.content
 
     def set_body(self, data, replace_etag=None):
-        (name, etag) = self.store.import_one(
-            self.name, self.content_type, data,
-            replace_etag=extract_strong_etag(replace_etag))
+        try:
+            (name, etag) = self.store.import_one(
+                self.name, self.content_type, data,
+                replace_etag=extract_strong_etag(replace_etag))
+        except InvalidFileContents:
+            # TODO(jelmer): Not every invalid file is a calendar file..
+            raise webdav.PreconditionFailure(
+                '{%s}valid-calendar-data' % caldav.NAMESPACE,
+                'Not a valid calendar file.')
         return create_strong_etag(etag)
 
     def get_content_language(self):
@@ -144,21 +164,43 @@ class ObjectResource(webdav.Resource):
 
 class StoreBasedCollection(object):
 
-    def __init__(self, store):
+    def __init__(self, backend, relpath, store):
+        self.backend = backend
+        self.relpath = relpath
         self.store = store
 
     def __repr__(self):
-        return "%s(%r)" % (
-            type(self).__name__, self.store)
+        return "%s(%r)" % (type(self).__name__, self.store)
+
+    def set_resource_types(self, resource_types):
+        # TODO(jelmer): Allow more than just this set; allow combining
+        # addressbook/calendar.
+        if set(resource_types) == set(
+            [caldav.CALENDAR_RESOURCE_TYPE, webdav.COLLECTION_RESOURCE_TYPE]):
+            self.store.set_type(STORE_TYPE_CALENDAR)
+        elif set(resource_types) == set(
+            [carddav.ADDRESSBOOK_RESOURCE_TYPE,
+             webdav.COLLECTION_RESOURCE_TYPE]):
+            self.store.set_type(STORE_TYPE_ADDRESSBOOK)
+        elif set(resource_types) == set([webdav.COLLECTION_RESOURCE_TYPE]):
+            self.store.set_type(STORE_TYPE_OTHER)
+        else:
+            raise NotImplementedError(self.set_resource_types)
 
     def _get_resource(self, name, content_type, etag):
         return ObjectResource(self.store, name, content_type, etag)
+
+    def _get_subcollection(self, name):
+        return self.backend.get_resource(posixpath.join(self.relpath, name))
 
     def get_displayname(self):
         displayname = self.store.get_displayname()
         if displayname is None:
             return os.path.basename(self.store.repo.path)
         return displayname
+
+    def set_displayname(self, displayname):
+        self.store.set_displayname(displayname)
 
     def get_sync_token(self):
         return self.store.get_ctag()
@@ -174,6 +216,9 @@ class StoreBasedCollection(object):
         for (name, content_type, etag) in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
             ret.append((name, resource))
+        for name in self.store.subdirectories():
+            p = os.path.join(self.store.path, name)
+            ret.append((name, self._get_subcollection(name)))
         return ret
 
     def get_member(self, name):
@@ -182,9 +227,12 @@ class StoreBasedCollection(object):
             if name == fname:
                 return self._get_resource(name, content_type, fetag)
         else:
+            if name in self.store.subdirectories():
+                return self._get_subcollection(name)
             raise KeyError(name)
 
     def delete_member(self, name, etag=None):
+        assert name != ''
         try:
             self.store.delete_one(name, etag=extract_strong_etag(etag))
         except NoSuchItem:
@@ -193,8 +241,14 @@ class StoreBasedCollection(object):
             shutil.rmtree(os.path.join(self.store.path, name))
 
     def create_member(self, name, contents, content_type):
-        (name, etag) = self.store.import_one(name, content_type,
-            contents)
+        try:
+            (name, etag) = self.store.import_one(name, content_type,
+                contents)
+        except InvalidFileContents:
+            # TODO(jelmer): Not every invalid file is a calendar file..
+            raise webdav.PreconditionFailure(
+                '{%s}valid-calendar-data' % caldav.NAMESPACE,
+                'Not a valid calendar file.')
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(self, old_token, new_token):
@@ -249,12 +303,19 @@ class StoreBasedCollection(object):
         # RFC2518, section 8.6.2 says this should recursively delete.
         self.store.destroy()
 
+    def get_body(self):
+        raise NotImplementedError(self.get_body)
+
+    def render(self, accepted_content_types, accepted_content_languages):
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ['text/html'])
+        assert content_types == ['text/html']
+        return render_jinja_page(
+            'collection.html', accepted_content_languages, collection=self)
+
 
 class Collection(StoreBasedCollection,webdav.Collection):
     """A generic WebDAV collection."""
-
-    def __init__(self, store):
-        self.store = store
 
 
 class CalendarResource(StoreBasedCollection,caldav.Calendar):
@@ -269,6 +330,9 @@ class CalendarResource(StoreBasedCollection,caldav.Calendar):
         if color and color[0] != '#':
             color = '#' + color
         return color
+
+    def set_calendar_color(self, color):
+        self.store.set_color(color)
 
     def get_calendar_timezone(self):
         # TODO(jelmer): Read a magic file from the store?
@@ -312,6 +376,9 @@ class AddressbookResource(StoreBasedCollection,carddav.Addressbook):
     def get_max_image_size(self):
         # No resource limit
         raise KeyError
+
+    def set_addressbook_color(self, color):
+        self.store.set_color(color)
 
     def get_addressbook_color(self):
         color = self.store.get_color()
@@ -401,6 +468,12 @@ class CollectionSetResource(webdav.Collection):
         # RFC2518, section 8.6.2 says this should recursively delete.
         shutil.rmtree(p)
 
+    def render(self, accepted_content_types, accepted_content_languages):
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ['text/html'])
+        assert content_types == ['text/html']
+        return render_jinja_page('root.html', accepted_content_languages)
+
 
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
@@ -410,11 +483,17 @@ class RootPage(webdav.Resource):
     def __init__(self, backend):
         self.backend = backend
 
+    def render(self, accepted_content_types, accepted_content_languages):
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ['text/html'])
+        assert content_types == ['text/html']
+        return render_jinja_page('root.html', accepted_content_languages)
+
     def get_body(self):
-        return [ROOT_PAGE_CONTENTS]
+        raise NotImplementedError(self.get_body)
 
     def get_content_length(self):
-        return len(b''.join(self.get_body()))
+        raise NotImplementedError(self.get_content_length)
 
     def get_content_type(self):
         return 'text/html'
@@ -428,7 +507,7 @@ class RootPage(webdav.Resource):
     def get_etag(self):
         h = hashlib.md5()
         for c in self.get_body():
-            m.update(c)
+            h.update(c)
         return h.hexdigest()
 
     def get_last_modified(self):
@@ -498,6 +577,7 @@ class Principal(CollectionSetResource):
 def open_store_from_path(path):
     store = GitStore.open_from_path(path)
     store.load_extra_file_handler(ICalendarFile)
+    store.load_extra_file_handler(VCardFile)
     return store
 
 
@@ -515,8 +595,13 @@ class XandikosBackend(webdav.Backend):
 
     def create_collection(self, relpath):
         p = self._map_to_file_path(relpath)
-        # Why bare store, not a tree store?
-        return Collection(TreeGitStore.create(p))
+        return Collection(self, relpath, TreeGitStore.create(p))
+
+    def create_principal(self, relpath, create_defaults=False):
+        principal = Principal.create(self, relpath)
+        self._mark_as_principal(relpath)
+        if create_defaults:
+            create_principal_defaults(self, principal)
 
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
@@ -535,7 +620,7 @@ class XandikosBackend(webdav.Backend):
             else:
                 return {STORE_TYPE_CALENDAR: CalendarResource,
                         STORE_TYPE_ADDRESSBOOK: AddressbookResource,
-                        STORE_TYPE_OTHER: Collection}[store.get_type()](store)
+                        STORE_TYPE_OTHER: Collection}[store.get_type()](self, relpath, store)
         else:
             (basepath, name) = os.path.split(relpath)
             assert name != '', 'path is %r' % relpath
@@ -703,9 +788,9 @@ def main(argv):
     if options.autocreate or options.defaults:
         if not os.path.isdir(options.directory):
             os.makedirs(options.directory)
-        principal = Principal.create(backend, options.current_user_principal)
-        if options.defaults:
-            create_principal_defaults(backend, principal)
+        backend.create_principal(
+            options.current_user_principal,
+            create_defaults=options.defaults)
 
     if not os.path.isdir(options.directory):
         logging.warning(
