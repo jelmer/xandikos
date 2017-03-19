@@ -3,14 +3,14 @@ Section: python
 Priority: optional
 Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
 Homepage: https://jelmer.uk/xandikos
-Build-Depends: python3-all, debhelper (>= 9), python3-dulwich, dh-python, python3-icalendar, python3-defusedxml
+Build-Depends: python3-all, debhelper (>= 9), python3-dulwich, dh-python, python3-icalendar, python3-defusedxml, python3-jinja2
 Standards-Version: 3.9.8
 X-Python3-Version: >= 3.2
 Vcs-Git: https://jelmer.uk/code/xandikos.git -b unstable
 
 Package: xandikos
 Architecture: all
-Depends: ${python3:Depends}, ${misc:Depends}, python3-icalendar, python3-defusedxml, python3-dulwich
+Depends: ${python3:Depends}, ${misc:Depends}, python3-icalendar, python3-defusedxml, python3-dulwich, python3-jinja2
 Description: Git-backed CalDAV/CardDAV server
  Xandikos is a standards-compliant CalDAV/CardDAV server that backs onto a
  Git repository.
