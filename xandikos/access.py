@@ -43,7 +43,7 @@ class CurrentUserPrivilegeSetProperty(webdav.Property):
     def get_value(self, href, resource, el):
         privilege = ET.SubElement(el, '{DAV:}privilege')
         # TODO(jelmer): Use something other than all
-        priv_all = ET.SubElement(privilege, '{DAV:}all')
+        ET.SubElement(privilege, '{DAV:}all')
 
 
 class OwnerProperty(webdav.Property):

@@ -377,6 +377,11 @@ class GitStore(Store):
         if name is None:
             name = str(uuid.uuid4()) + mimetypes.guess_extension(content_type)
         fi.validate()
+        try:
+            uid = fi.get_uid()
+        except (KeyError, NotImplementedError):
+            uid = None
+        self._check_duplicate(uid, name, replace_etag)
         if message is None:
             try:
                 old_fi = self.get_file(name, content_type, replace_etag)
@@ -404,8 +409,8 @@ class GitStore(Store):
             etag = sha.decode('ascii')
             if name in removed:
                 removed.remove(name)
-            if name in self._fname_to_uid and \
-               self._fname_to_uid[name][0] == etag:
+            if (name in self._fname_to_uid and
+                    self._fname_to_uid[name][0] == etag):
                 continue
             blob = self.repo.object_store[sha]
             fi = open_by_extension(blob.chunked, name,
@@ -603,8 +608,8 @@ class GitStore(Store):
             name: (content_type, etag)
             for (name, content_type, etag) in self.iter_with_etag(old_ctag)
         }
-        for (name, new_content_type, new_etag) in \
-                self.iter_with_etag(new_ctag):
+        for (name, new_content_type, new_etag) in (
+                self.iter_with_etag(new_ctag)):
             try:
                 (old_content_type, old_etag) = previous[name]
             except KeyError:

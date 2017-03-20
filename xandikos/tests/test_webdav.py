@@ -441,6 +441,3 @@ class ETagMatchesTests(unittest.TestCase):
         self.assertTrue(webdav.etag_matches('*, etag2', 'etag1'))
         self.assertTrue(webdav.etag_matches('*', 'etag1'))
         self.assertFalse(webdav.etag_matches('*', None))
-
-
-

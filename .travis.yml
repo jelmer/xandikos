@@ -17,7 +17,6 @@ install:
 script:
   - make coverage
   - make style
-  - make check
   - make check-litmus
 after_success:
   - codecov

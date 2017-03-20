@@ -33,8 +33,8 @@ import posixpath
 import shutil
 
 from xandikos import __version__ as xandikos_version
-from xandikos import (access, apache, caldav, carddav, sync, webdav, infit, scheduling,
-                      timezones)
+from xandikos import (access, apache, caldav, carddav, sync, webdav, infit,
+                      scheduling, timezones)
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     TreeGitStore,
@@ -653,8 +653,9 @@ class XandikosBackend(webdav.Backend):
             (basepath, name) = os.path.split(relpath)
             assert name != '', 'path is %r' % relpath
             store = self.get_resource(basepath)
-            if store is None or \
-               webdav.COLLECTION_RESOURCE_TYPE not in store.resource_types:
+            if store is None:
+                return None
+            if webdav.COLLECTION_RESOURCE_TYPE not in store.resource_types:
                 return None
             try:
                 return store.get_member(name)

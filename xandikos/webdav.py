@@ -219,8 +219,8 @@ class Status(object):
         if self.error:
             ET.SubElement(ret, '{DAV:}error').append(self.error)
         if self.responsedescription:
-            ET.SubElement(ret, '{DAV:}responsedescription').text = \
-                self.responsedescription
+            ET.SubElement(ret, '{DAV:}responsedescription').text = (
+                self.responsedescription)
         if self.propstat is not None:
             for ps in propstat_as_xml(self.propstat):
                 ret.append(ps)
@@ -956,6 +956,7 @@ class ExpandPropertyReporter(Reporter):
                     else:
                         response = self._populate(
                             prop, properties, child_href, child_resource)
+                        new_prop.append(response.aselement())
             propstat = PropStatus(propstat.statuscode,
                                   propstat.responsedescription, prop=new_prop)
             ret.append(propstat)
@@ -1187,11 +1188,11 @@ class WebDAVApp(object):
         if r is None:
             return _send_not_found(environ, start_response)
         # TODO(jelmer): Support e.g. parsing q variables
-        accept_content_types = \
-            parse_accept_header(environ.get('HTTP_ACCEPT', '*/*'))
+        accept_content_types = parse_accept_header(
+            environ.get('HTTP_ACCEPT', '*/*'))
         # TODO(jelmer): Support e.g. parsing q variables
-        accept_content_languages = \
-            environ.get('HTTP_ACCEPT_LANGUAGES', '*').split(',')
+        accept_content_languages = environ.get(
+            'HTTP_ACCEPT_LANGUAGES', '*').split(',')
 
         (
             body,
@@ -1367,8 +1368,8 @@ class WebDAVApp(object):
 
     @multistatus
     def do_PROPFIND(self, environ):
-        base_href, unused_path, base_resource = \
-            self._get_resource_from_environ(environ)
+        base_href, unused_path, base_resource = (
+            self._get_resource_from_environ(environ))
         if base_resource is None:
             return Status(request_uri(environ), '404 Not Found')
         # Default depth is infinity, per RFC2518
@@ -1456,6 +1457,7 @@ class WebDAVApp(object):
             start_response('409 Conflict', [])
             return []
         el = ET.Element('{DAV:}resourcetype')
+        self.properties['{DAV:}resourcetype'].get_value(href, resource, el)
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         self.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):
@@ -1514,8 +1516,8 @@ class WebDAVApp(object):
     def do_OPTIONS(self, environ, start_response):
         headers = []
         if environ['PATH_INFO'] != '*':
-            unused_href, unused_path, r = \
-                self._get_resource_from_environ(environ)
+            unused_href, unused_path, r = (
+                self._get_resource_from_environ(environ))
             if r is None:
                 return _send_not_found(environ, start_response)
             dav_features = self._get_dav_features(r)
