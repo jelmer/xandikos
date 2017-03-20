@@ -378,7 +378,7 @@ class GitStore(Store):
             uid = fi.get_uid()
         except (KeyError, NotImplementedError):
             uid = None
-        modified = bool(self._check_duplicate(uid, name, replace_etag))
+        self._check_duplicate(uid, name, replace_etag)
         if message is None:
             try:
                 old_fi = self.get_file(name, content_type, replace_etag)

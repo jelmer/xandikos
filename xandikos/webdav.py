@@ -1415,7 +1415,7 @@ class WebDAVApp(object):
             start_response('409 Conflict', [])
             return []
         el = ET.Element('{DAV:}resourcetype')
-        existing_resource_types = self.properties['{DAV:}resourcetype'].get_value(href, resource, el)
+        self.properties['{DAV:}resourcetype'].get_value(href, resource, el)
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         self.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):

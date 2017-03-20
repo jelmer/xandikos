@@ -432,7 +432,6 @@ def apply_comp_filter(el, comp, tzify):
     # component is scheduled to overlap the specified time range, and all
     # specified CALDAV:prop-filter and CALDAV:comp-filter child XML elements
     # also match the targeted calendar component;
-    subchecks = []
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}comp-filter':
             if not any(apply_comp_filter(subel, c, tzify) for c in comp.subcomponents):

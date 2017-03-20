@@ -217,7 +217,6 @@ class StoreBasedCollection(object):
             resource = self._get_resource(name, content_type, etag)
             ret.append((name, resource))
         for name in self.store.subdirectories():
-            p = os.path.join(self.store.path, name)
             ret.append((name, self._get_subcollection(name)))
         return ret
 
