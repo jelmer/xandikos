@@ -62,7 +62,6 @@ class HeaderValueProperty(webdav.Property):
     This behaves similar to the hrefLabel setting in caldavzap/carddavmate.
     """
 
-
     name = '{http://inf-it.com/ns/dav/}headervalue'
     resource_type = webdav.COLLECTION_RESOURCE_TYPE
     in_allprops = False

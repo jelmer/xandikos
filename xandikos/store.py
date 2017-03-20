@@ -119,7 +119,7 @@ def open_by_extension(content, name, extra_file_handlers):
     if mime_type is None:
         mime_type = DEFAULT_MIME_TYPE
     return open_by_content_type(content, mime_type,
-        extra_file_handlers=extra_file_handlers)
+                                extra_file_handlers=extra_file_handlers)
 
 
 class DuplicateUidError(Exception):
@@ -204,7 +204,7 @@ class Store(object):
         raise NotImplementedError(self.get_ctag)
 
     def import_one(self, name, data, message=None, author=None,
-            replace_etag=None):
+                   replace_etag=None):
         """Import a single object.
 
         :param name: Name of the object
@@ -241,7 +241,8 @@ class Store(object):
     def get_type(self):
         """Get type of this store.
 
-        :return: one of [STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR, STORE_TYPE_OTHER]
+        :return: one of [STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
+                         STORE_TYPE_OTHER]
         """
         ret = STORE_TYPE_OTHER
         for (name, content_type, etag) in self.iter_with_etag():
@@ -320,7 +321,8 @@ class GitStore(Store):
     """A Store backed by a Git Repository.
     """
 
-    def __init__(self, repo, ref=b'refs/heads/master', check_for_duplicate_uids=True):
+    def __init__(self, repo, ref=b'refs/heads/master',
+                 check_for_duplicate_uids=True):
         super(GitStore, self).__init__()
         self.ref = ref
         self.repo = repo
@@ -357,7 +359,7 @@ class GitStore(Store):
         return etag
 
     def import_one(self, name, content_type, data, message=None, author=None,
-            replace_etag=None):
+                   replace_etag=None):
         """Import a single object.
 
         :param name: name of the object
@@ -366,7 +368,8 @@ class GitStore(Store):
         :param message: Commit message
         :param author: Optional author
         :param replace_etag: optional etag of object to replace
-        :raise InvalidETag: when the name already exists but with different etag
+        :raise InvalidETag: when the name already exists but with different
+                            etag
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
@@ -407,10 +410,11 @@ class GitStore(Store):
             if name in removed:
                 removed.remove(name)
             if (name in self._fname_to_uid and
-                self._fname_to_uid[name][0] == etag):
+                    self._fname_to_uid[name][0] == etag):
                 continue
             blob = self.repo.object_store[sha]
-            fi = open_by_extension(blob.chunked, name, self.extra_file_handlers)
+            fi = open_by_extension(blob.chunked, name,
+                                   self.extra_file_handlers)
             try:
                 uid = fi.get_uid()
             except KeyError:
@@ -530,7 +534,8 @@ class GitStore(Store):
     def set_color(self, color):
         """Set the color code for this store."""
         config = self.repo.get_config()
-        # Strip leading # to work around https://github.com/jelmer/dulwich/issues/511
+        # Strip leading # to work around
+        # https://github.com/jelmer/dulwich/issues/511
         # TODO(jelmer): Drop when that bug gets fixed.
         config.set(
             b'xandikos', b'color',
@@ -556,7 +561,8 @@ class GitStore(Store):
         :param displayname: New display name
         """
         config = self.repo.get_config()
-        config.set(b'xandikos', b'displayname', displayname.encode(DEFAULT_ENCODING))
+        config.set(b'xandikos', b'displayname',
+                   displayname.encode(DEFAULT_ENCODING))
         config.write_to_path()
 
     def set_type(self, store_type):
@@ -600,8 +606,10 @@ class GitStore(Store):
             old_ctag = t.id.decode('ascii')
         previous = {
             name: (content_type, etag)
-            for (name, content_type, etag) in self.iter_with_etag(old_ctag)}
-        for (name, new_content_type, new_etag) in self.iter_with_etag(new_ctag):
+            for (name, content_type, etag) in self.iter_with_etag(old_ctag)
+        }
+        for (name, new_content_type, new_etag) in (
+                self.iter_with_etag(new_ctag)):
             try:
                 (old_content_type, old_etag) = previous[name]
             except KeyError:
@@ -664,8 +672,8 @@ class BareGitStore(GitStore):
             committer = self.repo._get_user_identity()
         except KeyError:
             committer = _DEFAULT_COMMITTER_IDENTITY
-        return self.repo.do_commit(message=message, tree=tree_id,
-                ref=self.ref, committer=committer, author=author)
+        return self.repo.do_commit(message=message, tree=tree_id, ref=self.ref,
+                                   committer=committer, author=author)
 
     def _import_one(self, name, data, message, author=None):
         """Import a single object.
@@ -680,10 +688,10 @@ class BareGitStore(GitStore):
         b.chunked = data
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
-        tree[name_enc] = (0o644|stat.S_IFREG, b.id)
+        tree[name_enc] = (0o644 | stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
-            author=author)
+                          author=author)
         return b.id
 
     def delete_one(self, name, message=None, author=None, etag=None):
@@ -712,7 +720,7 @@ class BareGitStore(GitStore):
                 self.extra_file_handlers)
             message = "Delete " + fi.describe(name)
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
-            author=author)
+                          author=author)
 
     @classmethod
     def create(cls, path):
@@ -756,7 +764,7 @@ class TreeGitStore(GitStore):
         except KeyError:
             committer = _DEFAULT_COMMITTER_IDENTITY
         return self.repo.do_commit(message=message, committer=committer,
-            author=author)
+                                   author=author)
 
     def _import_one(self, name, data, message, author=None):
         """Import a single object.
@@ -793,7 +801,7 @@ class TreeGitStore(GitStore):
             raise NoSuchItem(name)
         if message is None:
             fi = open_by_extension(current_blob.chunked, name,
-                self.extra_file_handlers)
+                                   self.extra_file_handlers)
             message = 'Delete ' + fi.describe(name)
         if etag is not None:
             with open(p, 'rb') as f:

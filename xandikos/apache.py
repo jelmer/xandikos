@@ -21,7 +21,7 @@
 
 See http://www.webdav.org/mod_dav/
 """
-from xandikos import webdav, carddav
+from xandikos import webdav
 
 
 class ExecutableProperty(webdav.Property):

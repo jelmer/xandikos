@@ -33,7 +33,8 @@ FEATURE = 'calendar-auto-schedule'
 
 class ScheduleInbox(caldav.Calendar):
 
-    resource_types = caldav.Calendar.resource_types + [SCHEDULE_INBOX_RESOURCE_TYPE]
+    resource_types = (caldav.Calendar.resource_types +
+                      [SCHEDULE_INBOX_RESOURCE_TYPE])
 
     def get_schedule_inbox_url(self):
         raise NotImplementedError(self.get_schedule_inbox_url)

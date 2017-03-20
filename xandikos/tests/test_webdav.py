@@ -28,8 +28,8 @@ from xandikos.webdav import (
     ET,
     Property,
     Resource,
-    WebDAVApp,
-    )
+    WebDAVApp
+)
 
 
 class WebTests(unittest.TestCase):
@@ -52,6 +52,7 @@ class WebTests(unittest.TestCase):
         setup_testing_defaults(environ)
         _code = []
         _headers = []
+
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
@@ -67,6 +68,7 @@ class WebTests(unittest.TestCase):
         setup_testing_defaults(environ)
         _code = []
         _headers = []
+
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
@@ -79,6 +81,7 @@ class WebTests(unittest.TestCase):
         setup_testing_defaults(environ)
         _code = []
         _headers = []
+
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
@@ -91,6 +94,7 @@ class WebTests(unittest.TestCase):
         setup_testing_defaults(environ)
         _code = []
         _headers = []
+
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
@@ -103,6 +107,7 @@ class WebTests(unittest.TestCase):
         setup_testing_defaults(environ)
         _code = []
         _headers = []
+
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
@@ -114,11 +119,12 @@ class WebTests(unittest.TestCase):
             'PATH_INFO': path,
             'REQUEST_METHOD': 'PUT',
             'wsgi.input': BytesIO(contents),
-            'SCRIPT_NAME': '',
-            }
+            'SCRIPT_NAME': ''
+        }
         setup_testing_defaults(environ)
         _code = []
         _headers = []
+
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
@@ -127,13 +133,15 @@ class WebTests(unittest.TestCase):
 
     def propfind(self, app, path, body):
         environ = {
-                'PATH_INFO': path,
-                'REQUEST_METHOD': 'PROPFIND',
-                'wsgi.input': BytesIO(body),
-                'SCRIPT_NAME': ''}
+            'PATH_INFO': path,
+            'REQUEST_METHOD': 'PROPFIND',
+            'wsgi.input': BytesIO(body),
+            'SCRIPT_NAME': ''
+        }
         setup_testing_defaults(environ)
         _code = []
         _headers = []
+
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
@@ -147,7 +155,6 @@ class WebTests(unittest.TestCase):
 
     def test_get_body(self):
         class TestResource(Resource):
-
             def get_body(self):
                 return [b'this is content']
 
@@ -169,8 +176,8 @@ class WebTests(unittest.TestCase):
 
     def test_set_body(self):
         new_body = []
-        class TestResource(Resource):
 
+        class TestResource(Resource):
             def set_body(self, body, replace_etag=None):
                 new_body.extend(body)
 
@@ -187,7 +194,8 @@ class WebTests(unittest.TestCase):
         code, headers, contents = self.lock(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertIn(
-            ('Allow', 'DELETE, GET, HEAD, MKCALENDAR, MKCOL, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT'),
+            ('Allow', ('DELETE, GET, HEAD, MKCALENDAR, MKCOL, OPTIONS, '
+                       'POST, PROPFIND, PROPPATCH, PUT, REPORT')),
             headers)
         self.assertEqual(b'', contents)
 
@@ -195,6 +203,7 @@ class WebTests(unittest.TestCase):
         class Backend(object):
             def create_collection(self, relpath):
                 pass
+
             def get_resource(self, relpath):
                 return None
         app = WebDAVApp(Backend())
@@ -206,8 +215,10 @@ class WebTests(unittest.TestCase):
         class Backend(object):
             def create_collection(self, relpath):
                 pass
+
             def get_resource(self, relpath):
                 return None
+
         class ResourceTypeProperty(Property):
             name = '{DAV:}resourcetype'
 
@@ -216,7 +227,8 @@ class WebTests(unittest.TestCase):
 
             def set_value(unused_self, href, resource, ret):
                 self.assertEqual(
-                    ['{DAV:}collection', '{urn:ietf:params:xml:ns:caldav}calendar'],
+                    ['{DAV:}collection',
+                     '{urn:ietf:params:xml:ns:caldav}calendar'],
                     [x.tag for x in ret])
 
         app = WebDAVApp(Backend())
@@ -241,7 +253,8 @@ class WebTests(unittest.TestCase):
 
             def delete_member(unused_self, name, etag=None):
                 self.assertEqual(name, 'resource')
-        app = self.makeApp({'/': TestResource(), '/resource': TestResource()}, [])
+        app = self.makeApp({'/': TestResource(), '/resource': TestResource()},
+                           [])
         code, headers, contents = self.delete(app, '/resource')
         self.assertEqual('204 No Content', code)
         self.assertEqual(b'', contents)
@@ -262,7 +275,8 @@ class WebTests(unittest.TestCase):
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:href>/resource</ns0:href>'
+            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
             '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
             '</ns0:response></ns0:multistatus>')
@@ -280,7 +294,8 @@ class WebTests(unittest.TestCase):
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:href>/resource</ns0:href>'
+            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
             '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
             '</ns0:response></ns0:multistatus>')
@@ -299,7 +314,8 @@ class WebTests(unittest.TestCase):
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:href>/resource</ns0:href>'
+            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
             '</ns0:current-user-principal></ns0:prop></ns0:propstat>'
@@ -309,15 +325,19 @@ class WebTests(unittest.TestCase):
     def test_propfind_found_multi(self):
         class TestProperty1(Property):
             name = '{DAV:}current-user-principal'
+
             def get_value(self, href, resource, el):
                 ET.SubElement(el, '{DAV:}href').text = '/user/'
+
         class TestProperty2(Property):
             name = '{DAV:}somethingelse'
+
             def get_value(self, href, resource, el):
                 pass
         app = self.makeApp(
-                {'/resource': Resource()},
-                [TestProperty1(), TestProperty2()])
+            {'/resource': Resource()},
+            [TestProperty1(), TestProperty2()]
+        )
         code, headers, contents = self.propfind(app, '/resource', b"""\
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/>\
 <d:somethingelse/></d:prop></d:propfind>""")
@@ -325,7 +345,8 @@ class WebTests(unittest.TestCase):
         self.assertMultiLineEqual(
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            '<ns0:href>/resource</ns0:href><ns0:status>HTTP/1.1 200 OK</ns0:status>'
+            '<ns0:href>/resource</ns0:href>'
+            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
             '</ns0:current-user-principal><ns0:somethingelse /></ns0:prop>'
@@ -335,6 +356,7 @@ class WebTests(unittest.TestCase):
     def test_propfind_found_multi_status(self):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
+
             def get_value(self, href, resource, ret):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
@@ -419,6 +441,3 @@ class ETagMatchesTests(unittest.TestCase):
         self.assertTrue(webdav.etag_matches('*, etag2', 'etag1'))
         self.assertTrue(webdav.etag_matches('*', 'etag1'))
         self.assertFalse(webdav.etag_matches('*', None))
-
-
-
