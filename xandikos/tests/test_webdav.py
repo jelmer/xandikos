@@ -388,10 +388,37 @@ class PickContentTypesTests(unittest.TestCase):
                 [('text/*', {'q': '0.3'}), ('text/plain', {'q': '0.4'})],
                 ['text/plain', 'text/html']))
         self.assertEqual(
-            ['text/html', 'text/plain'], webdav.pick_content_types(
+            set(['text/plain', 'text/html']), set(webdav.pick_content_types(
                 [('text/*', {'q': '0.4'}), ('text/plain', {'q': '0.3'})],
-                ['text/plain', 'text/html']))
+                ['text/plain', 'text/html'])))
         self.assertEqual(
             ['application/html'], webdav.pick_content_types(
-                [('application/*', {'q': '0.4'}), ('text/plain', {'q': '0.3'})],
+                [('application/*', {'q': '0.4'}),
+                 ('text/plain', {'q': '0.3'})],
                 ['text/plain', 'application/html']))
+
+
+class ParseAcceptHeaderTests(unittest.TestCase):
+
+    def test_parse(self):
+        self.assertEqual([], webdav.parse_accept_header(''))
+        self.assertEqual([('text/plain', {'q': '0.1'})],
+                         webdav.parse_accept_header('text/plain; q=0.1'))
+        self.assertEqual([('text/plain', {'q': '0.1'}), ('text/plain', {})],
+                         webdav.parse_accept_header(
+                             'text/plain; q=0.1, text/plain'))
+
+
+class ETagMatchesTests(unittest.TestCase):
+
+    def test_matches(self):
+        self.assertTrue(webdav.etag_matches('etag1, etag2', 'etag1'))
+        self.assertFalse(webdav.etag_matches('etag3, etag2', 'etag1'))
+        self.assertFalse(webdav.etag_matches('etag1 etag2', 'etag1'))
+        self.assertFalse(webdav.etag_matches('etag1, etag2', None))
+        self.assertTrue(webdav.etag_matches('*, etag2', 'etag1'))
+        self.assertTrue(webdav.etag_matches('*', 'etag1'))
+        self.assertFalse(webdav.etag_matches('*', None))
+
+
+
