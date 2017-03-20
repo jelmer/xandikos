@@ -50,7 +50,7 @@ Clients that are known not to work:
 Dependencies
 ============
 
-At the moment, Xandikos supports Python 3.5 and higher as well as Pypy 3. It
+At the moment, Xandikos supports Python 3.3 and higher as well as Pypy 3. It
 also uses [dulwich](https://github.com/jelmer/dulwich),
 [jinja2](http://jinja.pocoo.org/),
 [icalendar](https://github.com/collective/icalendar), and
