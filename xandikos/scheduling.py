@@ -96,7 +96,7 @@ class CalendarUserTypeProperty(webdav.Property):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-user-type'
-    resource_type = caldav.CALENDAR_RESOURCE_TYPE
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
     def get_value(self, href, resource, el):

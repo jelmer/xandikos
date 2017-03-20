@@ -32,7 +32,7 @@ Limitations
 Supported clients
 =================
 
-Xandikos has been tested and works with the following clients:
+Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 
  - [vdirsyncer](https://github.com/pimutils/vdirsyncer)
  - [caldavzap](https://www.inf-it.com/open-source/clients/caldavzap/)/[carddavmate](https://www.inf-it.com/open-source/clients/carddavmate/)
