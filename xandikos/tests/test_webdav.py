@@ -22,6 +22,7 @@ import logging
 import unittest
 from wsgiref.util import setup_testing_defaults
 
+from xandikos import webdav
 from xandikos.webdav import (
     Collection,
     ET,
@@ -353,3 +354,44 @@ class WebTests(unittest.TestCase):
 <ns0:somethingelse /></ns0:prop></ns0:propstat>\
 </ns0:response>\
 </ns0:multistatus>""")
+
+
+class PickContentTypesTests(unittest.TestCase):
+
+    def test_not_acceptable(self):
+        self.assertRaises(
+            webdav.NotAcceptableError, webdav.pick_content_types,
+            [('text/plain', {})], ['text/html'])
+        self.assertRaises(
+            webdav.NotAcceptableError, webdav.pick_content_types,
+            [('text/plain', {}), ('text/html', {'q': '0'})], ['text/html'])
+
+    def test_highest_q(self):
+        self.assertEqual(
+            ['text/plain'], webdav.pick_content_types(
+                [('text/html', {'q': '0.3'}), ('text/plain', {'q': '0.4'})],
+                ['text/plain', 'text/html']))
+        self.assertEqual(
+            ['text/html', 'text/plain'], webdav.pick_content_types(
+                [('text/html', {}), ('text/plain', {'q': '1'})],
+                ['text/plain', 'text/html']))
+
+    def test_no_q(self):
+        self.assertEqual(
+            ['text/html', 'text/plain'], webdav.pick_content_types(
+                [('text/html', {}), ('text/plain', {})],
+                ['text/plain', 'text/html']))
+
+    def test_wildcard(self):
+        self.assertEqual(
+            ['text/plain'], webdav.pick_content_types(
+                [('text/*', {'q': '0.3'}), ('text/plain', {'q': '0.4'})],
+                ['text/plain', 'text/html']))
+        self.assertEqual(
+            ['text/html', 'text/plain'], webdav.pick_content_types(
+                [('text/*', {'q': '0.4'}), ('text/plain', {'q': '0.3'})],
+                ['text/plain', 'text/html']))
+        self.assertEqual(
+            ['application/html'], webdav.pick_content_types(
+                [('application/*', {'q': '0.4'}), ('text/plain', {'q': '0.3'})],
+                ['text/plain', 'application/html']))
