@@ -52,13 +52,14 @@ Dependencies
 
 At the moment, Xandikos supports Python 3.5 and higher as well as Pypy 3. It
 also uses [dulwich](https://github.com/jelmer/dulwich),
-[icalendar](https://github.com/collective/icalendar) and
+[jinja2](http://jinja.pocoo.org/),
+[icalendar](https://github.com/collective/icalendar), and
 [defusedxml](https://github.com/tiran/defusedxml).
 
 E.g. to install those dependencies on Debian:
 
 ```shell
-sudo apt install python3-dulwich python3-defusedxml python3-icalendar
+sudo apt install python3-dulwich python3-defusedxml python3-icalendar python3-jinja2
 ```
 
 Or to install them using pip:
