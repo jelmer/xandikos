@@ -98,6 +98,9 @@ def parse_accept_header(accept):
     """
     ret = []
     for part in accept.split(','):
+        part = part.strip()
+        if not part:
+            continue
         params = {}
         try:
             (ct, rest) = part.split(';', 1)
@@ -106,7 +109,7 @@ def parse_accept_header(accept):
         else:
             for param in rest.split(';'):
                 (key, val) = param.split('=')
-                params[key] = val
+                params[key.strip()] = val.strip()
         ret.append((ct, params))
     return ret
 
@@ -142,6 +145,11 @@ class NeedsMultiStatus(Exception):
 
 
 def propstat_by_status(propstat):
+    """Sort a list of propstatus objects by HTTP status.
+
+    :param propstat: List of PropStatus objects:
+    :return: dictionary mapping HTTP status code to list of PropStatus objects
+    """
     bystatus = {}
     for propstat in propstat:
         (bystatus
