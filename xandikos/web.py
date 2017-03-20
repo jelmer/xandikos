@@ -33,7 +33,7 @@ import posixpath
 import shutil
 
 from xandikos import __version__ as xandikos_version
-from xandikos import (access, caldav, carddav, sync, webdav, infit, scheduling,
+from xandikos import (access, apache, caldav, carddav, sync, webdav, infit, scheduling,
                       timezones)
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
@@ -164,6 +164,10 @@ class ObjectResource(webdav.Resource):
     def get_last_modified(self):
         # TODO(jelmer): Find last modified time using store function
         raise KeyError
+
+    def get_is_executable(self):
+        # TODO(jelmer): Retrieve POSIX mode and check for executability.
+        return False
 
 
 class StoreBasedCollection(object):
@@ -316,6 +320,9 @@ class StoreBasedCollection(object):
         return render_jinja_page(
             'collection.html', accepted_content_languages, collection=self)
 
+    def get_is_executable(self):
+        return False
+
 
 class Collection(StoreBasedCollection, webdav.Collection):
     """A generic WebDAV collection."""
@@ -361,6 +368,12 @@ class CalendarResource(StoreBasedCollection, caldav.Calendar):
         raise KeyError
 
     def get_max_attendees_per_instance(self):
+        raise KeyError
+
+    def get_schedule_outbox_url(self):
+        raise KeyError
+
+    def get_schedule_inbox_url(self):
         raise KeyError
 
 
@@ -477,6 +490,9 @@ class CollectionSetResource(webdav.Collection):
         assert content_types == ['text/html']
         return render_jinja_page('root.html', accepted_content_languages)
 
+    def get_is_executable(self):
+        return False
+
 
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
@@ -525,6 +541,9 @@ class RootPage(webdav.Resource):
     def delete_member(self, name, etag=None):
         # This doesn't have any non-collection members.
         self.get_member(name).destroy()
+
+    def get_is_executable(self):
+        return False
 
 
 class Principal(CollectionSetResource):
@@ -575,6 +594,9 @@ class Principal(CollectionSetResource):
             except FileExistsError:
                 pass
         return p
+
+    def get_calendar_user_type(self):
+        return "INDIVIDUAL"
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
@@ -693,6 +715,7 @@ class XandikosApp(webdav.WebDAVApp):
             caldav.MaxInstancesProperty(),
             caldav.MaxAttendeesPerInstanceProperty(),
             access.GroupMembershipProperty(),
+            apache.ExecutableProperty(),
         ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

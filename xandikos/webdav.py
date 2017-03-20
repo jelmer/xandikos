@@ -669,6 +669,20 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_last_modified)
 
+    def get_is_executable(self):
+        """Get executable bit.
+
+        :return: Boolean indicating executability
+        """
+        raise NotImplementedError(self.get_is_executable)
+
+    def set_is_executable(self, executable):
+        """Set executable bit.
+
+        :param executable: Boolean indicating executability
+        """
+        raise NotImplementedError(self.set_is_executable)
+
 
 class Collection(Resource):
     """Resource for a WebDAV Collection."""
@@ -1399,8 +1413,9 @@ class WebDAVApp(object):
                     base_resource, base_href, depth):
                 propstat = []
                 for name, prop in self.properties.items():
-                    if prop.is_set(resource):
-                        propstat.append(ET.Element(name))
+                    if prop.is_set(href, resource):
+                        propstat.append(
+                            PropStatus('200 OK', None, ET.Element(name)))
                 ret.append(Status(href, '200 OK', propstat=propstat))
             return ret
         else:
