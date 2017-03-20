@@ -57,9 +57,9 @@ class OwnerProperty(webdav.Property):
     live = True
 
     def get_value(self, base_href, resource, el):
-       owner_href = resource.get_owner()
-       if owner_href is not None:
-           el.append(webdav.create_href(owner_href, base_href=base_href))
+        owner_href = resource.get_owner()
+        if owner_href is not None:
+            el.append(webdav.create_href(owner_href, base_href=base_href))
 
 
 class GroupMembershipProperty(webdav.Property):

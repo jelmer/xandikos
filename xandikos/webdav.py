@@ -156,8 +156,7 @@ def propstat_as_xml(propstat):
         propstat = ET.Element('{DAV:}propstat')
         ET.SubElement(propstat, '{DAV:}status').text = 'HTTP/1.1 ' + status
         if rd:
-            ET.SubElement(propstat,
-                '{DAV:}responsedescription').text = rd
+            ET.SubElement(propstat, '{DAV:}responsedescription').text = rd
         propresp = ET.SubElement(propstat, '{DAV:}prop')
         for prop in props:
             propresp.append(prop)
