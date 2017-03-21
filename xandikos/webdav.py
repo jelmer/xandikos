@@ -780,6 +780,20 @@ class Principal(Resource):
         """Get group membership URLs."""
         raise NotImplementedError(self.get_group_membership)
 
+    def get_calendar_proxy_read_for(self):
+        """List principals for which this one is a read proxy.
+
+        :return: List of principal hrefs
+        """
+        raise NotImplementedError(self.get_calendar_proxy_read_for)
+
+    def get_calendar_proxy_write_for(self):
+        """List principals for which this one is a write proxy.
+
+        :return: List of principal hrefs
+        """
+        raise NotImplementedError(self.get_calendar_proxy_write_for)
+
 
 def get_property(href, resource, properties, name):
     """Get a single property on a resource.

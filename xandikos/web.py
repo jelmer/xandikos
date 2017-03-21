@@ -596,7 +596,16 @@ class Principal(CollectionSetResource):
         return p
 
     def get_calendar_user_type(self):
+        # TODO(jelmer)
         return "INDIVIDUAL"
+
+    def get_calendar_proxy_read_for(self):
+        # TODO(jelmer)
+        return []
+
+    def get_calendar_proxy_write_for(self):
+        # TODO(jelmer)
+        return []
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
@@ -717,6 +726,8 @@ class XandikosApp(webdav.WebDAVApp):
             caldav.MaxAttendeesPerInstanceProperty(),
             access.GroupMembershipProperty(),
             apache.ExecutableProperty(),
+            caldav.CalendarProxyReadForProperty(),
+            caldav.CalendarProxyWriteForProperty(),
         ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

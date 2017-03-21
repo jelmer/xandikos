@@ -679,6 +679,38 @@ class MaxAttendeesPerInstanceProperty(webdav.Property):
         el.text = str(resource.get_max_attendees_per_instance())
 
 
+class CalendarProxyReadForProperty(webdav.Property):
+    """calendar-proxy-read-for property.
+
+    See https://github.com/apple/ccs-calendarserver/blob/master/\
+        doc/Extensions/caldav-proxy.txt, section 5.3.1.
+
+    """
+    name = '{http://calendarserver.org/ns/}calendar-proxy-read-for'
+    in_allprops = False
+    live = True
+
+    def get_value(self, base_href, resource, el):
+        for href in resource.get_calendar_proxy_read_for():
+            el.append(webdav.create_href(href, base_href))
+
+
+class CalendarProxyWriteForProperty(webdav.Property):
+    """calendar-proxy-write-for property.
+
+    See https://github.com/apple/ccs-calendarserver/blob/master/\
+        doc/Extensions/caldav-proxy.txt, section 5.3.2.
+
+    """
+    name = '{http://calendarserver.org/ns/}calendar-proxy-write-for'
+    in_allprops = False
+    live = True
+
+    def get_value(self, base_href, resource, el):
+        for href in resource.get_calendar_proxy_write_for():
+            el.append(webdav.create_href(href, base_href))
+
+
 def map_freebusy(comp):
     transp = comp.get('TRANSP', 'OPAQUE')
     if transp == 'TRANSPARENT':
