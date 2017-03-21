@@ -1560,14 +1560,15 @@ class WebDAVApp(object):
     def __call__(self, environ, start_response):
         method = environ['REQUEST_METHOD']
         try:
-            do = getattr(self, 'do_' + method, None)
+            do = getattr(self, 'do_' + method)
+        except AttributeError as e:
+            return _send_method_not_allowed(environ, start_response,
+                                            self._get_allowed_methods(environ))
+        try:
+            return do(environ, start_response)
         except BadRequestError as e:
             start_response('400 Bad Request', [])
             return [e.message.encode(DEFAULT_ENCODING)]
         except NotAcceptableError as e:
             start_response('406 Not Acceptable', [])
             return [e.message.encode(DEFAULT_ENCODING)]
-        if do is not None:
-            return do(environ, start_response)
-        return _send_method_not_allowed(environ, start_response,
-                                        self._get_allowed_methods(environ))
