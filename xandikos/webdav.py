@@ -1090,8 +1090,10 @@ def _send_dav_responses(start_response, responses, out_encoding):
                               out_encoding)
 
 
-def _send_simple_dav_error(environ, start_response, statuscode, error):
-    status = Status(request_uri(environ), statuscode, error)
+def _send_simple_dav_error(environ, start_response, statuscode, error,
+                           description):
+    status = Status(request_uri(environ), statuscode, error=error,
+                    responsedescription=description)
     return _send_dav_responses(start_response, status, DEFAULT_ENCODING)
 
 
@@ -1276,7 +1278,8 @@ class WebDAVApp(object):
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 environ, start_response, '412 Precondition Failed',
-                error=ET.Element(e.precondition))
+                error=ET.Element(e.precondition),
+                description=e.description)
         href = (
             environ['SCRIPT_NAME'] +
             urllib.parse.urljoin(ensure_trailing_slash(path), name)
@@ -1305,7 +1308,8 @@ class WebDAVApp(object):
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
                     environ, start_response, '412 Precondition Failed',
-                    error=ET.Element(e.precondition))
+                    error=ET.Element(e.precondition),
+                    description=e.description)
             start_response('204 No Content', [
                 ('ETag', new_etag)])
             return []
@@ -1319,7 +1323,8 @@ class WebDAVApp(object):
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
                     environ, start_response, '412 Precondition Failed',
-                    error=ET.Element(e.precondition))
+                    error=ET.Element(e.precondition),
+                    description=e.description)
             start_response('201 Created', [
                 ('ETag', new_etag)])
             return []
@@ -1371,12 +1376,14 @@ class WebDAVApp(object):
             logging.warning('Client requested unknown REPORT %s', et.tag)
             return _send_simple_dav_error(
                 environ, start_response,
-                '403 Forbidden', error=ET.Element('{DAV:}supported-report')
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
+                description=('Unknown report %s.' % et.tag)
             )
         if not reporter.supported_on(r):
             return _send_simple_dav_error(
                 environ, start_response,
-                '403 Forbidden', error=ET.Element('{DAV:}supported-report')
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
+                description=('Report %s not supported on resource.' % et.tag)
             )
         return reporter.report(
             environ, start_response, et,
