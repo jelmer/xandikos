@@ -918,7 +918,7 @@ def create_href(href, base_href=None):
         logging.warning('invalidly formatted href: %s' % href)
     et = ET.Element('{DAV:}href')
     if base_href is not None:
-        href = urllib.parse.urljoin(base_href + '/', href)
+        href = urllib.parse.urljoin(ensure_trailing_slash(base_href), href)
     et.text = urllib.parse.quote(href)
     return et
 
@@ -1277,7 +1277,10 @@ class WebDAVApp(object):
             return _send_simple_dav_error(
                 environ, start_response, '412 Precondition Failed',
                 error=ET.Element(e.precondition))
-        href = environ['SCRIPT_NAME'] + urllib.parse.urljoin(path + '/', name)
+        href = (
+            environ['SCRIPT_NAME'] +
+            urllib.parse.urljoin(ensure_trailing_slash(path), name)
+        )
         start_response('200 OK', [('Location', href)])
         return []
 
