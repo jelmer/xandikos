@@ -441,3 +441,23 @@ class ETagMatchesTests(unittest.TestCase):
         self.assertTrue(webdav.etag_matches('*, etag2', 'etag1'))
         self.assertTrue(webdav.etag_matches('*', 'etag1'))
         self.assertFalse(webdav.etag_matches('*', None))
+
+
+class PropstatByStatusTests(unittest.TestCase):
+
+    def test_none(self):
+        self.assertEqual({}, webdav.propstat_by_status([]))
+
+    def test_one(self):
+        self.assertEqual({
+            ('200 OK', None): ['foo']},
+            webdav.propstat_by_status([
+                webdav.PropStatus('200 OK', None, 'foo')]))
+
+    def test_multiple(self):
+        self.assertEqual({
+            ('200 OK', None): ['foo'],
+            ('404 Not Found', 'Cannot find'): ['bar']},
+            webdav.propstat_by_status([
+                webdav.PropStatus('200 OK', None, 'foo'),
+                webdav.PropStatus('404 Not Found', 'Cannot find', 'bar')]))
