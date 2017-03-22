@@ -208,7 +208,7 @@ class Status(object):
             body = ET.tostringlist(ret, encoding)
             return body, ('text/xml; encoding="%s"' % encoding)
         else:
-            body = self.responsedescription or ''
+            body = [self.responsedescription.encode(encoding)] or []
             return body, ('text/plain; encoding="%s"' % encoding)
 
     def aselement(self):
