@@ -461,3 +461,30 @@ class PropstatByStatusTests(unittest.TestCase):
             webdav.propstat_by_status([
                 webdav.PropStatus('200 OK', None, 'foo'),
                 webdav.PropStatus('404 Not Found', 'Cannot find', 'bar')]))
+
+
+class PropstatAsXmlTests(unittest.TestCase):
+
+    def test_none(self):
+        self.assertEqual([], list(webdav.propstat_as_xml([])))
+
+    def test_one(self):
+        self.assertEqual([
+            b'<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 '
+            b'OK</ns0:status><ns0:prop><foo /></ns0:prop></ns0:propstat>'],
+            [ET.tostring(x) for x in webdav.propstat_as_xml([
+                webdav.PropStatus('200 OK', None, ET.Element('foo'))])])
+
+
+class PathFromEnvironTests(unittest.TestCase):
+
+    def test_ascii(self):
+        self.assertEqual(
+            '/bla',
+            webdav.path_from_environ({'PATH_INFO': '/bla'}, 'PATH_INFO'))
+
+    def test_recode(self):
+        self.assertEqual(
+            '/blü',
+            webdav.path_from_environ(
+                {'PATH_INFO': '/bl\xc3\xbc'}, 'PATH_INFO'))

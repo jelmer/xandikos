@@ -159,6 +159,11 @@ def propstat_by_status(propstat):
 
 
 def propstat_as_xml(propstat):
+    """Format a list of propstats as XML elements.
+
+    :param propstat: List of PropStatus objects
+    :return: Iterator over {DAV:}propstat elements
+    """
     bystatus = propstat_by_status(propstat)
     for (status, rd), props in sorted(bystatus.items()):
         propstat = ET.Element('{DAV:}propstat')
