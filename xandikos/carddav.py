@@ -173,7 +173,8 @@ class SupportedAddressDataProperty(webdav.Property):
     live = True
 
     def get_value(self, href, resource, el):
-        for (content_type, version) in resource.get_supported_address_data_types():
+        for (content_type,
+             version) in resource.get_supported_address_data_types():
             subel = ET.SubElement(el, '{%s}content-type' % NAMESPACE)
             subel.set('content-type', content_type)
             subel.set('version', version)

@@ -33,7 +33,8 @@ FEATURE = 'calendar-auto-schedule'
 
 class ScheduleInbox(caldav.Calendar):
 
-    resource_types = caldav.Calendar.resource_types + [SCHEDULE_INBOX_RESOURCE_TYPE]
+    resource_types = (caldav.Calendar.resource_types +
+                      [SCHEDULE_INBOX_RESOURCE_TYPE])
 
     def get_schedule_inbox_url(self):
         raise NotImplementedError(self.get_schedule_inbox_url)
@@ -96,7 +97,7 @@ class CalendarUserTypeProperty(webdav.Property):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-user-type'
-    resource_type = caldav.CALENDAR_RESOURCE_TYPE
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
     def get_value(self, href, resource, el):

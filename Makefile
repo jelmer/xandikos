@@ -6,6 +6,9 @@ TESTSUITE = xandikos.tests.test_suite
 check:
 	$(PYTHON) -m unittest $(TESTSUITE)
 
+style:
+	flake8
+
 web:
 	$(PYTHON) -m xandikos.web
 
