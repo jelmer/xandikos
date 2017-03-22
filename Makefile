@@ -18,6 +18,9 @@ check-litmus-all:
 check-litmus:
 	./compat/xandikos-litmus.sh "basic"
 
+check-vdirsyncer:
+	./compat/xandikos-vdirsyncer.sh
+
 check-caldavtester:
 	cd compat && ./all.sh
 
