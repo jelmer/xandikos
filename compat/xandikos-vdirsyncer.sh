@@ -9,6 +9,6 @@ git clone https://github.com/pimutils/vdirsyncer
 cd vdirsyncer
 make \
     COVERAGE=true \
-    PYTEST_ARGS="--cov-config $REPO_DIR/.coveragerc --cov-append --cov xandikos" \
+    PYTEST_ARGS="--cov-config $REPO_DIR/.coveragerc --cov-append --cov xandikos tests/storage/dav/" \
     DAV_SERVER=xandikos \
     install-dev install-test test
