@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-REPO_DIR="$(realpath $(dirname $0)/..)"
+REPO_DIR="$(readlink -f $(dirname $0)/..)"
 TMPDIR="$(mktemp -d)"
 
 cd "$TMPDIR"
