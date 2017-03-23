@@ -29,4 +29,4 @@ make \
     install-dev install-test test
 
 cd "$REPO_DIR"
-coverage combine compat/vdirsyncer/.coverage
+coverage combine compat/vdirsyncer/.coverage .

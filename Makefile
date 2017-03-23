@@ -1,6 +1,7 @@
 export PYTHON ?= python3
 COVERAGE ?= $(PYTHON) -m coverage
 COVERAGE_RUN_OPTIONS ?=
+COVERAGE_RUN ?= $(COVERAGE) run $(COVERAGE_RUN_OPTIONS)
 TESTSUITE = xandikos.tests.test_suite
 
 check:
@@ -18,6 +19,9 @@ check-litmus-all:
 check-litmus:
 	./compat/xandikos-litmus.sh "basic"
 
+coverage-litmus:
+	XANDIKOS="$(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web" ./compat/xandikos-litmus.sh "basic"
+
 check-vdirsyncer:
 	./compat/xandikos-vdirsyncer.sh
 
@@ -26,8 +30,10 @@ check-caldavtester:
 
 check-all: check check-vdirsyncer check-litmus
 
+coverage-all: coverage coverage-litmus
+
 coverage:
-	$(COVERAGE) run $(COVERAGE_RUN_OPTIONS) --source=xandikos -m unittest $(TESTSUITE)
+	$(COVERAGE_RUN) --source=xandikos -m unittest $(TESTSUITE)
 
 coverage-html: coverage
 	$(COVERAGE) html

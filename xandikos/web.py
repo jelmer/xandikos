@@ -862,8 +862,10 @@ def main(argv):
                  options.port)
 
     import signal
+
     def handle_sigterm(sig, action):
         sys.exit(0)
+
     signal.signal(signal.SIGTERM, handle_sigterm)
     try:
         server.serve_forever()
