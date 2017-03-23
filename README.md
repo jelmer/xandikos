@@ -41,6 +41,7 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
  - [sogo connector for Icedove/Thunderbird](http://v2.sogo.nu/english/downloads/frontends.html)
  - [aCALdav syncer for Android](https://play.google.com/store/apps/details?id=de.we.acaldav&hl=en)
  - [pycardsyncer](https://github.com/geier/pycarddav)
+ - [akonadi](https://community.kde.org/KDE_PIM/Akonadi)
 
 Clients that are known not to work:
 
