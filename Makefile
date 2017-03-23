@@ -24,7 +24,7 @@ check-vdirsyncer:
 check-caldavtester:
 	cd compat && ./all.sh
 
-check-all: check check-caldavtester check-litmus
+check-all: check check-vdirsyncer check-litmus
 
 coverage:
 	$(COVERAGE) run $(COVERAGE_RUN_OPTIONS) --source=xandikos -m unittest $(TESTSUITE)
