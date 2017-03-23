@@ -860,7 +860,17 @@ def main(argv):
     server = make_server(options.listen_address, options.port, app)
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
-    server.serve_forever()
+
+    import signal
+    def handle_sigterm(sig, action):
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.shutdown()
 
 
 if __name__ == '__main__':
