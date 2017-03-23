@@ -1,13 +1,19 @@
 #!/bin/bash
 set -e
 
+readonly BRANCH=master
+
 [ -z "$PYTHON" ] && PYTHON=python3
 
 cd "$(dirname $0)"
 REPO_DIR="$(readlink -f ..)"
 
 if [ ! -d vdirsyncer ]; then
-    git clone https://github.com/pimutils/vdirsyncer
+    git clone -b $BRANCH https://github.com/pimutils/vdirsyncer
+else
+    pushd vdirsyncer
+    git pull --ff-only origin $BRANCH
+    popd
 fi
 cd vdirsyncer
 if [ -z "${VIRTUAL_ENV}" ]; then
