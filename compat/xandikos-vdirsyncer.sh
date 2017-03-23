@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+[ -z "$PYTHON" ] && PYTHON=python3
+
 cd "$(dirname $0)"
 REPO_DIR="$(readlink -f ..)"
 
@@ -8,6 +10,12 @@ if [ ! -d vdirsyncer ]; then
     git clone https://github.com/pimutils/vdirsyncer
 fi
 cd vdirsyncer
+if [ -z "${VIRTUAL_ENV}" ]; then
+    virtualenv venv -p${PYTHON}
+    source venv/bin/activate
+    export PYTHONPATH=${REPO_DIR}
+    pushd ${REPO_DIR} && ${PYTHON} setup.py develop && popd
+fi
 make \
     COVERAGE=true \
     PYTEST_ARGS="--cov-config $REPO_DIR/.coveragerc --cov-append --cov $REPO_DIR/xandikos tests/storage/dav/" \

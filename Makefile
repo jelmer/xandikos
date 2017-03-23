@@ -1,4 +1,4 @@
-PYTHON ?= python3
+export PYTHON ?= python3
 COVERAGE ?= $(PYTHON) -m coverage
 COVERAGE_RUN_OPTIONS ?=
 TESTSUITE = xandikos.tests.test_suite
