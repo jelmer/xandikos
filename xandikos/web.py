@@ -429,6 +429,9 @@ class CollectionSetResource(webdav.Collection):
     def get_etag(self):
         raise KeyError
 
+    def get_ctag(self):
+        raise KeyError
+
     def get_supported_locks(self):
         return []
 
@@ -606,6 +609,9 @@ class Principal(CollectionSetResource):
     def get_calendar_proxy_write_for(self):
         # TODO(jelmer)
         return []
+
+    def get_ctag(self):
+        raise KeyError
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
