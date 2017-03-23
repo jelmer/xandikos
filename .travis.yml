@@ -15,9 +15,9 @@ install:
   - sudo apt-get install -qq libneon27-dev curl
   - python setup.py develop
 script:
-  - make coverage
   - make style
-  - make check-litmus
+  - make coverage
+  - make coverage-litmus
   - make check-vdirsyncer
 after_success:
   - codecov

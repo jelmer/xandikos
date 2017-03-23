@@ -13,10 +13,9 @@ fi
 set -e
 
 cleanup() {
-	[ -z ${XANDIKOS_PID} ] || kill ${XANDIKOS_PID}
+	[ -z ${XANDIKOS_PID} ] || kill -TERM ${XANDIKOS_PID}
 	rm --preserve-root -rf ${SERVEDIR}
 	cat ${DAEMON_LOG}
-	wait
 }
 
 run_xandikos()
@@ -45,3 +44,4 @@ else
 fi
 
 TESTS="$TESTS" $LITMUS http://localhost:5233/
+exit 0
