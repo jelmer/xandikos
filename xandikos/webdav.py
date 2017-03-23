@@ -27,6 +27,7 @@ functionality should live in xandikos.caldav/xandikos.carddav respectively.
 
 import collections
 import fnmatch
+import functools
 import logging
 import posixpath
 import urllib.parse
@@ -1067,6 +1068,24 @@ class Backend(object):
         raise NotImplementedError(self.get_resource)
 
 
+def _get_resources_by_hrefs(backend, environ, hrefs):
+    """Retrieve multiple resources by href.
+
+    :param backend: backend from which to retrieve resources
+    :param environ: Environment dictionary
+    :param hrefs: List of hrefs to resolve
+    :return: iterator over (href, resource) tuples
+    """
+    script_name = environ['SCRIPT_NAME']
+    # TODO(jelmer): Bulk query hrefs in a more efficient manner
+    for href in hrefs:
+        if not href.startswith(script_name):
+            resource = None
+        else:
+            resource = backend.get_resource(href[len(script_name):])
+        yield (href, resource)
+
+
 def _send_xml_response(start_response, status, et, out_encoding):
     body_type = 'text/xml; charset="%s"' % out_encoding
     body = ET.tostringlist(et, encoding=out_encoding)
@@ -1356,18 +1375,6 @@ class WebDAVApp(object):
                                   (expected_tag, et.tag))
         return et
 
-    def _get_resources_by_hrefs(self, environ, hrefs):
-        """Retrieve multiple resources by href.
-        """
-        script_name = environ['SCRIPT_NAME']
-        # TODO(jelmer): Bulk query hrefs in a more efficient manner
-        for href in hrefs:
-            if not href.startswith(script_name):
-                resource = None
-            else:
-                resource = self.backend.get_resource(href[len(script_name):])
-            yield (href, resource)
-
     def do_REPORT(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         base_href, unused_path, r = self._get_resource_from_environ(environ)
@@ -1392,7 +1399,8 @@ class WebDAVApp(object):
             )
         return reporter.report(
             environ, start_response, et,
-            lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
+            functools.partial(
+                _get_resources_by_hrefs, self.backend, environ),
             self.properties, base_href, r, depth)
 
     @multistatus
