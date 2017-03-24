@@ -65,6 +65,15 @@ class NotAcceptableError(Exception):
         self.acceptable_content_types = acceptable_content_types
 
 
+class UnsupportedMediaType(Exception):
+    """Base class for unsupported media type errors."""
+
+    def __init__(self, content_type):
+        super(Exception, self).__init__(
+            "Unsupported media type: %r" % (content_type, ))
+        self.content_type = content_type
+
+
 def pick_content_types(accepted_content_types, available_content_types):
     """Pick best content types for a client.
 
@@ -91,6 +100,24 @@ def pick_content_types(accepted_content_types, available_content_types):
         available_content_types, accepted_content_types)
 
 
+def parse_type(content_type):
+    """Parse a content-type style header.
+
+    :param content_type: type to parse
+    :return: Tuple with base name and dict with params
+    """
+    params = {}
+    try:
+        (ct, rest) = content_type.split(';', 1)
+    except ValueError:
+        ct = content_type
+    else:
+        for param in rest.split(';'):
+            (key, val) = param.split('=')
+            params[key.strip()] = val.strip()
+    return (ct, params)
+
+
 def parse_accept_header(accept):
     """Parse a HTTP Accept or Accept-Language header.
 
@@ -102,16 +129,7 @@ def parse_accept_header(accept):
         part = part.strip()
         if not part:
             continue
-        params = {}
-        try:
-            (ct, rest) = part.split(';', 1)
-        except ValueError:
-            ct = part
-        else:
-            for param in rest.split(';'):
-                (key, val) = param.split('=')
-                params[key.strip()] = val.strip()
-        ret.append((ct, params))
+        ret.append(parse_type(part))
     return ret
 
 
@@ -1363,8 +1381,14 @@ class WebDAVApp(object):
             return [environ['wsgi.input'].read(request_body_size)]
 
     def _readXmlBody(self, environ, expected_tag=None):
-        # TODO(jelmer): check Content-Type; should be something like
-        # 'text/xml; charset="utf-8"'
+        try:
+            content_type = environ['CONTENT_TYPE']
+        except KeyError:
+            pass  # Just assume it's okay?
+        else:
+            base_content_type, params = parse_type(content_type)
+            if base_content_type not in ('text/xml', 'application/xml'):
+                raise UnsupportedMediaType(content_type)
         body = b''.join(self._readBody(environ))
         try:
             et = xmlparse(body)
@@ -1477,13 +1501,16 @@ class WebDAVApp(object):
 
     # TODO(jelmer): This should really live in xandikos.caldav
     def do_MKCALENDAR(self, environ, start_response):
-        base_content_type = environ.get('CONTENT_TYPE', '').split(';')[0]
+        try:
+            content_type = environ['CONTENT_TYPE']
+        except KeyError:
+            base_content_type = None
+        else:
+            base_content_type, params = parse_type(content_type)
         if base_content_type not in (
-            'text/xml', 'application/xml', '', 'text/plain'
+            'text/xml', 'application/xml', None, 'text/plain'
         ):
-            start_response('415 Unsupported Media Type', [])
-            return [('Unsupported media type %r' % base_content_type)
-                    .encode(DEFAULT_ENCODING)]
+            raise UnsupportedMediaType(content_type)
         href, path, resource = self._get_resource_from_environ(environ)
         if resource is not None:
             start_response('405 Method Not Allowed', [])
@@ -1516,13 +1543,16 @@ class WebDAVApp(object):
             return []
 
     def do_MKCOL(self, environ, start_response):
-        base_content_type = environ.get('CONTENT_TYPE', '').split(';')[0]
+        try:
+            content_type = environ['CONTENT_TYPE']
+        except KeyError:
+            base_content_type = None
+        else:
+            base_content_type, params = parse_type(content_type)
         if base_content_type not in (
-            'text/plain', 'text/xml', 'application/xml', ''
+            'text/plain', 'text/xml', 'application/xml', None
         ):
-            start_response('415 Unsupported Media Type', [])
-            return [('Unsupported media type %r' % base_content_type)
-                    .encode(DEFAULT_ENCODING)]
+            raise UnsupportedMediaType(base_content_type)
         href, path, resource = self._get_resource_from_environ(environ)
         if resource is not None:
             start_response('405 Method Not Allowed', [])
@@ -1585,3 +1615,7 @@ class WebDAVApp(object):
         except NotAcceptableError as e:
             start_response('406 Not Acceptable', [])
             return [e.message.encode(DEFAULT_ENCODING)]
+        except UnsupportedMediaType as e:
+            start_response('415 Unsupported Media Type', [])
+            return [('Unsupported media type %r' % e.content_type)
+                    .encode(DEFAULT_ENCODING)]

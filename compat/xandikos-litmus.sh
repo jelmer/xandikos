@@ -23,7 +23,7 @@ run_xandikos()
 {
 	${XANDIKOS} -p5233 -llocalhost -d ${SERVEDIR} --autocreate 2>&1 >$DAEMON_LOG &
 	XANDIKOS_PID=$!
-	sleep 2
+	sleep 4
 }
 
 trap cleanup 0 EXIT
