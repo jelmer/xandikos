@@ -17,7 +17,12 @@ install:
 script:
   - make style
   - make coverage
+  - mv .coverage .coverage.unit
   - make coverage-litmus
+  - mv .coverage .coverage.litmus
   - make coverage-vdirsyncer
+  - mv .coverage .coverage.vdirsyncer
 after_success:
-  - codecov
+  - codecov -F unit -f coverage.unit
+  - codecov -F litmus -f coverage.litmus
+  - codecov -F vdirsyncer -f coverage.vdirsyncer
