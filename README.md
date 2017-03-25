@@ -17,9 +17,17 @@ The following standards are implemented:
  - [RFC3253](http://www.rfc-base.org/rfc-3253.html) (Versioning Extensions) - *partially implemented, only the REPORT method and {DAV:}expand-property property*
  - [RFC3744](http://www.rfc-base.org/rfc-3744.html) (Access Control) - *partially implemented*
  - [RFC5995](http://www.rfc-base.org/rfc-5995.html) (POST to create members) - *fully implemented*
- - [RFC7809](http://www.rfc-base.org/rfc-7809.html) (CalDAV Time Zone Extensions) - *not implemented*
- - [RFC6638](http://www.rfc-base.org/rfc-6638.html) (CalDAV Scheduling Extensions) - *not implemented*
  - [RFC5689](http://www.rfc-base.org/rfc-5689.html) (Extended MKCOL) - *fully implemented*
+
+The following standards are not implemented:
+
+ - [RFC6638](http://www.rfc-base.org/rfc-6638.html) (CalDAV Scheduling Extensions) - *not implemented*
+ - [RFC7809](http://www.rfc-base.org/rfc-7809.html) (CalDAV Time Zone Extensions) - *not implemented*
+ - [RFC7529](http://www.rfc-base.org/rfc-7529.html) (WebDAV Quota) - *not implemented*
+ - [RFC4709](http://www.rfc-base.org/rfc-4709.html) (WebDAV Mount) - *not implemented*
+ - [RFC5546](http://www.rfc-base.org/rfc-5546.html) (iCal iTIP) - *not implemented*
+ - [RFC4324](http://www.rfc-base.org/rfc-4324.html) (iCAL CAP) - *not implemented*
+ - [RFC7953](http://www.rfc-base.org/rfc-7953.html) (iCal AVAILABILITY) - *not implemented*
 
 See [DAV compliance](notes/dav-compliance.md) for more detail on specification compliancy.
 
