@@ -8,7 +8,7 @@ check:
 	$(PYTHON) -m unittest $(TESTSUITE)
 
 style:
-	flake8
+	flake8 --exclude=compat/vdirsyncer/
 
 web:
 	$(PYTHON) -m xandikos.web
