@@ -25,12 +25,16 @@ coverage-litmus:
 check-vdirsyncer:
 	./compat/xandikos-vdirsyncer.sh
 
+coverage-vdirsyncer:
+	PYTEST_ARGS="--cov-config $(shell pwd)/.coveragerc --cov-append --cov $(shell pwd)/xandikos" ./compat/xandikos-vdirsyncer.sh
+	$(COVERAGE) combine -a compat/vdirsyncer/.coverage
+
 check-caldavtester:
 	cd compat && ./all.sh
 
 check-all: check check-vdirsyncer check-litmus
 
-coverage-all: coverage coverage-litmus
+coverage-all: coverage coverage-litmus coverage-vdirsyncer
 
 coverage:
 	$(COVERAGE_RUN) --source=xandikos -m unittest $(TESTSUITE)
