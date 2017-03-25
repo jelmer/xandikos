@@ -18,6 +18,6 @@ script:
   - make style
   - make coverage
   - make coverage-litmus
-  - make check-vdirsyncer
+  - make coverage-vdirsyncer
 after_success:
   - codecov

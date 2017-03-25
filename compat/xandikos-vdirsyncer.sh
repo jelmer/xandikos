@@ -24,9 +24,6 @@ if [ -z "${VIRTUAL_ENV}" ]; then
 fi
 make \
     COVERAGE=true \
-    PYTEST_ARGS="--cov-config $REPO_DIR/.coveragerc --cov-append --cov $REPO_DIR/xandikos tests/storage/dav/" \
+    PYTEST_ARGS="${PYTEST_ARGS} tests/storage/dav/" \
     DAV_SERVER=xandikos \
     install-dev install-test test
-
-cd "$REPO_DIR"
-coverage combine compat/vdirsyncer/.coverage .
