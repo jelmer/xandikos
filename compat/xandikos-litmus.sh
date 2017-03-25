@@ -23,7 +23,15 @@ run_xandikos()
 {
 	${XANDIKOS} -p5233 -llocalhost -d ${SERVEDIR} --autocreate 2>&1 >$DAEMON_LOG &
 	XANDIKOS_PID=$!
-	sleep 4
+	i=0
+	while [ $i -lt 10 ]
+	do
+		if curl http://localhost:5233/ >/dev/null; then
+			break
+		fi
+		sleep 1
+		let i+=1
+	done
 }
 
 trap cleanup 0 EXIT
