@@ -22,7 +22,10 @@ script:
   - mv .coverage .coverage.litmus
   - make coverage-vdirsyncer
   - mv .coverage .coverage.vdirsyncer
+  - make coverage-caldavtester
+  - mv .coverage .coverage.caldavtester
 after_success:
   - codecov -F unit -f coverage.unit
   - codecov -F litmus -f coverage.litmus
   - codecov -F vdirsyncer -f coverage.vdirsyncer
+  - codecov -F caldavtester -f coverage.caldavtester

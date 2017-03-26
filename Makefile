@@ -4,6 +4,7 @@ COVERAGE_RUN_OPTIONS ?=
 COVERAGE_RUN ?= $(COVERAGE) run $(COVERAGE_RUN_OPTIONS)
 TESTSUITE = xandikos.tests.test_suite
 LITMUS_TESTS ?= basic http
+XANDIKOS_COVERAGE ?= $(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web
 
 check:
 	$(PYTHON) -m unittest $(TESTSUITE)
@@ -21,7 +22,7 @@ check-litmus:
 	./compat/xandikos-litmus.sh "${LITMUS_TESTS}"
 
 coverage-litmus:
-	XANDIKOS="$(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web" ./compat/xandikos-litmus.sh "${LITMUS_TESTS}"
+	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-litmus.sh "${LITMUS_TESTS}"
 
 check-vdirsyncer:
 	./compat/xandikos-vdirsyncer.sh
@@ -33,7 +34,10 @@ coverage-vdirsyncer:
 check-caldavtester:
 	./compat/xandikos-caldavtester.sh
 
-check-all: check check-vdirsyncer check-litmus
+coverage-caldavtester:
+	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-caldavtester.sh
+
+check-all: check check-vdirsyncer check-litmus check-caldavtester
 
 coverage-all: coverage coverage-litmus coverage-vdirsyncer
 
