@@ -1615,6 +1615,9 @@ class WebDAVApp(object):
         return []
 
     def __call__(self, environ, start_response):
+        if environ.get('HTTP_EXPECT', '') != '':
+            start_response('417 Expectation Failed', [])
+            return []
         method = environ['REQUEST_METHOD']
         try:
             do = getattr(self, 'do_' + method)
