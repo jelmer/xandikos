@@ -12,5 +12,7 @@ else
     popd
 fi
 
+PYTHON2=$(which python2 || which python2 | tail -1)
+
 cd ccs-caldavtester
-./testcaldav.py "$@"
+${PTYHON2} ./testcaldav.py "$@"

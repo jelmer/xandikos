@@ -12,7 +12,7 @@ env:
 install:
   - pip install pip --upgrade
   - pip install coverage codecov flake8 pycalendar
-  - sudo apt-get install -qq libneon27-dev curl caldav-tester
+  - sudo apt-get install -qq libneon27-dev curl
   - python setup.py develop
 script:
   - make style
