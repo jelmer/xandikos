@@ -33,8 +33,8 @@ import posixpath
 import shutil
 
 from xandikos import __version__ as xandikos_version
-from xandikos import (access, apache, caldav, carddav, sync, webdav, infit,
-                      scheduling, timezones)
+from xandikos import (access, apache, caldav, carddav, quota, sync, webdav,
+                      infit, scheduling, timezones)
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     TreeGitStore,
@@ -168,6 +168,14 @@ class ObjectResource(webdav.Resource):
     def get_is_executable(self):
         # TODO(jelmer): Retrieve POSIX mode and check for executability.
         return False
+
+    def get_quota_used_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
+    def get_quota_available_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
 
 
 class StoreBasedCollection(object):
@@ -322,6 +330,14 @@ class StoreBasedCollection(object):
 
     def get_is_executable(self):
         return False
+
+    def get_quota_used_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
+    def get_quota_available_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
 
 
 class Collection(StoreBasedCollection, webdav.Collection):
@@ -496,6 +512,14 @@ class CollectionSetResource(webdav.Collection):
     def get_is_executable(self):
         return False
 
+    def get_quota_used_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
+    def get_quota_available_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
 
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
@@ -547,6 +571,14 @@ class RootPage(webdav.Resource):
 
     def get_is_executable(self):
         return False
+
+    def get_quota_used_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
+    def get_quota_available_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
 
 
 class Principal(CollectionSetResource):
@@ -734,6 +766,8 @@ class XandikosApp(webdav.WebDAVApp):
             apache.ExecutableProperty(),
             caldav.CalendarProxyReadForProperty(),
             caldav.CalendarProxyWriteForProperty(),
+            quota.QuotaAvailableBytesProperty(),
+            quota.QuotaUsedBytesProperty(),
         ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),

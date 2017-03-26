@@ -707,6 +707,22 @@ class Resource(object):
         """
         raise NotImplementedError(self.set_is_executable)
 
+    def get_quota_used_bytes(self):
+        """Return bytes consumed by this resource.
+
+        If unknown, this can raise KeyError.
+
+        :return: an integer
+        """
+        raise NotImplementedError(self.get_quota_used_bytes)
+
+    def get_quota_available_bytes(self):
+        """Return quota available as bytes.
+
+        This can raise KeyError if there is infinite quota available.
+        """
+        raise NotImplementedError(self.get_quota_available_bytes)
+
 
 class Collection(Resource):
     """Resource for a WebDAV Collection."""
