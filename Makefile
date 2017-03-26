@@ -3,6 +3,7 @@ COVERAGE ?= $(PYTHON) -m coverage
 COVERAGE_RUN_OPTIONS ?=
 COVERAGE_RUN ?= $(COVERAGE) run $(COVERAGE_RUN_OPTIONS)
 TESTSUITE = xandikos.tests.test_suite
+LITMUS_TESTS ?= basic http
 
 check:
 	$(PYTHON) -m unittest $(TESTSUITE)
@@ -17,10 +18,10 @@ check-litmus-all:
 	./compat/xandikos-litmus.sh
 
 check-litmus:
-	./compat/xandikos-litmus.sh "basic"
+	./compat/xandikos-litmus.sh "${LITMUS_TESTS}"
 
 coverage-litmus:
-	XANDIKOS="$(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web" ./compat/xandikos-litmus.sh "basic"
+	XANDIKOS="$(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web" ./compat/xandikos-litmus.sh "${LITMUS_TESTS}"
 
 check-vdirsyncer:
 	./compat/xandikos-vdirsyncer.sh
