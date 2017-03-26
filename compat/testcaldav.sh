@@ -12,7 +12,9 @@ else
     popd
 fi
 
-PYTHON2=$(which python2 || which python2 | tail -1)
+PYTHON2=$((which python2 || which python2.7 || python2.6 || which python) | tail -1)
+
+echo "Using ${PYTHON2}"
 
 cd ccs-caldavtester
 ${PTYHON2} ./testcaldav.py "$@"
