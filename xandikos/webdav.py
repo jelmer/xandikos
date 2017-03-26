@@ -1366,9 +1366,14 @@ class WebDAVApp(object):
                     environ, start_response, '412 Precondition Failed',
                     error=ET.Element(e.precondition),
                     description=e.description)
-            start_response('204 No Content', [
-                ('ETag', new_etag)])
-            return []
+            except NotImplementedError:
+                return _send_method_not_allowed(
+                    environ, start_response,
+                    self._get_allowed_methods(environ))
+            else:
+                start_response('204 No Content', [
+                    ('ETag', new_etag)])
+                return []
         content_type = environ.get('CONTENT_TYPE')
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)
