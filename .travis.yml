@@ -11,7 +11,7 @@ env:
   global: PYTHONHASHSEED=random
 install:
   - pip install pip --upgrade
-  - pip install coverage codecov flake8
+  - pip install coverage codecov flake8 pycalendar
   - sudo apt-get install -qq libneon27-dev curl
   - python setup.py develop
 script:

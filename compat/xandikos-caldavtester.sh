@@ -8,4 +8,10 @@ CFGDIR=$(readlink -f $(dirname $0))
 
 run_xandikos --defaults
 
-testcaldav -s ${CFGDIR}/serverinfo.xml ${TESTS}
+if which testcaldav >/dev/null; then
+	TESTCALDAV=testcaldav
+else
+	TESTCALDAV="$(dirname $0)/testcaldav.sh"
+fi
+
+$TESTCALDAV -s ${CFGDIR}/serverinfo.xml ${TESTS}
