@@ -15,7 +15,7 @@ web:
 	$(PYTHON) -m xandikos.web
 
 check-litmus-all:
-	./compat/xandikos-litmus.sh
+	./compat/xandikos-litmus.sh "basic copymove http props locks"
 
 check-litmus:
 	./compat/xandikos-litmus.sh "${LITMUS_TESTS}"
@@ -31,7 +31,7 @@ coverage-vdirsyncer:
 	$(COVERAGE) combine -a compat/vdirsyncer/.coverage
 
 check-caldavtester:
-	cd compat && ./all.sh
+	./compat/xandikos-caldavtester.sh
 
 check-all: check check-vdirsyncer check-litmus
 

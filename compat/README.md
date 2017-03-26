@@ -1,6 +1,8 @@
-This directory contains scripts to run Apple's caldav-tester against the
-xandikos web server.
+This directory contains scripts to run external CalDAV/CardDAV/WebDAV
+testsuites against the Xandikos web server.
 
-to run:
+Currently supported:
 
-./run.sh
+ * [vdirsyncer](https://github.com/pimutils/vdirsyncer)
+ * [litmus](https://www.webdav.org/neon/litmus/)
+ * [caldavtester](https://www.calendarserver.org/CalDAVTester.html)

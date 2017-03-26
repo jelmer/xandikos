@@ -1,42 +1,13 @@
 #!/bin/bash -x
 # Run litmus against xandikos
 
-TESTS="$1"
+. $(dirname $0)/common.sh
 
-XANDIKOS_PID=
-DAEMON_LOG=$(mktemp)
-SERVEDIR=$(mktemp -d)
-if [ -z "${XANDIKOS}" ]; then
-	XANDIKOS=$(dirname $0)/../bin/xandikos
-fi
+TESTS="$1"
 
 set -e
 
-cleanup() {
-	[ -z ${XANDIKOS_PID} ] || kill -TERM ${XANDIKOS_PID}
-	rm --preserve-root -rf ${SERVEDIR}
-	cat ${DAEMON_LOG}
-	wait ${XANDIKOS_PID} || true
-}
-
-run_xandikos()
-{
-	${XANDIKOS} -p5233 -llocalhost -d ${SERVEDIR} --autocreate 2>&1 >$DAEMON_LOG &
-	XANDIKOS_PID=$!
-	i=0
-	while [ $i -lt 10 ]
-	do
-		if curl http://localhost:5233/ >/dev/null; then
-			break
-		fi
-		sleep 1
-		let i+=1
-	done
-}
-
-trap cleanup 0 EXIT
-
-run_xandikos
+run_xandikos --autocreate
 
 if which litmus >/dev/null; then
 	LITMUS=litmus
