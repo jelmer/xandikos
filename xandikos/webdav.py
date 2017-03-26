@@ -1245,12 +1245,10 @@ class WebDAVApp(object):
         unused_href, unused_path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
-        # TODO(jelmer): Support e.g. parsing q variables
         accept_content_types = parse_accept_header(
             environ.get('HTTP_ACCEPT', '*/*'))
-        # TODO(jelmer): Support e.g. parsing q variables
-        accept_content_languages = environ.get(
-            'HTTP_ACCEPT_LANGUAGES', '*').split(',')
+        accept_content_languages = parse_accept_header(
+            environ.get('HTTP_ACCEPT_LANGUAGES', '*'))
 
         (
             body,
