@@ -208,3 +208,120 @@ class MaxImageSizeProperty(webdav.Property):
 
     def get_value(self, href, resource, el):
         el.text = str(resource.get_max_image_size())
+
+
+def addressbook_from_resource(resource):
+    try:
+        if resource.get_content_type() != 'text/vcard':
+            return None
+    except KeyError:
+        return None
+    return resource.file.addressbook
+
+
+def apply_text_match(el, value):
+    collation = el.get('collation', 'i;ascii-casemap')
+    negate_condition = el.get('negate-condition', 'no')
+    # TODO(jelmer): Handle match-type
+    match_type = el.get('match-type', 'contains')
+    if match_type != 'contains':
+        raise NotImplementedError('match_type != contains: %r' % match_type)
+    matches = davcommon.collations[collation](el.text, value)
+
+    if negate_condition == 'yes':
+        return (not matches)
+    else:
+        return matches
+
+
+def apply_param_filter(el, prop):
+    name = el.get('name')
+    if (
+        len(el) == 1 and
+        el[0].tag == '{urn:ietf:params:xml:ns:carddav}is-not-defined'
+    ):
+        return name not in prop.params
+
+    try:
+        value = prop.params[name]
+    except KeyError:
+        return False
+
+    for subel in el:
+        if subel.tag == '{urn:ietf:params:xml:ns:carddav}text-match':
+            if not apply_text_match(subel, value):
+                return False
+        else:
+            raise AssertionError('unknown tag %r in param-filter', subel.tag)
+    return True
+
+
+def apply_prop_filter(el, ab):
+    name = el.get('name')
+    # From https://tools.ietf.org/html/rfc6352
+    # A CARDDAV:prop-filter is said to match if:
+
+    # The CARDDAV:prop-filter XML element contains a CARDDAV:is-not-defined XML
+    # element and no property of the type specified by the "name" attribute
+    # exists in the enclosing calendar component;
+    if (
+        len(el) == 1 and
+        el[0].tag == '{urn:ietf:params:xml:ns:carddav}is-not-defined'
+    ):
+        return name not in ab
+
+    try:
+        prop = ab[name]
+    except KeyError:
+        return False
+
+    for subel in el:
+        if subel.tag == '{urn:ietf:params:xml:ns:carddav}text-match':
+            if not apply_text_match(subel, prop):
+                return False
+        elif subel.tag == '{urn:ietf:params:xml:ns:carddav}param-filter':
+            if not apply_param_filter(subel, prop):
+                return False
+    return True
+
+
+def apply_filter(el, resource):
+    """Compile a filter element into a Python function.
+    """
+    if el is None:
+        # Empty filter, let's not bother parsing
+        return lambda x: True
+    ab = addressbook_from_resource(resource)
+    if ab is None:
+        return False
+    test_name = el.get('test', 'anyof')
+    test = {'allof': all, 'anyof': any}[test_name]
+    return test(apply_prop_filter(subel, ab) for subel in el)
+
+
+class AddressbookQueryReporter(webdav.Reporter):
+
+    name = '{%s}addressbook-query' % NAMESPACE
+    resource_type = ADDRESSBOOK_RESOURCE_TYPE
+    data_property = AddressDataProperty()
+
+    @webdav.multistatus
+    def report(self, environ, body, resources_by_hrefs, properties, base_href,
+               base_resource, depth):
+        requested = None
+        filter_el = None
+        for el in body:
+            if el.tag == '{DAV:}prop':
+                requested = el
+            elif el.tag == ('{%s}filter' % NAMESPACE):
+                filter_el = el
+            else:
+                raise webdav.BadRequestError(
+                    'Unknown tag %s in report %s' % (el.tag, self.name))
+        for (href, resource) in webdav.traverse_resource(
+                base_resource, base_href, depth):
+            if not apply_filter(filter_el, resource):
+                continue
+            propstat = davcommon.get_properties_with_data(
+                self.data_property, href, resource, properties, requested)
+            yield webdav.Status(href, '200 OK', propstat=list(propstat))

@@ -249,19 +249,10 @@ def apply_prop_filter(el, comp, tzify):
     return True
 
 
-# see https://tools.ietf.org/html/rfc4790
-
-collations = {
-    'i;ascii-casemap': lambda a, b: (a.decode('ascii').upper() ==
-                                     b.decode('ascii').upper()),
-    'i;octet': lambda a, b: a == b,
-}
-
-
 def apply_text_match(el, value):
     collation = el.get('collation', 'i;ascii-casemap')
     negate_condition = el.get('negate-condition', 'no')
-    matches = collations[collation](el.text, value)
+    matches = davcommon.collations[collation](el.text, value)
 
     if negate_condition == 'yes':
         return (not matches)

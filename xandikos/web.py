@@ -773,6 +773,7 @@ class XandikosApp(webdav.WebDAVApp):
             caldav.CalendarMultiGetReporter(),
             caldav.CalendarQueryReporter(),
             carddav.AddressbookMultiGetReporter(),
+            carddav.AddressbookQueryReporter(),
             webdav.ExpandPropertyReporter(),
             sync.SyncCollectionReporter(),
             caldav.FreeBusyQueryReporter(),
