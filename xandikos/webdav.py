@@ -1381,7 +1381,7 @@ class WebDAVApp(object):
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)
         if r is not None:
-            if not COLLECTION_RESOURCE_TYPE in r.resource_types:
+            if COLLECTION_RESOURCE_TYPE not in r.resource_types:
                 start_response('405 Method Not Allowed', [])
                 return []
             try:

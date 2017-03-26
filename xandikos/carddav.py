@@ -222,7 +222,8 @@ def addressbook_from_resource(resource):
 def apply_text_match(el, value):
     collation = el.get('collation', 'i;ascii-casemap')
     negate_condition = el.get('negate-condition', 'no')
-    # TODO(jelmer): Handle match-type
+    # TODO(jelmer): Handle match-type: 'contains', 'equals', 'starts-with',
+    # 'ends-with'
     match_type = el.get('match-type', 'contains')
     if match_type != 'contains':
         raise NotImplementedError('match_type != contains: %r' % match_type)
