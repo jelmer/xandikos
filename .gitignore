@@ -12,5 +12,4 @@ dist
 compat/litmus-*.tar.gz
 compat/vdirsyncer/
 compat/ccs-caldavtester/
-compat/caldavtester-env/
 *.egg*
