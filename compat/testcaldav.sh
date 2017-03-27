@@ -1,8 +1,9 @@
-#!/bin/bash -e
+#!/bin/bash
+set -e
 
 BRANCH=master
 
-cd $(readlink -f ..)
+cd $(dirname $0)
 
 if [ ! -d ccs-caldavtester ]; then
     git clone https://github.com/apple/ccs-caldavtester.git
@@ -12,9 +13,5 @@ else
     popd
 fi
 
-PYTHON2=$((which python2 || which python2.7 || python2.6 || which python) | tail -1)
-
-echo "Using ${PYTHON2}"
-
 cd ccs-caldavtester
-${PTYHON2} ./testcaldav.py "$@"
+exec env python2 ./testcaldav.py "$@"
