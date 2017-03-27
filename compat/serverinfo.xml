@@ -28,17 +28,102 @@
 	<waitdelay>0.25</waitdelay>
 
 	<features>
-	 	<!--
-		<feature>COPY Method</feature>
-		<feature>MOVE Method</feature>
-		<feature>ctag</feature>
-		<feature>directory listing</feature>
-		<feature>caldav</feature>
-		<feature>no-duplicate-uids</feature>
-		<feature>carddav</feature>
-		<feature>default-addressbook</feature>
-		<feature>shared-addressbooks</feature>-->
+		<!--  Generic WebDAV extensions -->
+		<!-- <feature>COPY Method</feature> -->							<!-- COPY method -->
+		<!-- <feature>MOVE Method</feature> -->							<!-- MOVE method -->
+		<feature>Extended MKCOL</feature>						<!-- Extended MKCOL -->
+
+		<!-- ACL related -->
+		<!-- <feature>ACL Method</feature> -->							<!-- ACL method -->
+		<!-- <feature>acl-principal-prop-set REPORT</feature> -->		<!-- ACL acl-principal-prop-set REPORT -->
+		<!-- <feature>principal-match REPORT</feature> -->				<!-- ACL principal-match REPORT -->
+		<!-- <feature>principal-property-search REPORT</feature> -->		<!-- ACL principal-property-search REPORT -->
+		<!-- <feature>principal-search-property-set REPORT</feature> -->	<!-- ACL principal-search-property-set REPORT -->
+		<!-- <feature>calendarserver-principal-search REPORT</feature> -->	<!-- ACL calendarserver-principal-search REPORT -->
+
+		<feature>add-member</feature> 					<!-- Add-member used to create resources -->
+		<!-- <feature>auth-on-root</feature> -->		<!-- Whether the server requires authentication on the root URI -->
+		<!-- <feature>brief</feature> -->					    <!-- Brief header for PROPFIND, REPORT -->
+		<!-- <feature>bulk-post</feature> -->					<!-- Bulk POST requests -->
+		<feature>ctag</feature>							<!-- ctag extension -->
+		<!-- <feature>current-user-principal</feature> -->		<!-- current-user-principal extension -->
+		<!-- <feature>directory listing</feature> -->			<!-- GET on collection -->
+		<!-- <feature>extended-principal-search</feature> -->	<!-- Extended principal-property-search REPORT extension -->
+		<feature>expand-property</feature>				<!-- Expand property REPORT -->
+		<!-- <feature>only-proxy-groups</feature> -->			<!-- Group-membership only includes delegated-to groups -->
+		<!-- <feature>limits</feature> -->						<!-- max-collections and max-resources limits -->
+		<feature>own-root</feature>			<!-- / is owned by this service -->
+		<!-- <feature>prefer</feature> -->						<!-- Prefer header overall support -->
+		<!-- <feature>prefer-minimal</feature> -->				<!-- Prefer header return=minimal -->
+		<!-- <feature>prefer-representation</feature> -->		<!-- Prefer header return=representation -->
+		<!-- <feature>prefer-noroot</feature> -->				<!-- Prefer header depth-noroot -->
+		<!-- <feature>quota</feature> -->						<!-- WebDAV QUOTA -->
+		<!-- <feature>quota-on-resources</feature> -->	<!-- WebDAV QUOTA on calendar and address book object resources -->
+		<!-- <feature>resource-id</feature> -->					<!-- WebDAV BIND DAV:resource-id property -->
+		<feature>sync-report</feature>					<!-- WebDAV collection sync REPORT -->
+		<!-- <feature>sync-report-limit</feature> -->	<!-- WebDAV collection sync REPORT DAV:limit support -->
+		<!-- <feature>sync-report-home</feature> -->				<!-- WebDAV collection sync REPORT on Homes -->
+		<!-- <feature>sync-report-config-token</feature> -->		<!-- Sync REPORT token includes configuration component -->
+		<!-- <feature>well-known</feature> -->					<!-- well-known feature -->
+
+		<!-- <feature>per-object-ACLs</feature> -->		<!-- ACL for objects in calendar/address books -->
+		<!-- <feature>regular-collection</feature> -->  <!-- Regular collections allowed in calendar/address book homes -->
+
+		<!-- <feature>json-data</feature> -->					<!-- jCal and jCard support -->
+
+		<!--  CalendarServer specific extensions -->
+		<!-- <feature>control-api</feature> -->			<!-- Control API support -->
+
+		<!-- CalDAV specific extension -->
+		<!-- <feature>caldav</feature> -->					    <!-- Basic CalDAV feature enabler -->
+		<!-- <feature>attachments-collection</feature> -->		<!-- Server uses a collection in same WebDAV tree to store attachments -->
+		<!-- <feature>auto-accept</feature> -->					<!-- Auto-accept for rooms & locations -->
+		<!-- <feature>auto-accept-modes</feature> -->			<!-- Auto-accept modes -->
+		<!-- <feature>client-fix-TRANSP</feature> -->			<!-- fix client TRANSP -->
+		<!-- <feature>dropbox</feature> -->				<!-- dropbox extension -->
+		<!-- <feature>default-alarms</feature> -->				<!-- default alarms extension -->
+		<!-- <feature>EMAIL parameter</feature> -->				<!-- Server normalizes cuaddress and adds EMAIL parameter -->
+		<!-- <feature>extended-freebusy</feature> -->	      	<!-- Extended freebusy response -->
+		<!-- <feature>freebusy-url</feature> -->	      			<!-- Freebusy URL -->
+		<!-- <feature>group-attendee-expansion</feature> -->	    <!-- Auto-expansion of group attendees -->
+		<!-- <feature>implicit-scheduling</feature> -->			<!-- CalDAV scheduling - implicit -->
+		<!-- <feature>location-resource-tracking</feature> -->  <!-- Server tracks who makes unscheduled changes to locations and resources -->
+		<!-- <feature>managed-attachments</feature> -->			<!-- CalDAV Managed Attachments -->
+		<!-- <feature>maskuid</feature> -->						<!-- maskuid extension -->
+		<!-- <feature>no-duplicate-uids</feature> -->			<!-- duplicate UIDs in same home not supported -->
+		<!-- <feature>partstat-timestamp</feature> -->			<!-- Time stamps when PARTSTAT changes extension -->
+		<!-- <feature>podding</feature> -->						<!-- Podded server -->
+		<!-- <feature>private-comments</feature> -->				<!-- private-comments extension -->
+		<!-- <feature>private-events</feature> -->				<!-- private-events extension -->
+		<!-- <feature>proxy</feature> -->						<!-- calendar-user-proxy extension -->
+		<!-- <feature>proxy-authz</feature> -->			<!-- sudo user extension -->
+		<!-- <feature>recurrence-splitting</feature> -->			<!-- Recurring components can be split -->
+		<!-- <feature>remove-duplicate-alarms</feature>   -->	<!-- Server removes any duplicate alarms on PUT -->
+		<!-- <feature>query-extended</feature> -->				<!-- calendar-query-extended extension -->
+		<!-- <feature>shared-calendars</feature> -->				<!-- Shared calendars extension -->
+		<!-- <feature>share-calendars-to-groups</feature> -->	<!-- Share calendars to groups extension -->
+		<!-- <feature>schedule-changes</feature> -->				<!-- schedule-changes property extension -->
+		<!-- <feature>split-calendars</feature> -->				<!-- Calendars are split by component type -->
+		<!-- <feature>supported-component-sets</feature> -->		<!-- CALDAV:supported-calendar-component-sets on calendar homes -->
+		<!-- <feature>supported-component-sets-one</feature> -->	<!-- Only single component calendars allowed to be created -->
+		<!-- <feature>timerange-low-limit</feature> -->			<!-- Time-range only valid one year back -->
+		<!-- <feature>timerange-high-limit</feature> -->			<!-- Time-range only valid 5 years ahead -->
+		<!-- <feature>timezones-by-reference</feature> -->		<!-- Timezones by reference enabled -->
+		<!-- <feature>timezone-service</feature> -->				<!-- Timezone service extension for Wiki -->
+		<!-- <feature>timezone-std-service</feature> -->			<!-- Timezone standard service extension -->
+		<!-- <feature>trash-collection</feature> -->  			<!-- Trash collection enabled -->
+		<!-- <feature>travel-time-busy</feature> -->			<!-- Travel time appears as busy -->
+		<!-- <feature>vavailability</feature> -->				<!-- VAVAILABILITY on inbox -->
+		<!-- <feature>vpoll</feature> -->				<!-- VPOLL support for store and scheduling -->
+		<!-- <feature>webcal</feature> -->						<!-- Internet calendar subscription via GET on calendar collection -->
+
+		<!-- CardDAV specific extension -->
+		<!-- <feature>carddav</feature> -->					<!-- Basic CardDAV feature enabler -->
+		<!-- <feature>default-addressbook</feature> -->			<!-- Default address book behavior -->
+		<!-- <feature>shared-addressbooks</feature> -->	<!-- Shared address books extension -->
+		<!-- <feature>shared-addressbook-groups</feature> -->	<!-- Shared groups extension -->
 		<!-- <feature>directory-gateway</feature> -->	<!-- Directory gateway extension -->
+
 	</features>
 
 	<substitutions>
@@ -93,7 +178,7 @@
 		<!-- relative path to main principal collection-->
 		<substitution>
 			<key>$principalcollection:</key>
-			<value>$root:principals/</value>
+			<value>$root:</value>
 		</substitution>
 
 		<!-- the core recored type collections-->
@@ -125,7 +210,7 @@
 		</substitution>
 		<substitution>
 			<key>$principals_users:</key>
-			<value>$principalcollection:$userstype:/</value>
+			<value>$principalcollection:</value>
 		</substitution>
 		<substitution>
 			<key>$principals_groups:</key>
@@ -472,7 +557,7 @@
 			<!-- relative path to user addressbook home-->
 			<substitution>
 				<key>$addressbookhome%d:</key>
-				<value>$addressbooks_uids:$userguid%d:</value>
+				<value>$principal%d:contacts</value>
 			</substitution>
 			<!-- relative path to user addressbook-->
 			<substitution>

@@ -6,7 +6,7 @@ set -e
 
 CFGDIR=$(readlink -f $(dirname $0))
 
-run_xandikos --defaults
+run_xandikos --defaults --current-user-principal=/user01/
 
 if which testcaldav >/dev/null; then
 	TESTCALDAV=testcaldav
