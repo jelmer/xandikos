@@ -27,6 +27,7 @@ functionality should live in xandikos.caldav/xandikos.carddav respectively.
 
 import collections
 import fnmatch
+import functools
 import logging
 import posixpath
 import urllib.parse
@@ -64,6 +65,15 @@ class NotAcceptableError(Exception):
         self.acceptable_content_types = acceptable_content_types
 
 
+class UnsupportedMediaType(Exception):
+    """Base class for unsupported media type errors."""
+
+    def __init__(self, content_type):
+        super(Exception, self).__init__(
+            "Unsupported media type: %r" % (content_type, ))
+        self.content_type = content_type
+
+
 def pick_content_types(accepted_content_types, available_content_types):
     """Pick best content types for a client.
 
@@ -77,7 +87,8 @@ def pick_content_types(accepted_content_types, available_content_types):
     if 0 in acceptable_by_q:
         # Items with q=0 are not acceptable
         for pat in acceptable_by_q[0]:
-            available_content_types -= set(fnmatch.filter(available_content_types, pat))
+            available_content_types -= set(fnmatch.filter(
+                available_content_types, pat))
         del acceptable_by_q[0]
     for q, pats in sorted(acceptable_by_q.items(), reverse=True):
         ret = []
@@ -89,6 +100,24 @@ def pick_content_types(accepted_content_types, available_content_types):
         available_content_types, accepted_content_types)
 
 
+def parse_type(content_type):
+    """Parse a content-type style header.
+
+    :param content_type: type to parse
+    :return: Tuple with base name and dict with params
+    """
+    params = {}
+    try:
+        (ct, rest) = content_type.split(';', 1)
+    except ValueError:
+        ct = content_type
+    else:
+        for param in rest.split(';'):
+            (key, val) = param.split('=')
+            params[key.strip()] = val.strip()
+    return (ct, params)
+
+
 def parse_accept_header(accept):
     """Parse a HTTP Accept or Accept-Language header.
 
@@ -97,16 +126,10 @@ def parse_accept_header(accept):
     """
     ret = []
     for part in accept.split(','):
-        params = {}
-        try:
-            (ct, rest) = part.split(';', 1)
-        except ValueError:
-            ct = part
-        else:
-            for param in rest.split(';'):
-                (key, val) = param.split('=')
-                params[key] = val
-        ret.append((ct, params))
+        part = part.strip()
+        if not part:
+            continue
+        ret.append(parse_type(part))
     return ret
 
 
@@ -141,23 +164,31 @@ class NeedsMultiStatus(Exception):
 
 
 def propstat_by_status(propstat):
+    """Sort a list of propstatus objects by HTTP status.
+
+    :param propstat: List of PropStatus objects:
+    :return: dictionary mapping HTTP status code to list of PropStatus objects
+    """
     bystatus = {}
     for propstat in propstat:
-        bystatus.setdefault(
-            (propstat.statuscode, propstat.responsedescription), []).append(
-                    propstat.prop)
+        (bystatus
+         .setdefault((propstat.statuscode, propstat.responsedescription), [])
+         .append(propstat.prop))
     return bystatus
 
 
 def propstat_as_xml(propstat):
+    """Format a list of propstats as XML elements.
+
+    :param propstat: List of PropStatus objects
+    :return: Iterator over {DAV:}propstat elements
+    """
     bystatus = propstat_by_status(propstat)
     for (status, rd), props in sorted(bystatus.items()):
         propstat = ET.Element('{DAV:}propstat')
-        ET.SubElement(propstat,
-            '{DAV:}status').text = 'HTTP/1.1 ' + status
+        ET.SubElement(propstat, '{DAV:}status').text = 'HTTP/1.1 ' + status
         if rd:
-            ET.SubElement(propstat,
-                '{DAV:}responsedescription').text = rd
+            ET.SubElement(propstat, '{DAV:}responsedescription').text = rd
         propresp = ET.SubElement(propstat, '{DAV:}prop')
         for prop in props:
             propresp.append(prop)
@@ -172,7 +203,8 @@ def path_from_environ(environ, name):
     # Re-decode using DEFAULT_ENCODING. PEP-3333 says that
     # everything will be decoded using iso-8859-1.
     # See also https://bugs.python.org/issue16679
-    return posixpath.normpath(environ[name].encode('iso-8859-1').decode(DEFAULT_ENCODING))
+    path = environ[name].encode('iso-8859-1').decode(DEFAULT_ENCODING)
+    return posixpath.normpath(path)
 
 
 class Status(object):
@@ -188,7 +220,9 @@ class Status(object):
 
     def __repr__(self):
         return "<%s(%r, %r, %r)>" % (
-            type(self).__name__, self.href, self.status, self.responsedescription)
+            type(self).__name__,
+            self.href, self.status, self.responsedescription
+        )
 
     def get_single_body(self, encoding):
         if self.propstat and len(propstat_by_status(self.propstat)) > 1:
@@ -198,7 +232,10 @@ class Status(object):
             body = ET.tostringlist(ret, encoding)
             return body, ('text/xml; encoding="%s"' % encoding)
         else:
-            body = self.responsedescription or ''
+            body = (
+                [self.responsedescription.encode(encoding)]
+                if self.responsedescription
+                else [])
             return body, ('text/plain; encoding="%s"' % encoding)
 
     def aselement(self):
@@ -209,8 +246,8 @@ class Status(object):
         if self.error:
             ET.SubElement(ret, '{DAV:}error').append(self.error)
         if self.responsedescription:
-            ET.SubElement(ret,
-                '{DAV:}responsedescription').text = self.responsedescription
+            ET.SubElement(ret, '{DAV:}responsedescription').text = (
+                self.responsedescription)
         if self.propstat is not None:
             for ps in propstat_as_xml(self.propstat):
                 ret.append(ps)
@@ -221,8 +258,7 @@ def multistatus(req_fn):
 
     def wrapper(self, environ, start_response, *args, **kwargs):
         responses = req_fn(self, environ, *args, **kwargs)
-        return _send_dav_responses(start_response, responses,
-                DEFAULT_ENCODING)
+        return _send_dav_responses(start_response, responses, DEFAULT_ENCODING)
 
     return wrapper
 
@@ -518,7 +554,7 @@ LOCK_TYPE_WRITE = '{DAV:}write'
 
 ActiveLock = collections.namedtuple(
     'ActiveLock',
-    ['lockscope', 'locktype', 'depth', 'owner', 'timeout','locktoken',
+    ['lockscope', 'locktype', 'depth', 'owner', 'timeout', 'locktoken',
         'lockroot'])
 
 
@@ -602,8 +638,8 @@ class Resource(object):
         :param accepted_content_types: List of accepted content types
         :param accepted_languages: List of accepted languages
         :raise NotAcceptableError: if there is no acceptable content type
-        :return: Tuple with
-            (content_body, content_length, etag, content_type, content_language)
+        :return: Tuple with (content_body, content_length, etag, content_type,
+                 content_language)
         """
         # TODO(jelmer): Check content_language
         content_types = pick_content_types(
@@ -660,6 +696,36 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_last_modified)
 
+    def get_is_executable(self):
+        """Get executable bit.
+
+        :return: Boolean indicating executability
+        """
+        raise NotImplementedError(self.get_is_executable)
+
+    def set_is_executable(self, executable):
+        """Set executable bit.
+
+        :param executable: Boolean indicating executability
+        """
+        raise NotImplementedError(self.set_is_executable)
+
+    def get_quota_used_bytes(self):
+        """Return bytes consumed by this resource.
+
+        If unknown, this can raise KeyError.
+
+        :return: an integer
+        """
+        raise NotImplementedError(self.get_quota_used_bytes)
+
+    def get_quota_available_bytes(self):
+        """Return quota available as bytes.
+
+        This can raise KeyError if there is infinite quota available.
+        """
+        raise NotImplementedError(self.get_quota_available_bytes)
+
 
 class Collection(Resource):
     """Resource for a WebDAV Collection."""
@@ -708,8 +774,9 @@ class Collection(Resource):
     def iter_differences_since(self, old_token, new_token):
         """Iterate over differences in this collection.
 
-        Should return an iterator over (name, old resource, new resource) tuples.
-        If one of the two didn't exist previously or now, they should be None.
+        Should return an iterator over (name, old resource, new resource)
+        tuples. If one of the two didn't exist previously or now, they should
+        be None.
 
         If old_token is None, this should return full contents of the
         collection.
@@ -755,6 +822,20 @@ class Principal(Resource):
     def get_group_membership(self):
         """Get group membership URLs."""
         raise NotImplementedError(self.get_group_membership)
+
+    def get_calendar_proxy_read_for(self):
+        """List principals for which this one is a read proxy.
+
+        :return: List of principal hrefs
+        """
+        raise NotImplementedError(self.get_calendar_proxy_read_for)
+
+    def get_calendar_proxy_write_for(self):
+        """List principals for which this one is a write proxy.
+
+        :return: List of principal hrefs
+        """
+        raise NotImplementedError(self.get_calendar_proxy_write_for)
 
 
 def get_property(href, resource, properties, name):
@@ -880,7 +961,7 @@ def create_href(href, base_href=None):
         logging.warning('invalidly formatted href: %s' % href)
     et = ET.Element('{DAV:}href')
     if base_href is not None:
-        href = urllib.parse.urljoin(base_href+'/', href)
+        href = urllib.parse.urljoin(ensure_trailing_slash(base_href), href)
     et.text = urllib.parse.quote(href)
     return et
 
@@ -933,14 +1014,14 @@ class ExpandPropertyReporter(Reporter):
                         response = self._populate(
                             prop, properties, child_href, child_resource)
                         new_prop.append(response.aselement())
-            propstat = PropStatus(
-                propstat.statuscode, propstat.responsedescription, prop=new_prop)
+            propstat = PropStatus(propstat.statuscode,
+                                  propstat.responsedescription, prop=new_prop)
             ret.append(propstat)
         return Status(href, '200 OK', propstat=ret)
 
     @multistatus
-    def report(self, environ, request_body, resources_by_hrefs, properties, href,
-               resource, depth):
+    def report(self, environ, request_body, resources_by_hrefs, properties,
+               href, resource, depth):
         return self._populate(request_body, resources_by_hrefs, properties,
                               href, resource)
 
@@ -1024,6 +1105,24 @@ class Backend(object):
         raise NotImplementedError(self.get_resource)
 
 
+def _get_resources_by_hrefs(backend, environ, hrefs):
+    """Retrieve multiple resources by href.
+
+    :param backend: backend from which to retrieve resources
+    :param environ: Environment dictionary
+    :param hrefs: List of hrefs to resolve
+    :return: iterator over (href, resource) tuples
+    """
+    script_name = environ['SCRIPT_NAME']
+    # TODO(jelmer): Bulk query hrefs in a more efficient manner
+    for href in hrefs:
+        if not href.startswith(script_name):
+            resource = None
+        else:
+            resource = backend.get_resource(href[len(script_name):])
+        yield (href, resource)
+
+
 def _send_xml_response(start_response, status, et, out_encoding):
     body_type = 'text/xml; charset="%s"' % out_encoding
     body = ET.tostringlist(et, encoding=out_encoding)
@@ -1048,12 +1147,14 @@ def _send_dav_responses(start_response, responses, out_encoding):
     ret = ET.Element('{DAV:}multistatus')
     for response in responses:
         ret.append(response.aselement())
-    return _send_xml_response(start_response, '207 Multi-Status',
-        ret, out_encoding)
+    return _send_xml_response(start_response, '207 Multi-Status', ret,
+                              out_encoding)
 
 
-def _send_simple_dav_error(environ, start_response, statuscode, error):
-    status = Status(request_uri(environ), statuscode, error)
+def _send_simple_dav_error(environ, start_response, statuscode, error,
+                           description):
+    status = Status(request_uri(environ), statuscode, error=error,
+                    responsedescription=description)
     return _send_dav_responses(start_response, status, DEFAULT_ENCODING)
 
 
@@ -1084,7 +1185,8 @@ def apply_modify_prop(el, href, resource, properties):
     try:
         [requested] = el
     except IndexError:
-        raise BadRequestError('Received more than one element in {DAV:}set element.')
+        raise BadRequestError(
+            'Received more than one element in {DAV:}set element.')
     if requested.tag != '{DAV:}prop':
         raise BadRequestError('Expected prop tag, got ' + requested.tag)
     for propel in requested:
@@ -1162,15 +1264,24 @@ class WebDAVApp(object):
         unused_href, unused_path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
-        # TODO(jelmer): Support e.g. parsing q variables
-        accept_content_types = parse_accept_header(environ.get('HTTP_ACCEPT', '*/*'))
-        # TODO(jelmer): Support e.g. parsing q variables
-        accept_content_languages = environ.get('HTTP_ACCEPT_LANGUAGES', '*').split(',')
-        (body, content_length, current_etag, content_type, content_languages) = r.render(
-            accept_content_types, accept_content_languages)
+        accept_content_types = parse_accept_header(
+            environ.get('HTTP_ACCEPT', '*/*'))
+        accept_content_languages = parse_accept_header(
+            environ.get('HTTP_ACCEPT_LANGUAGES', '*'))
+
+        (
+            body,
+            content_length,
+            current_etag,
+            content_type,
+            content_languages
+        ) = r.render(accept_content_types, accept_content_languages)
+
         if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
-        if (if_none_match and current_etag is not None and
-            etag_matches(if_none_match, current_etag)):
+        if (
+            if_none_match and current_etag is not None and
+            etag_matches(if_none_match, current_etag)
+        ):
             start_response('304 Not Modified', [])
             return []
         headers = [
@@ -1217,7 +1328,7 @@ class WebDAVApp(object):
         unused_href, path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
-        if not COLLECTION_RESOURCE_TYPE in r.resource_types:
+        if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             start_response('405 Method Not Allowed', [])
             return []
         content_type = environ['CONTENT_TYPE'].split(';')[0]
@@ -1226,11 +1337,13 @@ class WebDAVApp(object):
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 environ, start_response, '412 Precondition Failed',
-                error=ET.Element(e.precondition))
-        href = environ['SCRIPT_NAME'] + urllib.parse.urljoin(path+'/', name)
-        start_response('200 OK', [
-            ('Location', href)
-            ])
+                error=ET.Element(e.precondition),
+                description=e.description)
+        href = (
+            environ['SCRIPT_NAME'] +
+            urllib.parse.urljoin(ensure_trailing_slash(path), name)
+        )
+        start_response('200 OK', [('Location', href)])
         return []
 
     def do_PUT(self, environ, start_response):
@@ -1254,21 +1367,31 @@ class WebDAVApp(object):
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
                     environ, start_response, '412 Precondition Failed',
-                    error=ET.Element(e.precondition))
-            start_response('204 No Content', [
-                ('ETag', new_etag)])
-            return []
+                    error=ET.Element(e.precondition),
+                    description=e.description)
+            except NotImplementedError:
+                return _send_method_not_allowed(
+                    environ, start_response,
+                    self._get_allowed_methods(environ))
+            else:
+                start_response('204 No Content', [
+                    ('ETag', new_etag)])
+                return []
         content_type = environ.get('CONTENT_TYPE')
         container_path, name = posixpath.split(path)
         r = self.backend.get_resource(container_path)
         if r is not None:
+            if COLLECTION_RESOURCE_TYPE not in r.resource_types:
+                start_response('405 Method Not Allowed', [])
+                return []
             try:
                 (new_name, new_etag) = r.create_member(
                     name, new_contents, content_type)
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
                     environ, start_response, '412 Precondition Failed',
-                    error=ET.Element(e.precondition))
+                    error=ET.Element(e.precondition),
+                    description=e.description)
             start_response('201 Created', [
                 ('ETag', new_etag)])
             return []
@@ -1283,28 +1406,23 @@ class WebDAVApp(object):
             return [environ['wsgi.input'].read(request_body_size)]
 
     def _readXmlBody(self, environ, expected_tag=None):
-        #TODO(jelmer): check Content-Type; should be something like
-        # 'text/xml; charset="utf-8"'
+        try:
+            content_type = environ['CONTENT_TYPE']
+        except KeyError:
+            pass  # Just assume it's okay?
+        else:
+            base_content_type, params = parse_type(content_type)
+            if base_content_type not in ('text/xml', 'application/xml'):
+                raise UnsupportedMediaType(content_type)
         body = b''.join(self._readBody(environ))
         try:
             et = xmlparse(body)
         except ET.ParseError:
             raise BadRequestError('Unable to parse body.')
         if expected_tag is not None and et.tag != expected_tag:
-            raise BadRequestError('Expected %s tag, got %s' % (expected_tag, et.tag))
+            raise BadRequestError('Expected %s tag, got %s' %
+                                  (expected_tag, et.tag))
         return et
-
-    def _get_resources_by_hrefs(self, environ, hrefs):
-        """Retrieve multiple resources by href.
-        """
-        script_name = environ['SCRIPT_NAME']
-        # TODO(jelmer): Bulk query hrefs in a more efficient manner
-        for href in hrefs:
-            if not href.startswith(script_name):
-                resource = None
-            else:
-                resource = self.backend.get_resource(href[len(script_name):])
-            yield (href, resource)
 
     def do_REPORT(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
@@ -1316,32 +1434,44 @@ class WebDAVApp(object):
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
-            logging.warning( 'Client requested unknown REPORT %s',
-                et.tag)
-            return _send_simple_dav_error(environ, start_response,
-                '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
+            logging.warning('Client requested unknown REPORT %s', et.tag)
+            return _send_simple_dav_error(
+                environ, start_response,
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
+                description=('Unknown report %s.' % et.tag)
+            )
         if not reporter.supported_on(r):
-            return _send_simple_dav_error(environ, start_response,
-                '403 Forbidden', error=ET.Element('{DAV:}supported-report'))
+            return _send_simple_dav_error(
+                environ, start_response,
+                '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
+                description=('Report %s not supported on resource.' % et.tag)
+            )
         return reporter.report(
-            environ, start_response, et, lambda hrefs: self._get_resources_by_hrefs(environ, hrefs),
+            environ, start_response, et,
+            functools.partial(
+                _get_resources_by_hrefs, self.backend, environ),
             self.properties, base_href, r, depth)
 
     @multistatus
     def do_PROPFIND(self, environ):
-        base_href, unused_path, base_resource = self._get_resource_from_environ(environ)
+        base_href, unused_path, base_resource = (
+            self._get_resource_from_environ(environ))
         if base_resource is None:
             return Status(request_uri(environ), '404 Not Found')
         # Default depth is infinity, per RFC2518
         depth = environ.get("HTTP_DEPTH", "infinity")
-        if 'CONTENT_TYPE' not in environ and environ.get('CONTENT_LENGTH') == '0':
+        if (
+            'CONTENT_TYPE' not in environ and
+            environ.get('CONTENT_LENGTH') == '0'
+        ):
             requested = ET.Element('{DAV:}allprop')
         else:
             et = self._readXmlBody(environ, '{DAV:}propfind')
             try:
                 [requested] = et
             except ValueError:
-                raise BadRequestError('Received more than one element in propfind.')
+                raise BadRequestError(
+                    'Received more than one element in propfind.')
         if requested.tag == '{DAV:}prop':
             ret = []
             for href, resource in traverse_resource(
@@ -1370,12 +1500,14 @@ class WebDAVApp(object):
                     base_resource, base_href, depth):
                 propstat = []
                 for name, prop in self.properties.items():
-                    if prop.is_set(resource):
-                        propstat.append(ET.Element(name))
+                    if prop.is_set(href, resource):
+                        propstat.append(
+                            PropStatus('200 OK', None, ET.Element(name)))
                 ret.append(Status(href, '200 OK', propstat=propstat))
             return ret
         else:
-            raise BadRequestError('Expected prop/allprop/propname tag, got ' + requested.tag)
+            raise BadRequestError('Expected prop/allprop/propname tag, got ' +
+                                  requested.tag)
 
     @multistatus
     def do_PROPPATCH(self, environ):
@@ -1386,17 +1518,24 @@ class WebDAVApp(object):
         propstat = []
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
-                raise BadRequestError('Unknown tag %s in propertyupdate' % el.tag)
-            propstat.extend(apply_modify_prop(el, href, resource, self.properties))
-        return [Status(
-            request_uri(environ), propstat=propstat)]
+                raise BadRequestError('Unknown tag %s in propertyupdate'
+                                      % el.tag)
+            propstat.extend(apply_modify_prop(el, href, resource,
+                                              self.properties))
+        return [Status(request_uri(environ), propstat=propstat)]
 
     # TODO(jelmer): This should really live in xandikos.caldav
     def do_MKCALENDAR(self, environ, start_response):
-        base_content_type = environ.get('CONTENT_TYPE', '').split(';')[0]
-        if base_content_type not in ('text/xml', 'application/xml', '', 'text/plain'):
-            start_response('415 Unsupported Media Type', [])
-            return [('Unsupported media type %r' % base_content_type).encode(DEFAULT_ENCODING)]
+        try:
+            content_type = environ['CONTENT_TYPE']
+        except KeyError:
+            base_content_type = None
+        else:
+            base_content_type, params = parse_type(content_type)
+        if base_content_type not in (
+            'text/xml', 'application/xml', None, 'text/plain'
+        ):
+            raise UnsupportedMediaType(content_type)
         href, path, resource = self._get_resource_from_environ(environ)
         if resource is not None:
             start_response('405 Method Not Allowed', [])
@@ -1407,7 +1546,7 @@ class WebDAVApp(object):
             start_response('409 Conflict', [])
             return []
         el = ET.Element('{DAV:}resourcetype')
-        existing_resource_types = self.properties['{DAV:}resourcetype'].get_value(href, resource, el)
+        self.properties['{DAV:}resourcetype'].get_value(href, resource, el)
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         self.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):
@@ -1415,22 +1554,30 @@ class WebDAVApp(object):
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
-                    raise BadRequestError('Unknown tag %s in mkcalendar' % el.tag)
-                propstat.extend(apply_modify_prop(el, href, resource, self.properties))
+                    raise BadRequestError('Unknown tag %s in mkcalendar'
+                                          % el.tag)
+                propstat.extend(apply_modify_prop(el, href, resource,
+                                                  self.properties))
             ret = ET.Element('{DAV:}mkcalendar-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
             return _send_xml_response(start_response, '201 Created',
-                ret, DEFAULT_ENCODING)
+                                      ret, DEFAULT_ENCODING)
         else:
             start_response('201 Created', [])
             return []
 
     def do_MKCOL(self, environ, start_response):
-        base_content_type = environ.get('CONTENT_TYPE', '').split(';')[0]
-        if base_content_type not in ('text/plain', 'text/xml', 'application/xml', ''):
-            start_response('415 Unsupported Media Type', [])
-            return [('Unsupported media type %r' % base_content_type).encode(DEFAULT_ENCODING)]
+        try:
+            content_type = environ['CONTENT_TYPE']
+        except KeyError:
+            base_content_type = None
+        else:
+            base_content_type, params = parse_type(content_type)
+        if base_content_type not in (
+            'text/plain', 'text/xml', 'application/xml', None
+        ):
+            raise UnsupportedMediaType(base_content_type)
         href, path, resource = self._get_resource_from_environ(environ)
         if resource is not None:
             start_response('405 Method Not Allowed', [])
@@ -1447,12 +1594,13 @@ class WebDAVApp(object):
             for el in et:
                 if el.tag != '{DAV:}set':
                     raise BadRequestError('Unknown tag %s in mkcol' % el.tag)
-                propstat.extend(apply_modify_prop(el, href, resource, self.properties))
+                propstat.extend(apply_modify_prop(el, href, resource,
+                                                  self.properties))
             ret = ET.Element('{DAV:}mkcol-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
-            return _send_xml_response(start_response, '201 Created',
-                ret, DEFAULT_ENCODING)
+            return _send_xml_response(start_response, '201 Created', ret,
+                                      DEFAULT_ENCODING)
         else:
             start_response('201 Created', [])
             return []
@@ -1460,7 +1608,8 @@ class WebDAVApp(object):
     def do_OPTIONS(self, environ, start_response):
         headers = []
         if environ['PATH_INFO'] != '*':
-            unused_href, unused_path, r = self._get_resource_from_environ(environ)
+            unused_href, unused_path, r = (
+                self._get_resource_from_environ(environ))
             if r is None:
                 return _send_not_found(environ, start_response)
             dav_features = self._get_dav_features(r)
@@ -1477,16 +1626,24 @@ class WebDAVApp(object):
         return []
 
     def __call__(self, environ, start_response):
+        if environ.get('HTTP_EXPECT', '') != '':
+            start_response('417 Expectation Failed', [])
+            return []
         method = environ['REQUEST_METHOD']
         try:
-            do = getattr(self, 'do_' + method, None)
+            do = getattr(self, 'do_' + method)
+        except AttributeError as e:
+            return _send_method_not_allowed(environ, start_response,
+                                            self._get_allowed_methods(environ))
+        try:
+            return do(environ, start_response)
         except BadRequestError as e:
             start_response('400 Bad Request', [])
             return [e.message.encode(DEFAULT_ENCODING)]
         except NotAcceptableError as e:
             start_response('406 Not Acceptable', [])
             return [e.message.encode(DEFAULT_ENCODING)]
-        if do is not None:
-            return do(environ, start_response)
-        return _send_method_not_allowed(environ, start_response,
-            self._get_allowed_methods(environ))
+        except UnsupportedMediaType as e:
+            start_response('415 Unsupported Media Type', [])
+            return [('Unsupported media type %r' % e.content_type)
+                    .encode(DEFAULT_ENCODING)]

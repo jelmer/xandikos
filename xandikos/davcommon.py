@@ -38,7 +38,8 @@ class SubbedProperty(webdav.Property):
         raise NotImplementedError(self.get_value)
 
 
-def get_properties_with_data(data_property, href, resource, properties, requested):
+def get_properties_with_data(data_property, href, resource, properties,
+                             requested):
     for propreq in list(requested):
         if propreq.tag == data_property.name:
             ret = ET.Element(propreq.tag)
@@ -61,8 +62,8 @@ class MultiGetReporter(webdav.Reporter):
     data_property = None
 
     @webdav.multistatus
-    def report(self, environ, body, resources_by_hrefs, properties, base_href, resource,
-               depth):
+    def report(self, environ, body, resources_by_hrefs, properties, base_href,
+               resource, depth):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an addressbook
         requested = None
@@ -82,3 +83,12 @@ class MultiGetReporter(webdav.Reporter):
                 propstat = get_properties_with_data(
                     self.data_property, href, resource, properties, requested)
                 yield webdav.Status(href, '200 OK', propstat=list(propstat))
+
+
+# see https://tools.ietf.org/html/rfc4790
+
+collations = {
+    'i;ascii-casemap': lambda a, b: (a.decode('ascii').upper() ==
+                                     b.decode('ascii').upper()),
+    'i;octet': lambda a, b: a == b,
+}

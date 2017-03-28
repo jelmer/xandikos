@@ -185,6 +185,10 @@ Not supported
 https://github.com/apple/ccs-calendarserver/blob/master/doc/Extensions/caldav-ctag.txt
  - DAV:getctag [supported]
 
+https://github.com/apple/ccs-calendarserver/blob/master/doc/Extensions/caldav-proxy.txt
+ - DAV:calendar-proxy-read-for [supported]
+ - DAV:calendar-proxy-write-for [supported]
+
 ## Apple-specific Properties
  - calendar-color [supported]
  - getctag [supported]
@@ -210,3 +214,10 @@ Fully supported
 
 ## HTTP Methods
  - MKCOL [supported]
+
+
+# rfc7529.txt (WebDAV Quota)
+
+## DAV properties
+ - {DAV:}quote-available-bytes [supported]
+ - {DAV:}quote-used-bytes [supported]

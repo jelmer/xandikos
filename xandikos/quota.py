@@ -17,17 +17,34 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-import unittest
+"""Quota and Size properties.
+
+See https://tools.ietf.org/html/rfc4331
+"""
+from xandikos import webdav
 
 
-def test_suite():
-    names = [
-        'caldav',
-        'icalendar',
-        'store',
-        'webdav',
-        'web',
-    ]
-    module_names = ['xandikos.tests.test_' + name for name in names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+class QuotaAvailableBytesProperty(webdav.Property):
+    """quota-available-bytes
+    """
+
+    name = '{DAV:}quota-available-bytes'
+    resource_type = None
+    in_allprops = False
+    live = True
+
+    def get_value(self, href, resource, el):
+        el.text = resource.get_quota_available_bytes()
+
+
+class QuotaUsedBytesProperty(webdav.Property):
+    """quota-used-bytes
+    """
+
+    name = '{DAV:}quota-used-bytes'
+    resource_type = None
+    in_allprops = False
+    live = True
+
+    def get_value(self, href, resource, el):
+        el.text = resource.get_quota_used_bytes()

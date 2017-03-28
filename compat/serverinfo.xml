@@ -28,23 +28,17 @@
 	<waitdelay>0.25</waitdelay>
 
 	<features>
-		<!--  Generic WebDAV extensions -->
-		<feature>COPY Method</feature>							<!-- COPY method -->
-		<feature>MOVE Method</feature>							<!-- MOVE method -->
-
-		<feature>ctag</feature>							<!-- ctag extension -->
-		<feature>directory listing</feature> 			<!-- GET on collection -->
-
-		<!-- CalDAV specific extension -->
-		<feature>caldav</feature>					    <!-- Basic CalDAV feature enabler -->
-		<feature>no-duplicate-uids</feature>			<!-- duplicate UIDs in same home not supported -->
-
-		<!-- CardDAV specific extension -->
-		<feature>carddav</feature> 						<!-- Basic CardDAV feature enabler -->
-		<feature>default-addressbook</feature> 			<!-- Default address book behavior -->
-		<feature>shared-addressbooks</feature>			<!-- Shared address books extension -->
+	 	<!--
+		<feature>COPY Method</feature>
+		<feature>MOVE Method</feature>
+		<feature>ctag</feature>
+		<feature>directory listing</feature>
+		<feature>caldav</feature>
+		<feature>no-duplicate-uids</feature>
+		<feature>carddav</feature>
+		<feature>default-addressbook</feature>
+		<feature>shared-addressbooks</feature>-->
 		<!-- <feature>directory-gateway</feature> -->	<!-- Directory gateway extension -->
-
 	</features>
 
 	<substitutions>

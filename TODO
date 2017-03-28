@@ -1,6 +1,5 @@
 webdav server:
 - add support for authorization
-- implement MKCALENDAR
 - implement COPY
 - implement MOVE
 - implement LOCK
@@ -11,7 +10,6 @@ webdav server:
 - support returning components in addressbook-data
 
 - properties:
- - group-membership
  - calendar-proxy-read-for
  - calendar-proxy-write-for
 

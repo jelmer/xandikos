@@ -17,17 +17,31 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-import unittest
+"""Apache.org mod_dav custom properties.
+
+See http://www.webdav.org/mod_dav/
+"""
+from xandikos import webdav
 
 
-def test_suite():
-    names = [
-        'caldav',
-        'icalendar',
-        'store',
-        'webdav',
-        'web',
-    ]
-    module_names = ['xandikos.tests.test_' + name for name in names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+class ExecutableProperty(webdav.Property):
+    """executable property
+
+    Equivalent of the 'x' bit on POSIX.
+    """
+
+    name = '{http://apache.org/dav/props/}executable'
+    resource_type = None
+    live = False
+
+    def get_value(self, href, resource, el):
+        el.text = ('T' if resource.get_is_executable() else 'F')
+
+    def set_value(self, href, resource, el):
+        if el.text == 'T':
+            resource.set_is_executable(True)
+        elif el.text == 'F':
+            resource.set_is_executable(False)
+        else:
+            raise ValueError(
+                'invalid executable setting %r' % el.text)
