@@ -12,7 +12,7 @@ env:
 install:
   - pip install pip --upgrade
   - pip install coverage codecov flake8 pycalendar
-  - sudo apt-get install -qq libneon27-dev curl
+  - sudo apt-get install -qq libneon27-dev curl python2.7
   - python setup.py develop
 script:
   - make style
@@ -22,12 +22,10 @@ script:
   - mv .coverage .coverage.litmus
   - make coverage-vdirsyncer
   - mv .coverage .coverage.vdirsyncer
-# CalDAVtester needs to run with Python2, but travis seems to always force
-# Python3.
-#  - make coverage-caldavtester
-#  - mv .coverage .coverage.caldavtester
+  - make coverage-caldavtester
+  - mv .coverage .coverage.caldavtester
 after_success:
   - codecov -F unit -f coverage.unit
   - codecov -F litmus -f coverage.litmus
   - codecov -F vdirsyncer -f coverage.vdirsyncer
-#  - codecov -F caldavtester -f coverage.caldavtester
+  - codecov -F caldavtester -f coverage.caldavtester
