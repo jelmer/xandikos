@@ -1,0 +1,13 @@
+comment: false
+coverage:
+  status:
+    patch: false
+    project:
+      unit:
+        flags: unit
+      litmus:
+        flags: litmus
+      vdirsyncer:
+        flags: vdirsyncer
+      caldavtester:
+        flags: caldavtester
