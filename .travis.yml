@@ -25,7 +25,5 @@ script:
   - make coverage-caldavtester
   - mv .coverage .coverage.caldavtester
 after_success:
-  - codecov --flags unit --file .coverage.unit --required
-  - codecov --flags litmus --file .coverage.litmus --required
-  - codecov --flags vdirsyncer --file .coverage.vdirsyncer --required
-  - codecov --flags caldavtester --file .coverage.caldavtester
+  - python -m coverage combine
+  - codecov
