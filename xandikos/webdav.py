@@ -1221,6 +1221,35 @@ def apply_modify_prop(el, href, resource, properties):
             yield PropStatus(statuscode, None, ET.Element(propel.tag))
 
 
+def _readBody(environ):
+    try:
+        request_body_size = int(environ['CONTENT_LENGTH'])
+    except KeyError:
+        return [environ['wsgi.input'].read()]
+    else:
+        return [environ['wsgi.input'].read(request_body_size)]
+
+
+def _readXmlBody(environ, expected_tag=None):
+    try:
+        content_type = environ['CONTENT_TYPE']
+    except KeyError:
+        pass  # Just assume it's okay?
+    else:
+        base_content_type, params = parse_type(content_type)
+        if base_content_type not in ('text/xml', 'application/xml'):
+            raise UnsupportedMediaType(content_type)
+    body = b''.join(_readBody(environ))
+    try:
+        et = xmlparse(body)
+    except ET.ParseError:
+        raise BadRequestError('Unable to parse body.')
+    if expected_tag is not None and et.tag != expected_tag:
+        raise BadRequestError('Expected %s tag, got %s' %
+                              (expected_tag, et.tag))
+    return et
+
+
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
@@ -1327,7 +1356,7 @@ class WebDAVApp(object):
 
     def do_POST(self, environ, start_response):
         # see RFC5995
-        new_contents = self._readBody(environ)
+        new_contents = _readBody(environ)
         unused_href, path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
@@ -1350,7 +1379,7 @@ class WebDAVApp(object):
         return []
 
     def do_PUT(self, environ, start_response):
-        new_contents = self._readBody(environ)
+        new_contents = _readBody(environ)
         unused_href, path, r = self._get_resource_from_environ(environ)
         if r is not None:
             current_etag = r.get_etag()
@@ -1400,40 +1429,13 @@ class WebDAVApp(object):
             return []
         return _send_not_found(environ, start_response)
 
-    def _readBody(self, environ):
-        try:
-            request_body_size = int(environ['CONTENT_LENGTH'])
-        except KeyError:
-            return [environ['wsgi.input'].read()]
-        else:
-            return [environ['wsgi.input'].read(request_body_size)]
-
-    def _readXmlBody(self, environ, expected_tag=None):
-        try:
-            content_type = environ['CONTENT_TYPE']
-        except KeyError:
-            pass  # Just assume it's okay?
-        else:
-            base_content_type, params = parse_type(content_type)
-            if base_content_type not in ('text/xml', 'application/xml'):
-                raise UnsupportedMediaType(content_type)
-        body = b''.join(self._readBody(environ))
-        try:
-            et = xmlparse(body)
-        except ET.ParseError:
-            raise BadRequestError('Unable to parse body.')
-        if expected_tag is not None and et.tag != expected_tag:
-            raise BadRequestError('Expected %s tag, got %s' %
-                                  (expected_tag, et.tag))
-        return et
-
     def do_REPORT(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         base_href, unused_path, r = self._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
         depth = environ.get("HTTP_DEPTH", "0")
-        et = self._readXmlBody(environ, None)
+        et = _readXmlBody(environ, None)
         try:
             reporter = self.reporters[et.tag]
         except KeyError:
@@ -1469,7 +1471,7 @@ class WebDAVApp(object):
         ):
             requested = ET.Element('{DAV:}allprop')
         else:
-            et = self._readXmlBody(environ, '{DAV:}propfind')
+            et = _readXmlBody(environ, '{DAV:}propfind')
             try:
                 [requested] = et
             except ValueError:
@@ -1517,7 +1519,7 @@ class WebDAVApp(object):
         href, unused_path, resource = self._get_resource_from_environ(environ)
         if resource is None:
             return Status(request_uri(environ), '404 Not Found')
-        et = self._readXmlBody(environ, '{DAV:}propertyupdate')
+        et = _readXmlBody(environ, '{DAV:}propertyupdate')
         propstat = []
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
@@ -1553,7 +1555,7 @@ class WebDAVApp(object):
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         self.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):
-            et = self._readXmlBody(environ, '{DAV:}mkcalendar')
+            et = _readXmlBody(environ, '{DAV:}mkcalendar')
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
@@ -1592,7 +1594,7 @@ class WebDAVApp(object):
             return []
         if base_content_type in ('text/xml', 'application/xml'):
             # Extended MKCOL (RFC5689)
-            et = self._readXmlBody(environ, '{DAV:}mkcol')
+            et = _readXmlBody(environ, '{DAV:}mkcol')
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
