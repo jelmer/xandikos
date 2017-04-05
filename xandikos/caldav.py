@@ -785,3 +785,49 @@ class FreeBusyQueryReporter(webdav.Reporter):
         ret.add_component(fb)
         start_response('200 OK', [])
         return [ret.to_ical()]
+
+
+class MkcalendarMethod(webdav.Method):
+
+    def handle(self, environ, start_response, app):
+        try:
+            content_type = environ['CONTENT_TYPE']
+        except KeyError:
+            base_content_type = None
+        else:
+            base_content_type, params = webdav.parse_type(content_type)
+        if base_content_type not in (
+            'text/xml', 'application/xml', None, 'text/plain'
+        ):
+            raise webdav.UnsupportedMediaType(content_type)
+        href, path, resource = app._get_resource_from_environ(environ)
+        if resource is not None:
+            return webdav._send_method_not_allowed(
+                environ, start_response,
+                app._get_allowed_methods(environ))
+        try:
+            resource = app.backend.create_collection(path)
+        except FileNotFoundError:
+            start_response('409 Conflict', [])
+            return []
+        el = ET.Element('{DAV:}resourcetype')
+        app.properties['{DAV:}resourcetype'].get_value(href, resource, el)
+        ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
+        app.properties['{DAV:}resourcetype'].set_value(href, resource, el)
+        if base_content_type in ('text/xml', 'application/xml'):
+            et = webdav._readXmlBody(environ, '{DAV:}mkcalendar')
+            propstat = []
+            for el in et:
+                if el.tag != '{DAV:}set':
+                    raise webdav.BadRequestError(
+                        'Unknown tag %s in mkcalendar' % el.tag)
+                propstat.extend(webdav.apply_modify_prop(
+                    el, href, resource, app.properties))
+            ret = ET.Element('{DAV:}mkcalendar-response')
+            for propstat_el in webdav.propstat_as_xml(propstat):
+                ret.append(propstat_el)
+            return webdav._send_xml_response(
+                start_response, '201 Created', ret, DEFAULT_ENCODING)
+        else:
+            start_response('201 Created', [])
+            return []

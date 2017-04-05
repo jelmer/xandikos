@@ -1483,53 +1483,6 @@ class ProppatchMethod(Method):
         return [Status(request_uri(environ), propstat=propstat)]
 
 
-class MkcalendarMethod(Method):
-
-    # TODO(jelmer): This should really live in xandikos.caldav
-    def handle(self, environ, start_response, app):
-        try:
-            content_type = environ['CONTENT_TYPE']
-        except KeyError:
-            base_content_type = None
-        else:
-            base_content_type, params = parse_type(content_type)
-        if base_content_type not in (
-            'text/xml', 'application/xml', None, 'text/plain'
-        ):
-            raise UnsupportedMediaType(content_type)
-        href, path, resource = app._get_resource_from_environ(environ)
-        if resource is not None:
-            return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
-        try:
-            resource = app.backend.create_collection(path)
-        except FileNotFoundError:
-            start_response('409 Conflict', [])
-            return []
-        el = ET.Element('{DAV:}resourcetype')
-        app.properties['{DAV:}resourcetype'].get_value(href, resource, el)
-        ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
-        app.properties['{DAV:}resourcetype'].set_value(href, resource, el)
-        if base_content_type in ('text/xml', 'application/xml'):
-            et = _readXmlBody(environ, '{DAV:}mkcalendar')
-            propstat = []
-            for el in et:
-                if el.tag != '{DAV:}set':
-                    raise BadRequestError('Unknown tag %s in mkcalendar'
-                                          % el.tag)
-                propstat.extend(apply_modify_prop(el, href, resource,
-                                                  app.properties))
-            ret = ET.Element('{DAV:}mkcalendar-response')
-            for propstat_el in propstat_as_xml(propstat):
-                ret.append(propstat_el)
-            return _send_xml_response(start_response, '201 Created',
-                                      ret, DEFAULT_ENCODING)
-        else:
-            start_response('201 Created', [])
-            return []
-
-
 class MkcolMethod(Method):
 
     def handle(self, environ, start_response, app):
@@ -1673,7 +1626,6 @@ class WebDAVApp(object):
             ReportMethod(),
             PropfindMethod(),
             ProppatchMethod(),
-            MkcalendarMethod(),
             MkcolMethod(),
             OptionsMethod(),
             GetMethod(),
