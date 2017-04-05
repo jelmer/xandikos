@@ -678,6 +678,7 @@ class CalendarProxyReadForProperty(webdav.Property):
 
     """
     name = '{http://calendarserver.org/ns/}calendar-proxy-read-for'
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
     live = True
 
@@ -694,6 +695,7 @@ class CalendarProxyWriteForProperty(webdav.Property):
 
     """
     name = '{http://calendarserver.org/ns/}calendar-proxy-write-for'
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
     live = True
 
