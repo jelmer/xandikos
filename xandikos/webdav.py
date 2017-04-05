@@ -1300,8 +1300,9 @@ class PostMethod(Method):
         if r is None:
             return _send_not_found(environ, start_response)
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
-            start_response('405 Method Not Allowed', [])
-            return []
+            return _send_method_not_allowed(
+                environ, start_response,
+                app._get_allowed_methods(environ))
         content_type = environ['CONTENT_TYPE'].split(';')[0]
         try:
             (name, etag) = r.create_member(None, new_contents, content_type)
@@ -1356,8 +1357,9 @@ class PutMethod(Method):
         r = app.backend.get_resource(container_path)
         if r is not None:
             if COLLECTION_RESOURCE_TYPE not in r.resource_types:
-                start_response('405 Method Not Allowed', [])
-                return []
+                return _send_method_not_allowed(
+                    environ, start_response,
+                    app._get_allowed_methods(environ))
             try:
                 (new_name, new_etag) = r.create_member(
                     name, new_contents, content_type)
@@ -1497,8 +1499,9 @@ class MkcalendarMethod(Method):
             raise UnsupportedMediaType(content_type)
         href, path, resource = app._get_resource_from_environ(environ)
         if resource is not None:
-            start_response('405 Method Not Allowed', [])
-            return []
+            return _send_method_not_allowed(
+                environ, start_response,
+                app._get_allowed_methods(environ))
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:
@@ -1542,8 +1545,9 @@ class MkcolMethod(Method):
             raise UnsupportedMediaType(base_content_type)
         href, path, resource = app._get_resource_from_environ(environ)
         if resource is not None:
-            start_response('405 Method Not Allowed', [])
-            return []
+            return _send_method_not_allowed(
+                environ, start_response,
+                app._get_allowed_methods(environ))
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:
