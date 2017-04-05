@@ -74,6 +74,14 @@ class UnsupportedMediaType(Exception):
         self.content_type = content_type
 
 
+class UnauthorizedError(Exception):
+    """Base class for unauthorized errors."""
+
+    def __init__(self):
+        super(Exception, self).__init__(
+            "Request unauthorized")
+
+
 def pick_content_types(accepted_content_types, available_content_types):
     """Pick best content types for a client.
 
@@ -1717,3 +1725,6 @@ class WebDAVApp(object):
             start_response('415 Unsupported Media Type', [])
             return [('Unsupported media type %r' % e.content_type)
                     .encode(DEFAULT_ENCODING)]
+        except UnauthorizedError as e:
+            start_response('401 Unauthorized', [])
+            return [('Please login.'.encode(DEFAULT_ENCODING))]
