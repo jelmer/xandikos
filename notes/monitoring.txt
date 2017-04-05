@@ -1,3 +1,6 @@
+Monitoring
+==========
+
 Things to monitor:
  - number of uploaded items
  - number of accessed store items
