@@ -1630,7 +1630,7 @@ class WebDAVApp(object):
             OptionsMethod(),
             GetMethod(),
             HeadMethod(),
-            ])
+        ])
 
     def _get_resource_from_environ(self, environ):
         path = path_from_environ(environ, 'PATH_INFO')

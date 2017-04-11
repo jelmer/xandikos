@@ -827,7 +827,7 @@ class MkcalendarMethod(webdav.Method):
             for propstat_el in webdav.propstat_as_xml(propstat):
                 ret.append(propstat_el)
             return webdav._send_xml_response(
-                start_response, '201 Created', ret, DEFAULT_ENCODING)
+                start_response, '201 Created', ret, webdav.DEFAULT_ENCODING)
         else:
             start_response('201 Created', [])
             return []

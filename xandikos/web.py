@@ -780,7 +780,7 @@ class XandikosApp(webdav.WebDAVApp):
         ])
         self.register_methods([
             caldav.MkcalendarMethod(),
-            ])
+        ])
 
 
 class WellknownRedirector(object):
