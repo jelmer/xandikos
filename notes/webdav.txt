@@ -1,5 +1,5 @@
 WebDAV implementation
----------------------
+=====================
 
 class DAVPropertyProvider(object):
 

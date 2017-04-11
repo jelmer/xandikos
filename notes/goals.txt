@@ -1,3 +1,6 @@
+Goals
+=====
+
 - standards compliant
 - standards complete
 - backed by git

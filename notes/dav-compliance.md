@@ -214,3 +214,10 @@ Fully supported
 
 ## HTTP Methods
  - MKCOL [supported]
+
+
+# rfc7529.txt (WebDAV Quota)
+
+## DAV properties
+ - {DAV:}quote-available-bytes [supported]
+ - {DAV:}quote-used-bytes [supported]

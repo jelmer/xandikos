@@ -33,8 +33,8 @@ import posixpath
 import shutil
 
 from xandikos import __version__ as xandikos_version
-from xandikos import (access, apache, caldav, carddav, sync, webdav, infit,
-                      scheduling, timezones)
+from xandikos import (access, apache, caldav, carddav, quota, sync, webdav,
+                      infit, scheduling, timezones)
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     TreeGitStore,
@@ -168,6 +168,14 @@ class ObjectResource(webdav.Resource):
     def get_is_executable(self):
         # TODO(jelmer): Retrieve POSIX mode and check for executability.
         return False
+
+    def get_quota_used_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
+    def get_quota_available_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
 
 
 class StoreBasedCollection(object):
@@ -323,6 +331,14 @@ class StoreBasedCollection(object):
     def get_is_executable(self):
         return False
 
+    def get_quota_used_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
+    def get_quota_available_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
 
 class Collection(StoreBasedCollection, webdav.Collection):
     """A generic WebDAV collection."""
@@ -429,6 +445,9 @@ class CollectionSetResource(webdav.Collection):
     def get_etag(self):
         raise KeyError
 
+    def get_ctag(self):
+        raise KeyError
+
     def get_supported_locks(self):
         return []
 
@@ -493,6 +512,14 @@ class CollectionSetResource(webdav.Collection):
     def get_is_executable(self):
         return False
 
+    def get_quota_used_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
+    def get_quota_available_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
 
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
@@ -544,6 +571,14 @@ class RootPage(webdav.Resource):
 
     def get_is_executable(self):
         return False
+
+    def get_quota_used_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
+    def get_quota_available_bytes(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
 
 
 class Principal(CollectionSetResource):
@@ -606,6 +641,9 @@ class Principal(CollectionSetResource):
     def get_calendar_proxy_write_for(self):
         # TODO(jelmer)
         return []
+
+    def get_ctag(self):
+        raise KeyError
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
@@ -728,14 +766,20 @@ class XandikosApp(webdav.WebDAVApp):
             apache.ExecutableProperty(),
             caldav.CalendarProxyReadForProperty(),
             caldav.CalendarProxyWriteForProperty(),
+            quota.QuotaAvailableBytesProperty(),
+            quota.QuotaUsedBytesProperty(),
         ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
             caldav.CalendarQueryReporter(),
             carddav.AddressbookMultiGetReporter(),
+            carddav.AddressbookQueryReporter(),
             webdav.ExpandPropertyReporter(),
             sync.SyncCollectionReporter(),
             caldav.FreeBusyQueryReporter(),
+        ])
+        self.register_methods([
+            caldav.MkcalendarMethod(),
         ])
 
 
@@ -854,7 +898,19 @@ def main(argv):
     server = make_server(options.listen_address, options.port, app)
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
-    server.serve_forever()
+
+    import signal
+
+    def handle_sigterm(sig, action):
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.shutdown()
 
 
 if __name__ == '__main__':

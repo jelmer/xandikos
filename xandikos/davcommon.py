@@ -83,3 +83,12 @@ class MultiGetReporter(webdav.Reporter):
                 propstat = get_properties_with_data(
                     self.data_property, href, resource, properties, requested)
                 yield webdav.Status(href, '200 OK', propstat=list(propstat))
+
+
+# see https://tools.ietf.org/html/rfc4790
+
+collations = {
+    'i;ascii-casemap': lambda a, b: (a.decode('ascii').upper() ==
+                                     b.decode('ascii').upper()),
+    'i;octet': lambda a, b: a == b,
+}

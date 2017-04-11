@@ -89,7 +89,8 @@ def describe_component(component):
 
 
 DELTA_IGNORE_FIELDS = set(["LAST-MODIFIED", "SEQUENCE", "DTSTAMP", "PRODID",
-                           "CREATED", "COMPLETED"])
+                           "CREATED", "COMPLETED", "X-MOZ-GENERATION",
+                           "X-LIC-ERROR"])
 
 
 def describe_calendar_delta(old_cal, new_cal):

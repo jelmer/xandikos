@@ -32,10 +32,10 @@ from xandikos.webdav import (
 )
 
 
-class WebTests(unittest.TestCase):
+class WebTestCase(unittest.TestCase):
 
     def setUp(self):
-        super(WebTests, self).setUp()
+        super(WebTestCase, self).setUp()
         logging.disable(logging.WARNING)
         self.addCleanup(logging.disable, logging.NOTSET)
 
@@ -45,6 +45,9 @@ class WebTests(unittest.TestCase):
         app = WebDAVApp(Backend())
         app.register_properties(properties)
         return app
+
+
+class WebTests(WebTestCase):
 
     def _method(self, app, method, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': method,
@@ -61,19 +64,6 @@ class WebTests(unittest.TestCase):
 
     def lock(self, app, path):
         return self._method(app, 'LOCK', path)
-
-    def mkcalendar(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCALENDAR',
-                   'SCRIPT_NAME': ''}
-        setup_testing_defaults(environ)
-        _code = []
-        _headers = []
-
-        def start_response(code, headers):
-            _code.append(code)
-            _headers.extend(headers)
-        contents = b''.join(app(environ, start_response))
-        return _code[0], _headers, contents
 
     def mkcol(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL',
@@ -194,7 +184,7 @@ class WebTests(unittest.TestCase):
         code, headers, contents = self.lock(app, '/resource')
         self.assertEqual('405 Method Not Allowed', code)
         self.assertIn(
-            ('Allow', ('DELETE, GET, HEAD, MKCALENDAR, MKCOL, OPTIONS, '
+            ('Allow', ('DELETE, GET, HEAD, MKCOL, OPTIONS, '
                        'POST, PROPFIND, PROPPATCH, PUT, REPORT')),
             headers)
         self.assertEqual(b'', contents)
@@ -208,32 +198,6 @@ class WebTests(unittest.TestCase):
                 return None
         app = WebDAVApp(Backend())
         code, headers, contents = self.mkcol(app, '/resource/bla')
-        self.assertEqual('201 Created', code)
-        self.assertEqual(b'', contents)
-
-    def test_mkcalendar_ok(self):
-        class Backend(object):
-            def create_collection(self, relpath):
-                pass
-
-            def get_resource(self, relpath):
-                return None
-
-        class ResourceTypeProperty(Property):
-            name = '{DAV:}resourcetype'
-
-            def get_value(unused_self, href, resource, ret):
-                ET.SubElement(ret, '{DAV:}collection')
-
-            def set_value(unused_self, href, resource, ret):
-                self.assertEqual(
-                    ['{DAV:}collection',
-                     '{urn:ietf:params:xml:ns:caldav}calendar'],
-                    [x.tag for x in ret])
-
-        app = WebDAVApp(Backend())
-        app.register_properties([ResourceTypeProperty()])
-        code, headers, contents = self.mkcalendar(app, '/resource/bla')
         self.assertEqual('201 Created', code)
         self.assertEqual(b'', contents)
 
@@ -441,3 +405,50 @@ class ETagMatchesTests(unittest.TestCase):
         self.assertTrue(webdav.etag_matches('*, etag2', 'etag1'))
         self.assertTrue(webdav.etag_matches('*', 'etag1'))
         self.assertFalse(webdav.etag_matches('*', None))
+
+
+class PropstatByStatusTests(unittest.TestCase):
+
+    def test_none(self):
+        self.assertEqual({}, webdav.propstat_by_status([]))
+
+    def test_one(self):
+        self.assertEqual({
+            ('200 OK', None): ['foo']},
+            webdav.propstat_by_status([
+                webdav.PropStatus('200 OK', None, 'foo')]))
+
+    def test_multiple(self):
+        self.assertEqual({
+            ('200 OK', None): ['foo'],
+            ('404 Not Found', 'Cannot find'): ['bar']},
+            webdav.propstat_by_status([
+                webdav.PropStatus('200 OK', None, 'foo'),
+                webdav.PropStatus('404 Not Found', 'Cannot find', 'bar')]))
+
+
+class PropstatAsXmlTests(unittest.TestCase):
+
+    def test_none(self):
+        self.assertEqual([], list(webdav.propstat_as_xml([])))
+
+    def test_one(self):
+        self.assertEqual([
+            b'<ns0:propstat xmlns:ns0="DAV:"><ns0:status>HTTP/1.1 200 '
+            b'OK</ns0:status><ns0:prop><foo /></ns0:prop></ns0:propstat>'],
+            [ET.tostring(x) for x in webdav.propstat_as_xml([
+                webdav.PropStatus('200 OK', None, ET.Element('foo'))])])
+
+
+class PathFromEnvironTests(unittest.TestCase):
+
+    def test_ascii(self):
+        self.assertEqual(
+            '/bla',
+            webdav.path_from_environ({'PATH_INFO': '/bla'}, 'PATH_INFO'))
+
+    def test_recode(self):
+        self.assertEqual(
+            '/blü',
+            webdav.path_from_environ(
+                {'PATH_INFO': '/bl\xc3\xbc'}, 'PATH_INFO'))
