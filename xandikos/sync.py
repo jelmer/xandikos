@@ -115,8 +115,8 @@ class SyncCollectionReporter(webdav.Reporter):
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
             yield webdav.Status(
-                urllib.parse.urljoin(href + '/', name), propstat=propstat)
-        # TODO(jelmer): This is a bit of a hack..
+                urllib.parse.urljoin(webdav.ensure_trailing_slash(href), name),
+                propstat=propstat)
         yield SyncToken(new_token)
 
 

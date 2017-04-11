@@ -22,7 +22,7 @@
 
 from setuptools import setup
 
-version = "0.0.2"
+version = "0.0.3"
 
 setup(name="xandikos",
       description="CalDAV/CardDAV server",
@@ -32,8 +32,7 @@ setup(name="xandikos",
       license="GNU GPLv3 or later",
       url="https://www.jelmer.uk/projects/xandikos",
       install_requires=['icalendar', 'dulwich', 'defusedxml', 'jinja2'],
-      packages=['xandikos'],
-      package_data={'xandikos': ['templates/*.html']},
+      packages=['xandikos', 'xandikos.tests'],
       scripts=['bin/xandikos'],
       classifiers=[
           'Development Status :: 4 - Beta',

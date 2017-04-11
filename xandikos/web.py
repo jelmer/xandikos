@@ -778,6 +778,9 @@ class XandikosApp(webdav.WebDAVApp):
             sync.SyncCollectionReporter(),
             caldav.FreeBusyQueryReporter(),
         ])
+        self.register_methods([
+            caldav.MkcalendarMethod(),
+        ])
 
 
 class WellknownRedirector(object):

@@ -1,3 +1,6 @@
+File structure
+==============
+
 Collections are represented as Git repositories on disk.
 
 A specific version is represented as a commit id. The 'ctag' for a calendar is taken from the

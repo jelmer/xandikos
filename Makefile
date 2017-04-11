@@ -39,7 +39,7 @@ coverage-caldavtester:
 
 check-all: check check-vdirsyncer check-litmus check-caldavtester
 
-coverage-all: coverage coverage-litmus coverage-vdirsyncer
+coverage-all: coverage coverage-litmus coverage-vdirsyncer coverage-caldavtester
 
 coverage:
 	$(COVERAGE_RUN) --source=xandikos -m unittest $(TESTSUITE)
