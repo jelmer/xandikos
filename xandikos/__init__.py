@@ -21,6 +21,6 @@
 
 """CalDAV/CardDAV server."""
 
-__version__ = (0, 0, 2)
+__version__ = (0, 0, 3)
 
 import defusedxml.ElementTree  # noqa: This does some monkey-patching on-load
