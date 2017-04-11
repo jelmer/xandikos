@@ -1,3 +1,7 @@
 Tests: litmus
 Depends: litmus
 Restrictions: allow-stderr
+
+Tests: caldav-tester
+Depends: caldav-tester
+Restrictions: allow-stderr
