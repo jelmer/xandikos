@@ -1,11 +1,12 @@
 Dulwich Store
 =============
-The main building blocks are vCard (*.vcf) and ICalendar (*.ics) files. Storage
-happens in GIT repositories.
+
+The main building blocks are vCard (*.vcf) and iCalendar (*.ics) files. Storage
+happens in Git repositories.
 
 Most items are identified by a UID, which is unique for the store. Items
 can have multiple versions, which are identified by an ETag. Each store
-maps to a single git repository, and can not contain directories. In the future,
+maps to a single Git repository, and can not contain directories. In the future,
 a store could map to a subtree in a Git repository.
 
 Stores are responsible for making sure that:

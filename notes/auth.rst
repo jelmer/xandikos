@@ -1,11 +1,11 @@
 Authentication
 ==============
 
-Ideally, xandikos would stay out of the business of authenticating users.
+Ideally, Xandikos would stay out of the business of authenticating users.
 The trouble with this is that there are many flavours that need to
 be supported and configured.
 
-However, it is still necessary for xandikos to handle authorization.
+However, it is still necessary for Xandikos to handle authorization.
 
 An external system authenticates the user, and then sets the REMOTE_USER
 environment variable.
