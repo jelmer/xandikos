@@ -4,8 +4,11 @@ include COPYING
 include Makefile
 include README.md
 include TODO
-recursive-include compat/
-recursive-include examples/
-recursive-include notes/
+include compat/*.sh
+include compat/*.md
+include compat/*.xml
+include compat/*.sha256sum
+recursive-include examples/ *.ini
+recursive-include notes/ *.txt *.md
 include tox.ini
 include xandikos.1
