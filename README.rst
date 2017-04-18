@@ -12,24 +12,24 @@ Implemented standards
 
 The following standards are implemented:
 
-- `RFC4918 <http://www.rfc-base.org/rfc-4918.html>`_/`RFC2518 <http://www.rfc-base.org/rfc-2518.html>`_ (Core WebDAV) - *implemented, except for COPY/MOVE/LOCK operations*
-- `RFC4791 <http://www.rfc-base.org/rfc-4791.html>`_ (CalDAV) - *fully implemented*
-- `RFC6352 <http://www.rfc-base.org/rfc-6352.html>`_ (CardDAV) - *fully implemented*
-- `RFC5397 <http://www.rfc-base.org/rfc-5397.html>`_ (Current Principal) - *fully implemented*
-- `RFC3253 <http://www.rfc-base.org/rfc-3253.html>`_ (Versioning Extensions) - *partially implemented, only the REPORT method and {DAV:}expand-property property*
-- `RFC3744 <http://www.rfc-base.org/rfc-3744.html>`_ (Access Control) - *partially implemented*
-- `RFC5995 <http://www.rfc-base.org/rfc-5995.html>`_ (POST to create members) - *fully implemented*
-- `RFC5689 <http://www.rfc-base.org/rfc-5689.html>`_ (Extended MKCOL) - *fully implemented*
+- :RFC:`4918`/:RFC:`2518` (Core WebDAV) - *implemented, except for COPY/MOVE/LOCK operations*
+- :RFC:`4791` (CalDAV) - *fully implemented*
+- :RFC:`6352` (CardDAV) - *fully implemented*
+- :RFC:`5397` (Current Principal) - *fully implemented*
+- :RFC:`3253` (Versioning Extensions) - *partially implemented, only the REPORT method and {DAV:}expand-property property*
+- :RFC:`3744` (Access Control) - *partially implemented*
+- :RFC:`5995` (POST to create members) - *fully implemented*
+- :RFC:`5689` (Extended MKCOL) - *fully implemented*
 
 The following standards are not implemented:
 
-- `RFC6638 <http://www.rfc-base.org/rfc-6638.html>`_ (CalDAV Scheduling Extensions) - *not implemented*
-- `RFC7809 <http://www.rfc-base.org/rfc-7809.html>`_ (CalDAV Time Zone Extensions) - *not implemented*
-- `RFC7529 <http://www.rfc-base.org/rfc-7529.html>`_ (WebDAV Quota) - *not implemented*
-- `RFC4709 <http://www.rfc-base.org/rfc-4709.html>`_ (WebDAV Mount) - *not implemented*
-- `RFC5546 <http://www.rfc-base.org/rfc-5546.html>`_ (iCal iTIP) - *not implemented*
-- `RFC4324 <http://www.rfc-base.org/rfc-4324.html>`_ (iCAL CAP) - *not implemented*
-- `RFC7953 <http://www.rfc-base.org/rfc-7953.html>`_ (iCal AVAILABILITY) - *not implemented*
+- :RFC:`6638` (CalDAV Scheduling Extensions) - *not implemented*
+- :RFC:`7809` (CalDAV Time Zone Extensions) - *not implemented*
+- :RFC:`7529` (WebDAV Quota) - *not implemented*
+- :RFC:`4709` (WebDAV Mount) - *not implemented*
+- :RFC:`5546` (iCal iTIP) - *not implemented*
+- :RFC:`4324` (iCAL CAP) - *not implemented*
+- :RFC:`7953` (iCal AVAILABILITY) - *not implemented*
 
 See `DAV compliance <notes/dav-compliance.md>`_ for more detail on specification compliancy.
 
