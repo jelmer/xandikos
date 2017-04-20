@@ -20,5 +20,6 @@ All items in a collection *must* be well formed, so that they do not have to be 
 When new items are added, the collection should verify no existing items have the same UID.
 
 Open questions:
- * How to handle subtrees? Are they just subcollections?
- * Where should collection metadata (e.g. colors, description) be stored? .git/config?
+
+- How to handle subtrees? Are they just subcollections?
+- Where should collection metadata (e.g. colors, description) be stored? .git/config?

@@ -1,3 +1,6 @@
+Release Process
+===============
+
 1. Update version in setup.py
 2. Update version in xandikos/__init__.py
 3. git commit -a -m "Release $VERSION"

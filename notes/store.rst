@@ -11,5 +11,5 @@ a store could map to a subtree in a Git repository.
 
 Stores are responsible for making sure that:
 
- * their contents are validly formed calendars/contacts
- * UIDs are unique (where relevant)
+- their contents are validly formed calendars/contacts
+- UIDs are unique (where relevant)

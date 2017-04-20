@@ -1,70 +1,72 @@
 WebDAV implementation
 =====================
 
-class DAVPropertyProvider(object):
+.. code:: python
 
-    NAME property
+  class DAVPropertyProvider(object):
 
-    matchresource()
+      NAME property
 
-    # One or multiple properties?
+      matchresource()
 
-    def proplist(self, resource, all=False):
+      # One or multiple properties?
 
-    def getprop(self, resource, property):
+      def proplist(self, resource, all=False):
 
-    def propupdate(self, resource, updates):
+      def getprop(self, resource, property):
 
-
-class DAVBackend(object):
-
-    def get_resource(self, path):
-
-    def create_collection(self, path):
+      def propupdate(self, resource, updates):
 
 
-class DAVReporter(object):
+  class DAVBackend(object):
 
-class DAVResource(object):
+      def get_resource(self, path):
 
-  def get_resource_types(self):
+      def create_collection(self, path):
 
-  def get_body(self):
-    """Returns the body of the resource.
 
-    :return: bytes representing contents
-    """
+  class DAVReporter(object):
 
-  def set_body(self, body):
-    """Set the body of the resource.
+  class DAVResource(object):
 
-    :param body: body (as bytes)
-    """
+    def get_resource_types(self):
 
-  def proplist(self):
-    """Return list of properties.
+    def get_body(self):
+      """Returns the body of the resource.
 
-    :return: List of property names
-    """
+      :return: bytes representing contents
+      """
 
-  def propupdate(self, updates):
-    """Update properties.
+    def set_body(self, body):
+      """Set the body of the resource.
 
-    :param updates: Dictionary mapping names to new values
-    """
+      :param body: body (as bytes)
+      """
 
-  def lock(self):
+    def proplist(self):
+      """Return list of properties.
 
-  def unlock(self):
+      :return: List of property names
+      """
 
-  def members(self):
-    """List members.
+    def propupdate(self, updates):
+      """Update properties.
 
-    :return: List tuples of (name, DAVResource)
-    """
+      :param updates: Dictionary mapping names to new values
+      """
 
-  # TODO(jelmer): COPY
-  # TODO(jelmer): MOVE
-  # TODO(jelmer): MKCOL
-  # TODO(jelmer): LOCK/UNLOCK
-  # TODO(jelmer): REPORT
+    def lock(self):
+
+    def unlock(self):
+
+    def members(self):
+      """List members.
+
+      :return: List tuples of (name, DAVResource)
+      """
+
+    # TODO(jelmer): COPY
+    # TODO(jelmer): MOVE
+    # TODO(jelmer): MKCOL
+    # TODO(jelmer): LOCK/UNLOCK
+    # TODO(jelmer): REPORT
