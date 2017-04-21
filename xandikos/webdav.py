@@ -249,16 +249,16 @@ class Status(object):
     def aselement(self):
         ret = ET.Element('{DAV:}response')
         ret.append(create_href(self.href))
-        if self.status:
+        if self.propstat:
+            for ps in propstat_as_xml(self.propstat):
+                ret.append(ps)
+        elif self.status:
             ET.SubElement(ret, '{DAV:}status').text = 'HTTP/1.1 ' + self.status
         if self.error:
             ET.SubElement(ret, '{DAV:}error').append(self.error)
         if self.responsedescription:
             ET.SubElement(ret, '{DAV:}responsedescription').text = (
                 self.responsedescription)
-        if self.propstat is not None:
-            for ps in propstat_as_xml(self.propstat):
-                ret.append(ps)
         return ret
 
 

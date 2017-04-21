@@ -52,9 +52,6 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `aCALdav syncer for Android <https://play.google.com/store/apps/details?id=de.we.acaldav&hl=en>`_
 - `pycardsyncer <https://github.com/geier/pycarddav>`_
 - `akonadi <https://community.kde.org/KDE_PIM/Akonadi>`_
-
-CalDAV/CardDAV clients that are known not to work:
-
 - `CalDAV-Sync <https://dmfs.org/caldav/>`_
 - `CardDAV-Sync <https://dmfs.org/carddav/>`_
 
