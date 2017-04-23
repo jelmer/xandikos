@@ -1,11 +1,10 @@
+include *.rst
 include AUTHORS
-include CONTRIBUTING.md
 include COPYING
 include Makefile
-include README.md
 include TODO
-recursive-include compat/
-recursive-include examples/
-recursive-include notes/
+recursive-include compat *
+recursive-include examples *
+recursive-include notes *
 include tox.ini
 include xandikos.1

@@ -240,7 +240,6 @@ class WebTests(WebTestCase):
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
             '<ns0:href>/resource</ns0:href>'
-            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
             '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
             '</ns0:response></ns0:multistatus>')
@@ -259,7 +258,6 @@ class WebTests(WebTestCase):
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
             '<ns0:href>/resource</ns0:href>'
-            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>'
             '<ns0:prop><ns0:resourcetype /></ns0:prop></ns0:propstat>'
             '</ns0:response></ns0:multistatus>')
@@ -279,7 +277,6 @@ class WebTests(WebTestCase):
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
             '<ns0:href>/resource</ns0:href>'
-            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
             '</ns0:current-user-principal></ns0:prop></ns0:propstat>'
@@ -310,7 +307,6 @@ class WebTests(WebTestCase):
             contents.decode('utf-8'),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
             '<ns0:href>/resource</ns0:href>'
-            '<ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>'
             '<ns0:prop><ns0:current-user-principal><ns0:href>/user/</ns0:href>'
             '</ns0:current-user-principal><ns0:somethingelse /></ns0:prop>'
@@ -332,7 +328,6 @@ class WebTests(WebTestCase):
         self.assertMultiLineEqual(
             contents.decode('utf-8'), """\
 <ns0:multistatus xmlns:ns0="DAV:"><ns0:response><ns0:href>/resource</ns0:href>\
-<ns0:status>HTTP/1.1 200 OK</ns0:status>\
 <ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status><ns0:prop>\
 <ns0:current-user-principal><ns0:href>/user/</ns0:href>\
 </ns0:current-user-principal></ns0:prop></ns0:propstat><ns0:propstat>\
