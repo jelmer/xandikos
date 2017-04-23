@@ -91,9 +91,10 @@ with a pre-created calendar and addressbook (storing data in *$HOME/dav*):
 
 A server should now be listening on `localhost:8080 <http://localhost:8080/>`_.
 
-Note that Xandikos does not create any collections by default. You can either
-create collections from your CalDAV/CardDAV client, or by creating git
-repositories under the *contacts* or *calendars* directories it has created.
+Note that Xandikos does not create any collections unless --defaults is
+specified. You can also either create collections from your CalDAV/CardDAV client,
+or by creating git repositories under the *contacts* or *calendars* directories
+it has created.
 
 Production
 ----------
