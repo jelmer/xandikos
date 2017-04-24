@@ -9,6 +9,10 @@ License: GPL-3+
  On Debian systems the full text of the GNU General Public License version 2
  can be found in the `/usr/share/common-licenses/GPL-3' file.
 
+License: Apache-2
+ On Debian systems the full text of the Apache License version 2
+ can be found in the `/usr/share/common-licenses/Apache-2.0' file.
+
 Files: *
 Copyright:
   2015-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>
@@ -17,3 +21,7 @@ License: GPL-3+
 Files: debian/*
 Copyright: 2017 Jelmer Vernooĳ <jelmer@debian.org>
 License: GPL-3+
+
+Files: compat/serverinfo.xml
+Copyright: 2006-2013 Apple Inc.
+License: Apache-2
