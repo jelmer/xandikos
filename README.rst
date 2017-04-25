@@ -54,6 +54,7 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `akonadi <https://community.kde.org/KDE_PIM/Akonadi>`_
 - `CalDAV-Sync <https://dmfs.org/caldav/>`_
 - `CardDAV-Sync <https://dmfs.org/carddav/>`_
+- `Calendarsync <https://play.google.com/store/apps/details?id=com.icalparse>`_
 
 Dependencies
 ============
