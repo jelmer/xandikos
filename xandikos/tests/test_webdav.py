@@ -51,7 +51,7 @@ class WebTests(WebTestCase):
 
     def _method(self, app, method, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': method,
-                   'SCRIPT_NAME': ''}
+                'SCRIPT_NAME': '', 'QUERY_STRING': ''}
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -67,7 +67,7 @@ class WebTests(WebTestCase):
 
     def mkcol(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL',
-                   'SCRIPT_NAME': ''}
+                   'SCRIPT_NAME': '', 'QUERY_STRING': ''}
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -80,7 +80,7 @@ class WebTests(WebTestCase):
 
     def delete(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'DELETE',
-                   'SCRIPT_NAME': ''}
+                   'SCRIPT_NAME': '', 'QUERY_STRING': ''}
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -93,7 +93,7 @@ class WebTests(WebTestCase):
 
     def get(self, app, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'GET',
-                   'SCRIPT_NAME': ''}
+                   'SCRIPT_NAME': '', 'QUERY_STRING': ''}
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -109,7 +109,8 @@ class WebTests(WebTestCase):
             'PATH_INFO': path,
             'REQUEST_METHOD': 'PUT',
             'wsgi.input': BytesIO(contents),
-            'SCRIPT_NAME': ''
+            'SCRIPT_NAME': '',
+            'QUERY_STRING': '',
         }
         setup_testing_defaults(environ)
         _code = []
@@ -126,7 +127,8 @@ class WebTests(WebTestCase):
             'PATH_INFO': path,
             'REQUEST_METHOD': 'PROPFIND',
             'wsgi.input': BytesIO(body),
-            'SCRIPT_NAME': ''
+            'SCRIPT_NAME': '',
+            'QUERY_STRING': '',
         }
         setup_testing_defaults(environ)
         _code = []

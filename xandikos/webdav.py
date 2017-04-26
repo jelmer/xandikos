@@ -1609,13 +1609,26 @@ def _do_get(environ, start_response, app, send_body):
     accept_content_languages = parse_accept_header(
         environ.get('HTTP_ACCEPT_LANGUAGES', '*'))
 
+    d = urllib.parse.parse_qs(environ['QUERY_STRING'])
+    if 'action' in d:
+        if d['action'] == ['davmount']:
+            details = (
+                request_uri(environ, include_query=0), None,
+                environ.get('REMOTE_USER'))
+            from xandikos import davmount
+            render = davmount.get_renderer(details)
+        else:
+            raise BadRequestError('Unknown action %s' % d['action'])
+    else:
+        render = r.render
+
     (
         body,
         content_length,
         current_etag,
         content_type,
         content_languages
-    ) = r.render(accept_content_types, accept_content_languages)
+    ) = render(accept_content_types, accept_content_languages)
 
     if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
     if (
