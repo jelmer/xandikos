@@ -51,7 +51,7 @@ class WebTests(WebTestCase):
 
     def _method(self, app, method, path):
         environ = {'PATH_INFO': path, 'REQUEST_METHOD': method,
-                'SCRIPT_NAME': '', 'QUERY_STRING': ''}
+                   'SCRIPT_NAME': '', 'QUERY_STRING': ''}
         setup_testing_defaults(environ)
         _code = []
         _headers = []
