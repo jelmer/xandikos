@@ -1268,7 +1268,8 @@ class Method(object):
         raise NotImplementedError(self.handle)
 
     def allow(self, environ):
-        raise NotImplementedError(self.allow)
+        """Is this method allowed considering the specified environ?"""
+        return True
 
 
 class DeleteMethod(Method):
@@ -1656,8 +1657,11 @@ class WebDAVApp(object):
 
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
-        # TODO(jelmer): Look up resource to determine supported methods.
-        return sorted(self.methods.keys())
+        ret = []
+        for name in sorted(self.methods.keys()):
+            if self.methods[name].allow(environ):
+                ret.append(name)
+        return ret
 
     def __call__(self, environ, start_response):
         if environ.get('HTTP_EXPECT', '') != '':
