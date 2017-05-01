@@ -2,6 +2,11 @@
    :target: https://travis-ci.org/jelmer/xandikos
    :alt: Build Status
 
+.. image:: https://ci.appveyor.com/api/projects/status/fjqtsk8agwmwavqk/branch/master?svg=true
+   :target: https://ci.appveyor.com/project/jelmer/xandikos/branch/master
+   :alt: Windows Build Status
+
+
 Xandikos is a CardDAV/CalDAV server that backs onto a Git repository.
 
 Xandikos (Ξανδικός or Ξανθικός) takes its name from the name of the March month
