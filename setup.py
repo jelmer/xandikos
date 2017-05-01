@@ -35,6 +35,7 @@ setup(name="xandikos",
       packages=['xandikos', 'xandikos.tests'],
       package_data={'xandikos': ['templates/*.html']},
       scripts=['bin/xandikos'],
+      test_suite='xandikos.tests.test_suite',
       classifiers=[
           'Development Status :: 4 - Beta',
           'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',  # noqa
