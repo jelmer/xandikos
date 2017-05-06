@@ -398,6 +398,9 @@ class AddressbookResource(StoreBasedCollection, carddav.Addressbook):
     def get_addressbook_description(self):
         return self.store.get_description()
 
+    def set_addressbook_description(self, description):
+        self.store.set_description(description)
+
     def get_supported_address_data_types(self):
         return [('text/vcard', '3.0')]
 

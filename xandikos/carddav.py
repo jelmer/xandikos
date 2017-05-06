@@ -83,9 +83,8 @@ class AddressbookDescriptionProperty(webdav.Property):
     def get_value(self, href, resource, el):
         el.text = resource.get_addressbook_description()
 
-    # TODO(jelmer): allow modification of this property
     def set_value(self, href, resource, el):
-        raise NotImplementedError
+        resource.set_addressbook_description(el.text)
 
 
 class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
@@ -102,6 +101,9 @@ class Addressbook(webdav.Collection):
 
     def get_addressbook_description(self):
         raise NotImplementedError(self.get_addressbook_description)
+
+    def set_addressbook_description(self, description):
+        raise NotImplementedError(self.set_addressbook_description)
 
     def get_addressbook_color(self):
         raise NotImplementedError(self.get_addressbook_color)
