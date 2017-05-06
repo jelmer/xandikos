@@ -892,6 +892,35 @@ def get_properties(href, resource, properties, requested):
         yield get_property(href, resource, properties, propreq.tag)
 
 
+def get_property_names(href, resource, properties, requested):
+    """Get a set of property names.
+
+    :param href: Resource Href
+    :param resource: Resource object
+    :param properties: Dictionary of properties
+    :param requested: XML {DAV:}prop element with properties to look up
+    :return: Iterator over PropStatus items
+    """
+    for name, prop in properties.items():
+        if prop.is_set(href, resource):
+            yield PropStatus('200 OK', None, ET.Element(name))
+
+
+def get_all_properties(href, resource, properties):
+    """Get all properties.
+
+    :param href: Resource Href
+    :param resource: Resource object
+    :param properties: Dictionary of properties
+    :param requested: XML {DAV:}prop element with properties to look up
+    :return: Iterator over PropStatus items
+    """
+    for name in properties:
+        ps = get_property(href, resource, properties, name)
+        if ps.statuscode == '200 OK':
+            yield ps
+
+
 def ensure_trailing_slash(href):
     """Ensure that a href has a trailing slash.
 
@@ -1420,7 +1449,7 @@ class PropfindMethod(Method):
             'CONTENT_TYPE' not in environ and
             environ.get('CONTENT_LENGTH') == '0'
         ):
-            requested = ET.Element('{DAV:}allprop')
+            requested = None
         else:
             et = _readXmlBody(environ, '{DAV:}propfind')
             try:
@@ -1428,42 +1457,27 @@ class PropfindMethod(Method):
             except ValueError:
                 raise BadRequestError(
                     'Received more than one element in propfind.')
-        if requested.tag == '{DAV:}prop':
-            ret = []
-            for href, resource in traverse_resource(
-                    base_resource, base_href, depth):
+        ret = []
+        for href, resource in traverse_resource(
+                base_resource, base_href, depth):
+            propstat = []
+            if requested is None or requested.tag == '{DAV:}allprop':
+                propstat = get_all_properties(
+                    href, resource, app.properties)
+            elif requested.tag == '{DAV:}prop':
                 propstat = get_properties(
                     href, resource, app.properties, requested)
-                ret.append(Status(href, '200 OK', propstat=list(propstat)))
-            # By my reading of the WebDAV RFC, it should be legal to return
-            # '200 OK' here if Depth=0, but the RFC is not super clear and
-            # some clients don't seem to like it .
-            return ret
-        elif requested.tag == '{DAV:}allprop':
-            ret = []
-            for href, resource in traverse_resource(
-                    base_resource, base_href, depth):
-                propstat = []
-                for name in app.properties:
-                    ps = get_property(href, resource, app.properties, name)
-                    if ps.statuscode == '200 OK':
-                        propstat.append(ps)
-                ret.append(Status(href, '200 OK', propstat=propstat))
-            return ret
-        elif requested.tag == '{DAV:}propname':
-            ret = []
-            for href, resource in traverse_resource(
-                    base_resource, base_href, depth):
-                propstat = []
-                for name, prop in app.properties.items():
-                    if prop.is_set(href, resource):
-                        propstat.append(
-                            PropStatus('200 OK', None, ET.Element(name)))
-                ret.append(Status(href, '200 OK', propstat=propstat))
-            return ret
-        else:
-            raise BadRequestError('Expected prop/allprop/propname tag, got ' +
-                                  requested.tag)
+            elif requested.tag == '{DAV:}propname':
+                propstat = get_property_names(
+                    href, resource, app.properties, requested)
+            else:
+                raise BadRequestError(
+                    'Expected prop/allprop/propname tag, got ' + requested.tag)
+            ret.append(Status(href, '200 OK', propstat=list(propstat)))
+        # By my reading of the WebDAV RFC, it should be legal to return
+        # '200 OK' here if Depth=0, but the RFC is not super clear and
+        # some clients don't seem to like it .
+        return ret
 
 
 class ProppatchMethod(Method):
