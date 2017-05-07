@@ -291,7 +291,7 @@ def apply_prop_filter(el, ab):
 def apply_filter(el, resource):
     """Compile a filter element into a Python function.
     """
-    if el is None:
+    if el is None or not list(el):
         # Empty filter, let's not bother parsing
         return lambda x: True
     ab = addressbook_from_resource(resource)
@@ -313,18 +313,39 @@ class AddressbookQueryReporter(webdav.Reporter):
                base_resource, depth):
         requested = None
         filter_el = None
+        limit = None
         for el in body:
             if el.tag in ('{DAV:}prop', '{DAV:}allprop', '{DAV:}propname'):
                 requested = el
             elif el.tag == ('{%s}filter' % NAMESPACE):
                 filter_el = el
+            elif el.tag == ('{%s}limit' % NAMESPACE):
+                limit = el
             else:
                 raise webdav.BadRequestError(
                     'Unknown tag %s in report %s' % (el.tag, self.name))
+        if limit is not None:
+            try:
+                [nresults_el] = list(limit)
+            except ValueError:
+                raise webdav.BadRequestError(
+                    'Invalid number of subelements in limit')
+            try:
+                nresults = int(nresults_el.text)
+            except ValueError:
+                raise webdav.BadRequestError(
+                    'nresults not a number')
+        else:
+            nresults = None
+
+        i = 0
         for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth):
             if not apply_filter(filter_el, resource):
                 continue
+            if nresults is not None and i >= nresults:
+                break
             propstat = davcommon.get_properties_with_data(
                 self.data_property, href, resource, properties, requested)
             yield webdav.Status(href, '200 OK', propstat=list(propstat))
+            i += 1
