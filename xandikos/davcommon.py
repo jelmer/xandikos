@@ -27,7 +27,7 @@ ET = webdav.ET
 class SubbedProperty(webdav.Property):
     """Property with sub-components that can be queried."""
 
-    def get_value(self, href, resource, el, requested):
+    def get_value_ext(self, href, resource, el, requested):
         """Get the value of a data property.
 
         :param href: Resource href
@@ -35,22 +35,14 @@ class SubbedProperty(webdav.Property):
         :param el: Element to fill in
         :param requested: Requested property (including subelements)
         """
-        raise NotImplementedError(self.get_value)
+        raise NotImplementedError(self.get_value_ext)
 
 
 def get_properties_with_data(data_property, href, resource, properties,
                              requested):
-    for propreq in list(requested):
-        if propreq.tag == data_property.name:
-            ret = ET.Element(propreq.tag)
-            if data_property.supported_on(resource):
-                data_property.get_value(href, resource, ret, propreq)
-                statuscode = '200 OK'
-            else:
-                statuscode = '404 Not Found'
-            yield webdav.PropStatus(statuscode, None, ret)
-        else:
-            yield webdav.get_property(href, resource, properties, propreq.tag)
+    properties = dict(properties)
+    properties[data_property.name] = data_property
+    return webdav.get_properties(href, resource, properties, requested)
 
 
 class MultiGetReporter(webdav.Reporter):
@@ -69,7 +61,7 @@ class MultiGetReporter(webdav.Reporter):
         requested = None
         hrefs = []
         for el in body:
-            if el.tag == '{DAV:}prop':
+            if el.tag in ('{DAV:}prop', '{DAV:}allprop', '{DAV:}propname'):
                 requested = el
             elif el.tag == '{DAV:}href':
                 hrefs.append(webdav.read_href_element(el))

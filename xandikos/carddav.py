@@ -65,7 +65,7 @@ class AddressDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/vcard')
 
-    def get_value(self, href, resource, el, requested):
+    def get_value_ext(self, href, resource, el, requested):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
         el.text = b''.join(resource.get_body()).decode('utf-8')
@@ -314,7 +314,7 @@ class AddressbookQueryReporter(webdav.Reporter):
         requested = None
         filter_el = None
         for el in body:
-            if el.tag == '{DAV:}prop':
+            if el.tag in ('{DAV:}prop', '{DAV:}allprop', '{DAV:}propname'):
                 requested = el
             elif el.tag == ('{%s}filter' % NAMESPACE):
                 filter_el = el

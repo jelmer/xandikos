@@ -200,7 +200,7 @@ class CalendarDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/calendar')
 
-    def get_value(self, base_href, resource, el, requested):
+    def get_value_ext(self, base_href, resource, el, requested):
         if len(requested) == 0:
             el.text = b''.join(resource.get_body()).decode('utf-8')
         else:
@@ -516,7 +516,7 @@ class CalendarQueryReporter(webdav.Reporter):
         filter_el = None
         tztext = None
         for el in body:
-            if el.tag == '{DAV:}prop':
+            if el.tag in ('{DAV:}prop', '{DAV:}propname', '{DAV:}allprop'):
                 requested = el
             elif el.tag == '{urn:ietf:params:xml:ns:caldav}filter':
                 filter_el = el

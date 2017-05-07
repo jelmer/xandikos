@@ -849,7 +849,7 @@ class Principal(Resource):
         raise NotImplementedError(self.get_calendar_proxy_write_for)
 
 
-def get_property(href, resource, properties, name):
+def get_property_from_name(href, resource, properties, name):
     """Get a single property on a resource.
 
     :param href: Resource href
@@ -858,20 +858,38 @@ def get_property(href, resource, properties, name):
     :param name: name of property to resolve
     :return: PropStatus items
     """
+    return get_property_from_element(
+        href, resource, properties, ET.Element(name))
+
+
+def get_property_from_element(href, resource, properties, requested):
+    """Get a single property on a resource.
+
+    :param href: Resource href
+    :param resource: Resource object
+    :param properties: Dictionary of properties
+    :param requested: Requested element
+    :return: PropStatus items
+    """
     responsedescription = None
-    ret = ET.Element(name)
+    ret = ET.Element(requested.tag)
     try:
-        prop = properties[name]
+        prop = properties[requested.tag]
     except KeyError:
         statuscode = '404 Not Found'
         logging.warning(
             'Client requested unknown property %s',
-            name)
+            requested.tag)
     else:
         try:
             if not prop.supported_on(resource):
                 raise KeyError
-            prop.get_value(href, resource, ret)
+            try:
+                get_value_ext = prop.get_value_ext
+            except AttributeError:
+                prop.get_value(href, resource, ret)
+            else:
+                get_value_ext(href, resource, ret, requested)
         except KeyError:
             statuscode = '404 Not Found'
         else:
@@ -889,7 +907,7 @@ def get_properties(href, resource, properties, requested):
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        yield get_property(href, resource, properties, propreq.tag)
+        yield get_property_from_element(href, resource, properties, propreq)
 
 
 def get_property_names(href, resource, properties, requested):
@@ -916,7 +934,7 @@ def get_all_properties(href, resource, properties):
     :return: Iterator over PropStatus items
     """
     for name in properties:
-        ps = get_property(href, resource, properties, name)
+        ps = get_property_from_name(href, resource, properties, name)
         if ps.statuscode == '200 OK':
             yield ps
 
@@ -1033,7 +1051,8 @@ class ExpandPropertyReporter(Reporter):
         for prop in prop_list:
             prop_name = prop.get('name')
             # FIXME: Resolve prop_name on resource
-            propstat = get_property(href, resource, properties, prop_name)
+            propstat = get_property_from_name(
+                href, resource, properties, prop_name)
             new_prop = ET.Element(propstat.prop.tag)
             child_hrefs = [
                 read_href_element(prop_child)
