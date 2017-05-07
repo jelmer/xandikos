@@ -38,6 +38,14 @@ for I in `seq 1 40`; do
     mkcol "addressbooks/__uids__/user$(printf %02d $I)"
     mkaddressbook addressbooks/__uids__/user$(printf %02d $I)/addressbook
 done
+mkcol calendars
+mkcol calendars/__uids__
+for I in `seq 1 40`; do
+    mkcol "calendars/__uids__/user$(printf %02d $I)"
+    mkcalendar calendars/__uids__/user$(printf %02d $I)/calendar
+    mkcalendar calendars/__uids__/user$(printf %02d $I)/tasks
+    mkcalendar calendars/__uids__/user$(printf %02d $I)/inbox
+done
 mkcol principals
 mkcol principals/__uids__
 mkcol principals/__uids__/user01/
