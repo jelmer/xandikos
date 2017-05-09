@@ -80,6 +80,7 @@ class File(object):
 
         :raise NotImplementedError: If UIDs aren't supported for this format
         :raise KeyError: If there is no UID set on this file
+        :raise InvalidFileContents: If the file is misformatted
         :return: UID
         """
         raise NotImplementedError(self.get_uid)
@@ -89,6 +90,7 @@ class File(object):
 
         :param name: File name
         :param previous: Previous file to compare to.
+        :raise InvalidFileContents: If the file is misformatted
         :return: List of strings describing change
         """
         assert name is not None
@@ -422,6 +424,9 @@ class GitStore(Store):
                 uid = fi.get_uid()
             except KeyError:
                 logger.warning('No UID found in file %s', name)
+                uid = None
+            except InvalidFileContents:
+                logging.warning('Unable to parse file %s', name)
                 uid = None
             except NotImplementedError:
                 # This file type doesn't support UIDs

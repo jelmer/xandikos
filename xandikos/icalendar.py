@@ -159,7 +159,10 @@ class ICalendarFile(File):
     @property
     def calendar(self):
         if self._calendar is None:
-            self._calendar = Calendar.from_ical(b''.join(self.content))
+            try:
+                self._calendar = Calendar.from_ical(b''.join(self.content))
+            except ValueError:
+                raise InvalidFileContents(self.content_type, self.content)
         return self._calendar
 
     def describe_delta(self, name, previous):
