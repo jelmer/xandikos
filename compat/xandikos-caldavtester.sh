@@ -45,10 +45,13 @@ for I in `seq 1 40`; do
     mkcalendar calendars/__uids__/user$(printf %02d $I)/calendar
     mkcalendar calendars/__uids__/user$(printf %02d $I)/tasks
     mkcalendar calendars/__uids__/user$(printf %02d $I)/inbox
+    mkcalendar calendars/__uids__/user$(printf %02d $I)/outbox
 done
 mkcol principals
 mkcol principals/__uids__
 mkcol principals/__uids__/user01/
+mkcol principals/users
+mkcol principals/users/user01
 
 run_xandikos --defaults
 
