@@ -174,13 +174,13 @@ def extract_from_calendar(incal, outcal, requested):
     :return: A Calendar
     """
     for tag in requested:
-        if tag.name == ('{%s}comp' % NAMESPACE):
+        if tag.tag == ('{%s}comp' % NAMESPACE):
             for insub in incal.subcomponents:
                 if insub.name == tag.get('name'):
                     outsub = component_factory[insub.name]
                     outcal.add_component(outsub)
                     extract_from_calendar(insub, outsub, tag)
-        elif tag.name == ('{%s}prop' % NAMESPACE):
+        elif tag.tag == ('{%s}prop' % NAMESPACE):
             outcal[tag.get('name')] = incal[tag.get('name')]
         else:
             raise AssertionError('invalid element %r' % tag)
@@ -202,12 +202,16 @@ class CalendarDataProperty(davcommon.SubbedProperty):
 
     def get_value_ext(self, base_href, resource, el, requested):
         if len(requested) == 0:
-            el.text = b''.join(resource.get_body()).decode('utf-8')
+            serialized_cal = b''.join(resource.get_body())
         else:
             c = ICalendar()
-            extract_from_calendar(resource.calendar, c, requested)
-            el.text = c.to_ical()
+            calendar = calendar_from_resource(resource)
+            if calendar is None:
+                raise KeyError
+            extract_from_calendar(calendar, c, requested)
+            serialized_cal = c.to_ical()
         # TODO(jelmer): Don't hardcode encoding
+        el.text = serialized_cal.decode('utf-8')
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
@@ -607,7 +611,10 @@ class CalendarTimezoneProperty(webdav.Property):
         el.text = resource.get_calendar_timezone()
 
     def set_value(self, href, resource, el):
-        resource.set_calendar_timezone(el.text)
+        if el is not None:
+            resource.set_calendar_timezone(el.text)
+        else:
+            resource.set_calendar_timezone(None)
 
 
 class MinDateTimeProperty(webdav.Property):
