@@ -151,10 +151,7 @@ class ICalendarFile(File):
 
     def validate(self):
         """Verify that file contents are valid."""
-        try:
-            self.calendar
-        except ValueError:
-            raise InvalidFileContents(self.content_type, self.content)
+        self.calendar
 
     @property
     def calendar(self):
@@ -176,11 +173,16 @@ class ICalendarFile(File):
         return lines
 
     def describe(self, name):
-        for component in self.calendar.subcomponents:
-            try:
-                return describe_component(component)
-            except KeyError:
-                pass
+        try:
+            subcomponents = self.calendar.subcomponents
+        except InvalidFileContents:
+            pass
+        else:
+            for component in subcomponents:
+                try:
+                    return describe_component(component)
+                except KeyError:
+                    pass
         return super(ICalendarFile, self).describe(name)
 
     def get_uid(self):
