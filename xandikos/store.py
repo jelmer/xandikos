@@ -380,7 +380,10 @@ class GitStore(Store):
         """
         fi = open_by_content_type(data, content_type, self.extra_file_handlers)
         if name is None:
-            name = str(uuid.uuid4()) + MIMETYPES.guess_extension(content_type)
+            name = str(uuid.uuid4())
+            extension = MIMETYPES.guess_extension(content_type)
+            if extension is not None:
+                name += extension
         fi.validate()
         try:
             uid = fi.get_uid()
