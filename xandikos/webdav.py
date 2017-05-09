@@ -975,7 +975,7 @@ def traverse_resource(base_resource, base_href, depth):
             nextdepth = "infinity"
         else:
             raise AssertionError("invalid depth %r" % depth)
-        if COLLECTION_RESOURCE_TYPE in base_resource.resource_types:
+        if COLLECTION_RESOURCE_TYPE in resource.resource_types:
             for (child_name, child_resource) in resource.members():
                 child_href = urllib.parse.urljoin(href, child_name)
                 todo.append((child_href, child_resource, nextdepth))
