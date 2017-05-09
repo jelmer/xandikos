@@ -37,6 +37,7 @@ from xandikos import (access, apache, caldav, carddav, quota, sync, webdav,
                       infit, scheduling, timezones)
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
+    DuplicateUidError,
     TreeGitStore,
     GitStore,
     InvalidFileContents,
@@ -128,6 +129,10 @@ class ObjectResource(webdav.Resource):
             raise webdav.PreconditionFailure(
                 '{%s}valid-calendar-data' % caldav.NAMESPACE,
                 'Not a valid calendar file.')
+        except DuplicateUidError:
+            raise webdav.PreconditionFailure(
+                '{%s}no-uid-conflict' % caldav.NAMESPACE,
+                'UID already in use.')
         return create_strong_etag(etag)
 
     def get_content_language(self):
@@ -263,6 +268,10 @@ class StoreBasedCollection(object):
             raise webdav.PreconditionFailure(
                 '{%s}valid-calendar-data' % caldav.NAMESPACE,
                 'Not a valid calendar file.')
+        except DuplicateUidError:
+            raise webdav.PreconditionFailure(
+                '{%s}no-uid-conflict' % caldav.NAMESPACE,
+                'UID already in use.')
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(self, old_token, new_token):
