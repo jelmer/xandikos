@@ -40,6 +40,7 @@ for I in `seq 1 40`; do
 done
 mkcol calendars
 mkcol calendars/__uids__
+mkcalendar calendars/users
 for I in `seq 1 40`; do
     mkcol "calendars/__uids__/user$(printf %02d $I)"
     mkcalendar calendars/__uids__/user$(printf %02d $I)/calendar
@@ -47,6 +48,8 @@ for I in `seq 1 40`; do
     mkcalendar calendars/__uids__/user$(printf %02d $I)/inbox
     mkcalendar calendars/__uids__/user$(printf %02d $I)/outbox
 done
+mkcol calendars/__uids__/i18nuser
+mkcalendar calendars/__uids__/i18nuser/calendar
 mkcol principals
 mkcol principals/__uids__
 mkcol principals/__uids__/user01/
