@@ -30,10 +30,10 @@
 	<features>
 		<feature>caldav</feature>
 		<feature>no-duplicate-uids</feature>
-	 	<!--
+		<feature>ctag</feature>
+		<!--
 		<feature>COPY Method</feature>
 		<feature>MOVE Method</feature>
-		<feature>ctag</feature>
 		<feature>directory listing</feature>
 		<feature>carddav</feature>
 		<feature>default-addressbook</feature>
