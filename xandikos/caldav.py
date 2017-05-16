@@ -34,6 +34,7 @@ ET = webdav.ET
 
 PRODID = '-//Jelmer Vernooĳ//Xandikos//EN'
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
+EXTENDED_MKCOL_FEATURE = 'extended-mkcol'
 
 # https://tools.ietf.org/html/rfc4791, section 4.2
 CALENDAR_RESOURCE_TYPE = '{urn:ietf:params:xml:ns:caldav}calendar'
@@ -809,9 +810,10 @@ class MkcalendarMethod(webdav.Method):
             raise webdav.UnsupportedMediaType(content_type)
         href, path, resource = app._get_resource_from_environ(environ)
         if resource is not None:
-            return webdav._send_method_not_allowed(
+            return webdav._send_simple_dav_error(
                 environ, start_response,
-                app._get_allowed_methods(environ))
+                '403 Forbidden', error=ET.Element('{DAV:}resource-must-be-null'),
+                description=('Something already exists at %r' % path))
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:

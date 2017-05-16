@@ -1391,6 +1391,7 @@ class PutMethod(Method):
             start_response('412 Precondition Failed', [])
             return []
         if r is not None:
+            # Item already exists; update it
             try:
                 new_etag = r.set_body(new_contents, current_etag)
             except PreconditionFailure as e:
@@ -1409,23 +1410,23 @@ class PutMethod(Method):
         content_type = environ.get('CONTENT_TYPE')
         container_path, name = posixpath.split(path)
         r = app.backend.get_resource(container_path)
-        if r is not None:
-            if COLLECTION_RESOURCE_TYPE not in r.resource_types:
-                return _send_method_not_allowed(
-                    environ, start_response,
-                    app._get_allowed_methods(environ))
-            try:
-                (new_name, new_etag) = r.create_member(
-                    name, new_contents, content_type)
-            except PreconditionFailure as e:
-                return _send_simple_dav_error(
-                    environ, start_response, '412 Precondition Failed',
-                    error=ET.Element(e.precondition),
-                    description=e.description)
-            start_response('201 Created', [
-                ('ETag', new_etag)])
-            return []
-        return _send_not_found(environ, start_response)
+        if r is None:
+            return _send_not_found(environ, start_response)
+        if COLLECTION_RESOURCE_TYPE not in r.resource_types:
+            return _send_method_not_allowed(
+                environ, start_response,
+                app._get_allowed_methods(environ))
+        try:
+            (new_name, new_etag) = r.create_member(
+                name, new_contents, content_type)
+        except PreconditionFailure as e:
+            return _send_simple_dav_error(
+                environ, start_response, '412 Precondition Failed',
+                error=ET.Element(e.precondition),
+                description=e.description)
+        start_response('201 Created', [
+            ('ETag', new_etag)])
+        return []
 
 
 class ReportMethod(Method):
@@ -1691,7 +1692,7 @@ class WebDAVApp(object):
 
     def _get_dav_features(self, resource):
         # TODO(jelmer): Support access-control
-        return ['1', '2', '3', 'calendar-access', 'addressbook']
+        return ['1', '2', '3', 'calendar-access', 'addressbook', 'extended-mkcol']
 
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
