@@ -32,29 +32,34 @@ function mkaddressbook() {
 	mkcol "$p" "addressbook"
 }
 
+function mkprincipal() {
+	p="$1"
+	mkcol "$p" "principal"
+}
+
 mkcol addressbooks
 mkcol addressbooks/__uids__
 for I in `seq 1 40`; do
-    mkcol "addressbooks/__uids__/user$(printf %02d $I)"
+    mkprincipal "addressbooks/__uids__/user$(printf %02d $I)"
     mkaddressbook addressbooks/__uids__/user$(printf %02d $I)/addressbook
 done
 mkcol calendars
 mkcol calendars/__uids__
 mkcalendar calendars/users
 for I in `seq 1 40`; do
-    mkcol "calendars/__uids__/user$(printf %02d $I)"
+    mkprincipal "calendars/__uids__/user$(printf %02d $I)"
     mkcalendar calendars/__uids__/user$(printf %02d $I)/calendar
     mkcalendar calendars/__uids__/user$(printf %02d $I)/tasks
     mkcalendar calendars/__uids__/user$(printf %02d $I)/inbox
     mkcalendar calendars/__uids__/user$(printf %02d $I)/outbox
 done
-mkcol calendars/__uids__/i18nuser
+mkprincipal calendars/__uids__/i18nuser
 mkcalendar calendars/__uids__/i18nuser/calendar
 mkcol principals
 mkcol principals/__uids__
-mkcol principals/__uids__/user01/
+mkprincipal principals/__uids__/user01/
 mkcol principals/users
-mkcol principals/users/user01
+mkprincipal principals/users/user01
 
 run_xandikos --defaults
 
