@@ -37,10 +37,12 @@ _DEFAULT_COMMITTER_IDENTITY = b'Xandikos <xandikos>'
 
 STORE_TYPE_ADDRESSBOOK = 'addressbook'
 STORE_TYPE_CALENDAR = 'calendar'
+STORE_TYPE_PRINCIPAL = 'principal'
 STORE_TYPE_OTHER = 'other'
 VALID_STORE_TYPES = (
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
+    STORE_TYPE_PRINCIPAL,
     STORE_TYPE_OTHER)
 
 MIMETYPES = mimetypes.MimeTypes()
@@ -238,16 +240,14 @@ class Store(object):
     def set_type(self, store_type):
         """Set store type.
 
-        :param store_type: New store type (one of STORE_TYPE_ADDRESSBOOK,
-            STORE_TYPE_CALENDAR, STORE_TYPE_OTHER)
+        :param store_type: New store type (one of VALID_STORE_TYPES)
         """
         raise NotImplementedError(self.set_type)
 
     def get_type(self):
         """Get type of this store.
 
-        :return: one of [STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
-                         STORE_TYPE_OTHER]
+        :return: one of VALID_STORE_TYPES
         """
         ret = STORE_TYPE_OTHER
         for (name, content_type, etag) in self.iter_with_etag():
@@ -579,8 +579,7 @@ class GitStore(Store):
     def set_type(self, store_type):
         """Set store type.
 
-        :param store_type: New store type (one of STORE_TYPE_ADDRESSBOOK,
-            STORE_TYPE_CALENDAR, STORE_TYPE_OTHER)
+        :param store_type: New store type (one of VALID_STORE_TYPES)
         """
         config = self.repo.get_config()
         config.set(b'xandikos', b'type', store_type.encode(DEFAULT_ENCODING))

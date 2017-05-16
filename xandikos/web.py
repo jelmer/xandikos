@@ -45,6 +45,7 @@ from xandikos.store import (
     NotStoreError,
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
+    STORE_TYPE_PRINCIPAL,
     STORE_TYPE_OTHER,
 )
 from xandikos.vcard import VCardFile
@@ -203,6 +204,8 @@ class StoreBasedCollection(object):
         elif resource_types == {carddav.ADDRESSBOOK_RESOURCE_TYPE,
                                 webdav.COLLECTION_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_ADDRESSBOOK)
+        elif resource_types == {webdav.PRINCIPAL_RESOURCE_TYPE}:
+            self.store.set_type(STORE_TYPE_PRINCIPAL)
         elif resource_types == {webdav.COLLECTION_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_OTHER)
         else:
@@ -353,7 +356,7 @@ class Collection(StoreBasedCollection, webdav.Collection):
     """A generic WebDAV collection."""
 
 
-class CalendarResource(StoreBasedCollection, caldav.Calendar):
+class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
     def get_calendar_description(self):
         return self.store.get_description()
@@ -402,7 +405,7 @@ class CalendarResource(StoreBasedCollection, caldav.Calendar):
         raise KeyError
 
 
-class AddressbookResource(StoreBasedCollection, carddav.Addressbook):
+class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
 
     def get_addressbook_description(self):
         return self.store.get_description()
@@ -593,11 +596,7 @@ class RootPage(webdav.Resource):
         raise KeyError
 
 
-class Principal(CollectionSetResource):
-    """Principal user resource."""
-
-    resource_types = (webdav.Collection.resource_types +
-                      [webdav.PRINCIPAL_RESOURCE_TYPE])
+class Principal(webdav.Principal):
 
     def get_principal_url(self):
         return '.'
@@ -629,19 +628,6 @@ class Principal(CollectionSetResource):
         """Get group membership URLs."""
         return []
 
-    @classmethod
-    def create(cls, backend, relpath):
-        p = super(Principal, cls).create(backend, relpath)
-        to_create = set()
-        to_create.update(p.get_addressbook_home_set())
-        to_create.update(p.get_calendar_home_set())
-        for n in to_create:
-            try:
-                backend.create_collection(posixpath.join(relpath, n))
-            except FileExistsError:
-                pass
-        return p
-
     def get_calendar_user_type(self):
         # TODO(jelmer)
         return "INDIVIDUAL"
@@ -654,8 +640,45 @@ class Principal(CollectionSetResource):
         # TODO(jelmer)
         return []
 
-    def get_ctag(self):
-        raise KeyError
+
+class PrincipalBare(CollectionSetResource, Principal):
+    """Principal user resource."""
+
+    resource_types = [webdav.PRINCIPAL_RESOURCE_TYPE]
+
+    @classmethod
+    def create(cls, backend, relpath):
+        p = super(PrincipalBare, cls).create(backend, relpath)
+        to_create = set()
+        to_create.update(p.get_addressbook_home_set())
+        to_create.update(p.get_calendar_home_set())
+        for n in to_create:
+            try:
+                backend.create_collection(posixpath.join(relpath, n))
+            except FileExistsError:
+                pass
+        return p
+
+
+class PrincipalCollection(Collection, Principal):
+    """Principal user resource."""
+
+    resource_types = (webdav.Collection.resource_types +
+                      [webdav.PRINCIPAL_RESOURCE_TYPE])
+
+    @classmethod
+    def create(cls, backend, relpath):
+        p = super(PrincipalCollection, cls).create(backend, relpath)
+        p.store.set_type(STORE_TYPE_PRINCIPAL)
+        to_create = set()
+        to_create.update(p.get_addressbook_home_set())
+        to_create.update(p.get_calendar_home_set())
+        for n in to_create:
+            try:
+                backend.create_collection(posixpath.join(relpath, n))
+            except FileExistsError:
+                pass
+        return p
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
@@ -683,7 +706,7 @@ class XandikosBackend(webdav.Backend):
         return Collection(self, relpath, TreeGitStore.create(p))
 
     def create_principal(self, relpath, create_defaults=False):
-        principal = Principal.create(self, relpath)
+        principal = PrincipalBare.create(self, relpath)
         self._mark_as_principal(relpath)
         if create_defaults:
             create_principal_defaults(self, principal)
@@ -696,16 +719,17 @@ class XandikosBackend(webdav.Backend):
         if p is None:
             return None
         if os.path.isdir(p):
-            if relpath in self._user_principals:
-                return Principal(self, relpath)
             try:
                 store = open_store_from_path(p)
             except NotStoreError:
+                if relpath in self._user_principals:
+                    return PrincipalBare(self, relpath)
                 return CollectionSetResource(self, relpath)
             else:
                 return {
-                    STORE_TYPE_CALENDAR: CalendarResource,
-                    STORE_TYPE_ADDRESSBOOK: AddressbookResource,
+                    STORE_TYPE_CALENDAR: CalendarCollection,
+                    STORE_TYPE_ADDRESSBOOK: AddressbookCollection,
+                    STORE_TYPE_PRINCIPAL: PrincipalCollection,
                     STORE_TYPE_OTHER: Collection
                 }[store.get_type()](self, relpath, store)
         else:
