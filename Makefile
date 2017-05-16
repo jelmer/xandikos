@@ -9,7 +9,8 @@ CALDAVTESTER_TESTS ?= CalDAV/attachments.xml \
 		      CalDAV/recurrenceput.xml \
 		      CalDAV/schedulenomore.xml \
 		      CalDAV/options.xml \
-		      CalDAV/vtodos.xml
+		      CalDAV/vtodos.xml \
+		      CalDAV/get.xml
 XANDIKOS_COVERAGE ?= $(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web
 
 check:
