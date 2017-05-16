@@ -235,6 +235,8 @@ class Status(object):
     def get_single_body(self, encoding):
         if self.propstat and len(propstat_by_status(self.propstat)) > 1:
             raise NeedsMultiStatus()
+        if self.error is not None:
+            raise NeedsMultiStatus()
         if self.propstat:
             [ret] = list(propstat_as_xml(self.propstat))
             body = ET.tostringlist(ret, encoding)
@@ -254,7 +256,9 @@ class Status(object):
                 ret.append(ps)
         elif self.status:
             ET.SubElement(ret, '{DAV:}status').text = 'HTTP/1.1 ' + self.status
-        if self.error:
+        # Note the check for "is not None" here. Elements without children
+        # evaluate to False.
+        if self.error is not None:
             ET.SubElement(ret, '{DAV:}error').append(self.error)
         if self.responsedescription:
             ET.SubElement(ret, '{DAV:}responsedescription').text = (
