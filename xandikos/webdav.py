@@ -529,7 +529,8 @@ class SupportedReportSetProperty(Property):
     def get_value(self, href, resource, el):
         for name, reporter in self._reporters.items():
             if reporter.supported_on(resource):
-                ET.SubElement(el, name)
+                bel = ET.SubElement(el, '{DAV:}supported-report')
+                ET.SubElement(bel, name)
 
 
 class GetCTagProperty(Property):
