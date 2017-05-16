@@ -828,8 +828,9 @@ class WellknownRedirector(object):
 
     def __call__(self, environ, start_response):
         # See https://tools.ietf.org/html/rfc6764
-        if ((environ['SCRIPT_NAME'] + environ['PATH_INFO'])
-                in WELLKNOWN_DAV_PATHS):
+        path = posixpath.normpath(
+            environ['SCRIPT_NAME'] + environ['PATH_INFO'])
+        if path in WELLKNOWN_DAV_PATHS:
             start_response('302 Found', [
                 ('Location', self._dav_root)])
             return []
