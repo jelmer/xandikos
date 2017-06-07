@@ -812,7 +812,8 @@ class MkcalendarMethod(webdav.Method):
         if resource is not None:
             return webdav._send_simple_dav_error(
                 environ, start_response,
-                '403 Forbidden', error=ET.Element('{DAV:}resource-must-be-null'),
+                '403 Forbidden',
+                error=ET.Element('{DAV:}resource-must-be-null'),
                 description=('Something already exists at %r' % path))
         try:
             resource = app.backend.create_collection(path)
