@@ -4,8 +4,7 @@ COVERAGE_RUN_OPTIONS ?=
 COVERAGE_RUN ?= $(COVERAGE) run $(COVERAGE_RUN_OPTIONS)
 TESTSUITE = xandikos.tests.test_suite
 LITMUS_TESTS ?= basic http
-CALDAVTESTER_TESTS ?= CalDAV/attachments.xml \
-		      CalDAV/delete.xml \
+CALDAVTESTER_TESTS ?= CalDAV/delete.xml \
 		      CalDAV/recurrenceput.xml \
 		      CalDAV/schedulenomore.xml \
 		      CalDAV/options.xml \
