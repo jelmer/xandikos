@@ -5,11 +5,9 @@ COVERAGE_RUN ?= $(COVERAGE) run $(COVERAGE_RUN_OPTIONS)
 TESTSUITE = xandikos.tests.test_suite
 LITMUS_TESTS ?= basic http
 CALDAVTESTER_TESTS ?= CalDAV/delete.xml \
-		      CalDAV/recurrenceput.xml \
 		      CalDAV/schedulenomore.xml \
 		      CalDAV/options.xml \
-		      CalDAV/vtodos.xml \
-		      CalDAV/get.xml
+		      CalDAV/vtodos.xml
 XANDIKOS_COVERAGE ?= $(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web
 
 check:
