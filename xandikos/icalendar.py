@@ -1,5 +1,5 @@
 # Xandikos
-# Copyright (C) 2017 Jelmer Vernooĳ <jelmer@jelmer.uk>
+# Copyright (C) 2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
