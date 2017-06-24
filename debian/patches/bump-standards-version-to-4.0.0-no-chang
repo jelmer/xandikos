@@ -1,0 +1,57 @@
+From: Jelmer Vernooĳ <jelmer@jelmer.uk>
+Date: Sat, 24 Jun 2017 13:15:59 +0000
+X-Dgit-Generated: 0.0.5-1 83deee2b2ca5ddda4e15edf05954cd83835fea50
+Subject: Bump standards version to 4.0.0 (no changes).
+
+
+---
+
+--- xandikos-0.0.5.orig/xandikos.egg-info/SOURCES.txt
++++ xandikos-0.0.5/xandikos.egg-info/SOURCES.txt
+@@ -8,9 +8,11 @@ CONTRIBUTING.rst
+ COPYING
+ MANIFEST.in
+ Makefile
++PKG-INFO
+ README.rst
+ TODO
+ appveyor.yml
++setup.cfg
+ setup.py
+ tox.ini
+ xandikos.1
+@@ -24,6 +26,25 @@ compat/testcaldav.sh
+ compat/xandikos-caldavtester.sh
+ compat/xandikos-litmus.sh
+ compat/xandikos-vdirsyncer.sh
++debian/.gitignore
++debian/changelog
++debian/compat
++debian/control
++debian/copyright
++debian/docs
++debian/gbp.conf
++debian/rules
++debian/watch
++debian/xandikos.examples
++debian/xandikos.manpages
++debian/patches/series
++debian/patches/travis
++debian/source/format
++debian/source/options
++debian/tests/caldav-tester
++debian/tests/control
++debian/tests/litmus
++debian/upstream/signing-key.asc
+ examples/uwsgi-standalone.ini
+ examples/uwsgi.ini
+ notes/auth.rst
+--- xandikos-0.0.5.orig/xandikos.egg-info/requires.txt
++++ xandikos-0.0.5/xandikos.egg-info/requires.txt
+@@ -1,4 +1,4 @@
+-icalendar
+-dulwich
+ defusedxml
++dulwich
++icalendar
+ jinja2
