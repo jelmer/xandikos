@@ -2,6 +2,7 @@ xandikos (0.0.5-1) UNRELEASED; urgency=medium
 
   * Add debian watch file.
   * New upstream release.
+  * Bump standards version to 4.0.0 (no changes).
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 24 Jun 2017 13:14:40 +0000
 
