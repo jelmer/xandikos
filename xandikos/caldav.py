@@ -1,5 +1,5 @@
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -34,6 +34,7 @@ ET = webdav.ET
 
 PRODID = '-//Jelmer Vernooĳ//Xandikos//EN'
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
+EXTENDED_MKCOL_FEATURE = 'extended-mkcol'
 
 # https://tools.ietf.org/html/rfc4791, section 4.2
 CALENDAR_RESOURCE_TYPE = '{urn:ietf:params:xml:ns:caldav}calendar'
@@ -174,13 +175,13 @@ def extract_from_calendar(incal, outcal, requested):
     :return: A Calendar
     """
     for tag in requested:
-        if tag.name == ('{%s}comp' % NAMESPACE):
+        if tag.tag == ('{%s}comp' % NAMESPACE):
             for insub in incal.subcomponents:
                 if insub.name == tag.get('name'):
                     outsub = component_factory[insub.name]
                     outcal.add_component(outsub)
                     extract_from_calendar(insub, outsub, tag)
-        elif tag.name == ('{%s}prop' % NAMESPACE):
+        elif tag.tag == ('{%s}prop' % NAMESPACE):
             outcal[tag.get('name')] = incal[tag.get('name')]
         else:
             raise AssertionError('invalid element %r' % tag)
@@ -200,14 +201,18 @@ class CalendarDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/calendar')
 
-    def get_value(self, base_href, resource, el, requested):
+    def get_value_ext(self, base_href, resource, el, requested):
         if len(requested) == 0:
-            el.text = b''.join(resource.get_body()).decode('utf-8')
+            serialized_cal = b''.join(resource.get_body())
         else:
             c = ICalendar()
-            extract_from_calendar(resource.calendar, c, requested)
-            el.text = c.to_ical()
+            calendar = calendar_from_resource(resource)
+            if calendar is None:
+                raise KeyError
+            extract_from_calendar(calendar, c, requested)
+            serialized_cal = c.to_ical()
         # TODO(jelmer): Don't hardcode encoding
+        el.text = serialized_cal.decode('utf-8')
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
@@ -516,7 +521,7 @@ class CalendarQueryReporter(webdav.Reporter):
         filter_el = None
         tztext = None
         for el in body:
-            if el.tag == '{DAV:}prop':
+            if el.tag in ('{DAV:}prop', '{DAV:}propname', '{DAV:}allprop'):
                 requested = el
             elif el.tag == '{urn:ietf:params:xml:ns:caldav}filter':
                 filter_el = el
@@ -607,7 +612,10 @@ class CalendarTimezoneProperty(webdav.Property):
         el.text = resource.get_calendar_timezone()
 
     def set_value(self, href, resource, el):
-        resource.set_calendar_timezone(el.text)
+        if el is not None:
+            resource.set_calendar_timezone(el.text)
+        else:
+            resource.set_calendar_timezone(None)
 
 
 class MinDateTimeProperty(webdav.Property):
@@ -802,9 +810,11 @@ class MkcalendarMethod(webdav.Method):
             raise webdav.UnsupportedMediaType(content_type)
         href, path, resource = app._get_resource_from_environ(environ)
         if resource is not None:
-            return webdav._send_method_not_allowed(
+            return webdav._send_simple_dav_error(
                 environ, start_response,
-                app._get_allowed_methods(environ))
+                '403 Forbidden',
+                error=ET.Element('{DAV:}resource-must-be-null'),
+                description=('Something already exists at %r' % path))
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:
@@ -815,7 +825,8 @@ class MkcalendarMethod(webdav.Method):
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         app.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):
-            et = webdav._readXmlBody(environ, '{DAV:}mkcalendar')
+            et = webdav._readXmlBody(
+                environ, '{urn:ietf:params:xml:ns:caldav}mkcalendar')
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
@@ -823,7 +834,8 @@ class MkcalendarMethod(webdav.Method):
                         'Unknown tag %s in mkcalendar' % el.tag)
                 propstat.extend(webdav.apply_modify_prop(
                     el, href, resource, app.properties))
-            ret = ET.Element('{DAV:}mkcalendar-response')
+                ret = ET.Element(
+                    '{urn:ietf:params:xml:ns:carldav:}mkcalendar-response')
             for propstat_el in webdav.propstat_as_xml(propstat):
                 ret.append(propstat_el)
             return webdav._send_xml_response(

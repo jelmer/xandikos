@@ -2,7 +2,7 @@
 # encoding: utf-8
 #
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>
+# Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -22,12 +22,12 @@
 
 from setuptools import setup
 
-version = "0.0.4"
+version = "0.0.5"
 
 setup(name="xandikos",
       description="CalDAV/CardDAV server",
       version=version,
-      author="Jelmer Vernooij",
+      author="Jelmer Vernooĳ",
       author_email="jelmer@jelmer.uk",
       license="GNU GPLv3 or later",
       url="https://www.jelmer.uk/projects/xandikos",
@@ -35,6 +35,7 @@ setup(name="xandikos",
       packages=['xandikos', 'xandikos.tests'],
       package_data={'xandikos': ['templates/*.html']},
       scripts=['bin/xandikos'],
+      test_suite='xandikos.tests.test_suite',
       classifiers=[
           'Development Status :: 4 - Beta',
           'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',  # noqa

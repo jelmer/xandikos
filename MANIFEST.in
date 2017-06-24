@@ -3,8 +3,11 @@ include AUTHORS
 include COPYING
 include Makefile
 include TODO
-recursive-include compat *
-recursive-include examples *
-recursive-include notes *
+include compat/*.sh
+include compat/*.rst
+include compat/*.xml
+include compat/*.sha256sum
+include examples/*.ini
+include notes/*.rst
 include tox.ini
 include xandikos.1

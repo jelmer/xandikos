@@ -1,0 +1,19 @@
+Metadata-Version: 1.1
+Name: xandikos
+Version: 0.0.5
+Summary: CalDAV/CardDAV server
+Home-page: https://www.jelmer.uk/projects/xandikos
+Author: Jelmer Vernooĳ
+Author-email: jelmer@jelmer.uk
+License: GNU GPLv3 or later
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Operating System :: POSIX

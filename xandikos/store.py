@@ -1,5 +1,5 @@
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -37,10 +37,12 @@ _DEFAULT_COMMITTER_IDENTITY = b'Xandikos <xandikos>'
 
 STORE_TYPE_ADDRESSBOOK = 'addressbook'
 STORE_TYPE_CALENDAR = 'calendar'
+STORE_TYPE_PRINCIPAL = 'principal'
 STORE_TYPE_OTHER = 'other'
 VALID_STORE_TYPES = (
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
+    STORE_TYPE_PRINCIPAL,
     STORE_TYPE_OTHER)
 
 MIMETYPES = mimetypes.MimeTypes()
@@ -80,6 +82,7 @@ class File(object):
 
         :raise NotImplementedError: If UIDs aren't supported for this format
         :raise KeyError: If there is no UID set on this file
+        :raise InvalidFileContents: If the file is misformatted
         :return: UID
         """
         raise NotImplementedError(self.get_uid)
@@ -89,6 +92,7 @@ class File(object):
 
         :param name: File name
         :param previous: Previous file to compare to.
+        :raise InvalidFileContents: If the file is misformatted
         :return: List of strings describing change
         """
         assert name is not None
@@ -236,16 +240,14 @@ class Store(object):
     def set_type(self, store_type):
         """Set store type.
 
-        :param store_type: New store type (one of STORE_TYPE_ADDRESSBOOK,
-            STORE_TYPE_CALENDAR, STORE_TYPE_OTHER)
+        :param store_type: New store type (one of VALID_STORE_TYPES)
         """
         raise NotImplementedError(self.set_type)
 
     def get_type(self):
         """Get type of this store.
 
-        :return: one of [STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
-                         STORE_TYPE_OTHER]
+        :return: one of VALID_STORE_TYPES
         """
         ret = STORE_TYPE_OTHER
         for (name, content_type, etag) in self.iter_with_etag():
@@ -378,7 +380,10 @@ class GitStore(Store):
         """
         fi = open_by_content_type(data, content_type, self.extra_file_handlers)
         if name is None:
-            name = str(uuid.uuid4()) + MIMETYPES.guess_extension(content_type)
+            name = str(uuid.uuid4())
+            extension = MIMETYPES.guess_extension(content_type)
+            if extension is not None:
+                name += extension
         fi.validate()
         try:
             uid = fi.get_uid()
@@ -422,6 +427,9 @@ class GitStore(Store):
                 uid = fi.get_uid()
             except KeyError:
                 logger.warning('No UID found in file %s', name)
+                uid = None
+            except InvalidFileContents:
+                logging.warning('Unable to parse file %s', name)
                 uid = None
             except NotImplementedError:
                 # This file type doesn't support UIDs
@@ -571,8 +579,7 @@ class GitStore(Store):
     def set_type(self, store_type):
         """Set store type.
 
-        :param store_type: New store type (one of STORE_TYPE_ADDRESSBOOK,
-            STORE_TYPE_CALENDAR, STORE_TYPE_OTHER)
+        :param store_type: New store type (one of VALID_STORE_TYPES)
         """
         config = self.repo.get_config()
         config.set(b'xandikos', b'type', store_type.encode(DEFAULT_ENCODING))
