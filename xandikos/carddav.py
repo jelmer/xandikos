@@ -1,5 +1,5 @@
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -65,7 +65,7 @@ class AddressDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/vcard')
 
-    def get_value(self, href, resource, el, requested):
+    def get_value_ext(self, href, resource, el, requested):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
         el.text = b''.join(resource.get_body()).decode('utf-8')
@@ -83,9 +83,8 @@ class AddressbookDescriptionProperty(webdav.Property):
     def get_value(self, href, resource, el):
         el.text = resource.get_addressbook_description()
 
-    # TODO(jelmer): allow modification of this property
     def set_value(self, href, resource, el):
-        raise NotImplementedError
+        resource.set_addressbook_description(el.text)
 
 
 class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
@@ -102,6 +101,9 @@ class Addressbook(webdav.Collection):
 
     def get_addressbook_description(self):
         raise NotImplementedError(self.get_addressbook_description)
+
+    def set_addressbook_description(self, description):
+        raise NotImplementedError(self.set_addressbook_description)
 
     def get_addressbook_color(self):
         raise NotImplementedError(self.get_addressbook_color)
@@ -289,7 +291,7 @@ def apply_prop_filter(el, ab):
 def apply_filter(el, resource):
     """Compile a filter element into a Python function.
     """
-    if el is None:
+    if el is None or not list(el):
         # Empty filter, let's not bother parsing
         return lambda x: True
     ab = addressbook_from_resource(resource)
@@ -311,18 +313,39 @@ class AddressbookQueryReporter(webdav.Reporter):
                base_resource, depth):
         requested = None
         filter_el = None
+        limit = None
         for el in body:
-            if el.tag == '{DAV:}prop':
+            if el.tag in ('{DAV:}prop', '{DAV:}allprop', '{DAV:}propname'):
                 requested = el
             elif el.tag == ('{%s}filter' % NAMESPACE):
                 filter_el = el
+            elif el.tag == ('{%s}limit' % NAMESPACE):
+                limit = el
             else:
                 raise webdav.BadRequestError(
                     'Unknown tag %s in report %s' % (el.tag, self.name))
+        if limit is not None:
+            try:
+                [nresults_el] = list(limit)
+            except ValueError:
+                raise webdav.BadRequestError(
+                    'Invalid number of subelements in limit')
+            try:
+                nresults = int(nresults_el.text)
+            except ValueError:
+                raise webdav.BadRequestError(
+                    'nresults not a number')
+        else:
+            nresults = None
+
+        i = 0
         for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth):
             if not apply_filter(filter_el, resource):
                 continue
+            if nresults is not None and i >= nresults:
+                break
             propstat = davcommon.get_properties_with_data(
                 self.data_property, href, resource, properties, requested)
             yield webdav.Status(href, '200 OK', propstat=list(propstat))
+            i += 1

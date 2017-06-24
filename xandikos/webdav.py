@@ -1,5 +1,5 @@
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -235,6 +235,8 @@ class Status(object):
     def get_single_body(self, encoding):
         if self.propstat and len(propstat_by_status(self.propstat)) > 1:
             raise NeedsMultiStatus()
+        if self.error is not None:
+            raise NeedsMultiStatus()
         if self.propstat:
             [ret] = list(propstat_as_xml(self.propstat))
             body = ET.tostringlist(ret, encoding)
@@ -254,7 +256,9 @@ class Status(object):
                 ret.append(ps)
         elif self.status:
             ET.SubElement(ret, '{DAV:}status').text = 'HTTP/1.1 ' + self.status
-        if self.error:
+        # Note the check for "is not None" here. Elements without children
+        # evaluate to False.
+        if self.error is not None:
             ET.SubElement(ret, '{DAV:}error').append(self.error)
         if self.responsedescription:
             ET.SubElement(ret, '{DAV:}responsedescription').text = (
@@ -525,7 +529,8 @@ class SupportedReportSetProperty(Property):
     def get_value(self, href, resource, el):
         for name, reporter in self._reporters.items():
             if reporter.supported_on(resource):
-                ET.SubElement(el, name)
+                bel = ET.SubElement(el, '{DAV:}supported-report')
+                ET.SubElement(bel, name)
 
 
 class GetCTagProperty(Property):
@@ -849,7 +854,7 @@ class Principal(Resource):
         raise NotImplementedError(self.get_calendar_proxy_write_for)
 
 
-def get_property(href, resource, properties, name):
+def get_property_from_name(href, resource, properties, name):
     """Get a single property on a resource.
 
     :param href: Resource href
@@ -858,20 +863,38 @@ def get_property(href, resource, properties, name):
     :param name: name of property to resolve
     :return: PropStatus items
     """
+    return get_property_from_element(
+        href, resource, properties, ET.Element(name))
+
+
+def get_property_from_element(href, resource, properties, requested):
+    """Get a single property on a resource.
+
+    :param href: Resource href
+    :param resource: Resource object
+    :param properties: Dictionary of properties
+    :param requested: Requested element
+    :return: PropStatus items
+    """
     responsedescription = None
-    ret = ET.Element(name)
+    ret = ET.Element(requested.tag)
     try:
-        prop = properties[name]
+        prop = properties[requested.tag]
     except KeyError:
         statuscode = '404 Not Found'
         logging.warning(
             'Client requested unknown property %s',
-            name)
+            requested.tag)
     else:
         try:
             if not prop.supported_on(resource):
                 raise KeyError
-            prop.get_value(href, resource, ret)
+            try:
+                get_value_ext = prop.get_value_ext
+            except AttributeError:
+                prop.get_value(href, resource, ret)
+            else:
+                get_value_ext(href, resource, ret, requested)
         except KeyError:
             statuscode = '404 Not Found'
         else:
@@ -889,7 +912,36 @@ def get_properties(href, resource, properties, requested):
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        yield get_property(href, resource, properties, propreq.tag)
+        yield get_property_from_element(href, resource, properties, propreq)
+
+
+def get_property_names(href, resource, properties, requested):
+    """Get a set of property names.
+
+    :param href: Resource Href
+    :param resource: Resource object
+    :param properties: Dictionary of properties
+    :param requested: XML {DAV:}prop element with properties to look up
+    :return: Iterator over PropStatus items
+    """
+    for name, prop in properties.items():
+        if prop.is_set(href, resource):
+            yield PropStatus('200 OK', None, ET.Element(name))
+
+
+def get_all_properties(href, resource, properties):
+    """Get all properties.
+
+    :param href: Resource Href
+    :param resource: Resource object
+    :param properties: Dictionary of properties
+    :param requested: XML {DAV:}prop element with properties to look up
+    :return: Iterator over PropStatus items
+    """
+    for name in properties:
+        ps = get_property_from_name(href, resource, properties, name)
+        if ps.statuscode == '200 OK':
+            yield ps
 
 
 def ensure_trailing_slash(href):
@@ -928,7 +980,7 @@ def traverse_resource(base_resource, base_href, depth):
             nextdepth = "infinity"
         else:
             raise AssertionError("invalid depth %r" % depth)
-        if COLLECTION_RESOURCE_TYPE in base_resource.resource_types:
+        if COLLECTION_RESOURCE_TYPE in resource.resource_types:
             for (child_name, child_resource) in resource.members():
                 child_href = urllib.parse.urljoin(href, child_name)
                 todo.append((child_href, child_resource, nextdepth))
@@ -1004,7 +1056,8 @@ class ExpandPropertyReporter(Reporter):
         for prop in prop_list:
             prop_name = prop.get('name')
             # FIXME: Resolve prop_name on resource
-            propstat = get_property(href, resource, properties, prop_name)
+            propstat = get_property_from_name(
+                href, resource, properties, prop_name)
             new_prop = ET.Element(propstat.prop.tag)
             child_hrefs = [
                 read_href_element(prop_child)
@@ -1268,7 +1321,8 @@ class Method(object):
         raise NotImplementedError(self.handle)
 
     def allow(self, environ):
-        raise NotImplementedError(self.allow)
+        """Is this method allowed considering the specified environ?"""
+        return True
 
 
 class DeleteMethod(Method):
@@ -1337,6 +1391,7 @@ class PutMethod(Method):
             start_response('412 Precondition Failed', [])
             return []
         if r is not None:
+            # Item already exists; update it
             try:
                 new_etag = r.set_body(new_contents, current_etag)
             except PreconditionFailure as e:
@@ -1355,23 +1410,23 @@ class PutMethod(Method):
         content_type = environ.get('CONTENT_TYPE')
         container_path, name = posixpath.split(path)
         r = app.backend.get_resource(container_path)
-        if r is not None:
-            if COLLECTION_RESOURCE_TYPE not in r.resource_types:
-                return _send_method_not_allowed(
-                    environ, start_response,
-                    app._get_allowed_methods(environ))
-            try:
-                (new_name, new_etag) = r.create_member(
-                    name, new_contents, content_type)
-            except PreconditionFailure as e:
-                return _send_simple_dav_error(
-                    environ, start_response, '412 Precondition Failed',
-                    error=ET.Element(e.precondition),
-                    description=e.description)
-            start_response('201 Created', [
-                ('ETag', new_etag)])
-            return []
-        return _send_not_found(environ, start_response)
+        if r is None:
+            return _send_not_found(environ, start_response)
+        if COLLECTION_RESOURCE_TYPE not in r.resource_types:
+            return _send_method_not_allowed(
+                environ, start_response,
+                app._get_allowed_methods(environ))
+        try:
+            (new_name, new_etag) = r.create_member(
+                name, new_contents, content_type)
+        except PreconditionFailure as e:
+            return _send_simple_dav_error(
+                environ, start_response, '412 Precondition Failed',
+                error=ET.Element(e.precondition),
+                description=e.description)
+        start_response('201 Created', [
+            ('ETag', new_etag)])
+        return []
 
 
 class ReportMethod(Method):
@@ -1419,7 +1474,7 @@ class PropfindMethod(Method):
             'CONTENT_TYPE' not in environ and
             environ.get('CONTENT_LENGTH') == '0'
         ):
-            requested = ET.Element('{DAV:}allprop')
+            requested = None
         else:
             et = _readXmlBody(environ, '{DAV:}propfind')
             try:
@@ -1427,42 +1482,27 @@ class PropfindMethod(Method):
             except ValueError:
                 raise BadRequestError(
                     'Received more than one element in propfind.')
-        if requested.tag == '{DAV:}prop':
-            ret = []
-            for href, resource in traverse_resource(
-                    base_resource, base_href, depth):
+        ret = []
+        for href, resource in traverse_resource(
+                base_resource, base_href, depth):
+            propstat = []
+            if requested is None or requested.tag == '{DAV:}allprop':
+                propstat = get_all_properties(
+                    href, resource, app.properties)
+            elif requested.tag == '{DAV:}prop':
                 propstat = get_properties(
                     href, resource, app.properties, requested)
-                ret.append(Status(href, '200 OK', propstat=list(propstat)))
-            # By my reading of the WebDAV RFC, it should be legal to return
-            # '200 OK' here if Depth=0, but the RFC is not super clear and
-            # some clients don't seem to like it .
-            return ret
-        elif requested.tag == '{DAV:}allprop':
-            ret = []
-            for href, resource in traverse_resource(
-                    base_resource, base_href, depth):
-                propstat = []
-                for name in app.properties:
-                    ps = get_property(href, resource, app.properties, name)
-                    if ps.statuscode == '200 OK':
-                        propstat.append(ps)
-                ret.append(Status(href, '200 OK', propstat=propstat))
-            return ret
-        elif requested.tag == '{DAV:}propname':
-            ret = []
-            for href, resource in traverse_resource(
-                    base_resource, base_href, depth):
-                propstat = []
-                for name, prop in app.properties.items():
-                    if prop.is_set(href, resource):
-                        propstat.append(
-                            PropStatus('200 OK', None, ET.Element(name)))
-                ret.append(Status(href, '200 OK', propstat=propstat))
-            return ret
-        else:
-            raise BadRequestError('Expected prop/allprop/propname tag, got ' +
-                                  requested.tag)
+            elif requested.tag == '{DAV:}propname':
+                propstat = get_property_names(
+                    href, resource, app.properties, requested)
+            else:
+                raise BadRequestError(
+                    'Expected prop/allprop/propname tag, got ' + requested.tag)
+            ret.append(Status(href, '200 OK', propstat=list(propstat)))
+        # By my reading of the WebDAV RFC, it should be legal to return
+        # '200 OK' here if Depth=0, but the RFC is not super clear and
+        # some clients don't seem to like it .
+        return ret
 
 
 class ProppatchMethod(Method):
@@ -1652,12 +1692,16 @@ class WebDAVApp(object):
 
     def _get_dav_features(self, resource):
         # TODO(jelmer): Support access-control
-        return ['1', '2', '3', 'calendar-access', 'addressbook']
+        return ['1', '2', '3', 'calendar-access', 'addressbook',
+                'extended-mkcol']
 
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
-        # TODO(jelmer): Look up resource to determine supported methods.
-        return sorted(self.methods.keys())
+        ret = []
+        for name in sorted(self.methods.keys()):
+            if self.methods[name].allow(environ):
+                ret.append(name)
+        return ret
 
     def __call__(self, environ, start_response):
         if environ.get('HTTP_EXPECT', '') != '':

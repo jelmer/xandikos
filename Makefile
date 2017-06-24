@@ -4,13 +4,17 @@ COVERAGE_RUN_OPTIONS ?=
 COVERAGE_RUN ?= $(COVERAGE) run $(COVERAGE_RUN_OPTIONS)
 TESTSUITE = xandikos.tests.test_suite
 LITMUS_TESTS ?= basic http
+CALDAVTESTER_TESTS ?= CalDAV/delete.xml \
+		      CalDAV/schedulenomore.xml \
+		      CalDAV/options.xml \
+		      CalDAV/vtodos.xml
 XANDIKOS_COVERAGE ?= $(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web
 
 check:
 	$(PYTHON) -m unittest $(TESTSUITE)
 
 style:
-	flake8 --exclude=compat/vdirsyncer/
+	flake8 --exclude=compat/vdirsyncer/,.tox
 
 web:
 	$(PYTHON) -m xandikos.web
@@ -32,9 +36,15 @@ coverage-vdirsyncer:
 	$(COVERAGE) combine -a compat/vdirsyncer/.coverage
 
 check-caldavtester:
-	./compat/xandikos-caldavtester.sh
+	TESTS="$(CALDAVTESTER_TESTS)" ./compat/xandikos-caldavtester.sh
 
 coverage-caldavtester:
+	TESTS="$(CALDAVTESTER_TESTS)" XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-caldavtester.sh
+
+check-caldavtester-all:
+	./compat/xandikos-caldavtester.sh
+
+coverage-caldavtester-all:
 	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-caldavtester.sh
 
 check-all: check check-vdirsyncer check-litmus check-caldavtester

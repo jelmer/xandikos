@@ -1,5 +1,5 @@
 # Xandikos
-# Copyright (C) 2017 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -90,7 +90,7 @@ def describe_component(component):
 
 DELTA_IGNORE_FIELDS = set(["LAST-MODIFIED", "SEQUENCE", "DTSTAMP", "PRODID",
                            "CREATED", "COMPLETED", "X-MOZ-GENERATION",
-                           "X-LIC-ERROR"])
+                           "X-LIC-ERROR", "UID"])
 
 
 def describe_calendar_delta(old_cal, new_cal):
@@ -114,9 +114,6 @@ def describe_calendar_delta(old_cal, new_cal):
                                                                new_component):
             if field.upper() in DELTA_IGNORE_FIELDS:
                 continue
-            logging.debug("Changed %s/%s or %s/%s from %s to %s.",
-                          old_component.name, field, new_component.name, field,
-                          old_value, new_value)
             if (
                 old_component.name.upper() == "VTODO" and
                 field.upper() == "STATUS"
@@ -124,6 +121,8 @@ def describe_calendar_delta(old_cal, new_cal):
                 yield "%s marked as %s" % (description, new_value)
             elif field.upper() == 'DESCRIPTION':
                 yield "changed description of %s" % description
+            elif field.upper() == 'SUMMARY':
+                yield "changed summary of %s" % description
             elif field.upper() == 'LOCATION':
                 yield "changed location of %s to %s" % (description, new_value)
             elif (old_component.name.upper() == "VTODO" and
@@ -136,6 +135,9 @@ def describe_calendar_delta(old_cal, new_cal):
                     new_value.dt if new_value else 'none')
             else:
                 yield "modified field %s in %s" % (field, description)
+                logging.debug("Changed %s/%s or %s/%s from %s to %s.",
+                              old_component.name, field, new_component.name,
+                              field, old_value, new_value)
 
 
 class ICalendarFile(File):
@@ -149,15 +151,15 @@ class ICalendarFile(File):
 
     def validate(self):
         """Verify that file contents are valid."""
-        try:
-            self.calendar
-        except ValueError:
-            raise InvalidFileContents(self.content_type, self.content)
+        self.calendar
 
     @property
     def calendar(self):
         if self._calendar is None:
-            self._calendar = Calendar.from_ical(b''.join(self.content))
+            try:
+                self._calendar = Calendar.from_ical(b''.join(self.content))
+            except ValueError:
+                raise InvalidFileContents(self.content_type, self.content)
         return self._calendar
 
     def describe_delta(self, name, previous):
@@ -171,11 +173,16 @@ class ICalendarFile(File):
         return lines
 
     def describe(self, name):
-        for component in self.calendar.subcomponents:
-            try:
-                return describe_component(component)
-            except KeyError:
-                pass
+        try:
+            subcomponents = self.calendar.subcomponents
+        except InvalidFileContents:
+            pass
+        else:
+            for component in subcomponents:
+                try:
+                    return describe_component(component)
+                except KeyError:
+                    pass
         return super(ICalendarFile, self).describe(name)
 
     def get_uid(self):

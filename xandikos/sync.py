@@ -1,5 +1,5 @@
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -106,12 +106,12 @@ class SyncCollectionReporter(webdav.Reporter):
             else:
                 for prop in requested:
                     if old_resource is not None:
-                        old_propstat = webdav.get_property(
-                            href, old_resource, properties, prop.tag)
+                        old_propstat = webdav.get_property_from_element(
+                            href, old_resource, properties, prop)
                     else:
                         old_propstat = None
-                    new_propstat = webdav.get_property(
-                        href, new_resource, properties, prop.tag)
+                    new_propstat = webdav.get_property_from_element(
+                        href, new_resource, properties, prop)
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
             yield webdav.Status(
