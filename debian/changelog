@@ -1,8 +1,9 @@
-xandikos (0.0.4-3) UNRELEASED; urgency=medium
+xandikos (0.0.5-1) UNRELEASED; urgency=medium
 
   * Add debian watch file.
+  * New upstream release.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 24 Jun 2017 13:05:12 +0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 24 Jun 2017 13:14:40 +0000
 
 xandikos (0.0.4-2) experimental; urgency=medium
 
