@@ -1,4 +1,4 @@
-xandikos (0.0.5-1) UNRELEASED; urgency=medium
+xandikos (0.0.5-1) unstable; urgency=medium
 
   * Add debian watch file.
   * New upstream release.
