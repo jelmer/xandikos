@@ -1,6 +1,7 @@
 xandikos (0.0.5-2) UNRELEASED; urgency=medium
 
   * Update homepage URL.
+  * Update Vcs-Git URL.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 26 Jun 2017 00:27:53 +0000
 

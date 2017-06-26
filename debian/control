@@ -6,7 +6,7 @@ Homepage: https://www.xandikos.org/
 Build-Depends: python3-all, debhelper (>= 9), python3-dulwich, dh-python, python3-icalendar, python3-defusedxml, python3-jinja2, python3-setuptools
 Standards-Version: 4.0.0
 X-Python3-Version: >= 3.2
-Vcs-Git: https://jelmer.uk/code/xandikos.git -b unstable
+Vcs-Git: https://www.xandikos.org/ -b unstable
 
 Package: xandikos
 Architecture: all
