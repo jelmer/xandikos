@@ -43,7 +43,7 @@ if not backend.get_resource(current_user_principal):
             'default user principal \'%s\' does not exist. Create directory %s'
             ' or set AUTOCREATE variable?',
             current_user_principal, backend._map_to_file_path(
-            current_user_principal))
+                current_user_principal))
 
 backend._mark_as_principal(current_user_principal)
 app = XandikosApp(backend, current_user_principal)
