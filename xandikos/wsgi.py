@@ -27,13 +27,22 @@ from xandikos.web import XandikosBackend, XandikosApp
 
 backend = XandikosBackend(path=os.environ['XANDIKOSPATH'])
 if not os.path.isdir(backend.path):
-    logging.warning('%r does not exist.', backend.path)
+    if os.getenv('AUTOCREATE'):
+        os.makedirs(os.environ['XANDIKOSPATH'])
+    else:
+        logging.warning('%r does not exist.', backend.path)
 
 current_user_principal = os.environ.get('CURRENT_USER_PRINCIPAL', '/user/')
 if not backend.get_resource(current_user_principal):
-    logging.warning(
-        'default user principal \'%s\' does not exist. Create directory %s?',
-        current_user_principal, backend._map_to_file_path(
+    if os.getenv('AUTOCREATE'):
+        backend.create_principal(
+            current_user_principal,
+            create_defaults=os.environ['AUTOCREATE'] == 'defaults')
+    else:
+        logging.warning(
+            'default user principal \'%s\' does not exist. Create directory %s'
+            ' or set AUTOCREATE variable?',
+            current_user_principal, backend._map_to_file_path(
             current_user_principal))
 
 backend._mark_as_principal(current_user_principal)
