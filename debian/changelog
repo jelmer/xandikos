@@ -1,7 +1,12 @@
-xandikos (0.0.5-2) UNRELEASED; urgency=medium
+xandikos (0.0.5+git020170701-1) UNRELEASED; urgency=medium
 
   * Update homepage URL.
   * Update Vcs-Git URL.
+  * New upstream snapshot.
+   + Fixes umask in example uwsgi files.
+   + Now uses $EMAIL for calendar-user-address-set of current-user-principal,
+     instead of author's email address.
+   + New AUTOCREATE variable for WSGI wrapper.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 26 Jun 2017 00:27:53 +0000
 
