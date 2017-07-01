@@ -14,7 +14,7 @@ check:
 	$(PYTHON) -m unittest $(TESTSUITE)
 
 style:
-	flake8 --exclude=compat/vdirsyncer/,.tox
+	flake8 --exclude=compat/vdirsyncer/,.tox,compat/ccs-caldavtester
 
 web:
 	$(PYTHON) -m xandikos.web
@@ -47,7 +47,7 @@ check-caldavtester-all:
 coverage-caldavtester-all:
 	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-caldavtester.sh
 
-check-all: check check-vdirsyncer check-litmus check-caldavtester
+check-all: check check-vdirsyncer check-litmus check-caldavtester style
 
 coverage-all: coverage coverage-litmus coverage-vdirsyncer coverage-caldavtester
 

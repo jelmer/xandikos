@@ -24,6 +24,7 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
+from email.utils import parseaddr
 import functools
 import hashlib
 import jinja2
@@ -57,7 +58,6 @@ STORE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
 CALENDAR_HOME_SET = ['calendars']
 ADDRESSBOOK_HOME_SET = ['contacts']
-USER_ADDRESS_SET = ['mailto:jelmer@jelmer.uk']
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
@@ -608,7 +608,15 @@ class Principal(webdav.Principal):
         return ADDRESSBOOK_HOME_SET
 
     def get_calendar_user_address_set(self):
-        return USER_ADDRESS_SET
+        # TODO(jelmer): Make this configurable
+        ret = []
+        try:
+            (fullname, email) = parseaddr(os.environ['EMAIL'])
+        except KeyError:
+            pass
+        else:
+            ret.append('mailto:' + email)
+        return ret
 
     def set_infit_settings(self, settings):
         relpath = posixpath.join(self.relpath, '.infit')
