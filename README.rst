@@ -31,7 +31,7 @@ The following standards are not implemented:
 - :RFC:`6638` (CalDAV Scheduling Extensions) - *not implemented*
 - :RFC:`7809` (CalDAV Time Zone Extensions) - *not implemented*
 - :RFC:`7529` (WebDAV Quota) - *not implemented*
-- :RFC:`4709` (WebDAV Mount) - *not implemented*
+- :RFC:`4709` (WebDAV Mount) - `intentionally <https://github.com/jelmer/xandikos/issues/48>`_ *not implemented*
 - :RFC:`5546` (iCal iTIP) - *not implemented*
 - :RFC:`4324` (iCAL CAP) - *not implemented*
 - :RFC:`7953` (iCal AVAILABILITY) - *not implemented*

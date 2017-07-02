@@ -299,7 +299,8 @@ this is - an alternate resource in the HTML page would also do.
 
 As far as I can tell, there is only a single server side implementation and a
 single client side implementation of this RFC.  I don't have access to the
-client implementation and the server side implementation is in SabreDAV.
+client implementation (Xythos Drive) and the server side implementation is in
+SabreDAV.
 
 Experimental support for WebDAV Mount is available in the 'mount' branch, but
 won't be merged without a good use case.
