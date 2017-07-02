@@ -551,10 +551,10 @@ class RootPage(webdav.Resource):
         return render_jinja_page('root.html', accepted_content_languages)
 
     def get_body(self):
-        raise NotImplementedError(self.get_body)
+        raise KeyError
 
     def get_content_length(self):
-        raise NotImplementedError(self.get_content_length)
+        raise KeyError
 
     def get_content_type(self):
         return 'text/html'
