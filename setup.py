@@ -25,7 +25,7 @@ from setuptools import setup
 version = "0.0.5"
 
 setup(name="xandikos",
-      description="CalDAV/CardDAV server",
+      description="Lightweight CalDAV/CardDAV server",
       version=version,
       author="Jelmer Vernooĳ",
       author_email="jelmer@jelmer.uk",
