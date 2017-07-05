@@ -758,12 +758,12 @@ class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server.
     """
 
-    def __init__(self, backend, current_user_principal):
+    def __init__(self, backend, current_user_principal_href):
         super(XandikosApp, self).__init__(backend)
         self.register_properties([
             webdav.ResourceTypeProperty(),
             webdav.CurrentUserPrincipalProperty(
-                current_user_principal),
+                current_user_principal_href),
             webdav.PrincipalURLProperty(),
             webdav.DisplayNameProperty(),
             webdav.GetETagProperty(),
@@ -934,9 +934,13 @@ def main(argv):
             'Run xandikos with --autocreate?',
             options.current_user_principal)
 
+    current_user_principal_href = posixpath.join(
+        options.route_prefix,
+        options.current_user_principal.lstrip('/'))
+
     app = XandikosApp(
         backend,
-        current_user_principal=options.current_user_principal)
+        current_user_principal_href=current_user_principal_href)
 
     from wsgiref.simple_server import make_server
     app = WellknownRedirector(app, options.route_prefix)
