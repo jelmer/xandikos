@@ -497,7 +497,9 @@ class CurrentUserPrincipalProperty(Property):
         if self.current_user_principal is None:
             ET.SubElement(el, '{DAV:}unauthenticated')
         else:
-            el.append(create_href(self.current_user_principal, href))
+            # TODO(jelmer): Ideally this should receive
+            # SCRIPT_NAME and prefix the returned URL with that.
+            el.append(create_href(self.current_user_principal))
 
 
 class PrincipalURLProperty(Property):
