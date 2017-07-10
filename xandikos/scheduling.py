@@ -30,6 +30,19 @@ SCHEDULE_INBOX_RESOURCE_TYPE = '{%s}schedule-inbox' % caldav.NAMESPACE
 # Feature to advertise to indicate scheduling support.
 FEATURE = 'calendar-auto-schedule'
 
+CALENDAR_USER_TYPE_INDIVIDUAL = "INDIVIDUAL"  # An individual
+CALENDAR_USER_TYPE_GROUP = "GROUP"  # A group of individuals
+CALENDAR_USER_TYPE_RESOURCE = "RESOURCE"  # A physical resource
+CALENDAR_USER_TYPE_ROOM = "ROOM"  # A room resource
+CALENDAR_USER_TYPE_UNKNOWN = "UNKNOWN"  # Otherwise not known
+
+CALENDAR_USER_TYPES = (
+    CALENDAR_USER_TYPE_INDIVIDUAL,
+    CALENDAR_USER_TYPE_GROUP,
+    CALENDAR_USER_TYPE_RESOURCE,
+    CALENDAR_USER_TYPE_ROOM,
+    CALENDAR_USER_TYPE_UNKNOWN)
+
 
 class ScheduleInbox(caldav.Calendar):
 
@@ -40,11 +53,11 @@ class ScheduleInbox(caldav.Calendar):
         raise NotImplementedError(self.get_schedule_inbox_url)
 
     def get_schedule_outbox_url(self):
-        raise NotImplementedError(self.get_schedule_inbox_url)
+        raise NotImplementedError(self.get_schedule_outbox_url)
 
     def get_calendar_user_type(self):
         # Default, per section 2.4.2
-        return "INDIVIDUAL"
+        return CALENDAR_USER_TYPE_INDIVIDUAL
 
 
 class ScheduleInboxURLProperty(webdav.Property):

@@ -638,7 +638,7 @@ class Principal(webdav.Principal):
 
     def get_calendar_user_type(self):
         # TODO(jelmer)
-        return "INDIVIDUAL"
+        return scheduling.CALENDAR_USER_TYPE_INDIVIDUAL
 
     def get_calendar_proxy_read_for(self):
         # TODO(jelmer)
