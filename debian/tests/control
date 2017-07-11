@@ -3,5 +3,5 @@ Depends: litmus
 Restrictions: allow-stderr
 
 Tests: caldav-tester
-Depends: caldav-tester
+Depends: caldav-tester, git
 Restrictions: allow-stderr

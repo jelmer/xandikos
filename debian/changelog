@@ -7,6 +7,8 @@ xandikos (0.0.5+git20170701-1) UNRELEASED; urgency=medium
    + Now uses $EMAIL for calendar-user-address-set of current-user-principal,
      instead of author's email address. Closes: #866095
    + New AUTOCREATE variable for WSGI wrapper. Closes: #866093
+  * d/tests/control: Add git dependency to caldav-tester test; it's used
+    for creating initial collections.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 26 Jun 2017 00:27:53 +0000
 
