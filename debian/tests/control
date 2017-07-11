@@ -1,7 +1,7 @@
 Tests: litmus
-Depends: litmus
+Depends: litmus, curl
 Restrictions: allow-stderr
 
 Tests: caldav-tester
-Depends: caldav-tester, git
+Depends: caldav-tester, git, curl
 Restrictions: allow-stderr
