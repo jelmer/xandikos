@@ -551,10 +551,10 @@ class RootPage(webdav.Resource):
         return render_jinja_page('root.html', accepted_content_languages)
 
     def get_body(self):
-        raise NotImplementedError(self.get_body)
+        raise KeyError
 
     def get_content_length(self):
-        raise NotImplementedError(self.get_content_length)
+        raise KeyError
 
     def get_content_type(self):
         return 'text/html'
@@ -638,7 +638,7 @@ class Principal(webdav.Principal):
 
     def get_calendar_user_type(self):
         # TODO(jelmer)
-        return "INDIVIDUAL"
+        return scheduling.CALENDAR_USER_TYPE_INDIVIDUAL
 
     def get_calendar_proxy_read_for(self):
         # TODO(jelmer)
@@ -758,12 +758,12 @@ class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server.
     """
 
-    def __init__(self, backend, current_user_principal):
+    def __init__(self, backend, current_user_principal_href):
         super(XandikosApp, self).__init__(backend)
         self.register_properties([
             webdav.ResourceTypeProperty(),
             webdav.CurrentUserPrincipalProperty(
-                current_user_principal),
+                current_user_principal_href),
             webdav.PrincipalURLProperty(),
             webdav.DisplayNameProperty(),
             webdav.GetETagProperty(),
@@ -874,39 +874,44 @@ def create_principal_defaults(backend, principal):
 
 
 def main(argv):
-    import optparse
+    import argparse
     import sys
     from xandikos import __version__
-    parser = optparse.OptionParser(version='.'.join(map(str, __version__)))
-    parser.usage = "%prog -d ROOT-DIR [OPTIONS]"
+    parser = argparse.ArgumentParser(
+        usage="%(prog)s -d ROOT-DIR [OPTIONS]",
+        prog=argv[0])
 
-    access_group = optparse.OptionGroup(parser, "Access Options")
-    access_group.add_option(
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='%(prog)s ' + '.'.join(map(str, __version__)))
+
+    access_group = parser.add_argument_group(title="Access Options")
+    access_group.add_argument(
         "-l", "--listen_address", dest="listen_address", default="localhost",
-        help="Binding IP address. [%default]")
-    access_group.add_option(
+        help="Binding IP address. [%(default)s]")
+    access_group.add_argument(
         "-p", "--port", dest="port", type=int, default=8080,
-        help="Port to listen on. [%default]")
-    access_group.add_option(
+        help="Port to listen on. [%(default)s]")
+    access_group.add_argument(
         "--route-prefix", default="/", help=(
             "Path to Xandikos. "
             "(useful when Xandikos is behind a reverse proxy) "
-            "[%default]"))
-    parser.add_option_group(access_group)
-    parser.add_option(
+            "[%(default)s]"))
+    parser.add_argument(
         "-d", "--directory", dest="directory", default=None,
         help="Directory to serve from.")
-    parser.add_option(
+    parser.add_argument(
         "--current-user-principal", default="/user/",
-        help="Path to current user principal. [%default]")
-    parser.add_option(
+        help="Path to current user principal. [%(default)s]")
+    parser.add_argument(
         "--autocreate", action="store_true", dest="autocreate",
         help="Automatically create necessary directories.")
-    parser.add_option(
+    parser.add_argument(
         "--defaults", action="store_true", dest="defaults",
         help=("Create initial calendar and address book. "
               "Implies --autocreate."))
-    options, args = parser.parse_args(argv)
+    options = parser.parse_args(argv[1:])
 
     if options.directory is None:
         parser.print_usage()
@@ -934,9 +939,13 @@ def main(argv):
             'Run xandikos with --autocreate?',
             options.current_user_principal)
 
+    current_user_principal_href = posixpath.join(
+        options.route_prefix,
+        options.current_user_principal.lstrip('/'))
+
     app = XandikosApp(
         backend,
-        current_user_principal=options.current_user_principal)
+        current_user_principal_href=current_user_principal_href)
 
     from wsgiref.simple_server import make_server
     app = WellknownRedirector(app, options.route_prefix)

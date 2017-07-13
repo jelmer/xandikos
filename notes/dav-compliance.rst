@@ -289,3 +289,18 @@ DAV properties
 
 - {DAV:}quote-available-bytes [supported]
 - {DAV:}quote-used-bytes [supported]
+
+rfc4709 (WebDAV Mount)
+----------------------
+
+This RFC documents a mechanism that allows clients to find the WebDAV mount
+associated with a specific page. It's unclear to the writer what the value of
+this is - an alternate resource in the HTML page would also do.
+
+As far as I can tell, there is only a single server side implementation and a
+single client side implementation of this RFC.  I don't have access to the
+client implementation (Xythos Drive) and the server side implementation is in
+SabreDAV.
+
+Experimental support for WebDAV Mount is available in the 'mount' branch, but
+won't be merged without a good use case.
