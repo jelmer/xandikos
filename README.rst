@@ -7,7 +7,7 @@
    :alt: Windows Build Status
 
 
-Xandikos is a CardDAV/CalDAV server that backs onto a Git repository.
+Xandikos is a lightweight yet complete CardDAV/CalDAV server that backs onto a Git repository.
 
 Xandikos (Ξανδικός or Ξανθικός) takes its name from the name of the March month
 in the ancient Macedonian calendar, used in Macedon in the first millennium BC.
@@ -31,7 +31,7 @@ The following standards are not implemented:
 - :RFC:`6638` (CalDAV Scheduling Extensions) - *not implemented*
 - :RFC:`7809` (CalDAV Time Zone Extensions) - *not implemented*
 - :RFC:`7529` (WebDAV Quota) - *not implemented*
-- :RFC:`4709` (WebDAV Mount) - *not implemented*
+- :RFC:`4709` (WebDAV Mount) - `intentionally <https://github.com/jelmer/xandikos/issues/48>`_ *not implemented*
 - :RFC:`5546` (iCal iTIP) - *not implemented*
 - :RFC:`4324` (iCAL CAP) - *not implemented*
 - :RFC:`7953` (iCal AVAILABILITY) - *not implemented*
@@ -126,6 +126,17 @@ This will start a server on `localhost:8080 <http://localhost:8080/>`_ with user
 
   mkdir -p $HOME/dav
   uwsgi examples/uwsgi-standalone.ini
+
+Contributing
+============
+
+Contributions to Xandikos are very welcome. If you run into bugs or have
+feature requests, please file issues `on GitHub
+<https://github.com/jelmer/xandikos/issues/new>`_. If you're interested in
+contributing code or documentation, please read `CONTRIBUTING
+<CONTRIBUTING.rst>`_. Issues that are good for new contributors are tagged
+`new-contributor <https://github.com/jelmer/xandikos/labels/new-contributor>`_
+on GitHub.
 
 Help
 ====

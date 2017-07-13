@@ -27,13 +27,13 @@ compat/xandikos-vdirsyncer.sh
 examples/uwsgi-standalone.ini
 examples/uwsgi.ini
 notes/auth.rst
+notes/config.rst
 notes/context.rst
 notes/dav-compliance.rst
 notes/file-format.rst
 notes/goals.rst
 notes/hacking.txt
 notes/monitoring.rst
-notes/principal.rst
 notes/release-process.rst
 notes/store.rst
 notes/structure.rst
