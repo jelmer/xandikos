@@ -126,7 +126,8 @@ def describe_calendar_delta(old_cal, new_cal):
             elif field.upper() == 'LOCATION':
                 yield "changed location of %s to %s" % (description, new_value)
             elif (old_component.name.upper() == "VTODO" and
-                  field.upper() == "PERCENT-COMPLETE"):
+                  field.upper() == "PERCENT-COMPLETE" and
+                  new_value is not None):
                 yield "%s marked as %d%% completed." % (
                     description, new_value)
             elif field.upper() == 'DUE':
