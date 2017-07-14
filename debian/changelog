@@ -1,6 +1,7 @@
 xandikos (0.0.6-1~bpo9+1) UNRELEASED; urgency=medium
 
   * Backport to stretch. Closes: #867795
+   + Disable 'litmus' autopkgtest, as litmus is not packaged in stretch.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 14 Jul 2017 00:23:54 +0000
 
