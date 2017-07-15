@@ -21,13 +21,20 @@
 # MA  02110-1301, USA.
 
 from setuptools import setup
+import sys
 
 version = "0.0.6"
+
+if sys.platform != 'win32':
+    # Win32 setup breaks on non-ascii characters
+    author = "Jelmer Vernooĳ"
+else:
+    author = "Jelmer Vernooij"
 
 setup(name="xandikos",
       description="Lightweight CalDAV/CardDAV server",
       version=version,
-      author="Jelmer Vernooĳ",
+      author=author,
       author_email="jelmer@jelmer.uk",
       license="GNU GPLv3 or later",
       url="https://www.xandikos.org/",
