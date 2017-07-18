@@ -7,4 +7,4 @@ CalDAV/options.xml \
 CalDAV/vtodos.xml
 "
 
-TESTS="${TESTS}" ./compat/xandikos-caldavtester.sh
+XANDIKOS=xandikos TESTS="${TESTS}" ./compat/xandikos-caldavtester.sh
