@@ -1,4 +1,4 @@
-xandikos (0.0.6-1~bpo9+1) UNRELEASED; urgency=medium
+xandikos (0.0.6-1~bpo9+1) stretch-backports; urgency=low
 
   * Backport to stretch. Closes: #867795
    + Disable 'litmus' autopkgtest, as litmus is not packaged in stretch.
