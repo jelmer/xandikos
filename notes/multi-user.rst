@@ -1,5 +1,5 @@
 Multi-User Support
-------------------
+==================
 
 Multi-user support could arguably also include sharing of
 calendars/collections/etc. This is beyond the scope of this document, which
@@ -30,3 +30,12 @@ Storage
 -------
 
 By default, the principal for a user is simply "/%(username)s".
+
+Roadmap
+=======
+
+* Expose username (or None, if not logged in) everywhere
+* Add function get_username_principal() for mapping username to principal path
+* Add simple function check_path_access() for checking access ("is this user allowed to access this path?")
+* Use access checking function everywhere
+* Have current-user-principal setting depend on $REMOTE_USER and get_username_principal()
