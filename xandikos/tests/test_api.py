@@ -17,18 +17,32 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import shutil
+import tempfile
 import unittest
 
+from xandikos.web import (
+    XandikosApp,
+    XandikosBackend,
+    WellknownRedirector,
+)
 
-def test_suite():
-    names = [
-        'api',
-        'caldav',
-        'icalendar',
-        'store',
-        'webdav',
-        'web',
-    ]
-    module_names = ['xandikos.tests.test_' + name for name in names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+
+class WebTests(unittest.TestCase):
+
+    # When changing this API, please update notes/api-stability.rst and inform
+    # vdirsyncer, who rely on this API.
+
+    def test_backend(self):
+        path = tempfile.mkdtemp()
+        try:
+            backend = XandikosBackend(path)
+            backend.create_principal('foo', create_defaults=True)
+            XandikosApp(backend, 'foo')
+        finally:
+            shutil.rmtree(path)
+
+    def test_wellknownredirector(self):
+        def app(environ, start_response):
+            pass
+        WellknownRedirector(app, '/path')
