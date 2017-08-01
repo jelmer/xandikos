@@ -296,23 +296,24 @@ class Property(object):
         return (self.resource_type is None or
                 self.resource_type in resource.resource_types)
 
-    def is_set(self, href, resource):
+    def is_set(self, href, resource, environ):
         """Check if this property is set on a resource."""
         if not self.supported_on(resource):
             return False
         try:
-            self.get_value('/', resource, ET.Element(self.name))
+            self.get_value('/', resource, ET.Element(self.name), environ)
         except KeyError:
             return False
         else:
             return True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param href: Resource href
         :param resource: Resource for which to retrieve the property
         :param el: Element to populate
+        :param environ: WSGI environment dict
         :raise KeyError: if this property is not present
         """
         raise KeyError(self.name)
@@ -338,7 +339,7 @@ class ResourceTypeProperty(Property):
 
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
 
@@ -355,7 +356,7 @@ class DisplayNameProperty(Property):
     name = '{DAV:}displayname'
     resource_type = None
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_displayname()
 
     def set_value(self, href, resource, el):
@@ -372,7 +373,7 @@ class GetETagProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_etag()
 
 
@@ -386,7 +387,7 @@ class AddMemberProperty(Property):
     resource_type = COLLECTION_RESOURCE_TYPE
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         # Support POST against collection URL
         el.append(create_href('.', href))
 
@@ -402,7 +403,7 @@ class GetLastModifiedProperty(Property):
     live = True
     in_allprops = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         # Use rfc1123 date (section 3.3.1 of RFC2616)
         el.text = resource.get_last_modified().strftime(
             '%a, %d %b %Y %H:%M:%S GMT')
@@ -430,7 +431,7 @@ class CreationDateProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = format_datetime(resource.get_creationdate())
 
 
@@ -443,7 +444,7 @@ class GetContentLanguageProperty(Property):
     name = '{DAV:}getcontentlanguage'
     resource_type = None
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = ', '.join(resource.get_content_language())
 
 
@@ -456,7 +457,7 @@ class GetContentLengthProperty(Property):
     name = '{DAV:}getcontentlength'
     resource_type = None
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_content_length())
 
 
@@ -469,7 +470,7 @@ class GetContentTypeProperty(Property):
     name = '{DAV:}getcontenttype'
     resource_type = None
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_content_type()
 
 
@@ -489,7 +490,7 @@ class CurrentUserPrincipalProperty(Property):
         self.current_user_principal = ensure_trailing_slash(
             current_user_principal)
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param name: A property name.
@@ -509,7 +510,7 @@ class PrincipalURLProperty(Property):
     in_allprops = True
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param name: A property name.
@@ -528,7 +529,7 @@ class SupportedReportSetProperty(Property):
     def __init__(self, reporters):
         self._reporters = reporters
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         for name, reporter in self._reporters.items():
             if reporter.supported_on(resource):
                 bel = ET.SubElement(el, '{DAV:}supported-report')
@@ -545,7 +546,7 @@ class GetCTagProperty(Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_ctag()
 
 
@@ -856,25 +857,27 @@ class Principal(Resource):
         raise NotImplementedError(self.get_calendar_proxy_write_for)
 
 
-def get_property_from_name(href, resource, properties, name):
+def get_property_from_name(href, resource, properties, name, environ):
     """Get a single property on a resource.
 
     :param href: Resource href
     :param resource: Resource object
     :param properties: Dictionary of properties
+    :param environ: WSGI environ dict
     :param name: name of property to resolve
     :return: PropStatus items
     """
     return get_property_from_element(
-        href, resource, properties, ET.Element(name))
+        href, resource, properties, environ, ET.Element(name))
 
 
-def get_property_from_element(href, resource, properties, requested):
+def get_property_from_element(href, resource, properties, environ, requested):
     """Get a single property on a resource.
 
     :param href: Resource href
     :param resource: Resource object
     :param properties: Dictionary of properties
+    :param environ: WSGI environ dict
     :param requested: Requested element
     :return: PropStatus items
     """
@@ -894,9 +897,9 @@ def get_property_from_element(href, resource, properties, requested):
             try:
                 get_value_ext = prop.get_value_ext
             except AttributeError:
-                prop.get_value(href, resource, ret)
+                prop.get_value(href, resource, ret, environ)
             else:
-                get_value_ext(href, resource, ret, requested)
+                get_value_ext(href, resource, ret, environ, requested)
         except KeyError:
             statuscode = '404 Not Found'
         else:
@@ -904,44 +907,48 @@ def get_property_from_element(href, resource, properties, requested):
     return PropStatus(statuscode, responsedescription, ret)
 
 
-def get_properties(href, resource, properties, requested):
+def get_properties(href, resource, properties, environ, requested):
     """Get a set of properties.
 
     :param href: Resource Href
     :param resource: Resource object
     :param properties: Dictionary of properties
     :param requested: XML {DAV:}prop element with properties to look up
+    :param environ: WSGI environ dict
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        yield get_property_from_element(href, resource, properties, propreq)
+        yield get_property_from_element(
+            href, resource, properties, environ, propreq)
 
 
-def get_property_names(href, resource, properties, requested):
+def get_property_names(href, resource, properties, environ, requested):
     """Get a set of property names.
 
     :param href: Resource Href
     :param resource: Resource object
     :param properties: Dictionary of properties
+    :param environ: WSGI environ dict
     :param requested: XML {DAV:}prop element with properties to look up
     :return: Iterator over PropStatus items
     """
     for name, prop in properties.items():
-        if prop.is_set(href, resource):
+        if prop.is_set(href, resource, environ):
             yield PropStatus('200 OK', None, ET.Element(name))
 
 
-def get_all_properties(href, resource, properties):
+def get_all_properties(href, resource, properties, environ):
     """Get all properties.
 
     :param href: Resource Href
     :param resource: Resource object
     :param properties: Dictionary of properties
     :param requested: XML {DAV:}prop element with properties to look up
+    :param environ: WSGI environ dict
     :return: Iterator over PropStatus items
     """
     for name in properties:
-        ps = get_property_from_name(href, resource, properties, name)
+        ps = get_property_from_name(href, resource, properties, name, environ)
         if ps.statuscode == '200 OK':
             yield ps
 
@@ -1044,7 +1051,7 @@ class ExpandPropertyReporter(Reporter):
     name = '{DAV:}expand-property'
 
     def _populate(self, prop_list, resources_by_hrefs, properties, href,
-                  resource):
+                  resource, environ):
         """Expand properties for a resource.
 
         :param prop_list: DAV:property elements to retrieve and expand
@@ -1052,6 +1059,7 @@ class ExpandPropertyReporter(Reporter):
         :param properties: Available properties
         :param href: href for current resource
         :param resource: current resource
+        :param environ: WSGI environ dict
         :return: Status object
         """
         ret = []
@@ -1059,7 +1067,7 @@ class ExpandPropertyReporter(Reporter):
             prop_name = prop.get('name')
             # FIXME: Resolve prop_name on resource
             propstat = get_property_from_name(
-                href, resource, properties, prop_name)
+                href, resource, properties, prop_name, environ)
             new_prop = ET.Element(propstat.prop.tag)
             child_hrefs = [
                 read_href_element(prop_child)
@@ -1078,7 +1086,8 @@ class ExpandPropertyReporter(Reporter):
                         new_prop.append(prop_child)
                     else:
                         response = self._populate(
-                            prop, properties, child_href, child_resource)
+                            prop, properties, child_href, child_resource,
+                            environ)
                         new_prop.append(response.aselement())
             propstat = PropStatus(propstat.statuscode,
                                   propstat.responsedescription, prop=new_prop)
@@ -1089,7 +1098,7 @@ class ExpandPropertyReporter(Reporter):
     def report(self, environ, request_body, resources_by_hrefs, properties,
                href, resource, depth):
         return self._populate(request_body, resources_by_hrefs, properties,
-                              href, resource)
+                              href, resource, environ)
 
 
 class SupportedLockProperty(Property):
@@ -1102,7 +1111,7 @@ class SupportedLockProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         for (lockscope, locktype) in resource.get_supported_locks():
             entry = ET.SubElement(el, '{DAV:}lockentry')
             scope_el = ET.SubElement(entry, '{DAV:}lockscope')
@@ -1121,7 +1130,7 @@ class LockDiscoveryProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         for activelock in resource.get_active_locks():
             entry = ET.SubElement(el, '{DAV:}activelock')
             type_el = ET.SubElement(entry, '{DAV:}locktype')
@@ -1150,7 +1159,7 @@ class CommentProperty(Property):
     live = False
     in_allprops = False
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_comment()
 
     def set_value(self, href, resource, el):
@@ -1490,13 +1499,13 @@ class PropfindMethod(Method):
             propstat = []
             if requested is None or requested.tag == '{DAV:}allprop':
                 propstat = get_all_properties(
-                    href, resource, app.properties)
+                    href, resource, app.properties, environ)
             elif requested.tag == '{DAV:}prop':
                 propstat = get_properties(
-                    href, resource, app.properties, requested)
+                    href, resource, app.properties, environ, requested)
             elif requested.tag == '{DAV:}propname':
                 propstat = get_property_names(
-                    href, resource, app.properties, requested)
+                    href, resource, app.properties, environ, requested)
             else:
                 raise BadRequestError(
                     'Expected prop/allprop/propname tag, got ' + requested.tag)

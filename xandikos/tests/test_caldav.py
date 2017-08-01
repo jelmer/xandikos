@@ -56,7 +56,7 @@ class WebTests(test_webdav.WebTestCase):
         class ResourceTypeProperty(Property):
             name = '{DAV:}resourcetype'
 
-            def get_value(unused_self, href, resource, ret):
+            def get_value(unused_self, href, resource, ret, environ):
                 ET.SubElement(ret, '{DAV:}collection')
 
             def set_value(unused_self, href, resource, ret):

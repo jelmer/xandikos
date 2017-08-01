@@ -27,22 +27,24 @@ ET = webdav.ET
 class SubbedProperty(webdav.Property):
     """Property with sub-components that can be queried."""
 
-    def get_value_ext(self, href, resource, el, requested):
+    def get_value_ext(self, href, resource, el, environ, requested):
         """Get the value of a data property.
 
         :param href: Resource href
         :param resource: Resource to get value for
         :param el: Element to fill in
+        :param environ: WSGI environ dict
         :param requested: Requested property (including subelements)
         """
         raise NotImplementedError(self.get_value_ext)
 
 
 def get_properties_with_data(data_property, href, resource, properties,
-                             requested):
+                             environ, requested):
     properties = dict(properties)
     properties[data_property.name] = data_property
-    return webdav.get_properties(href, resource, properties, requested)
+    return webdav.get_properties(
+        href, resource, properties, environ, requested)
 
 
 class MultiGetReporter(webdav.Reporter):
@@ -73,7 +75,8 @@ class MultiGetReporter(webdav.Reporter):
                 yield webdav.Status(href, '404 Not Found', propstat=[])
             else:
                 propstat = get_properties_with_data(
-                    self.data_property, href, resource, properties, requested)
+                    self.data_property, href, resource, properties, environ,
+                    requested)
                 yield webdav.Status(href, '200 OK', propstat=list(propstat))
 
 

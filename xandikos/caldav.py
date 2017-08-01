@@ -142,7 +142,7 @@ class CalendarHomeSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, base_href, resource, el):
+    def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_home_set():
             href = webdav.ensure_trailing_slash(href)
             el.append(webdav.create_href(href, base_href))
@@ -157,7 +157,7 @@ class CalendarDescriptionProperty(webdav.Property):
     name = '{urn:ietf:params:xml:ns:caldav}calendar-description'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, base_href, resource, el):
+    def get_value(self, base_href, resource, el, environ):
         el.text = resource.get_calendar_description()
 
     # TODO(jelmer): allow modification of this property
@@ -201,7 +201,7 @@ class CalendarDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/calendar')
 
-    def get_value_ext(self, base_href, resource, el, requested):
+    def get_value_ext(self, base_href, resource, el, environ, requested):
         if len(requested) == 0:
             serialized_cal = b''.join(resource.get_body())
         else:
@@ -540,7 +540,8 @@ class CalendarQueryReporter(webdav.Reporter):
             if not apply_filter(filter_el, resource, tzify):
                 continue
             propstat = davcommon.get_properties_with_data(
-                self.data_property, href, resource, properties, requested)
+                self.data_property, href, resource, properties, environ,
+                requested)
             yield webdav.Status(href, '200 OK', propstat=list(propstat))
 
 
@@ -553,7 +554,7 @@ class CalendarColorProperty(webdav.Property):
     name = '{http://apple.com/ns/ical/}calendar-color'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_calendar_color()
 
     def set_value(self, href, resource, el):
@@ -573,7 +574,7 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         for component in resource.get_supported_calendar_components():
             subel = ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}comp')
             subel.set('name', component)
@@ -589,7 +590,7 @@ class SupportedCalendarDataProperty(webdav.Property):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         for (content_type, version) in (
                 resource.get_supported_calendar_data_types()):
             subel = ET.SubElement(
@@ -608,7 +609,7 @@ class CalendarTimezoneProperty(webdav.Property):
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_calendar_timezone()
 
     def set_value(self, href, resource, el):
@@ -629,7 +630,7 @@ class MinDateTimeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_min_date_time()
 
 
@@ -644,7 +645,7 @@ class MaxDateTimeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_max_date_time()
 
 
@@ -659,7 +660,7 @@ class MaxInstancesProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_instances())
 
 
@@ -674,7 +675,7 @@ class MaxAttendeesPerInstanceProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_attendees_per_instance())
 
 
@@ -690,7 +691,7 @@ class CalendarProxyReadForProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, base_href, resource, el):
+    def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_proxy_read_for():
             el.append(webdav.create_href(href, base_href))
 
@@ -707,7 +708,7 @@ class CalendarProxyWriteForProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, base_href, resource, el):
+    def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_proxy_write_for():
             el.append(webdav.create_href(href, base_href))
 
@@ -821,7 +822,8 @@ class MkcalendarMethod(webdav.Method):
             start_response('409 Conflict', [])
             return []
         el = ET.Element('{DAV:}resourcetype')
-        app.properties['{DAV:}resourcetype'].get_value(href, resource, el)
+        app.properties['{DAV:}resourcetype'].get_value(
+            href, resource, el, environ)
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         app.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):

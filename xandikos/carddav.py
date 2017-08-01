@@ -45,7 +45,7 @@ class AddressbookHomeSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, base_href, resource, el):
+    def get_value(self, base_href, resource, el, environ):
         for href in resource.get_addressbook_home_set():
             href = webdav.ensure_trailing_slash(href)
             el.append(webdav.create_href(href, base_href))
@@ -65,7 +65,7 @@ class AddressDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/vcard')
 
-    def get_value_ext(self, href, resource, el, requested):
+    def get_value_ext(self, href, resource, el, environ, requested):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
         el.text = b''.join(resource.get_body()).decode('utf-8')
@@ -80,7 +80,7 @@ class AddressbookDescriptionProperty(webdav.Property):
     name = '{%s}addressbook-description' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_addressbook_description()
 
     def set_value(self, href, resource, el):
@@ -158,7 +158,7 @@ class PrincipalAddressProperty(webdav.Property):
     resource_type = '{DAV:}principal'
     in_allprops = False
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.append(webdav.create_href(
             resource.get_principal_address(), href))
 
@@ -174,7 +174,7 @@ class SupportedAddressDataProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         for (content_type,
              version) in resource.get_supported_address_data_types():
             subel = ET.SubElement(el, '{%s}content-type' % NAMESPACE)
@@ -193,7 +193,7 @@ class MaxResourceSizeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_resource_size())
 
 
@@ -208,7 +208,7 @@ class MaxImageSizeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_image_size())
 
 
@@ -346,6 +346,7 @@ class AddressbookQueryReporter(webdav.Reporter):
             if nresults is not None and i >= nresults:
                 break
             propstat = davcommon.get_properties_with_data(
-                self.data_property, href, resource, properties, requested)
+                self.data_property, href, resource, properties, environ,
+                requested)
             yield webdav.Status(href, '200 OK', propstat=list(propstat))
             i += 1

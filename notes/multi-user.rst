@@ -34,6 +34,7 @@ By default, the principal for a user is simply "/%(username)s".
 Roadmap
 =======
 
+* Allow marking collections as principals
 * Expose username (or None, if not logged in) everywhere
 * Add function get_username_principal() for mapping username to principal path
 * Add simple function check_path_access() for checking access ("is this user allowed to access this path?")

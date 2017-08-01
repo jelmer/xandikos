@@ -70,7 +70,7 @@ class ScheduleInboxURLProperty(webdav.Property):
     resource_type = caldav.CALENDAR_RESOURCE_TYPE
     in_allprops = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.append(webdav.create_href(resource.get_schedule_inbox_url(), href))
 
 
@@ -84,7 +84,7 @@ class ScheduleOutboxURLProperty(webdav.Property):
     resource_type = caldav.CALENDAR_RESOURCE_TYPE
     in_allprops = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.append(webdav.create_href(resource.get_schedule_outbox_url(), href))
 
 
@@ -98,7 +98,7 @@ class CalendarUserAddressSetProperty(webdav.Property):
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, base_href, resource, el):
+    def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_user_address_set():
             el.append(webdav.create_href(href, base_href))
 
@@ -113,5 +113,5 @@ class CalendarUserTypeProperty(webdav.Property):
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_calendar_user_type()
