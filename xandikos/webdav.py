@@ -488,7 +488,7 @@ class CurrentUserPrincipalProperty(Property):
     def __init__(self, current_user_principal):
         super(CurrentUserPrincipalProperty, self).__init__()
         self.current_user_principal = ensure_trailing_slash(
-            current_user_principal)
+            current_user_principal.lstrip('/'))
 
     def get_value(self, href, resource, el, environ):
         """Get property with specified name.
@@ -498,9 +498,8 @@ class CurrentUserPrincipalProperty(Property):
         if self.current_user_principal is None:
             ET.SubElement(el, '{DAV:}unauthenticated')
         else:
-            # TODO(jelmer): Ideally this should receive
-            # SCRIPT_NAME and prefix the returned URL with that.
-            el.append(create_href(self.current_user_principal))
+            el.append(create_href(
+                self.current_user_principal, environ['SCRIPT_NAME']))
 
 
 class PrincipalURLProperty(Property):

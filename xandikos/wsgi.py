@@ -22,7 +22,6 @@
 
 import logging
 import os
-import urllib.parse
 
 from xandikos.web import XandikosBackend, XandikosApp
 
@@ -47,6 +46,4 @@ if not backend.get_resource(current_user_principal):
                 current_user_principal))
 
 backend._mark_as_principal(current_user_principal)
-current_user_principal_href = urllib.parse.urljoin(
-    os.environ.get('ROUTE_PREFIX', '/'), current_user_principal.lstrip('/'))
-app = XandikosApp(backend, current_user_principal_href)
+app = XandikosApp(backend, current_user_principal)
