@@ -1,0 +1,8 @@
+# Example Dovecot configuration to enable piping to external programs from
+# sieve.
+plugin {
+  sieve_plugins = sieve_extprograms
+  sieve_global_extensions = +vnd.dovecot.execute
+  sieve_execute_bin_dir = /usr/lib/dovecot/sieve-pipe
+  sieve_global_dir = /var/lib/dovecot/sieve/global
+}
