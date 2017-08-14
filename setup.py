@@ -41,7 +41,7 @@ setup(name="xandikos",
       install_requires=['icalendar', 'dulwich', 'defusedxml', 'jinja2'],
       packages=['xandikos', 'xandikos.tests'],
       package_data={'xandikos': ['templates/*.html']},
-      scripts=['bin/xandikos'],
+      scripts=['bin/xandikos', 'bin/xandikos-itip'],
       test_suite='xandikos.tests.test_suite',
       classifiers=[
           'Development Status :: 4 - Beta',
