@@ -304,3 +304,12 @@ SabreDAV.
 
 Experimental support for WebDAV Mount is available in the 'mount' branch, but
 won't be merged without a good use case.
+
+rfc2447 (iCal iMIP)
+-------------------
+
+There is some support for receiving iMIP messages via e-mail with
+Dovecot/Sieve and processing them.
+
+However, there is no verification of S/MIME or PGP signatures on iMIP messages.
+Xandikos also does not send its own iMIP messages yet.

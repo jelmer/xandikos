@@ -25,6 +25,7 @@ The following standards are implemented:
 - :RFC:`3744` (Access Control) - *partially implemented*
 - :RFC:`5995` (POST to create members) - *fully implemented*
 - :RFC:`5689` (Extended MKCOL) - *fully implemented*
+- :RFC:`2447` (iCal iMIP) - *somewhat implemented*
 
 The following standards are not implemented:
 

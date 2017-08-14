@@ -7,10 +7,9 @@ require ["mime", "foreverypart", "vnd.dovecot.execute", "extracttext", "variable
 foreverypart
 {
   # Note that RFC2447 section 2.3 requires that content-type is text/calendar
-  # and that the 'method' parameter is set. However, Google Calendar
-  # sets it to application/ics and doesn't set method. Boo.
-  if anyof(header :mime :contenttype "Content-Type" "application/ics",
-           header :mime :contenttype "Content-Type" "text/calendar") {
+  # and that the 'method' parameter is set.
+  if allof(header :mime :contenttype "Content-Type" "text/calendar",
+           header :mime :param "method" :contains "Content-Type" "REQUEST") {
     extracttext "ics";
     # TODO(jelmer): Verify S/MIME signer, if any, and pass it to
     # process-imip.py.

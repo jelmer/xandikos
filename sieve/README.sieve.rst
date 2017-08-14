@@ -27,3 +27,13 @@ Installation
      include :global "xandikos";
 
    to ~/.dovecot.sieve.
+
+Caveats
+=======
+
+RFC2447 suggests that all iMIP messages be S/MIME signed. In practice, this
+doesn't happen often, and Xandikos currently does not verify S/MIME signatures.
+
+This means that at the moment the authenticity of messages is not verified,
+allowing anybody that is able to send you an e-mail that makes it through
+to the filter to modify your calendar.
