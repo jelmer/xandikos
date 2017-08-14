@@ -55,7 +55,7 @@ def main(argv):
 
     logging.basicConfig(level=logging.INFO)
 
-    request = Calendar.from_ical(sys.stdin)
+    request = Calendar.from_ical(sys.stdin)  # noqa: F841
 
     # TODO(jelmer): Process request
 
