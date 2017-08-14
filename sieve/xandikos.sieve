@@ -9,7 +9,7 @@ foreverypart
   # Note that RFC2447 section 2.3 requires that content-type is text/calendar
   # and that the 'method' parameter is set.
   if allof(header :mime :contenttype "Content-Type" "text/calendar",
-           header :mime :param "method" :contains "Content-Type" "REQUEST") {
+           header :mime :param "method" :matches "Content-Type" "*") {
     extracttext "ics";
     # TODO(jelmer): Verify S/MIME signer, if any, and pass it to
     # process-imip.py.
