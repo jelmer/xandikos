@@ -648,6 +648,9 @@ class Principal(webdav.Principal):
         # TODO(jelmer)
         return []
 
+    def get_owner(self):
+        return None
+
 
 class PrincipalBare(CollectionSetResource, Principal):
     """Principal user resource."""
