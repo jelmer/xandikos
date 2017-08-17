@@ -37,6 +37,9 @@ from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
 
+from .server_info import ServerInfo
+
+
 DEFAULT_ENCODING = 'utf-8'
 COLLECTION_RESOURCE_TYPE = '{DAV:}collection'
 PRINCIPAL_RESOURCE_TYPE = '{DAV:}principal'
@@ -1684,6 +1687,17 @@ class WebDAVApp(object):
             GetMethod(),
             HeadMethod(),
         ])
+        self.server_info = ServerInfo()
+        self.server_info.add_feature('{DAV:}class-1')
+        self.server_info.add_feature('{DAV:}class-2')
+        self.server_info.add_feature('{DAV:}class-3')
+        self.server_info.add_feature('{DAV:}access-control')
+        self.server_info.add_feature(
+                '{urn:ietf:params:xml:ns:caldav}calendar-access')
+        self.server_info.add_feature('{DAV:}extended-mkcol')
+        self.server_info.add_feature('{DAV:}quota')
+        self.server_info.add_feature('{DAV:}sync-collection')
+        self.server_info.add_feature('{DAV:}add-member')
 
     def _get_resource_from_environ(self, environ):
         path = path_from_environ(environ, 'PATH_INFO')
@@ -1705,7 +1719,7 @@ class WebDAVApp(object):
 
     def _get_dav_features(self, resource):
         # TODO(jelmer): Support access-control
-        return ['1', '2', '3', 'calendar-access', 'addressbook',
+        return ['1', '2', '3', 'calendar-access', 'addressbook', 'server-info',
                 'extended-mkcol', 'add-member', 'sync-collection', 'quota']
 
     def _get_allowed_methods(self, environ):
@@ -1720,6 +1734,22 @@ class WebDAVApp(object):
         if environ.get('HTTP_EXPECT', '') != '':
             start_response('417 Expectation Failed', [])
             return []
+
+        # Server options. See
+        # https://www.ietf.org/archive/id/draft-douglass-server-info-03.txt,
+        # section 3.1.2.2
+        if (environ['REQUEST_METHOD'] == 'OPTIONS' or
+                environ.get('HTTP_SERVER_INFO_TOKEN', '')
+                    != self._server_info.token):
+            def wrap_start_response(status, headers):
+                # Just serve server-info at $SCRIPT_NAME location, and check
+                # Accept header.
+                server_info_hdr = "<%s>; rel=\"server-info\"; token=\"%s\"" % (
+                    environ['SCRIPT_NAME'], self._server_info.token)
+                return start_response(
+                    status, headers + [('Link', server_info_hdr)])
+            start_response = wrap_start_response
+
         method = environ['REQUEST_METHOD']
         try:
             do = self.methods[method]
