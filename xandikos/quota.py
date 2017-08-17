@@ -24,6 +24,9 @@ See https://tools.ietf.org/html/rfc4331
 from xandikos import webdav
 
 
+FEATURE = 'quota'
+
+
 class QuotaAvailableBytesProperty(webdav.Property):
     """quota-available-bytes
     """

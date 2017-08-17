@@ -377,6 +377,9 @@ class GetETagProperty(Property):
         el.text = resource.get_etag()
 
 
+ADD_MEMBER_FEATURE = 'add-member'
+
+
 class AddMemberProperty(Property):
     """Provides {DAV:}add-member.
 
@@ -1703,7 +1706,7 @@ class WebDAVApp(object):
     def _get_dav_features(self, resource):
         # TODO(jelmer): Support access-control
         return ['1', '2', '3', 'calendar-access', 'addressbook',
-                'extended-mkcol']
+                'extended-mkcol', 'add-member', 'sync-collection', 'quota']
 
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""

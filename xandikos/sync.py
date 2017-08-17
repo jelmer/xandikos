@@ -31,6 +31,9 @@ from xandikos import webdav
 ET = webdav.ET
 
 
+FEATURE = 'sync-collection'
+
+
 class SyncToken(object):
     """A sync token wrapper."""
 
