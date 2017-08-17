@@ -26,10 +26,15 @@ are always strong, and should be returned without wrapping quotes.
 import logging
 import mimetypes
 import os
+import posixpath
 import shutil
 import stat
 import uuid
 
+from dulwich.object_store import (
+    commit_tree_changes,
+    tree_lookup_path,
+    )
 from dulwich.objects import Blob, Tree
 import dulwich.repo
 
@@ -311,7 +316,7 @@ class Store(object):
         raise NotImplementedError(self.set_comment)
 
     def destroy(self):
-        """Destroy this store."""
+        """Destroy this store and its contents."""
         raise NotImplementedError(self.destroy)
 
     def subdirectories(self):
@@ -324,12 +329,18 @@ class Store(object):
 
 class GitStore(Store):
     """A Store backed by a Git Repository.
+
+    :ivar ref: Git ref this store uses
+    :ivar tree_path: Path inside of the repository to use
+    :ivar repo: Git repository object
+    :ivar path: Repository path
     """
 
     def __init__(self, repo, ref=b'refs/heads/master',
-                 check_for_duplicate_uids=True):
+                 tree_path='', check_for_duplicate_uids=True):
         super(GitStore, self).__init__()
         self.ref = ref
+        self.tree_path = tree_path
         self.repo = repo
         # Maps uids to (sha, fname)
         self._uid_to_fname = {}
@@ -634,7 +645,8 @@ class GitStore(Store):
             yield (name, old_content_type, old_etag, None)
 
     def destroy(self):
-        """Destroy this store."""
+        """Destroy this store and its contents."""
+        # TODO(jelmer): If self.tree_path != '', just remove the specific path.
         shutil.rmtree(self.path)
 
 
@@ -649,7 +661,10 @@ class BareGitStore(GitStore):
         if isinstance(ref_object, Tree):
             return ref_object
         else:
-            return self.repo.object_store[ref_object.tree]
+            (mode, sha) = tree_lookup_path(
+                self.repo.object_store.__getitem__, ref_object.tree,
+                self.tree_path.encode(DEFAULT_ENCODING))
+            return self.repo.object_store[sha]
 
     def _get_etag(self, name):
         tree = self._get_current_tree()
@@ -698,8 +713,12 @@ class BareGitStore(GitStore):
         b.chunked = data
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
-        tree[name_enc] = (0o644 | stat.S_IFREG, b.id)
-        self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
+        mode = 0o644 | stat.S_IFREG
+        path = posixpath.join(self.tree_path.encode(DEFAULT_ENCODING), name_enc)
+        tree = commit_tree_changes(
+            self.repo.object_store, tree, [(path, mode, b.id)])
+
+        self.repo.object_store.add_object(b)
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
                           author=author)
         return b.id
@@ -716,14 +735,16 @@ class BareGitStore(GitStore):
         """
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
+        path = posixpath.join(self.tree_path, name).encode(DEFAULT_ENCODING)
         try:
             current_sha = tree[name_enc][1]
         except KeyError:
             raise NoSuchItem(name)
         if etag is not None and current_sha != etag.encode('ascii'):
             raise InvalidETag(name, etag, current_sha.decode('ascii'))
-        del tree[name_enc]
-        self.repo.object_store.add_objects([(tree, '')])
+        tree = commit_tree_changes(
+            self.repo.object_store, tree,
+            [(path, None, None)])
         if message is None:
             fi = open_by_extension(
                 self.repo.object_store[current_sha].chunked, name,
@@ -785,11 +806,12 @@ class TreeGitStore(GitStore):
         :param author: Optional author
         :return: etag
         """
-        p = os.path.join(self.repo.path, name)
-        with open(p, 'wb') as f:
+        path = posixpath.join(self.tree_path, name)
+        abspath = os.path.join(self.repo.path, self.tree_path, name)
+        with open(abspath, 'wb') as f:
             f.writelines(data)
-        self.repo.stage(name)
-        etag = self.repo.open_index()[name.encode(DEFAULT_ENCODING)].sha
+        self.repo.stage(path)
+        etag = self.repo.open_index()[path.encode(DEFAULT_ENCODING)].sha
         self._commit_tree(message.encode(DEFAULT_ENCODING), author=author)
         return etag
 
@@ -803,9 +825,9 @@ class TreeGitStore(GitStore):
         :raise NoSuchItem: when the item doesn't exist
         :raise InvalidETag: If the specified ETag doesn't match the curren
         """
-        p = os.path.join(self.repo.path, name)
+        abspath = os.path.join(self.repo.path, self.tree_path, name)
         try:
-            with open(p, 'rb') as f:
+            with open(abspath, 'rb') as f:
                 current_blob = Blob.from_string(f.read())
         except IOError:
             raise NoSuchItem(name)
@@ -814,12 +836,12 @@ class TreeGitStore(GitStore):
                                    self.extra_file_handlers)
             message = 'Delete ' + fi.describe(name)
         if etag is not None:
-            with open(p, 'rb') as f:
+            with open(abspath, 'rb') as f:
                 current_etag = current_blob.id
             if etag.encode('ascii') != current_etag:
                 raise InvalidETag(name, etag, current_etag.decode('ascii'))
-        os.unlink(p)
-        self.repo.stage(name)
+        os.unlink(abspath)
+        self.repo.stage(posixpath.join(self.tree_path, name))
         self._commit_tree(message.encode(DEFAULT_ENCODING), author=author)
 
     def get_ctag(self):
@@ -839,9 +861,12 @@ class TreeGitStore(GitStore):
                 yield (name, mode, sha)
         else:
             index = self.repo.open_index()
-            for (name, sha, mode) in index.iterblobs():
-                name = name.decode(DEFAULT_ENCODING)
-                yield (name, mode, sha)
+            for (path, sha, mode) in index.iterblobs():
+                (tree_path, basename) = posixpath.split(path)
+                if tree_path != self.tree_path.encode(DEFAULT_ENCODING):
+                    continue
+                basename = basename.decode(DEFAULT_ENCODING)
+                yield (basename, mode, sha)
 
     def subdirectories(self):
         """Returns subdirectories to probe for other stores.
