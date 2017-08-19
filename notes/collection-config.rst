@@ -50,3 +50,12 @@ Proposed format
 
 Store a ini-style .xandikos file in the directory hosting the Collection (or
 Tree in case of a Git repository).
+
+Example
+-------
+# This is a standard Python configobj file, so it's mostly ini-style, and comments
+# can appear preceded by #.
+
+color = 030003
+
+
