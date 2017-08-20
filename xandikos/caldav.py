@@ -225,8 +225,8 @@ class CalendarDataProperty(davcommon.SubbedProperty):
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
 
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-multiget'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    name = '{%s}calendar-multiget' % NAMESPACE
+    resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     data_property = CalendarDataProperty()
 
 
@@ -517,8 +517,8 @@ def get_calendar_timezone(resource):
 
 class CalendarQueryReporter(webdav.Reporter):
 
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-query'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    name = '{%s}calendar-query' % NAMESPACE
+    resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     data_property = CalendarDataProperty()
 
     @webdav.multistatus

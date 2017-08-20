@@ -1023,8 +1023,12 @@ class Reporter(object):
         :param resource: Resource to check for
         :return: boolean indicating whether this reporter is available
         """
-        return (self.resource_type is None or
-                self.resource_type in resource.resource_types)
+        if self.resource_type is None:
+            return True
+        if isinstance(self.resource_type, tuple):
+            return any(rs in resource.resource_type
+                       for rs in self.resource_type)
+        return self.resource_type in resource.resource_types
 
     def report(self, environ, start_response, request_body, resources_by_hrefs,
                properties, href, resource, depth):
