@@ -404,6 +404,10 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def get_schedule_inbox_url(self):
         raise KeyError
 
+    def get_max_resource_size(self):
+        # No resource limit
+        raise KeyError
+
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
 
@@ -789,6 +793,7 @@ class XandikosApp(webdav.WebDAVApp):
             caldav.CalendarTimezoneProperty(),
             caldav.MinDateTimeProperty(),
             caldav.MaxDateTimeProperty(),
+            caldav.MaxResourceSizeProperty(),
             carddav.MaxResourceSizeProperty(),
             carddav.MaxImageSizeProperty(),
             access.CurrentUserPrivilegeSetProperty(),

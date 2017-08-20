@@ -100,7 +100,7 @@ class Calendar(webdav.Collection):
     def get_max_date_time(self):
         """Return maximum datetime property.
         """
-        raise NotImplementedError(self.get_min_date_time)
+        raise NotImplementedError(self.get_max_date_time)
 
     def get_max_instances(self):
         """Return maximum number of instances.
@@ -111,6 +111,10 @@ class Calendar(webdav.Collection):
         """Return maximum number of attendees per instance.
         """
         raise NotImplementedError(self.get_max_attendees_per_instance)
+
+    def get_max_resource_size(self):
+        """Return max resource size."""
+        raise NotImplementedError(self.get_max_resource_size)
 
 
 class PrincipalExtensions:
@@ -670,13 +674,28 @@ class MaxAttendeesPerInstanceProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc4791, section 5.2.9
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}max-attendees-per-instance'
+    name = '{%s}max-attendees-per-instance' % NAMESPACE
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
     live = True
 
     def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_attendees_per_instance())
+
+
+class MaxResourceSizeProperty(webdav.Property):
+    """max-resource-size property.
+
+    See https://tools.ietf.org/html/rfc4791, section 5.2.5
+    """
+
+    name = '{%s}max-resource-size' % NAMESPACE
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    live = True
+
+    def get_value(self, href, resource, el, environ):
+        el.text = str(resource.get_max_resource_size())
 
 
 class CalendarProxyReadForProperty(webdav.Property):
