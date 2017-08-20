@@ -155,7 +155,7 @@ class CalendarHomeSetProperty(webdav.Property):
     See https://www.ietf.org/rfc/rfc4791.txt, section 6.2.1.
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-home-set'
+    name = '{%s}calendar-home-set' % NAMESPACE
     resource_type = '{DAV:}principal'
     in_allprops = False
     live = True
@@ -172,7 +172,7 @@ class CalendarDescriptionProperty(webdav.Property):
     https://tools.ietf.org/html/rfc4791, section 5.2.1
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-description'
+    name = '{%s}calendar-description' % NAMESPACE
     resource_type = CALENDAR_RESOURCE_TYPE
 
     def get_value(self, base_href, resource, el, environ):
@@ -587,7 +587,7 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     See https://www.ietf.org/rfc/rfc4791.txt, section 5.2.3
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set'
+    name = '{%s}supported-calendar-component-set' % NAMESPACE
     resource_type = (CALENDAR_RESOURCE_TYPE,
                      SCHEDULE_INBOX_RESOURCE_TYPE,
                      SCHEDULE_OUTBOX_RESOURCE_TYPE)
@@ -628,7 +628,8 @@ class CalendarTimezoneProperty(webdav.Property):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}calendar-timezone'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    resource_type = (CALENDAR_RESOURCE_TYPE,
+                     SCHEDULE_INBOX_RESOURCE_TYPE)
     in_allprops = False
 
     def get_value(self, href, resource, el, environ):
@@ -681,8 +682,9 @@ class MaxInstancesProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc4791, section 5.2.8
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}max-instances'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    name = '{%s}max-instances' % NAMESPACE
+    resource_type = (CALENDAR_RESOURCE_TYPE,
+                     SCHEDULE_INBOX_RESOURCE_TYPE)
     in_allprops = False
     live = True
 

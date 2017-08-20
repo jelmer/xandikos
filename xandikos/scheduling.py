@@ -149,11 +149,6 @@ class ScheduleOutbox(webdav.Collection):
         """
         raise NotImplementedError(self.get_max_date_time)
 
-    def get_max_instances(self):
-        """Return maximum number of instances.
-        """
-        raise NotImplementedError(self.get_max_instances)
-
     def get_max_attendees_per_instance(self):
         """Return maximum number of attendees per instance.
         """
