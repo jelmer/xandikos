@@ -914,11 +914,19 @@ def main(argv):
         "--defaults", action="store_true", dest="defaults",
         help=("Create initial calendar and address book. "
               "Implies --autocreate."))
+    parser.add_argument(
+        "--dump-dav-xml", action="store_true", dest="dump_dav_xml",
+        help="Print DAV XML request/responses.")
     options = parser.parse_args(argv[1:])
 
     if options.directory is None:
         parser.print_usage()
         sys.exit(1)
+
+    if options.dump_dav_xml:
+        # TODO(jelmer): Find a way to propagate this without abusing
+        # os.environ.
+        os.environ["XANDIKOS_DUMP_DAV_XML"] = "1"
 
     logging.basicConfig(level=logging.INFO)
 
