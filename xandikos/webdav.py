@@ -1202,6 +1202,7 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
 
 def _send_xml_response(start_response, status, et, out_encoding):
     body_type = 'text/xml; charset="%s"' % out_encoding
+    print("OUT: " + ET.tostring(et).decode('utf-8'))
     body = ET.tostringlist(et, encoding=out_encoding)
     start_response(status, [
         ('Content-Type', body_type),
@@ -1314,6 +1315,7 @@ def _readXmlBody(environ, expected_tag=None):
         if base_content_type not in ('text/xml', 'application/xml'):
             raise UnsupportedMediaType(content_type)
     body = b''.join(_readBody(environ))
+    print("IN: " + body.decode('utf-8'))
     try:
         et = xmlparse(body)
     except ET.ParseError:
