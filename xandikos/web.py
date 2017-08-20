@@ -817,6 +817,7 @@ class XandikosApp(webdav.WebDAVApp):
             timezones.TimezoneServiceSetProperty([]),
             webdav.AddMemberProperty(),
             caldav.ScheduleCalendarTransparencyProperty(),
+            scheduling.ScheduleDefaultCalendarURLProperty(),
             caldav.MaxInstancesProperty(),
             caldav.MaxAttendeesPerInstanceProperty(),
             access.GroupMembershipProperty(),

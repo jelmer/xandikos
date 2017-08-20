@@ -201,6 +201,7 @@ DAV Properties
 - CALDAV:calendar-user-address-set [supported]
 - CALDAV:calendar-user-type [supported]
 - CALDAV:schedule-calendar-transp [supported]
+- CALDAV:schedule-default-calendar-URL [supported]
 
 rfc6764.txt (Locating groupware services)
 -----------------------------------------

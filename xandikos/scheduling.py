@@ -108,6 +108,13 @@ class ScheduleInbox(webdav.Collection):
         """Return max resource size."""
         raise NotImplementedError(self.get_max_resource_size)
 
+    def get_schedule_default_calendar_url(self):
+        """Return default calendar URL.
+
+        None indicates there is no default URL.
+        """
+        return None
+
 
 class ScheduleOutbox(webdav.Collection):
 
@@ -202,9 +209,25 @@ class CalendarUserTypeProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6638, section 2.4.2
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-user-type'
+    name = '{%s}calendar-user-type' % caldav.NAMESPACE
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
     def get_value(self, href, resource, el, environ):
         el.text = resource.get_calendar_user_type()
+
+
+class ScheduleDefaultCalendarURLProperty(webdav.Property):
+    """schedule-default-calendar-URL property.
+
+    See https://tools.ietf.org/html/rfc6638, section-9.2
+    """
+
+    name = '{%s}schedule-default-calendar-URL' % caldav.NAMESPACE
+    resource_types = SCHEDULE_INBOX_RESOURCE_TYPE
+    in_allprops = True
+
+    def get_value(self, href, resource, el, environ):
+        url = resource.get_schedule_default_calendar_url()
+        if url is not None:
+            el.append(webdav.create_href(url, href))
