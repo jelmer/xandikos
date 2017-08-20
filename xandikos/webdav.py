@@ -859,6 +859,12 @@ class Principal(Resource):
         """
         raise NotImplementedError(self.get_calendar_proxy_write_for)
 
+    def get_schedule_inbox_url(self):
+        raise NotImplementedError(self.get_schedule_inbox_url)
+
+    def get_schedule_outbox_url(self):
+        raise NotImplementedError(self.get_schedule_outbox_url)
+
 
 def get_property_from_name(href, resource, properties, name, environ):
     """Get a single property on a resource.

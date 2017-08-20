@@ -398,12 +398,6 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def get_max_attendees_per_instance(self):
         raise KeyError
 
-    def get_schedule_outbox_url(self):
-        raise KeyError
-
-    def get_schedule_inbox_url(self):
-        raise KeyError
-
     def get_max_resource_size(self):
         # No resource limit
         raise KeyError
@@ -654,6 +648,12 @@ class Principal(webdav.Principal):
 
     def get_owner(self):
         return None
+
+    def get_schedule_outbox_url(self):
+        raise KeyError
+
+    def get_schedule_inbox_url(self):
+        raise KeyError
 
 
 class PrincipalBare(CollectionSetResource, Principal):

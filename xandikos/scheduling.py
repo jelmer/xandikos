@@ -49,12 +49,6 @@ class ScheduleInbox(caldav.Calendar):
     resource_types = (caldav.Calendar.resource_types +
                       [SCHEDULE_INBOX_RESOURCE_TYPE])
 
-    def get_schedule_inbox_url(self):
-        raise NotImplementedError(self.get_schedule_inbox_url)
-
-    def get_schedule_outbox_url(self):
-        raise NotImplementedError(self.get_schedule_outbox_url)
-
     def get_calendar_user_type(self):
         # Default, per section 2.4.2
         return CALENDAR_USER_TYPE_INDIVIDUAL
@@ -67,7 +61,7 @@ class ScheduleInboxURLProperty(webdav.Property):
     """
 
     name = '{%s}schedule-inbox-URL' % caldav.NAMESPACE
-    resource_type = caldav.CALENDAR_RESOURCE_TYPE
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = True
 
     def get_value(self, href, resource, el, environ):
@@ -81,7 +75,7 @@ class ScheduleOutboxURLProperty(webdav.Property):
     """
 
     name = '{%s}schedule-outbox-URL' % caldav.NAMESPACE
-    resource_type = caldav.CALENDAR_RESOURCE_TYPE
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = True
 
     def get_value(self, href, resource, el, environ):
