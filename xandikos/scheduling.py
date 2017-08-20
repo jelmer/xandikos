@@ -26,6 +26,7 @@ from xandikos import caldav, webdav
 
 
 SCHEDULE_INBOX_RESOURCE_TYPE = '{%s}schedule-inbox' % caldav.NAMESPACE
+SCHEDULE_OUTBOX_RESOURCE_TYPE = '{%s}schedule-outbox' % caldav.NAMESPACE
 
 # Feature to advertise to indicate scheduling support.
 FEATURE = 'calendar-auto-schedule'
@@ -44,14 +45,112 @@ CALENDAR_USER_TYPES = (
     CALENDAR_USER_TYPE_UNKNOWN)
 
 
-class ScheduleInbox(caldav.Calendar):
+class ScheduleInbox(webdav.Collection):
 
-    resource_types = (caldav.Calendar.resource_types +
+    resource_types = (webdav.Collection.resource_types +
                       [SCHEDULE_INBOX_RESOURCE_TYPE])
 
     def get_calendar_user_type(self):
         # Default, per section 2.4.2
         return CALENDAR_USER_TYPE_INDIVIDUAL
+
+    def get_calendar_timezone(self):
+        """Return calendar timezone.
+
+        This should be an iCalendar object with exactly one
+        VTIMEZONE component.
+        """
+        raise NotImplementedError(self.get_calendar_timezone)
+
+    def set_calendar_timezone(self):
+        """Set calendar timezone.
+
+        This should be an iCalendar object with exactly one
+        VTIMEZONE component.
+        """
+        raise NotImplementedError(self.set_calendar_timezone)
+
+    def get_supported_calendar_components(self):
+        """Return set of supported calendar components in this calendar.
+
+        :return: iterable over component names
+        """
+        raise NotImplementedError(self.get_supported_calendar_components)
+
+    def get_supported_calendar_data_types(self):
+        """Return supported calendar data types.
+
+        :return: iterable over (content_type, version) tuples
+        """
+        raise NotImplementedError(self.get_supported_calendar_data_types)
+
+    def get_min_date_time(self):
+        """Return minimum datetime property.
+        """
+        raise NotImplementedError(self.get_min_date_time)
+
+    def get_max_date_time(self):
+        """Return maximum datetime property.
+        """
+        raise NotImplementedError(self.get_max_date_time)
+
+    def get_max_instances(self):
+        """Return maximum number of instances.
+        """
+        raise NotImplementedError(self.get_max_instances)
+
+    def get_max_attendees_per_instance(self):
+        """Return maximum number of attendees per instance.
+        """
+        raise NotImplementedError(self.get_max_attendees_per_instance)
+
+    def get_max_resource_size(self):
+        """Return max resource size."""
+        raise NotImplementedError(self.get_max_resource_size)
+
+
+class ScheduleOutbox(webdav.Collection):
+
+    resource_types = (webdav.Collection.resource_types +
+                      [SCHEDULE_OUTBOX_RESOURCE_TYPE])
+
+    def get_supported_calendar_components(self):
+        """Return set of supported calendar components in this calendar.
+
+        :return: iterable over component names
+        """
+        raise NotImplementedError(self.get_supported_calendar_components)
+
+    def get_supported_calendar_data_types(self):
+        """Return supported calendar data types.
+
+        :return: iterable over (content_type, version) tuples
+        """
+        raise NotImplementedError(self.get_supported_calendar_data_types)
+
+    def get_max_resource_size(self):
+        """Return max resource size."""
+        raise NotImplementedError(self.get_max_resource_size)
+
+    def get_min_date_time(self):
+        """Return minimum datetime property.
+        """
+        raise NotImplementedError(self.get_min_date_time)
+
+    def get_max_date_time(self):
+        """Return maximum datetime property.
+        """
+        raise NotImplementedError(self.get_max_date_time)
+
+    def get_max_instances(self):
+        """Return maximum number of instances.
+        """
+        raise NotImplementedError(self.get_max_instances)
+
+    def get_max_attendees_per_instance(self):
+        """Return maximum number of attendees per instance.
+        """
+        raise NotImplementedError(self.get_max_attendees_per_instance)
 
 
 class ScheduleInboxURLProperty(webdav.Property):

@@ -36,10 +36,14 @@ PRODID = '-//Jelmer Vernooĳ//Xandikos//EN'
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
 EXTENDED_MKCOL_FEATURE = 'extended-mkcol'
 
-# https://tools.ietf.org/html/rfc4791, section 4.2
-CALENDAR_RESOURCE_TYPE = '{urn:ietf:params:xml:ns:caldav}calendar'
-
 NAMESPACE = 'urn:ietf:params:xml:ns:caldav'
+
+# https://tools.ietf.org/html/rfc4791, section 4.2
+CALENDAR_RESOURCE_TYPE = '{%s}calendar' % NAMESPACE
+
+# TODO(jelmer): These resource types belong in scheduling.py
+SCHEDULE_INBOX_RESOURCE_TYPE = '{%s}schedule-inbox' % NAMESPACE
+SCHEDULE_OUTBOX_RESOURCE_TYPE = '{%s}schedule-outbox' % NAMESPACE
 
 # Feature to advertise to indicate CalDAV support.
 FEATURE = 'calendar-access'
@@ -574,7 +578,9 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    resource_type = (CALENDAR_RESOURCE_TYPE,
+                     SCHEDULE_INBOX_RESOURCE_TYPE,
+                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
     in_allprops = False
     live = True
 
@@ -591,7 +597,9 @@ class SupportedCalendarDataProperty(webdav.Property):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-data'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    resource_type = (CALENDAR_RESOURCE_TYPE,
+                     SCHEDULE_INBOX_RESOURCE_TYPE,
+                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
     in_allprops = False
 
     def get_value(self, href, resource, el, environ):
@@ -630,7 +638,9 @@ class MinDateTimeProperty(webdav.Property):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}min-date-time'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    resource_type = (CALENDAR_RESOURCE_TYPE,
+                     SCHEDULE_INBOX_RESOURCE_TYPE,
+                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
     in_allprops = False
     live = True
 
@@ -645,7 +655,9 @@ class MaxDateTimeProperty(webdav.Property):
     """
 
     name = '{urn:ietf:params:xml:ns:caldav}max-date-time'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    resource_type = (CALENDAR_RESOURCE_TYPE,
+                     SCHEDULE_INBOX_RESOURCE_TYPE,
+                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
     in_allprops = False
     live = True
 
@@ -675,7 +687,9 @@ class MaxAttendeesPerInstanceProperty(webdav.Property):
     """
 
     name = '{%s}max-attendees-per-instance' % NAMESPACE
-    resource_type = CALENDAR_RESOURCE_TYPE
+    resource_type = (CALENDAR_RESOURCE_TYPE,
+                     SCHEDULE_INBOX_RESOURCE_TYPE,
+                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
     in_allprops = False
     live = True
 
@@ -690,7 +704,9 @@ class MaxResourceSizeProperty(webdav.Property):
     """
 
     name = '{%s}max-resource-size' % NAMESPACE
-    resource_type = CALENDAR_RESOURCE_TYPE
+    resource_type = (CALENDAR_RESOURCE_TYPE,
+                     SCHEDULE_INBOX_RESOURCE_TYPE,
+                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
     in_allprops = False
     live = True
 

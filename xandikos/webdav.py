@@ -294,8 +294,14 @@ class Property(object):
     live = None
 
     def supported_on(self, resource):
-        return (self.resource_type is None or
-                self.resource_type in resource.resource_types)
+        if self.resource_type is None:
+            return True
+        if isinstance(self.resource_type, tuple):
+            return any(rs in resource.resource_type
+                       for rs in self.resource_type)
+        if self.resource_type in resource.resource_types:
+            return True
+        return False
 
     def is_set(self, href, resource, environ):
         """Check if this property is set on a resource."""
