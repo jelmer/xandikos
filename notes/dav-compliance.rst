@@ -190,8 +190,8 @@ DAV Reports
 - CARDDAV:addressbook-query [supported]
 - CARDDAV:addressbook-multiget [supported]
 
-rfc6638.txt (CardDAV scheduling extensions)
--------------------------------------------
+rfc6638.txt (CalDAV scheduling extensions)
+------------------------------------------
 
 DAV Properties
 ^^^^^^^^^^^^^^
@@ -202,6 +202,7 @@ DAV Properties
 - CALDAV:calendar-user-type [supported]
 - CALDAV:schedule-calendar-transp [supported]
 - CALDAV:schedule-default-calendar-URL [supported]
+- CALDAV:schedule-tag [not supported]
 
 rfc6764.txt (Locating groupware services)
 -----------------------------------------
