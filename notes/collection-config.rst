@@ -34,6 +34,7 @@ Need per calendar config:
 - max instances
 - max attendees per instance
 - calendar timezone
+- calendar schedule transparency
 
 Addressbook
 ~~~~~~~~~~~

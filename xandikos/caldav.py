@@ -48,6 +48,9 @@ SCHEDULE_OUTBOX_RESOURCE_TYPE = '{%s}schedule-outbox' % NAMESPACE
 # Feature to advertise to indicate CalDAV support.
 FEATURE = 'calendar-access'
 
+TRANSPARENCY_TRANSPARENT = 'transparent'
+TRANSPARENCY_OPAQUE = 'opaque'
+
 
 class Calendar(webdav.Collection):
 
@@ -119,6 +122,13 @@ class Calendar(webdav.Collection):
     def get_max_resource_size(self):
         """Return max resource size."""
         raise NotImplementedError(self.get_max_resource_size)
+
+    def get_schedule_calendar_transparency(self):
+        """Get calendar transparency.
+
+        Possible values are TRANSPARENCY_TRANSPARENT and TRANSPARENCY_OPAQUE
+        """
+        return TRANSPARENCY_OPAQUE
 
 
 class PrincipalExtensions:
@@ -746,6 +756,26 @@ class CalendarProxyWriteForProperty(webdav.Property):
     def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_proxy_write_for():
             el.append(webdav.create_href(href, base_href))
+
+
+class ScheduleCalendarTransparencyProperty(webdav.Property):
+    """schedule-calendar-transp property.
+
+    See https://tools.ietf.org/html/rfc6638#section-9.1
+    """
+    name = '{%s}schedule-calendar-transp' % NAMESPACE
+    in_allprops = False
+    live = False
+    resource_type = CALENDAR_RESOURCE_TYPE
+
+    def get_value(self, base_href, resource, el, environ):
+        transp = resource.get_schedule_calendar_transparency()
+        if transp == TRANSPARENCY_TRANSPARENT:
+            ET.SubElement(el, '{%s}transparent' % NAMESPACE)
+        elif transp == TRANSPARENCY_OPAQUE:
+            ET.SubElement(el, '{%s}opaque' % NAMESPACE)
+        else:
+            raise ValueError('Invalid transparency %s' % transp)
 
 
 def map_freebusy(comp):

@@ -402,6 +402,10 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         # No resource limit
         raise KeyError
 
+    def get_schedule_calendar_transparency(self):
+        # TODO(jelmer): Allow configuration in config
+        return caldav.TRANSPARENCY_OPAQUE
+
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
 
@@ -812,6 +816,7 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.GetLastModifiedProperty(),
             timezones.TimezoneServiceSetProperty([]),
             webdav.AddMemberProperty(),
+            caldav.ScheduleCalendarTransparencyProperty(),
             caldav.MaxInstancesProperty(),
             caldav.MaxAttendeesPerInstanceProperty(),
             access.GroupMembershipProperty(),
