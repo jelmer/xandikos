@@ -866,10 +866,10 @@ class Principal(Resource):
         raise NotImplementedError(self.get_calendar_proxy_write_for)
 
     def get_schedule_inbox_url(self):
-        raise NotImplementedError(self.get_schedule_inbox_url)
+        return 'inbox'
 
     def get_schedule_outbox_url(self):
-        raise NotImplementedError(self.get_schedule_outbox_url)
+        return 'outbox'
 
 
 def get_property_from_name(href, resource, properties, name, environ):
@@ -1726,7 +1726,7 @@ class WebDAVApp(object):
 
     def _get_dav_features(self, resource):
         # TODO(jelmer): Support access-control
-        return ['1', '2', '3', 'calendar-access', 'addressbook',
+        return ['1', '2', '3', 'calendar-access', 'addressbook', 'calendar-auto-schedule',
                 'extended-mkcol', 'add-member', 'sync-collection', 'quota']
 
     def _get_allowed_methods(self, environ):
