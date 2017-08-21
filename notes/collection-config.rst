@@ -46,6 +46,10 @@ Need per addressbook config:
 - color
 - description (can be inferred from .git/description)
 
+Schedule Inbox
+~~~~~~~~~~~~~~
+- default-calendar-URL
+
 Proposed format
 ---------------
 
