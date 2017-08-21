@@ -297,7 +297,7 @@ class Property(object):
         if self.resource_type is None:
             return True
         if isinstance(self.resource_type, tuple):
-            return any(rs in resource.resource_type
+            return any(rs in resource.resource_types
                        for rs in self.resource_type)
         if self.resource_type in resource.resource_types:
             return True
@@ -1026,7 +1026,7 @@ class Reporter(object):
         if self.resource_type is None:
             return True
         if isinstance(self.resource_type, tuple):
-            return any(rs in resource.resource_type
+            return any(rs in resource.resource_types
                        for rs in self.resource_type)
         return self.resource_type in resource.resource_types
 
