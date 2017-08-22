@@ -47,6 +47,8 @@ from xandikos.store import (
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
     STORE_TYPE_PRINCIPAL,
+    STORE_TYPE_SCHEDULE_INBOX,
+    STORE_TYPE_SCHEDULE_OUTBOX,
     STORE_TYPE_OTHER,
 )
 from xandikos.vcard import VCardFile
@@ -654,10 +656,12 @@ class Principal(webdav.Principal):
         return None
 
     def get_schedule_outbox_url(self):
-        raise KeyError
+        # TODO(jelmer): Make configurable
+        return 'outbox'
 
     def get_schedule_inbox_url(self):
-        raise KeyError
+        # TODO(jelmer): Make configurable
+        return 'inbox'
 
 
 class PrincipalBare(CollectionSetResource, Principal):
@@ -885,6 +889,24 @@ def create_principal_defaults(backend, principal):
     else:
         resource.store.set_type(STORE_TYPE_ADDRESSBOOK)
         logging.info('Create addressbook in %s.', resource.store.path)
+
+    inbox_path = posixpath.join(principal.relpath, principal.get_schedule_inbox_url())
+    try:
+        resource = backend.create_collection(inbox_path)
+    except FileExistsError:
+        pass
+    else:
+        resource.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
+        logging.info('Create schedule inbox in %s.', resource.store.path)
+
+    outbox_path = posixpath.join(principal.relpath, principal.get_schedule_outbox_url())
+    try:
+        resource = backend.create_collection(outbox_path)
+    except FileExistsError:
+        pass
+    else:
+        resource.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
+        logging.info('Create schedule outbox in %s.', resource.store.path)
 
 
 def main(argv):
