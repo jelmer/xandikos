@@ -18,3 +18,12 @@ TODO:
 - Outbox "at which busy time information requests are targeted."
 
 - support freebusy requests by POST
+
+
+Roadmap
+-------
+
+1) Call mimetype-specific handler when items are uploaded.
+2) In handler for text/calendar, check ORGANIZER property
+
+

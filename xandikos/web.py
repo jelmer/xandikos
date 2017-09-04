@@ -409,6 +409,67 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         return caldav.TRANSPARENCY_OPAQUE
 
 
+class ScheduleInboxCollection(StoreBasedCollection, scheduling.ScheduleInbox):
+
+    def get_calendar_user_type(self):
+        # TODO(jelmer)
+        return scheduling.CALENDAR_USER_TYPE_INDIVIDUAL
+
+    def get_calendar_timezone(self):
+        # TODO(jelmer): Read a magic file from the store?
+        raise KeyError
+
+    def get_supported_calendar_components(self):
+        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
+
+    def get_supported_calendar_data_types(self):
+        return [('text/calendar', '1.0'),
+                ('text/calendar', '2.0')]
+
+    def get_max_date_time(self):
+        return "99991231T235959Z"
+
+    def get_min_date_time(self):
+        return "00010101T000000Z"
+
+    def get_max_instances(self):
+        raise KeyError
+
+    def get_max_attendees_per_instance(self):
+        raise KeyError
+
+    def get_max_resource_size(self):
+        # No resource limit
+        raise KeyError
+
+    def get_schedule_default_calendar_url(self):
+        # TODO
+        return None
+
+
+class ScheduleOutboxCollection(StoreBasedCollection, scheduling.ScheduleOutbox):
+
+    def get_supported_calendar_components(self):
+        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
+
+    def get_supported_calendar_data_types(self):
+        return [('text/calendar', '1.0'),
+                ('text/calendar', '2.0')]
+
+    def get_max_date_time(self):
+        return "99991231T235959Z"
+
+    def get_min_date_time(self):
+        return "00010101T000000Z"
+
+    def get_max_attendees_per_instance(self):
+        raise KeyError
+
+    def get_max_resource_size(self):
+        # No resource limit
+        raise KeyError
+
+
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
 
     def get_addressbook_description(self):
@@ -753,6 +814,8 @@ class XandikosBackend(webdav.Backend):
                     STORE_TYPE_CALENDAR: CalendarCollection,
                     STORE_TYPE_ADDRESSBOOK: AddressbookCollection,
                     STORE_TYPE_PRINCIPAL: PrincipalCollection,
+                    STORE_TYPE_SCHEDULE_INBOX: ScheduleInboxCollection,
+                    STORE_TYPE_SCHEDULE_OUTBOX: ScheduleOutboxCollection,
                     STORE_TYPE_OTHER: Collection
                 }[store.get_type()](self, relpath, store)
         else:
@@ -890,7 +953,9 @@ def create_principal_defaults(backend, principal):
         resource.store.set_type(STORE_TYPE_ADDRESSBOOK)
         logging.info('Create addressbook in %s.', resource.store.path)
 
-    inbox_path = posixpath.join(principal.relpath, principal.get_schedule_inbox_url())
+    inbox_path = posixpath.join(
+            principal.relpath,
+            principal.get_schedule_inbox_url())
     try:
         resource = backend.create_collection(inbox_path)
     except FileExistsError:
@@ -899,7 +964,9 @@ def create_principal_defaults(backend, principal):
         resource.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
         logging.info('Create schedule inbox in %s.', resource.store.path)
 
-    outbox_path = posixpath.join(principal.relpath, principal.get_schedule_outbox_url())
+    outbox_path = posixpath.join(
+            principal.relpath,
+            principal.get_schedule_outbox_url())
     try:
         resource = backend.create_collection(outbox_path)
     except FileExistsError:
