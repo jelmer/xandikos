@@ -447,7 +447,8 @@ class ScheduleInboxCollection(StoreBasedCollection, scheduling.ScheduleInbox):
         return None
 
 
-class ScheduleOutboxCollection(StoreBasedCollection, scheduling.ScheduleOutbox):
+class ScheduleOutboxCollection(StoreBasedCollection,
+                               scheduling.ScheduleOutbox):
 
     def get_supported_calendar_components(self):
         return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
@@ -954,8 +955,8 @@ def create_principal_defaults(backend, principal):
         logging.info('Create addressbook in %s.', resource.store.path)
 
     inbox_path = posixpath.join(
-            principal.relpath,
-            principal.get_schedule_inbox_url())
+        principal.relpath,
+        principal.get_schedule_inbox_url())
     try:
         resource = backend.create_collection(inbox_path)
     except FileExistsError:
@@ -965,8 +966,8 @@ def create_principal_defaults(backend, principal):
         logging.info('Create schedule inbox in %s.', resource.store.path)
 
     outbox_path = posixpath.join(
-            principal.relpath,
-            principal.get_schedule_outbox_url())
+        principal.relpath,
+        principal.get_schedule_outbox_url())
     try:
         resource = backend.create_collection(outbox_path)
     except FileExistsError:

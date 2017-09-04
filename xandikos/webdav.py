@@ -1726,8 +1726,9 @@ class WebDAVApp(object):
 
     def _get_dav_features(self, resource):
         # TODO(jelmer): Support access-control
-        return ['1', '2', '3', 'calendar-access', 'addressbook', 'calendar-auto-schedule',
-                'extended-mkcol', 'add-member', 'sync-collection', 'quota']
+        return ['1', '2', '3', 'calendar-access', 'addressbook',
+                'calendar-auto-schedule', 'extended-mkcol', 'add-member',
+                'sync-collection', 'quota']
 
     def _get_allowed_methods(self, environ):
         """List of supported methods on this endpoint."""
