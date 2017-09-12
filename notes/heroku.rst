@@ -25,25 +25,22 @@ To run a Heroku instance with Xandikos:
 3. Edit *uwsgi.ini* as necessary, such as changing the credentials (the
    defaults are *user1*/*password1*).
 
-4. Set Heroku procfile to use uwsgi configuration::
-
-    $ echo web: uwsgi uwsgi.ini > Procfile
-
-5. Add uwsgi to requirements::
+4. Make heroku install and use uwsgi::
 
     $ echo uwsgi > requirements.txt
+    $ echo web: uwsgi uwsgi.ini > Procfile
 
-6. Create the Heroku instance::
+5. Create the Heroku instance::
 
     $ heroku create
 
 (this might ask you for your heroku credentials)
 
-7. Deploy the app::
+6. Deploy the app::
 
     $ git push heroku master
 
-8. Open the app with your browser::
+7. Open the app with your browser::
 
     $ heroku open
 
