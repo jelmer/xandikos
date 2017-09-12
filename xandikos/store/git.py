@@ -39,6 +39,7 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
+from .config import CollectionConfig
 
 
 from dulwich.objects import Blob, Tree
@@ -65,6 +66,10 @@ class GitStore(Store):
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
+
+    @property
+    def config(self):
+        return CollectionConfig()
 
     def __repr__(self):
         return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
@@ -228,10 +233,13 @@ class GitStore(Store):
 
         :return: repository description as string
         """
-        desc = self.repo.get_description()
-        if desc is not None:
-            desc = desc.decode(DEFAULT_ENCODING)
-        return desc
+        try:
+            return self.config.get_description()
+        except KeyError:
+            desc = self.repo.get_description()
+            if desc is not None:
+                desc = desc.decode(DEFAULT_ENCODING)
+            return desc
 
     def set_description(self, description):
         """Set extended description.
@@ -254,26 +262,32 @@ class GitStore(Store):
 
         :return: Comment
         """
-        config = self.repo.get_config()
         try:
-            comment = config.get(b'xandikos', b'comment')
+            return self.config.get_comment()
         except KeyError:
-            return None
-        else:
-            return comment.decode(DEFAULT_ENCODING)
+            config = self.repo.get_config()
+            try:
+                comment = config.get(b'xandikos', b'comment')
+            except KeyError:
+                return None
+            else:
+                return comment.decode(DEFAULT_ENCODING)
 
     def get_color(self):
         """Get color.
 
         :return: A Color code, or None
         """
-        config = self.repo.get_config()
         try:
-            color = config.get(b'xandikos', b'color')
+            return self.config.get_color()
         except KeyError:
-            return None
-        else:
-            return color.decode(DEFAULT_ENCODING)
+            config = self.repo.get_config()
+            try:
+                color = config.get(b'xandikos', b'color')
+            except KeyError:
+                return None
+            else:
+                return color.decode(DEFAULT_ENCODING)
 
     def set_color(self, color):
         """Set the color code for this store."""
@@ -291,13 +305,16 @@ class GitStore(Store):
 
         :return: The display name, or None if not set
         """
-        config = self.repo.get_config()
         try:
-            displayname = config.get(b'xandikos', b'displayname')
+            return self.config.get_displayname()
         except KeyError:
-            return None
-        else:
-            return displayname.decode(DEFAULT_ENCODING)
+            config = self.repo.get_config()
+            try:
+                displayname = config.get(b'xandikos', b'displayname')
+            except KeyError:
+                return None
+            else:
+                return displayname.decode(DEFAULT_ENCODING)
 
     def set_displayname(self, displayname):
         """Set the display name.
