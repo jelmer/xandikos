@@ -378,7 +378,10 @@ class GitStore(Store):
         :raise DuplicateUidError: when the uid already exists
         :return: etag
         """
-        fi = open_by_content_type(data, content_type, self.extra_file_handlers)
+        if content_type is None:
+            fi = open_by_extension(data, name, self.extra_file_handlers)
+        else:
+            fi = open_by_content_type(data, content_type, self.extra_file_handlers)
         if name is None:
             name = str(uuid.uuid4())
             extension = MIMETYPES.guess_extension(content_type)
