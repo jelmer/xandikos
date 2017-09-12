@@ -39,8 +39,6 @@ from xandikos import (access, apache, caldav, carddav, quota, sync, webdav,
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     DuplicateUidError,
-    TreeGitStore,
-    GitStore,
     InvalidFileContents,
     NoSuchItem,
     NotStoreError,
@@ -49,7 +47,12 @@ from xandikos.store import (
     STORE_TYPE_PRINCIPAL,
     STORE_TYPE_OTHER,
 )
+from xandikos.store.git import (
+    GitStore,
+    TreeGitStore,
+)
 from xandikos.vcard import VCardFile
+
 
 WELLKNOWN_DAV_PATHS = {caldav.WELLKNOWN_CALDAV_PATH,
                        carddav.WELLKNOWN_CARDDAV_PATH}
