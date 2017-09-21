@@ -18,8 +18,6 @@
 # MA  02110-1301, USA.
 
 import configparser
-import shutil
-import tempfile
 import unittest
 
 from xandikos.store.config import CollectionConfig
