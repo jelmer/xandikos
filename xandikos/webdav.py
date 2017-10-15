@@ -509,7 +509,7 @@ class CurrentUserPrincipalProperty(Property):
             ET.SubElement(el, '{DAV:}unauthenticated')
         else:
             el.append(create_href(
-                self.current_user_principal, environ.get('SCRIPT_NAME', '')))
+                self.current_user_principal, environ['SCRIPT_NAME']))
 
 
 class PrincipalURLProperty(Property):
@@ -1207,7 +1207,7 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
     :param hrefs: List of hrefs to resolve
     :return: iterator over (href, resource) tuples
     """
-    script_name = environ.get('SCRIPT_NAME', '')
+    script_name = environ['SCRIPT_NAME']
     # TODO(jelmer): Bulk query hrefs in a more efficient manner
     for href in hrefs:
         if not href.startswith(script_name):
@@ -1400,7 +1400,7 @@ class PostMethod(Method):
                 error=ET.Element(e.precondition),
                 description=e.description)
         href = (
-            environ.get('SCRIPT_NAME', '') +
+            environ['SCRIPT_NAME'] +
             urllib.parse.urljoin(ensure_trailing_slash(path), name)
         )
         start_response('200 OK', [('Location', href)])
@@ -1708,7 +1708,7 @@ class WebDAVApp(object):
 
     def _get_resource_from_environ(self, environ):
         path = path_from_environ(environ, 'PATH_INFO')
-        href = (environ.get('SCRIPT_NAME', '') + path)
+        href = (environ['SCRIPT_NAME'] + path)
         r = self.backend.get_resource(path)
         return (href, path, r)
 
@@ -1741,6 +1741,9 @@ class WebDAVApp(object):
         if environ.get('HTTP_EXPECT', '') != '':
             start_response('417 Expectation Failed', [])
             return []
+        if 'SCRIPT_NAME' not in environ:
+            logging.debug('SCRIPT_NAME not set; assuming "".')
+            environ['SCRIPT_NAME'] = ''
         method = environ['REQUEST_METHOD']
         try:
             do = self.methods[method]
