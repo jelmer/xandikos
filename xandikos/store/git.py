@@ -42,7 +42,15 @@ from . import (
 from .config import CollectionConfig
 
 
+from dulwich.file import GitFile
+from dulwich.index import (
+    Index,
+    IndexEntry,
+    index_entry_from_stat,
+    write_index_dict,
+    )
 from dulwich.objects import Blob, Tree
+from dulwich.pack import SHA1Writer
 import dulwich.repo
 
 _DEFAULT_COMMITTER_IDENTITY = b'Xandikos <xandikos>'
@@ -50,6 +58,22 @@ DEFAULT_ENCODING = 'utf-8'
 
 
 logger = logging.getLogger(__name__)
+
+
+class locked_index(object):
+
+    def __init__(self, path):
+        self._path = path
+
+    def __enter__(self):
+        self._file = GitFile(self._path, 'wb')
+        self._index = Index(self._path)
+        return self._index
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        f = SHA1Writer(self._file)
+        write_index_dict(f, self._index._byname)
+        f.close()
 
 
 class GitStore(Store):
@@ -518,13 +542,14 @@ class TreeGitStore(GitStore):
         name = name.encode(DEFAULT_ENCODING)
         return index[name].sha.decode('ascii')
 
-    def _commit_tree(self, message, author=None):
+    def _commit_tree(self, index, message, author=None):
+        tree = index.commit(self.repo.object_store)
         try:
             committer = self.repo._get_user_identity()
         except KeyError:
             committer = _DEFAULT_COMMITTER_IDENTITY
         return self.repo.do_commit(message=message, committer=committer,
-                                   author=author)
+                                   author=author, tree=tree)
 
     def _import_one(self, name, data, message, author=None):
         """Import a single object.
@@ -535,13 +560,16 @@ class TreeGitStore(GitStore):
         :param author: Optional author
         :return: etag
         """
-        p = os.path.join(self.repo.path, name)
-        with open(p, 'wb') as f:
-            f.writelines(data)
-        self.repo.stage(name)
-        etag = self.repo.open_index()[name.encode(DEFAULT_ENCODING)].sha
-        self._commit_tree(message.encode(DEFAULT_ENCODING), author=author)
-        return etag
+        with locked_index(self.repo.index_path()) as index:
+            p = os.path.join(self.repo.path, name)
+            with open(p, 'wb') as f:
+                f.writelines(data)
+            st = os.lstat(p)
+            blob = Blob.from_string(b''.join(data))
+            self.repo.object_store.add_object(blob)
+            index[name.encode(DEFAULT_ENCODING)] = IndexEntry(*index_entry_from_stat(st, blob.id, 0))
+            self._commit_tree(index, message.encode(DEFAULT_ENCODING), author=author)
+            return blob.id
 
     def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
@@ -568,9 +596,10 @@ class TreeGitStore(GitStore):
                 current_etag = current_blob.id
             if etag.encode('ascii') != current_etag:
                 raise InvalidETag(name, etag, current_etag.decode('ascii'))
-        os.unlink(p)
-        self.repo.stage(name)
-        self._commit_tree(message.encode(DEFAULT_ENCODING), author=author)
+        with locked_index(self.repo.index_path()) as index:
+            os.unlink(p)
+            del index[name.encode(DEFAULT_ENCODING)]
+            self._commit_tree(index, message.encode(DEFAULT_ENCODING), author=author)
 
     def get_ctag(self):
         """Return the ctag for this store."""
