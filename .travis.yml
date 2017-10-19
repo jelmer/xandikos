@@ -21,8 +21,10 @@ script:
   - mv .coverage .coverage.unit
   - make coverage-litmus
   - mv .coverage .coverage.litmus
-  - make coverage-vdirsyncer
-  - mv .coverage .coverage.vdirsyncer
+  # Disable vdirsyncer tests until it works with rust in the travis environment
+  # (https://github.com/pimutils/vdirsyncer/issues/680)
+  # - make coverage-vdirsyncer
+  # - mv .coverage .coverage.vdirsyncer
   - make coverage-caldavtester
   - mv .coverage .coverage.caldavtester
 after_success:
