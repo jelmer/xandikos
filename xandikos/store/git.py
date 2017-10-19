@@ -48,7 +48,7 @@ from dulwich.index import (
     IndexEntry,
     index_entry_from_stat,
     write_index_dict,
-    )
+)
 from dulwich.objects import Blob, Tree
 from dulwich.pack import SHA1Writer
 import dulwich.repo
@@ -567,8 +567,11 @@ class TreeGitStore(GitStore):
             st = os.lstat(p)
             blob = Blob.from_string(b''.join(data))
             self.repo.object_store.add_object(blob)
-            index[name.encode(DEFAULT_ENCODING)] = IndexEntry(*index_entry_from_stat(st, blob.id, 0))
-            self._commit_tree(index, message.encode(DEFAULT_ENCODING), author=author)
+            index[name.encode(DEFAULT_ENCODING)] = IndexEntry(
+                *index_entry_from_stat(st, blob.id, 0))
+            self._commit_tree(
+                index, message.encode(DEFAULT_ENCODING),
+                author=author)
             return blob.id
 
     def delete_one(self, name, message=None, author=None, etag=None):
@@ -599,7 +602,8 @@ class TreeGitStore(GitStore):
         with locked_index(self.repo.index_path()) as index:
             os.unlink(p)
             del index[name.encode(DEFAULT_ENCODING)]
-            self._commit_tree(index, message.encode(DEFAULT_ENCODING), author=author)
+            self._commit_tree(index, message.encode(DEFAULT_ENCODING),
+                              author=author)
 
     def get_ctag(self):
         """Return the ctag for this store."""
