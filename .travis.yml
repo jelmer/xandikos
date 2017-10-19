@@ -21,8 +21,10 @@ script:
   - mv .coverage .coverage.unit
   - make coverage-litmus
   - mv .coverage .coverage.litmus
-  - make coverage-vdirsyncer
-  - mv .coverage .coverage.vdirsyncer
+  - if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
+        make coverage-vdirsyncer;
+        mv .coverage .coverage.vdirsyncer;
+    fi
   - make coverage-caldavtester
   - mv .coverage .coverage.caldavtester
 after_success:
