@@ -1,3 +1,10 @@
+xandikos (0.0.6-3) UNRELEASED; urgency=medium
+
+  * Fix greek name of package in description. Thanks, Roland Hieber.
+    Closes: #880012
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 28 Oct 2017 13:31:57 +0100
+
 xandikos (0.0.6-2) unstable; urgency=low
 
   * When running autopkgtest tests, use system xandikos binary.
