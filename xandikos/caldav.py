@@ -123,6 +123,14 @@ class Calendar(webdav.Collection):
         """Return max resource size."""
         raise NotImplementedError(self.get_max_resource_size)
 
+    def get_max_attachments_per_resource(self):
+        """Return max attachments per resource."""
+        raise NotImplementedError(self.get_max_attachments_per_resource)
+
+    def get_max_attachment_size(self):
+        """Return max attachment size."""
+        raise NotImplementedError(self.get_max_attachment_size)
+
     def get_schedule_calendar_transparency(self):
         """Get calendar transparency.
 
@@ -724,6 +732,32 @@ class MaxResourceSizeProperty(webdav.Property):
 
     def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_resource_size())
+
+
+class MaxAttachmentsPerResourceProperty(webdav.Property):
+    """max-attachments-per-resource property.
+    """
+
+    name = '{%s}max-attachments-per-resource' % NAMESPACE
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    live = True
+
+    def get_value(self, href, resource, el, environ):
+        el.text = str(resource.get_max_attachments_per_resource())
+
+
+class MaxAttachmentSizeProperty(webdav.Property):
+    """max-attachment-size property.
+    """
+
+    name = '{%s}max-attachment-size' % NAMESPACE
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = False
+    live = True
+
+    def get_value(self, href, resource, el, environ):
+        el.text = str(resource.get_max_attachment_size())
 
 
 class CalendarProxyReadForProperty(webdav.Property):

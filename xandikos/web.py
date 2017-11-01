@@ -405,6 +405,14 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         # No resource limit
         raise KeyError
 
+    def get_max_attachments_per_resource(self):
+        # No resource limit
+        raise KeyError
+
+    def get_max_attachment_size(self):
+        # No resource limit
+        raise KeyError
+
     def get_schedule_calendar_transparency(self):
         # TODO(jelmer): Allow configuration in config
         return caldav.TRANSPARENCY_OPAQUE

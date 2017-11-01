@@ -259,6 +259,12 @@ inf-it properties
 - settings [supported]
 - addressbook-color [supported]
 
+AgendaV properties
+^^^^^^^^^^^^^^^^^^
+
+- CALDAV:max-attachments-per-resource
+- CALDAV:max-attachment-size
+
 rfc5995.txt (POST to create members)
 ------------------------------------
 
