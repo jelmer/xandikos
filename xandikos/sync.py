@@ -110,11 +110,11 @@ class SyncCollectionReporter(webdav.Reporter):
                 for prop in requested:
                     if old_resource is not None:
                         old_propstat = webdav.get_property_from_element(
-                            href, old_resource, properties, prop, environ)
+                            href, old_resource, properties, environ, prop)
                     else:
                         old_propstat = None
                     new_propstat = webdav.get_property_from_element(
-                        href, new_resource, properties, prop, environ)
+                        href, new_resource, properties, environ, prop)
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
             yield webdav.Status(
