@@ -349,10 +349,10 @@ def as_tz_aware_ts(dt, default_timezone):
 
 
 def apply_time_range_vevent(start, end, comp, tzify):
-    try:
-        start = tzify(comp['DTSTART'].dt)
-    except KeyError:
+    if comp['DTSTART'] is None:
         raise MissingProperty('DTSTART')
+
+    start = tzify(comp['DTSTART'].dt)
 
     if not (end > start):
         return False
