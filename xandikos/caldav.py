@@ -52,6 +52,14 @@ TRANSPARENCY_TRANSPARENT = 'transparent'
 TRANSPARENCY_OPAQUE = 'opaque'
 
 
+class MissingProperty(Exception):
+
+    def __init__(self, property_name):
+        super(MissingProperty, self).__init__(
+                "Property %r missing" % property_name)
+        self.property_name = property_name
+
+
 class Calendar(webdav.Collection):
 
     resource_types = (webdav.Collection.resource_types +
@@ -341,7 +349,12 @@ def as_tz_aware_ts(dt, default_timezone):
 
 
 def apply_time_range_vevent(start, end, comp, tzify):
-    if not (end > tzify(comp['DTSTART'].dt)):
+    try:
+        start = tzify(comp['DTSTART'].dt)
+    except KeyError:
+        raise MissingProperty('DTSTART')
+
+    if not (end > start):
         return False
 
     if 'DTEND' in comp:
@@ -563,7 +576,14 @@ class CalendarQueryReporter(webdav.Reporter):
         tzify = lambda dt: as_tz_aware_ts(dt, tz)
         for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth):
-            if not apply_filter(filter_el, resource, tzify):
+            try:
+                filter_result = apply_filter(filter_el, resource, tzify)
+            except MissingProperty as e:
+                logging.warning(
+                    'calendar_query: Ignoring calendar object %s, due '
+                    'to missing property %s', href, e.property_name)
+                continue
+            if not filter_result:
                 continue
             propstat = davcommon.get_properties_with_data(
                 self.data_property, href, resource, properties, environ,
