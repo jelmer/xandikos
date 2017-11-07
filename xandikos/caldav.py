@@ -56,7 +56,7 @@ class MissingProperty(Exception):
 
     def __init__(self, property_name):
         super(MissingProperty, self).__init__(
-                "Property %r missing" % property_name)
+            "Property %r missing" % property_name)
         self.property_name = property_name
 
 
@@ -352,9 +352,7 @@ def apply_time_range_vevent(start, end, comp, tzify):
     if comp['DTSTART'] is None:
         raise MissingProperty('DTSTART')
 
-    start = tzify(comp['DTSTART'].dt)
-
-    if not (end > start):
+    if not (end > tzify(comp['DTSTART'].dt)):
         return False
 
     if 'DTEND' in comp:
