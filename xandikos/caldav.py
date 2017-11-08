@@ -291,7 +291,7 @@ def apply_prop_filter(el, comp, tzify):
 def apply_text_match(el, value):
     collation = el.get('collation', 'i;ascii-casemap')
     negate_condition = el.get('negate-condition', 'no')
-    matches = davcommon.collations[collation](el.text, value)
+    matches = davcommon.get_collation(collation)(el.text, value)
 
     if negate_condition == 'yes':
         return (not matches)

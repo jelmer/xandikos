@@ -17,9 +17,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import unittest
+
 from wsgiref.util import setup_testing_defaults
 
-from xandikos import caldav
+from xandikos import caldav, davcommon
 from xandikos.webdav import Property, WebDAVApp, ET
 
 from xandikos.tests import test_webdav
@@ -70,3 +72,36 @@ class WebTests(test_webdav.WebTestCase):
         code, headers, contents = self.mkcalendar(app, '/resource/bla')
         self.assertEqual('201 Created', code)
         self.assertEqual(b'', contents)
+
+
+class ApplyTextMatchTest(unittest.TestCase):
+
+    def test_default_collation(self):
+        el = ET.Element('someel')
+        el.text = b"foobar"
+        self.assertTrue(caldav.apply_text_match(el, b"FOOBAR"))
+        self.assertTrue(caldav.apply_text_match(el, b"foobar"))
+        self.assertFalse(caldav.apply_text_match(el, b"fobar"))
+
+    def test_casecmp_collation(self):
+        el = ET.Element('someel')
+        el.set('collation', 'i;ascii-casemap')
+        el.text = b"foobar"
+        self.assertTrue(caldav.apply_text_match(el, b"FOOBAR"))
+        self.assertTrue(caldav.apply_text_match(el, b"foobar"))
+        self.assertFalse(caldav.apply_text_match(el, b"fobar"))
+
+    def test_cmp_collation(self):
+        el = ET.Element('someel')
+        el.text = b"foobar"
+        el.set('collation', 'i;octet')
+        self.assertFalse(caldav.apply_text_match(el, b"FOOBAR"))
+        self.assertTrue(caldav.apply_text_match(el, b"foobar"))
+        self.assertFalse(caldav.apply_text_match(el, b"fobar"))
+
+    def test_unknown_collation(self):
+        el = ET.Element('someel')
+        el.set('collation', 'i;blah')
+        el.text = b"foobar"
+        self.assertRaises(davcommon.UnknownCollation,
+                          caldav.apply_text_match, el, b"FOOBAR")

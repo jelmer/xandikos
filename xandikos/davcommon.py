@@ -82,8 +82,28 @@ class MultiGetReporter(webdav.Reporter):
 
 # see https://tools.ietf.org/html/rfc4790
 
+class UnknownCollation(Exception):
+
+    def __init__(self, collation):
+        super(UnknownCollation, self).__init__(
+                "Collation %r is not supported" % collation)
+        self.collation = collation
+
+
 collations = {
     'i;ascii-casemap': lambda a, b: (a.decode('ascii').upper() ==
                                      b.decode('ascii').upper()),
     'i;octet': lambda a, b: a == b,
 }
+
+
+def get_collation(name):
+    """Get a collation by name.
+
+    :param name: Collation name
+    :raises UnknownCollation: If the collation is not supported
+    """
+    try:
+        return collations[name]
+    except KeyError:
+        raise UnknownCollation(name)
