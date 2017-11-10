@@ -45,6 +45,8 @@ from xandikos.store import (
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
     STORE_TYPE_PRINCIPAL,
+    STORE_TYPE_SCHEDULE_INBOX,
+    STORE_TYPE_SCHEDULE_OUTBOX,
     STORE_TYPE_OTHER,
 )
 from xandikos.store.git import (
@@ -209,6 +211,12 @@ class StoreBasedCollection(object):
             self.store.set_type(STORE_TYPE_ADDRESSBOOK)
         elif resource_types == {webdav.PRINCIPAL_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_PRINCIPAL)
+        elif resource_types == {caldav.SCHEDULE_INBOX_RESOURCE_TYPE,
+                                webdav.COLLECTION_RESOURCE_TYPE}:
+            self.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
+        elif resource_types == {caldav.SCHEDULE_OUTBOX_RESOURCE_TYPE,
+                                webdav.COLLECTION_RESOURCE_TYPE}:
+            self.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
         elif resource_types == {webdav.COLLECTION_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_OTHER)
         else:
@@ -357,6 +365,14 @@ class StoreBasedCollection(object):
 
 class Collection(StoreBasedCollection, webdav.Collection):
     """A generic WebDAV collection."""
+
+
+class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
+    """A schedling inbox collection."""
+
+
+class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
+    """A schedling outbox collection."""
 
 
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
@@ -668,7 +684,8 @@ class Principal(webdav.Principal):
         raise KeyError
 
     def get_schedule_inbox_url(self):
-        raise KeyError
+        # TODO(jelmer): make this configurable
+        return 'inbox'
 
 
 class PrincipalBare(CollectionSetResource, Principal):
@@ -760,6 +777,8 @@ class XandikosBackend(webdav.Backend):
                     STORE_TYPE_CALENDAR: CalendarCollection,
                     STORE_TYPE_ADDRESSBOOK: AddressbookCollection,
                     STORE_TYPE_PRINCIPAL: PrincipalCollection,
+                    STORE_TYPE_SCHEDULE_INBOX: ScheduleInbox,
+                    STORE_TYPE_SCHEDULE_OUTBOX: ScheduleOutbox,
                     STORE_TYPE_OTHER: Collection
                 }[store.get_type()](self, relpath, store)
         else:
@@ -896,6 +915,16 @@ def create_principal_defaults(backend, principal):
     else:
         resource.store.set_type(STORE_TYPE_ADDRESSBOOK)
         logging.info('Create addressbook in %s.', resource.store.path)
+    calendar_path = posixpath.join(principal.relpath,
+                                   principal.get_schedule_inbox_url())
+    try:
+        resource = backend.create_collection(calendar_path)
+    except FileExistsError:
+        pass
+    else:
+        resource.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
+        logging.info('Create inbox in %s.', resource.store.path)
+
 
 
 def main(argv):
