@@ -926,7 +926,6 @@ def create_principal_defaults(backend, principal):
         logging.info('Create inbox in %s.', resource.store.path)
 
 
-
 def main(argv):
     import argparse
     import sys
