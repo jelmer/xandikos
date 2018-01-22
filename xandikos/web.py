@@ -862,6 +862,8 @@ class XandikosApp(webdav.WebDAVApp):
             apache.ExecutableProperty(),
             caldav.CalendarProxyReadForProperty(),
             caldav.CalendarProxyWriteForProperty(),
+            caldav.MaxAttachmentSizeProperty(),
+            caldav.MaxAttachmentsPerResourceProperty(),
             quota.QuotaAvailableBytesProperty(),
             quota.QuotaUsedBytesProperty(),
             webdav.RefreshRateProperty(),

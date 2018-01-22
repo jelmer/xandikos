@@ -754,6 +754,8 @@ class MaxResourceSizeProperty(webdav.Property):
 
 class MaxAttachmentsPerResourceProperty(webdav.Property):
     """max-attachments-per-resource property.
+
+    https://tools.ietf.org/id/draft-ietf-calext-caldav-attachments-03.html#rfc.section.6.3
     """
 
     name = '{%s}max-attachments-per-resource' % NAMESPACE
@@ -767,6 +769,8 @@ class MaxAttachmentsPerResourceProperty(webdav.Property):
 
 class MaxAttachmentSizeProperty(webdav.Property):
     """max-attachment-size property.
+
+    https://tools.ietf.org/id/draft-ietf-calext-caldav-attachments-03.html#rfc.section.6.2
     """
 
     name = '{%s}max-attachment-size' % NAMESPACE
