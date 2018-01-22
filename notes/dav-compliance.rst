@@ -246,6 +246,8 @@ https://github.com/apple/ccs-calendarserver/blob/master/doc/Extensions/caldav-pr
 - DAV:calendar-proxy-read-for [supported]
 - DAV:calendar-proxy-write-for [supported]
 
+- {https://calendarserver.org/ns/}refreshrate
+
 Apple-specific Properties
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 

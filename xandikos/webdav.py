@@ -575,6 +575,23 @@ class AppleGetCTagProperty(GetCTagProperty):
     name = '{http://calendarserver.org/ns/}getctag'
 
 
+class RefreshRateProperty(Property):
+    """refreshrate property.
+
+    (no public documentation, but contains an ical-style frequency indicator)
+    """
+
+    name = '{http://calendarserver.org/ns/}refreshrate'
+    resource_type = COLLECTION_RESOURCE_TYPE
+    in_allprops = False
+
+    def get_value(self, href, resource, el, environ):
+        el.text = resource.get_refreshrate()
+
+    def set_value(self, href, resource, el):
+        resource.set_refreshrate(el.text)
+
+
 LOCK_SCOPE_EXCLUSIVE = '{DAV:}exclusive'
 LOCK_SCOPE_SHARED = '{DAV:}shared'
 LOCK_TYPE_WRITE = '{DAV:}write'
@@ -824,6 +841,21 @@ class Collection(Resource):
         """Destroy this collection itself.
         """
         raise NotImplementedError(self.destroy)
+
+    def set_refreshrate(self, value):
+        """Set the recommended refresh rate for this collection.
+
+        :param value: Refresh rate (None to remove)
+        """
+        raise NotImplementedError(self.set_refreshrate)
+
+    def get_refreshrate(self):
+        """Get the recommended refresh rate.
+
+        :return: Recommended refresh rate
+        :raise KeyError: if there is no refresh rate set
+        """
+        raise NotImplementedError(self.get_refreshrate)
 
 
 class Principal(Resource):

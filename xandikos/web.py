@@ -362,6 +362,14 @@ class StoreBasedCollection(object):
         # TODO(jelmer): Ask the store?
         raise KeyError
 
+    def get_refreshrate(self):
+        # TODO(jelmer): Support setting refreshrate
+        raise KeyError
+
+    def set_refreshrate(self, value):
+        # TODO(jelmer): Store refreshrate
+        raise NotImplementedError(self.set_refreshrate)
+
 
 class Collection(StoreBasedCollection, webdav.Collection):
     """A generic WebDAV collection."""
@@ -856,6 +864,7 @@ class XandikosApp(webdav.WebDAVApp):
             caldav.CalendarProxyWriteForProperty(),
             quota.QuotaAvailableBytesProperty(),
             quota.QuotaUsedBytesProperty(),
+            webdav.RefreshRateProperty(),
         ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
