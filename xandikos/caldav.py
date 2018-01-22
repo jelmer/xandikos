@@ -139,6 +139,10 @@ class Calendar(webdav.Collection):
         """Return max attachment size."""
         raise NotImplementedError(self.get_max_attachment_size)
 
+    def get_managed_attachments_server_url(self):
+        """Return the attachments server URL."""
+        raise NotImplementedError(self.get_managed_attachments_server_url)
+
     def get_schedule_calendar_transparency(self):
         """Get calendar transparency.
 
@@ -780,6 +784,21 @@ class MaxAttachmentSizeProperty(webdav.Property):
 
     def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_attachment_size())
+
+
+class ManagedAttachmentsServerURLProperty(webdav.Property):
+    """managed-attachments-server-URL property.
+
+    https://tools.ietf.org/id/draft-ietf-calext-caldav-attachments-03.html#rfc.section.6.1
+    """
+
+    name = '{%s}managed-attachments-server-URL' % NAMESPACE
+    in_allprops = False
+
+    def get_value(self, base_href, resource, el, environ):
+        href = resource.get_managed_attachments_server_url()
+        if href is not None:
+            el.append(webdav.create_href(href, base_href))
 
 
 class CalendarProxyReadForProperty(webdav.Property):

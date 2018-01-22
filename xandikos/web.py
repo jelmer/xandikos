@@ -441,6 +441,10 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         # TODO(jelmer): Allow configuration in config
         return caldav.TRANSPARENCY_OPAQUE
 
+    def get_managed_attachments_server_url(self):
+        # TODO(jelmer)
+        raise KeyError
+
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
 
@@ -864,6 +868,7 @@ class XandikosApp(webdav.WebDAVApp):
             caldav.CalendarProxyWriteForProperty(),
             caldav.MaxAttachmentSizeProperty(),
             caldav.MaxAttachmentsPerResourceProperty(),
+            caldav.ManagedAttachmentsServerURLProperty(),
             quota.QuotaAvailableBytesProperty(),
             quota.QuotaUsedBytesProperty(),
             webdav.RefreshRateProperty(),

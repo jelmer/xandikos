@@ -246,13 +246,12 @@ https://github.com/apple/ccs-calendarserver/blob/master/doc/Extensions/caldav-pr
 - DAV:calendar-proxy-read-for [supported]
 - DAV:calendar-proxy-write-for [supported]
 
-- {https://calendarserver.org/ns/}refreshrate
-
 Apple-specific Properties
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - calendar-color [supported]
 - getctag [supported]
+- refreshrate [supported]
 
 inf-it properties
 ^^^^^^^^^^^^^^^^^
@@ -264,8 +263,11 @@ inf-it properties
 AgendaV properties
 ^^^^^^^^^^^^^^^^^^
 
-- CALDAV:max-attachments-per-resource
-- CALDAV:max-attachment-size
+https://tools.ietf.org/id/draft-ietf-calext-caldav-attachments-03.html
+
+- CALDAV:max-attachments-per-resource [supported]
+- CALDAV:max-attachment-size [supported]
+- CALDAV:managed-attachments-server-URL [supported]
 
 rfc5995.txt (POST to create members)
 ------------------------------------
