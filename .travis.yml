@@ -23,7 +23,7 @@ script:
   - make coverage-litmus LITMUS_URL=https://www.xandikos.org/litmus-0.13.tar.gz
   - mv .coverage .coverage.litmus
   - if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
-        make coverage-vdirsyncer;
+        PATH="$PATH:$HOME/.cargo/bin" make coverage-vdirsyncer;
         mv .coverage .coverage.vdirsyncer;
     fi
   - make coverage-caldavtester
