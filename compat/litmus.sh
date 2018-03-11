@@ -8,7 +8,7 @@ if [ -n "$TESTS" ]; then
 	TEST_ARG=TESTS="$TESTS"
 fi
 SRCPATH="$(dirname $(readlink -m $0))"
-VERSION=0.13
+VERSION=${LITMUS_VERSION:-0.13}
 LITMUS_URL="${LITMUS_URL:-http://www.webdav.org/neon/litmus/litmus-${VERSION}.tar.gz}"
 
 scratch=$(mktemp -d)
