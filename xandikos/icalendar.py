@@ -119,12 +119,12 @@ def describe_calendar_delta(old_cal, new_cal):
                 field.upper() == "STATUS"
             ):
                 human_readable = {
-                        "NEEDS-ACTION": "needing action",
-                        "COMPLETED": "complete"
-                        }
+                    "NEEDS-ACTION": "needing action",
+                    "COMPLETED": "complete",
+                    "CANCELLED": "cancelled"}
                 yield "%s marked as %s" % (
-                        description,
-                        human_readable.get(new_value.upper(), new_value))
+                    description,
+                    human_readable.get(new_value.upper(), new_value))
             elif field.upper() == 'DESCRIPTION':
                 yield "changed description of %s" % description
             elif field.upper() == 'SUMMARY':
