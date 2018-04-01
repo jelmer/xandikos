@@ -23,10 +23,18 @@ if [ -z "${VIRTUAL_ENV}" ]; then
     pushd ${REPO_DIR} && ${PYTHON} setup.py develop && popd
 fi
 
+if [ -z "${CARGO_HOME}" ]; then
+    export CARGO_HOME="$(readlink -f .)/cargo"
+    export RUSTUP_HOME="$(readlink -f .)/cargo"
+fi
+curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly --no-modify-path
+. ${CARGO_HOME}/env
+rustup update nightly
+
 # Add --ignore=tests/system/utils/test_main.py since it fails in travis,
 # and isn't testing anything relevant to Xandikos.
 make \
     COVERAGE=true \
     PYTEST_ARGS="${PYTEST_ARGS} tests/storage/dav/ --ignore=tests/system/utils/test_main.py" \
     DAV_SERVER=xandikos \
-    install-rust install-dev install-test test
+    install-dev install-test test
