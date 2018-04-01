@@ -32,16 +32,16 @@ from xandikos.store import File, InvalidFileContents
 _INVALID_CONTROL_CHARACTERS = ['\x0c', '\x01']
 
 
-def validate_calendar(cal):
+def validate_calendar(cal, strict=False):
     """Validate a calendar object.
 
     :param cal: Calendar object
     """
-    for error in validate_component(cal):
+    for error in validate_component(cal, strict=strict):
         yield error
 
 
-def validate_component(comp):
+def validate_component(comp, strict=False):
     """Validate a calendar component.
 
     :param comp: Calendar component
@@ -53,13 +53,14 @@ def validate_component(comp):
                 if c in value:
                     yield "Invalid character %s in field %s" % (
                         c.encode('unicode_escape'), name)
-    for required in comp.required:
-        try:
-            comp[required]
-        except KeyError:
-            yield "Missing required field %s" % required
+    if strict:
+        for required in comp.required:
+            try:
+                comp[required]
+            except KeyError:
+                yield "Missing required field %s" % required
     for subcomp in comp.subcomponents:
-        for error in validate_component(subcomp):
+        for error in validate_component(subcomp, strict=strict):
             yield error
 
 
@@ -210,7 +211,7 @@ class ICalendarFile(File):
         # TODO(jelmer): return the list of errors to the caller
         if cal.is_broken:
             raise InvalidFileContents(self.content_type, self.content)
-        if list(validate_calendar(cal)):
+        if list(validate_calendar(cal, strict=False)):
             raise InvalidFileContents(self.content_type, self.content)
 
     @property

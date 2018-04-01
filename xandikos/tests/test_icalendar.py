@@ -21,7 +21,7 @@
 
 import unittest
 
-from xandikos.icalendar import ICalendarFile
+from xandikos.icalendar import ICalendarFile, validate_calendar
 from xandikos.store import InvalidFileContents
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -80,9 +80,15 @@ class ExtractCalendarUIDTests(unittest.TestCase):
 
     def test_extract_no_uid(self):
         fi = ICalendarFile([EXAMPLE_VCALENDAR_NO_UID], 'text/calendar')
-        self.assertRaises(InvalidFileContents, fi.validate)
+        fi.validate()
+        self.assertEqual(["Missing required field UID"],
+                         list(validate_calendar(fi.calendar, strict=True)))
+        self.assertEqual([],
+                         list(validate_calendar(fi.calendar, strict=False)))
         self.assertRaises(KeyError, fi.get_uid)
 
     def test_invalid_character(self):
         fi = ICalendarFile([EXAMPLE_VCALENDAR_INVALID_CHAR], 'text/calendar')
         self.assertRaises(InvalidFileContents, fi.validate)
+        self.assertEqual(["Invalid character b'\\\\x0c' in field SUMMARY"],
+                         list(validate_calendar(fi.calendar, strict=False)))
