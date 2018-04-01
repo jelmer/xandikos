@@ -59,7 +59,7 @@ class MultiGetReporter(webdav.Reporter):
     def report(self, environ, body, resources_by_hrefs, properties, base_href,
                resource, depth):
         # TODO(jelmer): Verify that depth == "0"
-        # TODO(jelmer): Verify that resource is an addressbook
+        # TODO(jelmer): Verify that resource is an the right resource type
         requested = None
         hrefs = []
         for el in body:
