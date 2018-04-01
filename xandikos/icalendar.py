@@ -27,6 +27,10 @@ from icalendar.cal import Calendar, component_factory
 from icalendar.prop import vText
 from xandikos.store import File, InvalidFileContents
 
+# TODO(jelmer): Populate this further based on
+# https://tools.ietf.org/html/rfc5545#3.3.11
+_INVALID_CONTROL_CHARACTERS = ['\x0c', '\x01']
+
 
 def validate_calendar(cal):
     """Validate a calendar object.
@@ -45,8 +49,10 @@ def validate_component(comp):
     # Check text fields for invalid characters
     for (name, value) in comp.items():
         if isinstance(value, vText):
-            if '\x0c' in value:
-                yield "Invalid character in field %s" % name
+            for c in _INVALID_CONTROL_CHARACTERS:
+                if c in value:
+                    yield "Invalid character %s in field %s" % (
+                        c.encode('unicode_escape'), name)
     for required in comp.required:
         try:
             comp[required]
