@@ -33,12 +33,28 @@ def validate_calendar(cal):
 
     :param cal: Calendar object
     """
+    for error in validate_component(cal):
+        yield error
+
+
+def validate_component(comp):
+    """Validate a calendar component.
+
+    :param comp: Calendar component
+    """
     # Check text fields for invalid characters
-    for (name, value) in cal.property_items():
+    for (name, value) in comp.items():
         if isinstance(value, vText):
             if '\x0c' in value:
-                return False
-    return True
+                yield "Invalid character in field %s" % name
+    for required in comp.required:
+        try:
+            comp[required]
+        except KeyError:
+            yield "Missing required field %s" % required
+    for subcomp in comp.subcomponents:
+        for error in validate_component(subcomp):
+            yield error
 
 
 def calendar_component_delta(old_cal, new_cal):
@@ -185,9 +201,10 @@ class ICalendarFile(File):
     def validate(self):
         """Verify that file contents are valid."""
         cal = self.calendar
+        # TODO(jelmer): return the list of errors to the caller
         if cal.is_broken:
             raise InvalidFileContents(self.content_type, self.content)
-        if not validate_calendar(cal):
+        if list(validate_calendar(cal)):
             raise InvalidFileContents(self.content_type, self.content)
 
     @property

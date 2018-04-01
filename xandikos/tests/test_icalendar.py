@@ -72,12 +72,15 @@ END:VCALENDAR
 class ExtractCalendarUIDTests(unittest.TestCase):
 
     def test_extract_str(self):
+        fi = ICalendarFile([EXAMPLE_VCALENDAR1], 'text/calendar')
         self.assertEqual(
             'bdc22720-b9e1-42c9-89c2-a85405d8fbff',
-            ICalendarFile([EXAMPLE_VCALENDAR1], 'text/calendar').get_uid())
+            fi.get_uid())
+        fi.validate()
 
     def test_extract_no_uid(self):
         fi = ICalendarFile([EXAMPLE_VCALENDAR_NO_UID], 'text/calendar')
+        self.assertRaises(InvalidFileContents, fi.validate)
         self.assertRaises(KeyError, fi.get_uid)
 
     def test_invalid_character(self):
