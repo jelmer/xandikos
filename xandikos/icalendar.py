@@ -118,7 +118,13 @@ def describe_calendar_delta(old_cal, new_cal):
                 old_component.name.upper() == "VTODO" and
                 field.upper() == "STATUS"
             ):
-                yield "%s marked as %s" % (description, new_value)
+                human_readable = {
+                        "NEEDS-ACTION": "needing action",
+                        "COMPLETED": "complete"
+                        }
+                yield "%s marked as %s" % (
+                        description,
+                        human_readable.get(new_value.upper(), new_value))
             elif field.upper() == 'DESCRIPTION':
                 yield "changed description of %s" % description
             elif field.upper() == 'SUMMARY':
@@ -134,6 +140,18 @@ def describe_calendar_delta(old_cal, new_cal):
                 yield "changed due date for %s from %s to %s" % (
                     description, old_value.dt if old_value else 'none',
                     new_value.dt if new_value else 'none')
+            elif field.upper() == 'DTSTART':
+                yield "changed start date/time of %s from %s to %s" % (
+                    description, old_value.dt if old_value else 'none',
+                    new_value.dt if new_value else 'none')
+            elif field.upper() == 'DTEND':
+                yield "changed end date/time of %s from %s to %s" % (
+                    description, old_value.dt if old_value else 'none',
+                    new_value.dt if new_value else 'none')
+            elif field.upper() == 'CLASS':
+                yield "changed class of %s from %s to %s" % (
+                    description, old_value.lower() if old_value else 'none',
+                    new_value.lower() if new_value else 'none')
             else:
                 yield "modified field %s in %s" % (field, description)
                 logging.debug("Changed %s/%s or %s/%s from %s to %s.",
