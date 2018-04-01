@@ -24,7 +24,21 @@
 import logging
 
 from icalendar.cal import Calendar, component_factory
+from icalendar.prop import vText
 from xandikos.store import File, InvalidFileContents
+
+
+def validate_calendar(cal):
+    """Validate a calendar object.
+
+    :param cal: Calendar object
+    """
+    # Check text fields for invalid characters
+    for (name, value) in cal.property_items():
+        if isinstance(value, vText):
+            if '\x0c' in value:
+                return False
+    return True
 
 
 def calendar_component_delta(old_cal, new_cal):
@@ -170,7 +184,11 @@ class ICalendarFile(File):
 
     def validate(self):
         """Verify that file contents are valid."""
-        self.calendar
+        cal = self.calendar
+        if cal.is_broken:
+            raise InvalidFileContents(self.content_type, self.content)
+        if not validate_calendar(cal):
+            raise InvalidFileContents(self.content_type, self.content)
 
     @property
     def calendar(self):

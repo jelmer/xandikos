@@ -250,6 +250,7 @@ class CalendarDataProperty(davcommon.SubbedProperty):
             extract_from_calendar(calendar, c, requested)
             serialized_cal = c.to_ical()
         # TODO(jelmer): Don't hardcode encoding
+        # TODO(jelmer): Strip invalid characters or raise an exception
         el.text = serialized_cal.decode('utf-8')
 
 

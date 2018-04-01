@@ -22,6 +22,7 @@
 import unittest
 
 from xandikos.icalendar import ICalendarFile
+from xandikos.store import InvalidFileContents
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -52,6 +53,21 @@ END:VTODO
 END:VCALENDAR
 """
 
+EXAMPLE_VCALENDAR_INVALID_CHAR = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN
+BEGIN:VTODO
+CREATED:20150314T223512Z
+DTSTAMP:20150527T221952Z
+LAST-MODIFIED:20150314T223512Z
+STATUS:NEEDS-ACTION
+SUMMARY:do something
+ID:bdc22720-b9e1-42c9-89c2-a85405d8fbff
+END:VTODO
+END:VCALENDAR
+"""
+
 
 class ExtractCalendarUIDTests(unittest.TestCase):
 
@@ -63,3 +79,7 @@ class ExtractCalendarUIDTests(unittest.TestCase):
     def test_extract_no_uid(self):
         fi = ICalendarFile([EXAMPLE_VCALENDAR_NO_UID], 'text/calendar')
         self.assertRaises(KeyError, fi.get_uid)
+
+    def test_invalid_character(self):
+        fi = ICalendarFile([EXAMPLE_VCALENDAR_INVALID_CHAR], 'text/calendar')
+        self.assertRaises(InvalidFileContents, fi.validate)
