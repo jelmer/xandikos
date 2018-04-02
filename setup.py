@@ -20,19 +20,26 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from setuptools import setup
+from setuptools import find_packages, setup
+import sys
 
-version = "0.0.6"
+version = "0.0.7"
+
+if sys.platform != 'win32':
+    # Win32 setup breaks on non-ascii characters
+    author = "Jelmer Vernooĳ"
+else:
+    author = "Jelmer Vernooij"
 
 setup(name="xandikos",
       description="Lightweight CalDAV/CardDAV server",
       version=version,
-      author="Jelmer Vernooĳ",
+      author=author,
       author_email="jelmer@jelmer.uk",
       license="GNU GPLv3 or later",
       url="https://www.xandikos.org/",
       install_requires=['icalendar', 'dulwich', 'defusedxml', 'jinja2'],
-      packages=['xandikos', 'xandikos.tests'],
+      packages=find_packages(),
       package_data={'xandikos': ['templates/*.html']},
       scripts=['bin/xandikos'],
       test_suite='xandikos.tests.test_suite',

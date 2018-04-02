@@ -17,31 +17,32 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Apache.org mod_dav custom properties.
+import shutil
+import tempfile
+import unittest
 
-See http://www.webdav.org/mod_dav/
-"""
-from xandikos import webdav
+from xandikos.web import (
+    XandikosApp,
+    XandikosBackend,
+    WellknownRedirector,
+)
 
 
-class ExecutableProperty(webdav.Property):
-    """executable property
+class WebTests(unittest.TestCase):
 
-    Equivalent of the 'x' bit on POSIX.
-    """
+    # When changing this API, please update notes/api-stability.rst and inform
+    # vdirsyncer, who rely on this API.
 
-    name = '{http://apache.org/dav/props/}executable'
-    resource_type = None
-    live = False
+    def test_backend(self):
+        path = tempfile.mkdtemp()
+        try:
+            backend = XandikosBackend(path)
+            backend.create_principal('foo', create_defaults=True)
+            XandikosApp(backend, 'foo')
+        finally:
+            shutil.rmtree(path)
 
-    def get_value(self, href, resource, el, environ):
-        el.text = ('T' if resource.get_is_executable() else 'F')
-
-    def set_value(self, href, resource, el):
-        if el.text == 'T':
-            resource.set_is_executable(True)
-        elif el.text == 'F':
-            resource.set_is_executable(False)
-        else:
-            raise ValueError(
-                'invalid executable setting %r' % el.text)
+    def test_wellknownredirector(self):
+        def app(environ, start_response):
+            pass
+        WellknownRedirector(app, '/path')

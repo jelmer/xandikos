@@ -1,0 +1,6 @@
+# This an example .xandikos file.
+
+# The color for this collection is red
+color = FF0000
+
+inbox-url = inbox/

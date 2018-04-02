@@ -50,8 +50,7 @@ class WebTestCase(unittest.TestCase):
 class WebTests(WebTestCase):
 
     def _method(self, app, method, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': method,
-                   'SCRIPT_NAME': ''}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': method}
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -66,8 +65,7 @@ class WebTests(WebTestCase):
         return self._method(app, 'LOCK', path)
 
     def mkcol(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL',
-                   'SCRIPT_NAME': ''}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL'}
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -79,8 +77,7 @@ class WebTests(WebTestCase):
         return _code[0], _headers, contents
 
     def delete(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'DELETE',
-                   'SCRIPT_NAME': ''}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'DELETE'}
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -92,8 +89,7 @@ class WebTests(WebTestCase):
         return _code[0], _headers, contents
 
     def get(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'GET',
-                   'SCRIPT_NAME': ''}
+        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'GET'}
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -109,7 +105,6 @@ class WebTests(WebTestCase):
             'PATH_INFO': path,
             'REQUEST_METHOD': 'PUT',
             'wsgi.input': BytesIO(contents),
-            'SCRIPT_NAME': ''
         }
         setup_testing_defaults(environ)
         _code = []
@@ -126,7 +121,6 @@ class WebTests(WebTestCase):
             'PATH_INFO': path,
             'REQUEST_METHOD': 'PROPFIND',
             'wsgi.input': BytesIO(body),
-            'SCRIPT_NAME': ''
         }
         setup_testing_defaults(environ)
         _code = []
@@ -249,7 +243,7 @@ class WebTests(WebTestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, ret):
+            def get_value(self, href, resource, ret, environ):
                 raise KeyError
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -267,7 +261,7 @@ class WebTests(WebTestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, ret):
+            def get_value(self, href, resource, ret, environ):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -287,13 +281,13 @@ class WebTests(WebTestCase):
         class TestProperty1(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, el):
+            def get_value(self, href, resource, el, environ):
                 ET.SubElement(el, '{DAV:}href').text = '/user/'
 
         class TestProperty2(Property):
             name = '{DAV:}somethingelse'
 
-            def get_value(self, href, resource, el):
+            def get_value(self, href, resource, el, environ):
                 pass
         app = self.makeApp(
             {'/resource': Resource()},
@@ -317,7 +311,7 @@ class WebTests(WebTestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, ret):
+            def get_value(self, href, resource, ret, environ):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\

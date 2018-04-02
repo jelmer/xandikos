@@ -190,8 +190,8 @@ DAV Reports
 - CARDDAV:addressbook-query [supported]
 - CARDDAV:addressbook-multiget [supported]
 
-rfc6638.txt (CardDAV scheduling extensions)
--------------------------------------------
+rfc6638.txt (CalDAV scheduling extensions)
+------------------------------------------
 
 DAV Properties
 ^^^^^^^^^^^^^^
@@ -200,6 +200,9 @@ DAV Properties
 - CALDAV:schedule-inbox-URL [supported]
 - CALDAV:calendar-user-address-set [supported]
 - CALDAV:calendar-user-type [supported]
+- CALDAV:schedule-calendar-transp [supported]
+- CALDAV:schedule-default-calendar-URL [supported]
+- CALDAV:schedule-tag [not supported]
 
 rfc6764.txt (Locating groupware services)
 -----------------------------------------
@@ -248,6 +251,7 @@ Apple-specific Properties
 
 - calendar-color [supported]
 - getctag [supported]
+- refreshrate [supported]
 
 inf-it properties
 ^^^^^^^^^^^^^^^^^
@@ -255,6 +259,15 @@ inf-it properties
 - headervalue [supported]
 - settings [supported]
 - addressbook-color [supported]
+
+AgendaV properties
+^^^^^^^^^^^^^^^^^^
+
+https://tools.ietf.org/id/draft-ietf-calext-caldav-attachments-03.html
+
+- CALDAV:max-attachments-per-resource [supported]
+- CALDAV:max-attachment-size [supported]
+- CALDAV:managed-attachments-server-URL [supported]
 
 rfc5995.txt (POST to create members)
 ------------------------------------

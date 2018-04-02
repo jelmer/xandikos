@@ -60,6 +60,22 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `CalDAV-Sync <https://dmfs.org/caldav/>`_
 - `CardDAV-Sync <https://dmfs.org/carddav/>`_
 - `Calendarsync <https://play.google.com/store/apps/details?id=com.icalparse>`_
+- `Tasks <https://github.com/tasks/tasks/tree/caldav>`_
+- `AgendaV <http://agendav.org/>`_
+
+Client instructions
+===================
+
+Some clients can automatically discover the calendar and addressbook URLs from
+a DAV server. For such clients you can simply provide the URL to Xandikos directly.
+
+Clients that lack such automated discovery require the direct URL to a calendar
+or addressbook. One such client is Thunderbird lightning in which case you
+should provide a URL similar to the following:
+
+::
+
+  http://dav.example.com/user/calendars/my_calendar
 
 Dependencies
 ============

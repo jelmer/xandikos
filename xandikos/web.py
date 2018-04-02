@@ -39,17 +39,22 @@ from xandikos import (access, apache, caldav, carddav, quota, sync, webdav,
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     DuplicateUidError,
-    TreeGitStore,
-    GitStore,
     InvalidFileContents,
     NoSuchItem,
     NotStoreError,
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
     STORE_TYPE_PRINCIPAL,
+    STORE_TYPE_SCHEDULE_INBOX,
+    STORE_TYPE_SCHEDULE_OUTBOX,
     STORE_TYPE_OTHER,
 )
+from xandikos.store.git import (
+    GitStore,
+    TreeGitStore,
+)
 from xandikos.vcard import VCardFile
+
 
 WELLKNOWN_DAV_PATHS = {caldav.WELLKNOWN_CALDAV_PATH,
                        carddav.WELLKNOWN_CARDDAV_PATH}
@@ -206,6 +211,12 @@ class StoreBasedCollection(object):
             self.store.set_type(STORE_TYPE_ADDRESSBOOK)
         elif resource_types == {webdav.PRINCIPAL_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_PRINCIPAL)
+        elif resource_types == {caldav.SCHEDULE_INBOX_RESOURCE_TYPE,
+                                webdav.COLLECTION_RESOURCE_TYPE}:
+            self.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
+        elif resource_types == {caldav.SCHEDULE_OUTBOX_RESOURCE_TYPE,
+                                webdav.COLLECTION_RESOURCE_TYPE}:
+            self.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
         elif resource_types == {webdav.COLLECTION_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_OTHER)
         else:
@@ -351,9 +362,25 @@ class StoreBasedCollection(object):
         # TODO(jelmer): Ask the store?
         raise KeyError
 
+    def get_refreshrate(self):
+        # TODO(jelmer): Support setting refreshrate
+        raise KeyError
+
+    def set_refreshrate(self, value):
+        # TODO(jelmer): Store refreshrate
+        raise NotImplementedError(self.set_refreshrate)
+
 
 class Collection(StoreBasedCollection, webdav.Collection):
     """A generic WebDAV collection."""
+
+
+class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
+    """A schedling inbox collection."""
+
+
+class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
+    """A schedling outbox collection."""
 
 
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
@@ -398,10 +425,24 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def get_max_attendees_per_instance(self):
         raise KeyError
 
-    def get_schedule_outbox_url(self):
+    def get_max_resource_size(self):
+        # No resource limit
         raise KeyError
 
-    def get_schedule_inbox_url(self):
+    def get_max_attachments_per_resource(self):
+        # No resource limit
+        raise KeyError
+
+    def get_max_attachment_size(self):
+        # No resource limit
+        raise KeyError
+
+    def get_schedule_calendar_transparency(self):
+        # TODO(jelmer): Allow configuration in config
+        return caldav.TRANSPARENCY_OPAQUE
+
+    def get_managed_attachments_server_url(self):
+        # TODO(jelmer)
         raise KeyError
 
 
@@ -648,6 +689,16 @@ class Principal(webdav.Principal):
         # TODO(jelmer)
         return []
 
+    def get_owner(self):
+        return None
+
+    def get_schedule_outbox_url(self):
+        raise KeyError
+
+    def get_schedule_inbox_url(self):
+        # TODO(jelmer): make this configurable
+        return 'inbox'
+
 
 class PrincipalBare(CollectionSetResource, Principal):
     """Principal user resource."""
@@ -738,6 +789,8 @@ class XandikosBackend(webdav.Backend):
                     STORE_TYPE_CALENDAR: CalendarCollection,
                     STORE_TYPE_ADDRESSBOOK: AddressbookCollection,
                     STORE_TYPE_PRINCIPAL: PrincipalCollection,
+                    STORE_TYPE_SCHEDULE_INBOX: ScheduleInbox,
+                    STORE_TYPE_SCHEDULE_OUTBOX: ScheduleOutbox,
                     STORE_TYPE_OTHER: Collection
                 }[store.get_type()](self, relpath, store)
         else:
@@ -758,12 +811,12 @@ class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server.
     """
 
-    def __init__(self, backend, current_user_principal_href):
+    def __init__(self, backend, current_user_principal):
         super(XandikosApp, self).__init__(backend)
         self.register_properties([
             webdav.ResourceTypeProperty(),
             webdav.CurrentUserPrincipalProperty(
-                current_user_principal_href),
+                current_user_principal),
             webdav.PrincipalURLProperty(),
             webdav.DisplayNameProperty(),
             webdav.GetETagProperty(),
@@ -786,6 +839,7 @@ class XandikosApp(webdav.WebDAVApp):
             caldav.CalendarTimezoneProperty(),
             caldav.MinDateTimeProperty(),
             caldav.MaxDateTimeProperty(),
+            caldav.MaxResourceSizeProperty(),
             carddav.MaxResourceSizeProperty(),
             carddav.MaxImageSizeProperty(),
             access.CurrentUserPrivilegeSetProperty(),
@@ -804,14 +858,20 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.GetLastModifiedProperty(),
             timezones.TimezoneServiceSetProperty([]),
             webdav.AddMemberProperty(),
+            caldav.ScheduleCalendarTransparencyProperty(),
+            scheduling.ScheduleDefaultCalendarURLProperty(),
             caldav.MaxInstancesProperty(),
             caldav.MaxAttendeesPerInstanceProperty(),
             access.GroupMembershipProperty(),
             apache.ExecutableProperty(),
             caldav.CalendarProxyReadForProperty(),
             caldav.CalendarProxyWriteForProperty(),
+            caldav.MaxAttachmentSizeProperty(),
+            caldav.MaxAttachmentsPerResourceProperty(),
+            caldav.ManagedAttachmentsServerURLProperty(),
             quota.QuotaAvailableBytesProperty(),
             quota.QuotaUsedBytesProperty(),
+            webdav.RefreshRateProperty(),
         ])
         self.register_reporters([
             caldav.CalendarMultiGetReporter(),
@@ -871,6 +931,15 @@ def create_principal_defaults(backend, principal):
     else:
         resource.store.set_type(STORE_TYPE_ADDRESSBOOK)
         logging.info('Create addressbook in %s.', resource.store.path)
+    calendar_path = posixpath.join(principal.relpath,
+                                   principal.get_schedule_inbox_url())
+    try:
+        resource = backend.create_collection(calendar_path)
+    except FileExistsError:
+        pass
+    else:
+        resource.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
+        logging.info('Create inbox in %s.', resource.store.path)
 
 
 def main(argv):
@@ -911,11 +980,19 @@ def main(argv):
         "--defaults", action="store_true", dest="defaults",
         help=("Create initial calendar and address book. "
               "Implies --autocreate."))
+    parser.add_argument(
+        "--dump-dav-xml", action="store_true", dest="dump_dav_xml",
+        help="Print DAV XML request/responses.")
     options = parser.parse_args(argv[1:])
 
     if options.directory is None:
         parser.print_usage()
         sys.exit(1)
+
+    if options.dump_dav_xml:
+        # TODO(jelmer): Find a way to propagate this without abusing
+        # os.environ.
+        os.environ["XANDIKOS_DUMP_DAV_XML"] = "1"
 
     logging.basicConfig(level=logging.INFO)
 
@@ -939,13 +1016,9 @@ def main(argv):
             'Run xandikos with --autocreate?',
             options.current_user_principal)
 
-    current_user_principal_href = posixpath.join(
-        options.route_prefix,
-        options.current_user_principal.lstrip('/'))
-
     app = XandikosApp(
         backend,
-        current_user_principal_href=current_user_principal_href)
+        current_user_principal=options.current_user_principal)
 
     from wsgiref.simple_server import make_server
     app = WellknownRedirector(app, options.route_prefix)
