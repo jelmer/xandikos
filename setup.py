@@ -23,7 +23,7 @@
 from setuptools import find_packages, setup
 import sys
 
-version = "0.0.6"
+version = "0.0.7"
 
 if sys.platform != 'win32':
     # Win32 setup breaks on non-ascii characters
