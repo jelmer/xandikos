@@ -29,8 +29,9 @@ from dulwich.repo import Repo
 
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
-    GitStore, BareGitStore, TreeGitStore, DuplicateUidError,
-    File, InvalidETag, NoSuchItem)
+    DuplicateUidError, File, InvalidETag, NoSuchItem)
+from xandikos.store.git import (
+    GitStore, BareGitStore, TreeGitStore)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR

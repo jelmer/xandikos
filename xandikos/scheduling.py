@@ -26,6 +26,7 @@ from xandikos import caldav, webdav
 
 
 SCHEDULE_INBOX_RESOURCE_TYPE = '{%s}schedule-inbox' % caldav.NAMESPACE
+SCHEDULE_OUTBOX_RESOURCE_TYPE = '{%s}schedule-outbox' % caldav.NAMESPACE
 
 # Feature to advertise to indicate scheduling support.
 FEATURE = 'calendar-auto-schedule'
@@ -44,20 +45,114 @@ CALENDAR_USER_TYPES = (
     CALENDAR_USER_TYPE_UNKNOWN)
 
 
-class ScheduleInbox(caldav.Calendar):
+class ScheduleInbox(webdav.Collection):
 
-    resource_types = (caldav.Calendar.resource_types +
+    resource_types = (webdav.Collection.resource_types +
                       [SCHEDULE_INBOX_RESOURCE_TYPE])
-
-    def get_schedule_inbox_url(self):
-        raise NotImplementedError(self.get_schedule_inbox_url)
-
-    def get_schedule_outbox_url(self):
-        raise NotImplementedError(self.get_schedule_outbox_url)
 
     def get_calendar_user_type(self):
         # Default, per section 2.4.2
         return CALENDAR_USER_TYPE_INDIVIDUAL
+
+    def get_calendar_timezone(self):
+        """Return calendar timezone.
+
+        This should be an iCalendar object with exactly one
+        VTIMEZONE component.
+        """
+        raise NotImplementedError(self.get_calendar_timezone)
+
+    def set_calendar_timezone(self):
+        """Set calendar timezone.
+
+        This should be an iCalendar object with exactly one
+        VTIMEZONE component.
+        """
+        raise NotImplementedError(self.set_calendar_timezone)
+
+    def get_supported_calendar_components(self):
+        """Return set of supported calendar components in this calendar.
+
+        :return: iterable over component names
+        """
+        raise NotImplementedError(self.get_supported_calendar_components)
+
+    def get_supported_calendar_data_types(self):
+        """Return supported calendar data types.
+
+        :return: iterable over (content_type, version) tuples
+        """
+        raise NotImplementedError(self.get_supported_calendar_data_types)
+
+    def get_min_date_time(self):
+        """Return minimum datetime property.
+        """
+        raise NotImplementedError(self.get_min_date_time)
+
+    def get_max_date_time(self):
+        """Return maximum datetime property.
+        """
+        raise NotImplementedError(self.get_max_date_time)
+
+    def get_max_instances(self):
+        """Return maximum number of instances.
+        """
+        raise NotImplementedError(self.get_max_instances)
+
+    def get_max_attendees_per_instance(self):
+        """Return maximum number of attendees per instance.
+        """
+        raise NotImplementedError(self.get_max_attendees_per_instance)
+
+    def get_max_resource_size(self):
+        """Return max resource size."""
+        raise NotImplementedError(self.get_max_resource_size)
+
+    def get_schedule_default_calendar_url(self):
+        """Return default calendar URL.
+
+        None indicates there is no default URL.
+        """
+        return None
+
+
+class ScheduleOutbox(webdav.Collection):
+
+    resource_types = (webdav.Collection.resource_types +
+                      [SCHEDULE_OUTBOX_RESOURCE_TYPE])
+
+    def get_supported_calendar_components(self):
+        """Return set of supported calendar components in this calendar.
+
+        :return: iterable over component names
+        """
+        raise NotImplementedError(self.get_supported_calendar_components)
+
+    def get_supported_calendar_data_types(self):
+        """Return supported calendar data types.
+
+        :return: iterable over (content_type, version) tuples
+        """
+        raise NotImplementedError(self.get_supported_calendar_data_types)
+
+    def get_max_resource_size(self):
+        """Return max resource size."""
+        raise NotImplementedError(self.get_max_resource_size)
+
+    def get_min_date_time(self):
+        """Return minimum datetime property.
+        """
+        raise NotImplementedError(self.get_min_date_time)
+
+    def get_max_date_time(self):
+        """Return maximum datetime property.
+        """
+        raise NotImplementedError(self.get_max_date_time)
+
+    def get_max_attendees_per_instance(self):
+        """Return maximum number of attendees per instance.
+        """
+        raise NotImplementedError(self.get_max_attendees_per_instance)
 
 
 class ScheduleInboxURLProperty(webdav.Property):
@@ -67,10 +162,10 @@ class ScheduleInboxURLProperty(webdav.Property):
     """
 
     name = '{%s}schedule-inbox-URL' % caldav.NAMESPACE
-    resource_type = caldav.CALENDAR_RESOURCE_TYPE
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.append(webdav.create_href(resource.get_schedule_inbox_url(), href))
 
 
@@ -81,10 +176,10 @@ class ScheduleOutboxURLProperty(webdav.Property):
     """
 
     name = '{%s}schedule-outbox-URL' % caldav.NAMESPACE
-    resource_type = caldav.CALENDAR_RESOURCE_TYPE
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.append(webdav.create_href(resource.get_schedule_outbox_url(), href))
 
 
@@ -98,7 +193,7 @@ class CalendarUserAddressSetProperty(webdav.Property):
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, base_href, resource, el):
+    def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_user_address_set():
             el.append(webdav.create_href(href, base_href))
 
@@ -109,9 +204,25 @@ class CalendarUserTypeProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6638, section 2.4.2
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-user-type'
+    name = '{%s}calendar-user-type' % caldav.NAMESPACE
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_calendar_user_type()
+
+
+class ScheduleDefaultCalendarURLProperty(webdav.Property):
+    """schedule-default-calendar-URL property.
+
+    See https://tools.ietf.org/html/rfc6638, section-9.2
+    """
+
+    name = '{%s}schedule-default-calendar-URL' % caldav.NAMESPACE
+    resource_types = SCHEDULE_INBOX_RESOURCE_TYPE
+    in_allprops = True
+
+    def get_value(self, href, resource, el, environ):
+        url = resource.get_schedule_default_calendar_url()
+        if url is not None:
+            el.append(webdav.create_href(url, href))

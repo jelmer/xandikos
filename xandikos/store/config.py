@@ -17,31 +17,35 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Apache.org mod_dav custom properties.
-
-See http://www.webdav.org/mod_dav/
+"""Collection configuration file.
 """
-from xandikos import webdav
+
+import configparser
+
+FILENAME = '.xandikos'
 
 
-class ExecutableProperty(webdav.Property):
-    """executable property
+class CollectionConfig(object):
 
-    Equivalent of the 'x' bit on POSIX.
-    """
+    def __init__(self, cp=None):
+        if cp is None:
+            cp = configparser.ConfigParser()
+        self._configparser = cp
 
-    name = '{http://apache.org/dav/props/}executable'
-    resource_type = None
-    live = False
+    @classmethod
+    def from_file(cls, f):
+        cp = configparser.ConfigParser()
+        cp.read_file(f)
+        return CollectionConfig(cp)
 
-    def get_value(self, href, resource, el, environ):
-        el.text = ('T' if resource.get_is_executable() else 'F')
+    def get_color(self):
+        return self._configparser['DEFAULT']['color']
 
-    def set_value(self, href, resource, el):
-        if el.text == 'T':
-            resource.set_is_executable(True)
-        elif el.text == 'F':
-            resource.set_is_executable(False)
-        else:
-            raise ValueError(
-                'invalid executable setting %r' % el.text)
+    def get_comment(self):
+        return self._configparser['DEFAULT']['comment']
+
+    def get_displayname(self):
+        return self._configparser['DEFAULT']['displayname']
+
+    def get_description(self):
+        return self._configparser['DEFAULT']['description']

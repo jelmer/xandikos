@@ -24,7 +24,44 @@
 import logging
 
 from icalendar.cal import Calendar, component_factory
+from icalendar.prop import vText
 from xandikos.store import File, InvalidFileContents
+
+# TODO(jelmer): Populate this further based on
+# https://tools.ietf.org/html/rfc5545#3.3.11
+_INVALID_CONTROL_CHARACTERS = ['\x0c', '\x01']
+
+
+def validate_calendar(cal, strict=False):
+    """Validate a calendar object.
+
+    :param cal: Calendar object
+    """
+    for error in validate_component(cal, strict=strict):
+        yield error
+
+
+def validate_component(comp, strict=False):
+    """Validate a calendar component.
+
+    :param comp: Calendar component
+    """
+    # Check text fields for invalid characters
+    for (name, value) in comp.items():
+        if isinstance(value, vText):
+            for c in _INVALID_CONTROL_CHARACTERS:
+                if c in value:
+                    yield "Invalid character %s in field %s" % (
+                        c.encode('unicode_escape'), name)
+    if strict:
+        for required in comp.required:
+            try:
+                comp[required]
+            except KeyError:
+                yield "Missing required field %s" % required
+    for subcomp in comp.subcomponents:
+        for error in validate_component(subcomp, strict=strict):
+            yield error
 
 
 def calendar_component_delta(old_cal, new_cal):
@@ -118,7 +155,13 @@ def describe_calendar_delta(old_cal, new_cal):
                 old_component.name.upper() == "VTODO" and
                 field.upper() == "STATUS"
             ):
-                yield "%s marked as %s" % (description, new_value)
+                human_readable = {
+                    "NEEDS-ACTION": "needing action",
+                    "COMPLETED": "complete",
+                    "CANCELLED": "cancelled"}
+                yield "%s marked as %s" % (
+                    description,
+                    human_readable.get(new_value.upper(), new_value))
             elif field.upper() == 'DESCRIPTION':
                 yield "changed description of %s" % description
             elif field.upper() == 'SUMMARY':
@@ -126,13 +169,26 @@ def describe_calendar_delta(old_cal, new_cal):
             elif field.upper() == 'LOCATION':
                 yield "changed location of %s to %s" % (description, new_value)
             elif (old_component.name.upper() == "VTODO" and
-                  field.upper() == "PERCENT-COMPLETE"):
+                  field.upper() == "PERCENT-COMPLETE" and
+                  new_value is not None):
                 yield "%s marked as %d%% completed." % (
                     description, new_value)
             elif field.upper() == 'DUE':
                 yield "changed due date for %s from %s to %s" % (
                     description, old_value.dt if old_value else 'none',
                     new_value.dt if new_value else 'none')
+            elif field.upper() == 'DTSTART':
+                yield "changed start date/time of %s from %s to %s" % (
+                    description, old_value.dt if old_value else 'none',
+                    new_value.dt if new_value else 'none')
+            elif field.upper() == 'DTEND':
+                yield "changed end date/time of %s from %s to %s" % (
+                    description, old_value.dt if old_value else 'none',
+                    new_value.dt if new_value else 'none')
+            elif field.upper() == 'CLASS':
+                yield "changed class of %s from %s to %s" % (
+                    description, old_value.lower() if old_value else 'none',
+                    new_value.lower() if new_value else 'none')
             else:
                 yield "modified field %s in %s" % (field, description)
                 logging.debug("Changed %s/%s or %s/%s from %s to %s.",
@@ -151,7 +207,12 @@ class ICalendarFile(File):
 
     def validate(self):
         """Verify that file contents are valid."""
-        self.calendar
+        cal = self.calendar
+        # TODO(jelmer): return the list of errors to the caller
+        if cal.is_broken:
+            raise InvalidFileContents(self.content_type, self.content)
+        if list(validate_calendar(cal, strict=False)):
+            raise InvalidFileContents(self.content_type, self.content)
 
     @property
     def calendar(self):

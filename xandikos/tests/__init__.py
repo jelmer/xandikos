@@ -22,7 +22,9 @@ import unittest
 
 def test_suite():
     names = [
+        'api',
         'caldav',
+        'collectionconfig',
         'icalendar',
         'store',
         'webdav',

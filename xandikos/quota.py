@@ -24,6 +24,9 @@ See https://tools.ietf.org/html/rfc4331
 from xandikos import webdav
 
 
+FEATURE = 'quota'
+
+
 class QuotaAvailableBytesProperty(webdav.Property):
     """quota-available-bytes
     """
@@ -33,7 +36,7 @@ class QuotaAvailableBytesProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_quota_available_bytes()
 
 
@@ -46,5 +49,5 @@ class QuotaUsedBytesProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el):
+    def get_value(self, href, resource, el, environ):
         el.text = resource.get_quota_used_bytes()

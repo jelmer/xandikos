@@ -27,22 +27,24 @@ ET = webdav.ET
 class SubbedProperty(webdav.Property):
     """Property with sub-components that can be queried."""
 
-    def get_value_ext(self, href, resource, el, requested):
+    def get_value_ext(self, href, resource, el, environ, requested):
         """Get the value of a data property.
 
         :param href: Resource href
         :param resource: Resource to get value for
         :param el: Element to fill in
+        :param environ: WSGI environ dict
         :param requested: Requested property (including subelements)
         """
         raise NotImplementedError(self.get_value_ext)
 
 
 def get_properties_with_data(data_property, href, resource, properties,
-                             requested):
+                             environ, requested):
     properties = dict(properties)
     properties[data_property.name] = data_property
-    return webdav.get_properties(href, resource, properties, requested)
+    return webdav.get_properties(
+        href, resource, properties, environ, requested)
 
 
 class MultiGetReporter(webdav.Reporter):
@@ -57,7 +59,7 @@ class MultiGetReporter(webdav.Reporter):
     def report(self, environ, body, resources_by_hrefs, properties, base_href,
                resource, depth):
         # TODO(jelmer): Verify that depth == "0"
-        # TODO(jelmer): Verify that resource is an addressbook
+        # TODO(jelmer): Verify that resource is an the right resource type
         requested = None
         hrefs = []
         for el in body:
@@ -73,14 +75,35 @@ class MultiGetReporter(webdav.Reporter):
                 yield webdav.Status(href, '404 Not Found', propstat=[])
             else:
                 propstat = get_properties_with_data(
-                    self.data_property, href, resource, properties, requested)
+                    self.data_property, href, resource, properties, environ,
+                    requested)
                 yield webdav.Status(href, '200 OK', propstat=list(propstat))
 
 
 # see https://tools.ietf.org/html/rfc4790
+
+class UnknownCollation(Exception):
+
+    def __init__(self, collation):
+        super(UnknownCollation, self).__init__(
+            "Collation %r is not supported" % collation)
+        self.collation = collation
+
 
 collations = {
     'i;ascii-casemap': lambda a, b: (a.decode('ascii').upper() ==
                                      b.decode('ascii').upper()),
     'i;octet': lambda a, b: a == b,
 }
+
+
+def get_collation(name):
+    """Get a collation by name.
+
+    :param name: Collation name
+    :raises UnknownCollation: If the collation is not supported
+    """
+    try:
+        return collations[name]
+    except KeyError:
+        raise UnknownCollation(name)
