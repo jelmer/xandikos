@@ -3,6 +3,7 @@ xandikos (0.0.7-1) UNRELEASED; urgency=medium
   * Fix greek name of package in description. Thanks, Roland Hieber.
     Closes: #880012
   * New upstream release.
+  * debian/copyright: Fix ordering of paragraphs.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 02 Apr 2018 13:29:18 +0100
 
