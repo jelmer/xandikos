@@ -1,4 +1,4 @@
-xandikos (0.0.7-1) UNRELEASED; urgency=medium
+xandikos (0.0.7-1) unstable; urgency=medium
 
   * Fix greek name of package in description. Thanks, Roland Hieber.
     Closes: #880012
