@@ -23,7 +23,7 @@
 from setuptools import find_packages, setup
 import sys
 
-version = "0.0.8"
+version = "0.0.9"
 
 if sys.platform != 'win32':
     # Win32 setup breaks on non-ascii characters
@@ -38,7 +38,12 @@ setup(name="xandikos",
       author_email="jelmer@jelmer.uk",
       license="GNU GPLv3 or later",
       url="https://www.xandikos.org/",
-      install_requires=['icalendar', 'dulwich>=0.19.1', 'defusedxml', 'jinja2'],
+      install_requires=[
+          'icalendar',
+          'dulwich>=0.19.1',
+          'defusedxml',
+          'jinja2',
+      ],
       packages=find_packages(),
       package_data={'xandikos': ['templates/*.html']},
       scripts=['bin/xandikos'],
