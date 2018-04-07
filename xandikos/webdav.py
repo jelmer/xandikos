@@ -495,21 +495,23 @@ class CurrentUserPrincipalProperty(Property):
     in_allprops = False
     live = True
 
-    def __init__(self, current_user_principal):
+    def __init__(self, get_current_user_principal):
         super(CurrentUserPrincipalProperty, self).__init__()
-        self.current_user_principal = ensure_trailing_slash(
-            current_user_principal.lstrip('/'))
+        self.get_current_user_principal = get_current_user_principal
 
     def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param name: A property name.
         """
-        if self.current_user_principal is None:
+        current_user_principal = self.get_current_user_principal(environ)
+        if current_user_principal is None:
             ET.SubElement(el, '{DAV:}unauthenticated')
         else:
+            current_user_principal = ensure_trailing_slash(
+                current_user_principal.lstrip('/'))
             el.append(create_href(
-                self.current_user_principal, environ['SCRIPT_NAME']))
+                current_user_principal, environ['SCRIPT_NAME']))
 
 
 class PrincipalURLProperty(Property):

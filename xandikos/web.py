@@ -816,7 +816,7 @@ class XandikosApp(webdav.WebDAVApp):
         self.register_properties([
             webdav.ResourceTypeProperty(),
             webdav.CurrentUserPrincipalProperty(
-                current_user_principal),
+                lambda env: current_user_principal),
             webdav.PrincipalURLProperty(),
             webdav.DisplayNameProperty(),
             webdav.GetETagProperty(),
