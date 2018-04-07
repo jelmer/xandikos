@@ -1,12 +1,11 @@
 Metadata-Version: 1.1
 Name: xandikos
-Version: 0.0.7
+Version: 0.0.9
 Summary: Lightweight CalDAV/CardDAV server
 Home-page: https://www.xandikos.org/
 Author: Jelmer Vernooĳ
 Author-email: jelmer@jelmer.uk
 License: GNU GPLv3 or later
-Description-Content-Type: UNKNOWN
 Description: UNKNOWN
 Platform: UNKNOWN
 Classifier: Development Status :: 4 - Beta
