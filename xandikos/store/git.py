@@ -622,7 +622,7 @@ class TreeGitStore(GitStore):
                 yield (name, mode, sha)
         else:
             index = self.repo.open_index()
-            for (name, sha, mode) in index.iterblobs():
+            for (name, sha, mode) in index.iterobjects():
                 name = name.decode(DEFAULT_ENCODING)
                 yield (name, mode, sha)
 
