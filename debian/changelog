@@ -1,3 +1,10 @@
+xandikos (0.0.9-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+   + Fixes compatibility with newer versions of Dulwich. Closes: #895133
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 07 Apr 2018 14:52:56 +0100
+
 xandikos (0.0.7-1) unstable; urgency=medium
 
   * Fix greek name of package in description. Thanks, Roland Hieber.
