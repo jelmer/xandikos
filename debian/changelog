@@ -1,4 +1,4 @@
-xandikos (0.0.9-1) UNRELEASED; urgency=medium
+xandikos (0.0.9-1) unstable; urgency=medium
 
   * New upstream release.
    + Fixes compatibility with newer versions of Dulwich. Closes: #895133
