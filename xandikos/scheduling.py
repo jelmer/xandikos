@@ -219,7 +219,7 @@ class ScheduleDefaultCalendarURLProperty(webdav.Property):
     """
 
     name = '{%s}schedule-default-calendar-URL' % caldav.NAMESPACE
-    resource_types = SCHEDULE_INBOX_RESOURCE_TYPE
+    resource_type = SCHEDULE_INBOX_RESOURCE_TYPE
     in_allprops = True
 
     def get_value(self, href, resource, el, environ):
