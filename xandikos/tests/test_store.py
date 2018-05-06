@@ -32,6 +32,8 @@ from xandikos.store import (
     DuplicateUidError, File, InvalidETag, NoSuchItem)
 from xandikos.store.git import (
     GitStore, BareGitStore, TreeGitStore)
+from xandikos.store.vdir import (
+    VdirStore)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -182,6 +184,18 @@ class BaseStoreTest(object):
             set([('foo.ics', 'text/calendar', etag1),
                  ('bar.ics', 'text/calendar', etag2)]),
             set(gc.iter_with_etag()))
+
+
+class VdirStoreTest(BaseStoreTest, unittest.TestCase):
+
+    kls = VdirStore
+
+    def create_store(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        store = self.kls.create(os.path.join(d, 'store'))
+        store.load_extra_file_handler(ICalendarFile)
+        return store
 
 
 class BaseGitStoreTest(BaseStoreTest):
