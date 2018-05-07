@@ -23,6 +23,7 @@ See https://github.com/pimutils/vdirsyncer/blob/master/docs/vdir.rst
 """
 
 import errno
+import hashlib
 import logging
 import os
 import shutil
@@ -69,16 +70,16 @@ class VdirStore(Store):
 
     def _get_etag(self, name):
         path = os.path.join(self.path, name)
+        md5 = hashlib.md5()
         try:
-            st = os.stat(path)
+            with open(path, 'rb') as f:
+                for chunk in f:
+                    md5.update(chunk)
         except IOError as e:
             if e.errno == errno.ENOENT:
                 raise KeyError
             raise
-        mtime = getattr(st, 'st_mtime_ns', None)
-        if mtime is None:
-            mtime = st.st_mtime
-        return '{:.9f}'.format(mtime)
+        return md5.hexdigest()
 
     def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
