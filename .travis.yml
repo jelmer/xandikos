@@ -1,6 +1,9 @@
 language: python
 cache: pip
 sudo: true
+addons:
+  apt:
+    update: true
 python:
   - 3.3
   - 3.4
