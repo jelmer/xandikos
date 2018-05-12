@@ -63,20 +63,6 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `Tasks <https://github.com/tasks/tasks/tree/caldav>`_
 - `AgendaV <http://agendav.org/>`_
 
-Client instructions
-===================
-
-Some clients can automatically discover the calendar and addressbook URLs from
-a DAV server. For such clients you can simply provide the URL to Xandikos directly.
-
-Clients that lack such automated discovery require the direct URL to a calendar
-or addressbook. One such client is Thunderbird lightning in which case you
-should provide a URL similar to the following:
-
-::
-
-  http://dav.example.com/user/calendars/my_calendar
-
 Dependencies
 ============
 
@@ -142,6 +128,24 @@ This will start a server on `localhost:8080 <http://localhost:8080/>`_ with user
 
   mkdir -p $HOME/dav
   uwsgi examples/uwsgi-standalone.ini
+
+Client instructions
+===================
+
+Some clients can automatically discover the calendars and addressbook URLs from
+a DAV server (if they support RFC:`5397`). For such clients you can simply
+provide the base URL to Xandikos during setup.
+
+Clients that lack such automated discovery (e.g. Thunderbird Lightning) require
+the direct URL to a calendar or addressbook. In this case you
+should provide the full URL to the calendar or addressbook; if you initialized
+Xandikos using the ``--defaults`` argument mentioned in the previous section,
+these URLs will look something like this::
+
+  http://dav.example.com/user/calendars/calendar
+
+  http://dav.example.com/user/contacts/addressbook
+
 
 Contributing
 ============
