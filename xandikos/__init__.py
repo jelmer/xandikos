@@ -25,3 +25,8 @@ __version__ = (0, 0, 10)
 version_string = '.'.join(map(str, __version__))
 
 import defusedxml.ElementTree  # noqa: This does some monkey-patching on-load
+
+if __name__ == '__main__':
+    import sys
+    from xandikos.cmdline import main
+    main(sys.argv)
