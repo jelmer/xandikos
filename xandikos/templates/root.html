@@ -5,6 +5,14 @@
   <body>
     <p>This is a Xandikos WebDAV server.</p>
 
+    <p>Principals on this server:
+      <ul>
+          {% for name in principals %}
+              <li><a href="{{ name }}/">{{ name }}</a></li>
+          {% endfor %}
+      </ul>
+    </p>
+
     <p>For more information about Xandikos, see <a
     href="https://www.xandikos.org/">https://www.xandikos.org/</a>
     or <a href="https://github.com/jelmer/xandikos">https://github.com/jelmer/xandikos</a>.
