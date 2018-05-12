@@ -84,6 +84,12 @@ Or to install them using pip:
 
   python setup.py develop
 
+Docker
+------
+
+A Dockerfile is also provided; see the comments on the top of the file for
+configuration instructions.
+
 Running
 =======
 
