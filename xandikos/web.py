@@ -718,6 +718,13 @@ class PrincipalBare(CollectionSetResource, Principal):
                 pass
         return p
 
+    def render(self, accepted_content_types, accepted_content_languages):
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ['text/html'])
+        assert content_types == ['text/html']
+        return render_jinja_page(
+            'principal.html', accepted_content_languages, principal=self)
+
 
 class PrincipalCollection(Collection, Principal):
     """Principal user resource."""
