@@ -589,7 +589,8 @@ class RootPage(webdav.Resource):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        return render_jinja_page('root.html', accepted_content_languages)
+        return render_jinja_page('root.html', accepted_content_languages,
+                principals=self.backend.find_principals())
 
     def get_body(self):
         raise KeyError
@@ -776,6 +777,10 @@ class XandikosBackend(webdav.Backend):
         self._mark_as_principal(relpath)
         if create_defaults:
             create_principal_defaults(self, principal)
+
+    def find_principals(self):
+        """List all of the principals on this server."""
+        return self._user_principals
 
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
