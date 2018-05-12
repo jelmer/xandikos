@@ -190,7 +190,7 @@ class VdirStore(Store):
         with open(tmppath, 'wb') as f:
             for chunk in data:
                 f.write(chunk)
-        os.rename(tmppath, path)
+        os.replace(tmppath, path)
         return (name, self._get_etag(name))
 
     def iter_with_etag(self, ctag=None):
