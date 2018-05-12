@@ -589,8 +589,9 @@ class RootPage(webdav.Resource):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        return render_jinja_page('root.html', accepted_content_languages,
-                principals=self.backend.find_principals())
+        return render_jinja_page(
+            'root.html', accepted_content_languages,
+            principals=self.backend.find_principals())
 
     def get_body(self):
         raise KeyError
