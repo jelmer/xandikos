@@ -32,6 +32,7 @@ import logging
 import os
 import posixpath
 import shutil
+import urllib.parse
 
 from xandikos import __version__ as xandikos_version
 from xandikos import (access, apache, caldav, carddav, quota, sync, webdav,
@@ -78,7 +79,9 @@ def render_jinja_page(name, accepted_content_languages, **kwargs):
     # TODO(jelmer): Support rendering other languages
     encoding = 'utf-8'
     template = jinja_env.get_template(name)
-    body = template.render(version=xandikos_version, **kwargs).encode(encoding)
+    body = template.render(
+        version=xandikos_version,
+        urljoin=urllib.parse.urljoin, **kwargs).encode(encoding)
     return ([body], len(body), None, 'text/html; encoding=%s' % encoding,
             ['en-UK'])
 
@@ -344,12 +347,14 @@ class StoreBasedCollection(object):
     def get_body(self):
         raise NotImplementedError(self.get_body)
 
-    def render(self, accepted_content_types, accepted_content_languages):
+    def render(self, self_url, accepted_content_types,
+               accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
         return render_jinja_page(
-            'collection.html', accepted_content_languages, collection=self)
+            'collection.html', accepted_content_languages, collection=self,
+            self_url=self_url)
 
     def get_is_executable(self):
         return False
@@ -559,11 +564,13 @@ class CollectionSetResource(webdav.Collection):
         # RFC2518, section 8.6.2 says this should recursively delete.
         shutil.rmtree(p)
 
-    def render(self, accepted_content_types, accepted_content_languages):
+    def render(self, self_url, accepted_content_types,
+               accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        return render_jinja_page('root.html', accepted_content_languages)
+        return render_jinja_page(
+            'root.html', accepted_content_languages, self_url=self_url)
 
     def get_is_executable(self):
         return False
@@ -585,13 +592,15 @@ class RootPage(webdav.Resource):
     def __init__(self, backend):
         self.backend = backend
 
-    def render(self, accepted_content_types, accepted_content_languages):
+    def render(self, self_url, accepted_content_types,
+               accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
         return render_jinja_page(
             'root.html', accepted_content_languages,
-            principals=self.backend.find_principals())
+            principals=self.backend.find_principals(),
+            self_url=self_url)
 
     def get_body(self):
         raise KeyError
@@ -720,12 +729,14 @@ class PrincipalBare(CollectionSetResource, Principal):
                 pass
         return p
 
-    def render(self, accepted_content_types, accepted_content_languages):
+    def render(self, self_url, accepted_content_types,
+               accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
         return render_jinja_page(
-            'principal.html', accepted_content_languages, principal=self)
+            'principal.html', accepted_content_languages, principal=self,
+            self_url=self_url)
 
 
 class PrincipalCollection(Collection, Principal):
