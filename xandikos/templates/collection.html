@@ -12,7 +12,7 @@
     <ul>
     {% for name, resource in collection.members() %}
     {% if '{DAV:}collection' in resource.resource_types %}
-       <li><a href="{{ name }}/">{{ name }}</a></li>
+       <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
     {% endif %}
     {% endfor %}
     </ul>

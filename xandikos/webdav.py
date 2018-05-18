@@ -675,7 +675,7 @@ class Resource(object):
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
-    def render(self, accepted_content_types, accepted_languages):
+    def render(self, self_url, accepted_content_types, accepted_languages):
         """'Render' this resource in the specified content type.
 
         The default implementation just checks that the
@@ -1683,7 +1683,8 @@ def _do_get(environ, start_response, app, send_body):
         current_etag,
         content_type,
         content_languages
-    ) = r.render(accept_content_types, accept_content_languages)
+    ) = r.render(environ['SCRIPT_NAME'] + environ['PATH_INFO'],
+                 accept_content_types, accept_content_languages)
 
     if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
     if (
