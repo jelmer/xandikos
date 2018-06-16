@@ -50,6 +50,21 @@ END:VTODO
 END:VCALENDAR
 """
 
+EXAMPLE_VCALENDAR1_NORMALIZED = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN\r
+BEGIN:VTODO\r
+CREATED:20150314T223512Z\r
+DTSTAMP:20150527T221952Z\r
+LAST-MODIFIED:20150314T223512Z\r
+STATUS:NEEDS-ACTION\r
+SUMMARY:do something\r
+UID:bdc22720-b9e1-42c9-89c2-a85405d8fbff\r
+END:VTODO\r
+END:VCALENDAR\r
+"""
+
 EXAMPLE_VCALENDAR2 = b"""\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -63,6 +78,21 @@ SUMMARY:do something else
 UID:bdc22764-b9e1-42c9-89c2-a85405d8fbff
 END:VTODO
 END:VCALENDAR
+"""
+
+EXAMPLE_VCALENDAR2_NORMALIZED = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN\r
+BEGIN:VTODO\r
+CREATED:20120314T223512Z\r
+DTSTAMP:20130527T221952Z\r
+LAST-MODIFIED:20150314T223512Z\r
+STATUS:NEEDS-ACTION\r
+SUMMARY:do something else\r
+UID:bdc22764-b9e1-42c9-89c2-a85405d8fbff\r
+END:VTODO\r
+END:VCALENDAR\r
 """
 
 EXAMPLE_VCALENDAR_NO_UID = b"""\
@@ -117,10 +147,10 @@ class BaseStoreTest(object):
         (name2, etag2) = gc.import_one('bar.ics', 'text/calendar',
                                        [EXAMPLE_VCALENDAR2])
         self.assertEqual(
-            EXAMPLE_VCALENDAR1,
+            EXAMPLE_VCALENDAR1_NORMALIZED,
             b''.join(gc._get_raw('foo.ics', etag1)))
         self.assertEqual(
-            EXAMPLE_VCALENDAR2,
+            EXAMPLE_VCALENDAR2_NORMALIZED,
             b''.join(gc._get_raw('bar.ics', etag2)))
         self.assertRaises(
             KeyError,
@@ -133,10 +163,10 @@ class BaseStoreTest(object):
         (name1, etag2) = gc.import_one('bar.ics', 'text/calendar',
                                        [EXAMPLE_VCALENDAR2])
         f1 = gc.get_file('foo.ics', 'text/calendar', etag1)
-        self.assertEqual(EXAMPLE_VCALENDAR1, b''.join(f1.content))
+        self.assertEqual(EXAMPLE_VCALENDAR1_NORMALIZED, b''.join(f1.content))
         self.assertEqual('text/calendar', f1.content_type)
         f2 = gc.get_file('bar.ics', 'text/calendar', etag2)
-        self.assertEqual(EXAMPLE_VCALENDAR2, b''.join(f2.content))
+        self.assertEqual(EXAMPLE_VCALENDAR2_NORMALIZED, b''.join(f2.content))
         self.assertEqual('text/calendar', f2.content_type)
         self.assertRaises(
             KeyError,

@@ -188,7 +188,7 @@ class VdirStore(Store):
         path = os.path.join(self.path, name)
         tmppath = os.path.join(self.path, name + '.tmp')
         with open(tmppath, 'wb') as f:
-            for chunk in data:
+            for chunk in fi.normalized():
                 f.write(chunk)
         os.replace(tmppath, path)
         return (name, self._get_etag(name))
