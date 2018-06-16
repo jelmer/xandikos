@@ -39,7 +39,6 @@ rustup update nightly
 # Add --ignore=tests/system/utils/test_main.py since it fails in travis,
 # and isn't testing anything relevant to Xandikos.
 make \
-    COVERAGE=true \
     PYTEST_ARGS="${PYTEST_ARGS} tests/storage/dav/ --ignore=tests/system/utils/test_main.py" \
     DAV_SERVER=xandikos \
     install-dev install-test test
