@@ -158,7 +158,7 @@ class GitStore(Store):
             except KeyError:
                 old_fi = None
             message = '\n'.join(fi.describe_delta(name, old_fi))
-        etag = self._import_one(name, data, message, author=author)
+        etag = self._import_one(name, fi.normalized(), message, author=author)
         return (name, etag.decode('ascii'))
 
     def _get_raw(self, name, etag=None):

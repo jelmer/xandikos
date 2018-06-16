@@ -60,6 +60,11 @@ class File(object):
         """
         pass
 
+    def normalized(self):
+        """Return a normalized version of the file.
+        """
+        return self.content
+
     def describe(self, name):
         """Describe the contents of this file.
 

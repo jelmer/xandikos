@@ -214,6 +214,10 @@ class ICalendarFile(File):
         if list(validate_calendar(cal, strict=False)):
             raise InvalidFileContents(self.content_type, self.content)
 
+    def normalized(self):
+        """Return a normalized version of the file."""
+        return [self.calendar.to_ical()]
+
     @property
     def calendar(self):
         if self._calendar is None:
