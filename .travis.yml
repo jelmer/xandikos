@@ -12,6 +12,12 @@ python:
   - pypy3.5
 env:
   global: PYTHONHASHSEED=random
+matrix:
+  include:
+    - python: 3.7
+      dist: xenial
+    - python: 3.8-dev
+      dist: xenial
 install:
   - pip install pip --upgrade
   - pip install coverage codecov flake8 pycalendar
@@ -35,4 +41,4 @@ after_success:
   - python -m coverage combine
   - codecov
 cache:
-    pip: true
+  pip: true
