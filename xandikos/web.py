@@ -133,11 +133,11 @@ class ObjectResource(webdav.Resource):
             (name, etag) = self.store.import_one(
                 self.name, self.content_type, data,
                 replace_etag=extract_strong_etag(replace_etag))
-        except InvalidFileContents:
+        except InvalidFileContents as e:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
                 '{%s}valid-calendar-data' % caldav.NAMESPACE,
-                'Not a valid calendar file.')
+                'Not a valid calendar file: %s' % e.error)
         except DuplicateUidError:
             raise webdav.PreconditionFailure(
                 '{%s}no-uid-conflict' % caldav.NAMESPACE,
@@ -280,11 +280,11 @@ class StoreBasedCollection(object):
     def create_member(self, name, contents, content_type):
         try:
             (name, etag) = self.store.import_one(name, content_type, contents)
-        except InvalidFileContents:
+        except InvalidFileContents as e:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
                 '{%s}valid-calendar-data' % caldav.NAMESPACE,
-                'Not a valid calendar file.')
+                'Not a valid calendar file: %s' % e.error)
         except DuplicateUidError:
             raise webdav.PreconditionFailure(
                 '{%s}no-uid-conflict' % caldav.NAMESPACE,
