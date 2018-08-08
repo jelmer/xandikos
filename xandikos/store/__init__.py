@@ -159,9 +159,10 @@ class NotStoreError(Exception):
 class InvalidFileContents(Exception):
     """Invalid file contents."""
 
-    def __init__(self, content_type, data):
+    def __init__(self, content_type, data, error):
         self.content_type = content_type
         self.data = data
+        self.error = error
 
 
 class Store(object):
