@@ -211,13 +211,14 @@ class ICalendarFile(File):
         cal = self.calendar
         # TODO(jelmer): return the list of errors to the caller
         if cal.is_broken:
-            raise InvalidFileContents(self.content_type, self.content,
+            raise InvalidFileContents(
+                self.content_type, self.content,
                 "Broken calendar file")
         errors = list(validate_calendar(cal, strict=False))
         if errors:
             raise InvalidFileContents(
-                    self.content_type, self.content,
-                    ", ".join(errors))
+                self.content_type, self.content,
+                ", ".join(errors))
 
     def normalized(self):
         """Return a normalized version of the file."""
@@ -230,7 +231,7 @@ class ICalendarFile(File):
                 self._calendar = Calendar.from_ical(b''.join(self.content))
             except ValueError as e:
                 raise InvalidFileContents(
-                        self.content_type, self.content, str(e))
+                    self.content_type, self.content, str(e))
         return self._calendar
 
     def describe_delta(self, name, previous):
