@@ -1082,8 +1082,9 @@ class Reporter(object):
 
 
 def create_href(href, base_href=None):
-    if '//' in href:
-        logging.warning('invalidly formatted href: %s' % href)
+    parsed_url = urllib.parse.urlparse(href)
+    if '//' in parsed_url.path:
+        logging.warning('invalidly formatted href: %s', href)
     et = ET.Element('{DAV:}href')
     if base_href is not None:
         href = urllib.parse.urljoin(ensure_trailing_slash(base_href), href)
