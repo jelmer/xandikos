@@ -31,8 +31,12 @@ if sys.platform != 'win32':
 else:
     author = "Jelmer Vernooij"
 
+with open('README.rst') as f:
+    long_description = f.read()
+
 setup(name="xandikos",
       description="Lightweight CalDAV/CardDAV server",
+      long_description=long_description,
       version=version,
       author=author,
       author_email="jelmer@jelmer.uk",
