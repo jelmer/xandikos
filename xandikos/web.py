@@ -839,7 +839,10 @@ class XandikosApp(webdav.WebDAVApp):
         super(XandikosApp, self).__init__(backend)
 
         def get_current_user_principal(env):
-            return current_user_principal % env
+            try:
+                return current_user_principal % env
+            except KeyError:
+                return None
         self.register_properties([
             webdav.ResourceTypeProperty(),
             webdav.CurrentUserPrincipalProperty(
