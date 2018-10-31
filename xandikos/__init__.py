@@ -21,7 +21,7 @@
 
 """CalDAV/CardDAV server."""
 
-__version__ = (0, 0, 10)
+__version__ = (0, 0, 11)
 version_string = '.'.join(map(str, __version__))
 
 import defusedxml.ElementTree  # noqa: This does some monkey-patching on-load
