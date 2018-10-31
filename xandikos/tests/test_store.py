@@ -293,6 +293,17 @@ class BaseGitStoreTest(BaseStoreTest):
         gc = self.create_store()
         self.assertEqual([], gc.subdirectories())
 
+    def test_import_only_once(self):
+        gc = self.create_store()
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                     [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one('foo.ics', 'text/calendar',
+                                     [EXAMPLE_VCALENDAR1])
+        self.assertEqual(name1, name2)
+        self.assertEqual(etag1, etag2)
+        walker = gc.repo.get_walker(include=[gc.repo.refs[gc.ref]])
+        self.assertEqual(1, len([w.commit for w in walker]))
+
 
 class GitStoreTest(unittest.TestCase):
 
