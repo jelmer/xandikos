@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>
+# Copyright (C) 2016-2018 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; version 2
+# as published by the Free Software Foundation; version 3
 # of the License or (at your option) any later version of
 # the License.
 #
@@ -18,14 +17,14 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-import os
-import sys
-
-# running from source dir?
-if os.path.join(os.path.dirname(__file__), '..', 'xandikos'):
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+"""Xandikos command-line handling."""
 
 
-from xandikos.__main__ import main
+def main(argv):
+    from .web import main
+    return main(argv)
 
-sys.exit(main(sys.argv))
+
+if __name__ == '__main__':
+    import sys
+    main(sys.argv)

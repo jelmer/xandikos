@@ -1,7 +1,12 @@
 #!/bin/bash
+
+. $(dirname $0)/common.sh
+
 set -e
 
 readonly BRANCH=master
+
+run_xandikos 5001 --autocreate
 
 [ -z "$PYTHON" ] && PYTHON=python3
 
@@ -34,7 +39,7 @@ rustup update nightly
 # Add --ignore=tests/system/utils/test_main.py since it fails in travis,
 # and isn't testing anything relevant to Xandikos.
 make \
-    COVERAGE=true \
     PYTEST_ARGS="${PYTEST_ARGS} tests/storage/dav/ --ignore=tests/system/utils/test_main.py" \
     DAV_SERVER=xandikos \
     install-dev install-test test
+exit 0

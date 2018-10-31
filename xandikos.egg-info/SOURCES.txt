@@ -46,6 +46,7 @@ notes/store.rst
 notes/structure.rst
 notes/webdav.rst
 xandikos/__init__.py
+xandikos/__main__.py
 xandikos/access.py
 xandikos/apache.py
 xandikos/caldav.py
@@ -70,7 +71,9 @@ xandikos.egg-info/top_level.txt
 xandikos/store/__init__.py
 xandikos/store/config.py
 xandikos/store/git.py
+xandikos/store/vdir.py
 xandikos/templates/collection.html
+xandikos/templates/principal.html
 xandikos/templates/root.html
 xandikos/tests/__init__.py
 xandikos/tests/test_api.py
