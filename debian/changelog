@@ -1,3 +1,9 @@
+xandikos (0.0.9-3) UNRELEASED; urgency=medium
+
+  * Add debian/upstream/metadata.
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Wed, 31 Oct 2018 02:00:28 +0000
+
 xandikos (0.0.9-2) unstable; urgency=medium
 
   * Remove unnecessary X-Python{,3}-Version field in debian/control.
