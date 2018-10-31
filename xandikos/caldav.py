@@ -576,7 +576,9 @@ class CalendarQueryReporter(webdav.Reporter):
             tz = get_pytz_from_text(tztext)
         else:
             tz = get_calendar_timezone(base_resource)
-        tzify = lambda dt: as_tz_aware_ts(dt, tz)
+
+        def tzify(dt):
+            return as_tz_aware_ts(dt, tz)
         for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth):
             try:
@@ -920,7 +922,9 @@ class FreeBusyQueryReporter(webdav.Reporter):
             else:
                 raise AssertionError("unexpected XML element")
         tz = get_calendar_timezone(base_resource)
-        tzify = lambda dt: as_tz_aware_ts(dt, tz).astimezone(pytz.utc)
+
+        def tzify(dt):
+            return as_tz_aware_ts(dt, tz).astimezone(pytz.utc)
         (start, end) = _parse_time_range(requested)
         assert start.tzinfo
         assert end.tzinfo

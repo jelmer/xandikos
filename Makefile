@@ -14,7 +14,7 @@ check:
 	$(PYTHON) -m unittest $(TESTSUITE)
 
 style:
-	flake8 --exclude=compat/vdirsyncer/,.tox,compat/ccs-caldavtester
+	flake8 --ignore=W504 --exclude=compat/vdirsyncer/,.tox,compat/ccs-caldavtester,.git
 
 web:
 	$(PYTHON) -m xandikos.web
