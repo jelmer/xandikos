@@ -32,8 +32,7 @@ check-vdirsyncer:
 	./compat/xandikos-vdirsyncer.sh
 
 coverage-vdirsyncer:
-	PYTEST_ARGS="--cov-config $(shell pwd)/.coveragerc --cov-append --cov $(shell pwd)/xandikos" ./compat/xandikos-vdirsyncer.sh
-	$(COVERAGE) combine -a compat/vdirsyncer/.coverage
+	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-vdirsyncer.sh
 
 check-caldavtester:
 	TESTS="$(CALDAVTESTER_TESTS)" ./compat/xandikos-caldavtester.sh

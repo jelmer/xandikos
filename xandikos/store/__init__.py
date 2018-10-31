@@ -60,6 +60,11 @@ class File(object):
         """
         pass
 
+    def normalized(self):
+        """Return a normalized version of the file.
+        """
+        return self.content
+
     def describe(self, name):
         """Describe the contents of this file.
 
@@ -154,9 +159,10 @@ class NotStoreError(Exception):
 class InvalidFileContents(Exception):
     """Invalid file contents."""
 
-    def __init__(self, content_type, data):
+    def __init__(self, content_type, data, error):
         self.content_type = content_type
         self.data = data
+        self.error = error
 
 
 class Store(object):

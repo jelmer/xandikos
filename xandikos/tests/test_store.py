@@ -32,6 +32,8 @@ from xandikos.store import (
     DuplicateUidError, File, InvalidETag, NoSuchItem)
 from xandikos.store.git import (
     GitStore, BareGitStore, TreeGitStore)
+from xandikos.store.vdir import (
+    VdirStore)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -48,6 +50,21 @@ END:VTODO
 END:VCALENDAR
 """
 
+EXAMPLE_VCALENDAR1_NORMALIZED = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN\r
+BEGIN:VTODO\r
+CREATED:20150314T223512Z\r
+DTSTAMP:20150527T221952Z\r
+LAST-MODIFIED:20150314T223512Z\r
+STATUS:NEEDS-ACTION\r
+SUMMARY:do something\r
+UID:bdc22720-b9e1-42c9-89c2-a85405d8fbff\r
+END:VTODO\r
+END:VCALENDAR\r
+"""
+
 EXAMPLE_VCALENDAR2 = b"""\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -61,6 +78,21 @@ SUMMARY:do something else
 UID:bdc22764-b9e1-42c9-89c2-a85405d8fbff
 END:VTODO
 END:VCALENDAR
+"""
+
+EXAMPLE_VCALENDAR2_NORMALIZED = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN\r
+BEGIN:VTODO\r
+CREATED:20120314T223512Z\r
+DTSTAMP:20130527T221952Z\r
+LAST-MODIFIED:20150314T223512Z\r
+STATUS:NEEDS-ACTION\r
+SUMMARY:do something else\r
+UID:bdc22764-b9e1-42c9-89c2-a85405d8fbff\r
+END:VTODO\r
+END:VCALENDAR\r
 """
 
 EXAMPLE_VCALENDAR_NO_UID = b"""\
@@ -115,10 +147,10 @@ class BaseStoreTest(object):
         (name2, etag2) = gc.import_one('bar.ics', 'text/calendar',
                                        [EXAMPLE_VCALENDAR2])
         self.assertEqual(
-            EXAMPLE_VCALENDAR1,
+            EXAMPLE_VCALENDAR1_NORMALIZED,
             b''.join(gc._get_raw('foo.ics', etag1)))
         self.assertEqual(
-            EXAMPLE_VCALENDAR2,
+            EXAMPLE_VCALENDAR2_NORMALIZED,
             b''.join(gc._get_raw('bar.ics', etag2)))
         self.assertRaises(
             KeyError,
@@ -131,10 +163,10 @@ class BaseStoreTest(object):
         (name1, etag2) = gc.import_one('bar.ics', 'text/calendar',
                                        [EXAMPLE_VCALENDAR2])
         f1 = gc.get_file('foo.ics', 'text/calendar', etag1)
-        self.assertEqual(EXAMPLE_VCALENDAR1, b''.join(f1.content))
+        self.assertEqual(EXAMPLE_VCALENDAR1_NORMALIZED, b''.join(f1.content))
         self.assertEqual('text/calendar', f1.content_type)
         f2 = gc.get_file('bar.ics', 'text/calendar', etag2)
-        self.assertEqual(EXAMPLE_VCALENDAR2, b''.join(f2.content))
+        self.assertEqual(EXAMPLE_VCALENDAR2_NORMALIZED, b''.join(f2.content))
         self.assertEqual('text/calendar', f2.content_type)
         self.assertRaises(
             KeyError,
@@ -182,6 +214,18 @@ class BaseStoreTest(object):
             set([('foo.ics', 'text/calendar', etag1),
                  ('bar.ics', 'text/calendar', etag2)]),
             set(gc.iter_with_etag()))
+
+
+class VdirStoreTest(BaseStoreTest, unittest.TestCase):
+
+    kls = VdirStore
+
+    def create_store(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        store = self.kls.create(os.path.join(d, 'store'))
+        store.load_extra_file_handler(ICalendarFile)
+        return store
 
 
 class BaseGitStoreTest(BaseStoreTest):
@@ -248,6 +292,17 @@ class BaseGitStoreTest(BaseStoreTest):
     def test_default_no_subdirectories(self):
         gc = self.create_store()
         self.assertEqual([], gc.subdirectories())
+
+    def test_import_only_once(self):
+        gc = self.create_store()
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                     [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one('foo.ics', 'text/calendar',
+                                     [EXAMPLE_VCALENDAR1])
+        self.assertEqual(name1, name2)
+        self.assertEqual(etag1, etag2)
+        walker = gc.repo.get_walker(include=[gc.repo.refs[gc.ref]])
+        self.assertEqual(1, len([w.commit for w in walker]))
 
 
 class GitStoreTest(unittest.TestCase):

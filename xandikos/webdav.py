@@ -495,21 +495,23 @@ class CurrentUserPrincipalProperty(Property):
     in_allprops = False
     live = True
 
-    def __init__(self, current_user_principal):
+    def __init__(self, get_current_user_principal):
         super(CurrentUserPrincipalProperty, self).__init__()
-        self.current_user_principal = ensure_trailing_slash(
-            current_user_principal.lstrip('/'))
+        self.get_current_user_principal = get_current_user_principal
 
     def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param name: A property name.
         """
-        if self.current_user_principal is None:
+        current_user_principal = self.get_current_user_principal(environ)
+        if current_user_principal is None:
             ET.SubElement(el, '{DAV:}unauthenticated')
         else:
+            current_user_principal = ensure_trailing_slash(
+                current_user_principal.lstrip('/'))
             el.append(create_href(
-                self.current_user_principal, environ['SCRIPT_NAME']))
+                current_user_principal, environ['SCRIPT_NAME']))
 
 
 class PrincipalURLProperty(Property):
@@ -673,7 +675,7 @@ class Resource(object):
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
-    def render(self, accepted_content_types, accepted_languages):
+    def render(self, self_url, accepted_content_types, accepted_languages):
         """'Render' this resource in the specified content type.
 
         The default implementation just checks that the
@@ -1080,8 +1082,9 @@ class Reporter(object):
 
 
 def create_href(href, base_href=None):
-    if '//' in href:
-        logging.warning('invalidly formatted href: %s' % href)
+    parsed_url = urllib.parse.urlparse(href)
+    if '//' in parsed_url.path:
+        logging.warning('invalidly formatted href: %s', href)
     et = ET.Element('{DAV:}href')
     if base_href is not None:
         href = urllib.parse.urljoin(ensure_trailing_slash(base_href), href)
@@ -1681,7 +1684,8 @@ def _do_get(environ, start_response, app, send_body):
         current_etag,
         content_type,
         content_languages
-    ) = r.render(accept_content_types, accept_content_languages)
+    ) = r.render(environ['SCRIPT_NAME'] + environ['PATH_INFO'],
+                 accept_content_types, accept_content_languages)
 
     if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
     if (

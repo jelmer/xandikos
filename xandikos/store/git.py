@@ -158,7 +158,7 @@ class GitStore(Store):
             except KeyError:
                 old_fi = None
             message = '\n'.join(fi.describe_delta(name, old_fi))
-        etag = self._import_one(name, data, message, author=author)
+        etag = self._import_one(name, fi.normalized(), message, author=author)
         return (name, etag.decode('ascii'))
 
     def _get_raw(self, name, etag=None):
@@ -471,11 +471,13 @@ class BareGitStore(GitStore):
         b = Blob()
         b.chunked = data
         tree = self._get_current_tree()
+        old_tree_id = tree.id
         name_enc = name.encode(DEFAULT_ENCODING)
         tree[name_enc] = (0o644 | stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ''), (b, name_enc)])
-        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
-                          author=author)
+        if tree.id != old_tree_id:
+            self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING),
+                              author=author)
         return b.id
 
     def delete_one(self, name, message=None, author=None, etag=None):
@@ -566,12 +568,14 @@ class TreeGitStore(GitStore):
                 f.writelines(data)
             st = os.lstat(p)
             blob = Blob.from_string(b''.join(data))
-            self.repo.object_store.add_object(blob)
-            index[name.encode(DEFAULT_ENCODING)] = IndexEntry(
-                *index_entry_from_stat(st, blob.id, 0))
-            self._commit_tree(
-                index, message.encode(DEFAULT_ENCODING),
-                author=author)
+            encoded_name = name.encode(DEFAULT_ENCODING)
+            if encoded_name not in index or blob.id != index[encoded_name].sha:
+                self.repo.object_store.add_object(blob)
+                index[encoded_name] = IndexEntry(
+                    *index_entry_from_stat(st, blob.id, 0))
+                self._commit_tree(
+                    index, message.encode(DEFAULT_ENCODING),
+                    author=author)
             return blob.id
 
     def delete_one(self, name, message=None, author=None, etag=None):

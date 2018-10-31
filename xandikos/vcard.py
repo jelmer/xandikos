@@ -31,4 +31,6 @@ class VCardFile(File):
         c = b''.join(self.content).strip()
         if not c.startswith((b'BEGIN:VCARD\r\n', b'BEGIN:VCARD\n')) or \
            not c.endswith(b'\nEND:VCARD'):
-            raise InvalidFileContents(self.content_type, self.content)
+            raise InvalidFileContents(
+                self.content_type, self.content,
+                "Missing header and trailer lines")
