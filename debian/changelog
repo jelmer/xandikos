@@ -1,4 +1,4 @@
-xandikos (0.0.10-2) UNRELEASED; urgency=medium
+xandikos (0.0.10-2) unstable; urgency=medium
 
   * Read README.rst with encoding utf-8. Closes: #912436
 
