@@ -1,3 +1,9 @@
+xandikos (0.0.10-2) UNRELEASED; urgency=medium
+
+  * Read README.rst with encoding utf-8. Closes: #912436
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Thu, 01 Nov 2018 00:06:12 +0000
+
 xandikos (0.0.10-1) unstable; urgency=medium
 
   * Add debian/upstream/metadata.

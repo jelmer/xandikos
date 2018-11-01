@@ -1,0 +1,19 @@
+commit 826f5d9ea2d14c6a0406139475175da8ddcf4d5a
+Author: Jelmer Vernooĳ <jelmer@jelmer.uk>
+Date:   Thu Nov 1 00:04:51 2018 +0000
+
+    Read README.rst with encoding utf-8.
+
+diff --git a/setup.py b/setup.py
+index 8a8b2dd..442f812 100755
+--- a/setup.py
++++ b/setup.py
+@@ -31,7 +31,7 @@ if sys.platform != 'win32':
+ else:
+     author = "Jelmer Vernooij"
+ 
+-with open('README.rst') as f:
++with open('README.rst', encoding='utf-8') as f:
+     long_description = f.read()
+ 
+ setup(name="xandikos",
