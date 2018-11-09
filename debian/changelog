@@ -1,4 +1,4 @@
-xandikos (0.0.10-3) UNRELEASED; urgency=medium
+xandikos (0.0.10-3) unstable; urgency=medium
 
   * Add patch 02_committer: don't run into compatibility issues with
     Dulwich. Closes: #913301
