@@ -1,6 +1,7 @@
 xandikos (0.0.11-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * Drop patches: both applied upstream.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Thu, 15 Nov 2018 02:43:25 +0000
 
