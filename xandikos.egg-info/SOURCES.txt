@@ -7,11 +7,13 @@ AUTHORS
 CONTRIBUTING.rst
 COPYING
 Dockerfile
+GOALS.rst
 MANIFEST.in
 Makefile
 README.rst
 TODO
 appveyor.yml
+setup.cfg
 setup.py
 tox.ini
 xandikos.1

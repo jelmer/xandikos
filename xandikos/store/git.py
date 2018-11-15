@@ -53,7 +53,6 @@ from dulwich.objects import Blob, Tree
 from dulwich.pack import SHA1Writer
 import dulwich.repo
 
-_DEFAULT_COMMITTER_IDENTITY = b'Xandikos <xandikos>'
 DEFAULT_ENCODING = 'utf-8'
 
 
@@ -452,12 +451,8 @@ class BareGitStore(GitStore):
         return cls(dulwich.repo.MemoryRepo())
 
     def _commit_tree(self, tree_id, message, author=None):
-        try:
-            committer = self.repo._get_user_identity()
-        except KeyError:
-            committer = _DEFAULT_COMMITTER_IDENTITY
         return self.repo.do_commit(message=message, tree=tree_id, ref=self.ref,
-                                   committer=committer, author=author)
+                                   author=author)
 
     def _import_one(self, name, data, message, author=None):
         """Import a single object.
@@ -546,12 +541,7 @@ class TreeGitStore(GitStore):
 
     def _commit_tree(self, index, message, author=None):
         tree = index.commit(self.repo.object_store)
-        try:
-            committer = self.repo._get_user_identity()
-        except KeyError:
-            committer = _DEFAULT_COMMITTER_IDENTITY
-        return self.repo.do_commit(message=message, committer=committer,
-                                   author=author, tree=tree)
+        return self.repo.do_commit(message=message, author=author, tree=tree)
 
     def _import_one(self, name, data, message, author=None):
         """Import a single object.
