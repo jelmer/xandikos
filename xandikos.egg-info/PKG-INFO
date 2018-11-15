@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: xandikos
-Version: 0.0.10
+Version: 0.0.11
 Summary: Lightweight CalDAV/CardDAV server
 Home-page: https://www.xandikos.org/
 Author: Jelmer Vernooĳ
@@ -75,7 +75,7 @@ Description: .. image:: https://travis-ci.org/jelmer/xandikos.png?branch=master
         Dependencies
         ============
         
-        At the moment, Xandikos supports Python 3.3 and higher as well as Pypy 3. It
+        At the moment, Xandikos supports Python 3.4 and higher as well as Pypy 3. It
         also uses `Dulwich <https://github.com/jelmer/dulwich>`_,
         `Jinja2 <http://jinja.pocoo.org/>`_,
         `icalendar <https://github.com/collective/icalendar>`_, and
@@ -183,7 +183,6 @@ Description: .. image:: https://travis-ci.org/jelmer/xandikos.png?branch=master
 Platform: UNKNOWN
 Classifier: Development Status :: 4 - Beta
 Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
-Classifier: Programming Language :: Python :: 3.3
 Classifier: Programming Language :: Python :: 3.4
 Classifier: Programming Language :: Python :: 3.5
 Classifier: Programming Language :: Python :: 3.6

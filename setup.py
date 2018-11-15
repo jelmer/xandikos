@@ -23,7 +23,7 @@
 from setuptools import find_packages, setup
 import sys
 
-version = "0.0.10"
+version = "0.0.11"
 
 if sys.platform != 'win32':
     # Win32 setup breaks on non-ascii characters
@@ -31,7 +31,7 @@ if sys.platform != 'win32':
 else:
     author = "Jelmer Vernooij"
 
-with open('README.rst') as f:
+with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
 setup(name="xandikos",
@@ -55,7 +55,6 @@ setup(name="xandikos",
       classifiers=[
           'Development Status :: 4 - Beta',
           'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',  # noqa
-          'Programming Language :: Python :: 3.3',
           'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5',
           'Programming Language :: Python :: 3.6',

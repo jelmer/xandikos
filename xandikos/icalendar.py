@@ -156,13 +156,16 @@ def describe_calendar_delta(old_cal, new_cal):
                 old_component.name.upper() == "VTODO" and
                 field.upper() == "STATUS"
             ):
-                human_readable = {
-                    "NEEDS-ACTION": "needing action",
-                    "COMPLETED": "complete",
-                    "CANCELLED": "cancelled"}
-                yield "%s marked as %s" % (
-                    description,
-                    human_readable.get(new_value.upper(), new_value))
+                if new_value is None:
+                    yield "status of %s deleted" % description
+                else:
+                    human_readable = {
+                        "NEEDS-ACTION": "needing action",
+                        "COMPLETED": "complete",
+                        "CANCELLED": "cancelled"}
+                    yield "%s marked as %s" % (
+                        description,
+                        human_readable.get(new_value.upper(), new_value))
             elif field.upper() == 'DESCRIPTION':
                 yield "changed description of %s" % description
             elif field.upper() == 'SUMMARY':

@@ -1784,7 +1784,7 @@ class WebDAVApp(object):
         method = environ['REQUEST_METHOD']
         try:
             do = self.methods[method]
-        except KeyError as e:
+        except KeyError:
             return _send_method_not_allowed(environ, start_response,
                                             self._get_allowed_methods(environ))
         try:
@@ -1799,6 +1799,6 @@ class WebDAVApp(object):
             start_response('415 Unsupported Media Type', [])
             return [('Unsupported media type %r' % e.content_type)
                     .encode(DEFAULT_ENCODING)]
-        except UnauthorizedError as e:
+        except UnauthorizedError:
             start_response('401 Unauthorized', [])
             return [('Please login.'.encode(DEFAULT_ENCODING))]
