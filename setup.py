@@ -21,11 +21,15 @@
 # MA  02110-1301, USA.
 
 from setuptools import find_packages, setup
+import sys
 
 version = "0.0.12"
 
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
+
+if sys.platform == 'win32':
+    long_description = long_description.encode('mbcs', 'replace')
 
 setup(name="xandikos",
       description="Lightweight CalDAV/CardDAV server",
