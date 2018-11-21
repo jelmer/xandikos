@@ -25,12 +25,6 @@ import sys
 
 version = "0.0.12"
 
-if sys.platform != 'win32':
-    # Win32 setup breaks on non-ascii characters
-    author = "Jelmer Vernooĳ"
-else:
-    author = "Jelmer Vernooij"
-
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
@@ -38,7 +32,7 @@ setup(name="xandikos",
       description="Lightweight CalDAV/CardDAV server",
       long_description=long_description,
       version=version,
-      author=author,
+      author="Jelmer Vernooij",
       author_email="jelmer@jelmer.uk",
       license="GNU GPLv3 or later",
       url="https://www.xandikos.org/",
