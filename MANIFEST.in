@@ -11,3 +11,4 @@ include examples/*.ini
 include notes/*.rst
 include tox.ini
 include xandikos.1
+graft xandikos/tests

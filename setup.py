@@ -21,7 +21,6 @@
 # MA  02110-1301, USA.
 
 from setuptools import find_packages, setup
-import sys
 
 version = "0.0.12"
 
@@ -29,30 +28,32 @@ with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
 setup(name="xandikos",
-      description="Lightweight CalDAV/CardDAV server",
-      long_description=long_description,
-      version=version,
-      author="Jelmer Vernooij",
-      author_email="jelmer@jelmer.uk",
-      license="GNU GPLv3 or later",
-      url="https://www.xandikos.org/",
-      install_requires=[
-          'icalendar',
-          'dulwich>=0.19.1',
-          'defusedxml',
-          'jinja2',
-      ],
-      packages=find_packages(),
-      package_data={'xandikos': ['templates/*.html']},
-      scripts=['bin/xandikos'],
-      test_suite='xandikos.tests.test_suite',
-      classifiers=[
-          'Development Status :: 4 - Beta',
-          'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',  # noqa
-          'Programming Language :: Python :: 3.4',
-          'Programming Language :: Python :: 3.5',
-          'Programming Language :: Python :: 3.6',
-          'Programming Language :: Python :: Implementation :: CPython',
-          'Programming Language :: Python :: Implementation :: PyPy',
-          'Operating System :: POSIX',
-      ])
+    description="Lightweight CalDAV/CardDAV server",
+    long_description=long_description,
+    version=version,
+    author="Jelmer Vernooij",
+    author_email="jelmer@jelmer.uk",
+    license="GNU GPLv3 or later",
+    url="https://www.xandikos.org/",
+    install_requires=[
+        'icalendar',
+        'dulwich>=0.19.1',
+        'defusedxml',
+        'jinja2',
+    ],
+    packages=find_packages(exclude=['xandikos/tests']),
+    package_data={'xandikos': ['templates/*.html']},
+    scripts=['bin/xandikos'],
+    test_suite='xandikos.tests.test_suite',
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',  # noqa
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Programming Language :: Python :: Implementation :: PyPy',
+        'Operating System :: POSIX',
+    ]
+)
