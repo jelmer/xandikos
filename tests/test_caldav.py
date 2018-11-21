@@ -24,7 +24,7 @@ from wsgiref.util import setup_testing_defaults
 from xandikos import caldav, davcommon
 from xandikos.webdav import Property, WebDAVApp, ET
 
-from xandikos.tests import test_webdav
+import test_webdav
 
 
 class WebTests(test_webdav.WebTestCase):

@@ -30,6 +30,6 @@ def test_suite():
         'webdav',
         'web',
     ]
-    module_names = ['xandikos.tests.test_' + name for name in names]
+    module_names = ['.tests.test_' + name for name in names]
     loader = unittest.TestLoader()
     return loader.loadTestsFromNames(module_names)

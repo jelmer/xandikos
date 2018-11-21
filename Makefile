@@ -2,7 +2,6 @@ export PYTHON ?= python3
 COVERAGE ?= $(PYTHON) -m coverage
 COVERAGE_RUN_OPTIONS ?=
 COVERAGE_RUN ?= $(COVERAGE) run $(COVERAGE_RUN_OPTIONS)
-TESTSUITE = xandikos.tests.test_suite
 LITMUS_TESTS ?= basic http
 CALDAVTESTER_TESTS ?= CalDAV/delete.xml \
 		      CalDAV/schedulenomore.xml \
@@ -51,7 +50,7 @@ check-all: check check-vdirsyncer check-litmus check-caldavtester style
 coverage-all: coverage coverage-litmus coverage-vdirsyncer coverage-caldavtester
 
 coverage:
-	$(COVERAGE_RUN) --source=xandikos -m unittest $(TESTSUITE)
+	$(COVERAGE_RUN) --source=xandikos -m unittest discover tests
 
 coverage-html: coverage
 	$(COVERAGE) html
