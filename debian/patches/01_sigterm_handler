@@ -1,0 +1,23 @@
+commit 0fd4ed0692692f8cddc1fc135fb22cb2540cfe9a
+Author: Jelmer Vernooĳ <jelmer@jelmer.uk>
+Date:   Fri Nov 23 21:35:43 2018 +0000
+
+    Drop the custom sigterm handler for now. Python signals are.. tricky to say the least.
+
+diff --git a/xandikos/web.py b/xandikos/web.py
+index 3f706a1..e7ed4b3 100644
+--- a/xandikos/web.py
++++ b/xandikos/web.py
+@@ -1056,12 +1056,6 @@ def main(argv):
+     logging.info('Listening on %s:%s', options.listen_address,
+                  options.port)
+ 
+-    import signal
+-
+-    def handle_sigterm(sig, action):
+-        sys.exit(0)
+-
+-    signal.signal(signal.SIGTERM, handle_sigterm)
+     try:
+         server.serve_forever()
+     except KeyboardInterrupt:
