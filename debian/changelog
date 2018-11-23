@@ -1,10 +1,10 @@
-xandikos (0.0.11-2) UNRELEASED; urgency=medium
+xandikos (0.0.11-2) unstable; urgency=medium
 
   * Add CI/CD configuration for Salsa.
   * Add patch 01_sigterm_handler: don't install broken sigterm handler.
     Closes: #903854, #914488
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Wed, 21 Nov 2018 01:10:27 +0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 23 Nov 2018 21:42:55 +0000
 
 xandikos (0.0.11-1) unstable; urgency=medium
 
