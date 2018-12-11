@@ -1093,7 +1093,9 @@ def create_href(href, base_href=None):
 
 
 def read_href_element(et):
-    return urllib.parse.unquote(et.text)
+    el = urllib.parse.unquote(et.text)
+    el = urllib.parse.urlsplit(el)
+    return el.path
 
 
 class ExpandPropertyReporter(Reporter):
