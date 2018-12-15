@@ -25,6 +25,7 @@ def test_suite():
         'api',
         'caldav',
         'collectionconfig',
+        'config',
         'icalendar',
         'store',
         'webdav',

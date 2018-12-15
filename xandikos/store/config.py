@@ -26,6 +26,7 @@ FILENAME = '.xandikos'
 
 
 class CollectionConfig(object):
+    """Metadata for a configuration."""
 
     def __init__(self, cp=None):
         if cp is None:
