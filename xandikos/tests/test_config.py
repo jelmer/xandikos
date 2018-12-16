@@ -23,22 +23,22 @@ from io import StringIO
 
 from unittest import TestCase
 
-from ..store.config import CollectionConfig
+from ..store.config import FileBasedCollectionMetadata
 
 
-class CollectionConfigTests(TestCase):
+class FileBasedCollectionMetadataTests(TestCase):
 
     def test_get_color(self):
         f = StringIO("""\
 [DEFAULT]
 color = #ffffff
 """)
-        cc = CollectionConfig.from_file(f)
+        cc = FileBasedCollectionMetadata.from_file(f)
         self.assertEqual('#ffffff', cc.get_color())
 
     def test_get_color_missing(self):
         f = StringIO("")
-        cc = CollectionConfig.from_file(f)
+        cc = FileBasedCollectionMetadata.from_file(f)
         self.assertRaises(KeyError, cc.get_color)
 
     def test_get_comment(self):
@@ -46,12 +46,12 @@ color = #ffffff
 [DEFAULT]
 comment = this is a comment
 """)
-        cc = CollectionConfig.from_file(f)
+        cc = FileBasedCollectionMetadata.from_file(f)
         self.assertEqual('this is a comment', cc.get_comment())
 
     def test_get_comment_missing(self):
         f = StringIO("")
-        cc = CollectionConfig.from_file(f)
+        cc = FileBasedCollectionMetadata.from_file(f)
         self.assertRaises(KeyError, cc.get_comment)
 
     def test_get_description(self):
@@ -59,12 +59,12 @@ comment = this is a comment
 [DEFAULT]
 description = this is a description
 """)
-        cc = CollectionConfig.from_file(f)
+        cc = FileBasedCollectionMetadata.from_file(f)
         self.assertEqual('this is a description', cc.get_description())
 
     def test_get_description_missing(self):
         f = StringIO("")
-        cc = CollectionConfig.from_file(f)
+        cc = FileBasedCollectionMetadata.from_file(f)
         self.assertRaises(KeyError, cc.get_description)
 
     def test_get_displayname(self):
@@ -72,10 +72,10 @@ description = this is a description
 [DEFAULT]
 displayname = DISPLAY-NAME
 """)
-        cc = CollectionConfig.from_file(f)
+        cc = FileBasedCollectionMetadata.from_file(f)
         self.assertEqual('DISPLAY-NAME', cc.get_displayname())
 
     def test_get_displayname_missing(self):
         f = StringIO("")
-        cc = CollectionConfig.from_file(f)
+        cc = FileBasedCollectionMetadata.from_file(f)
         self.assertRaises(KeyError, cc.get_displayname)

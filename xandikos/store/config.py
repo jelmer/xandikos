@@ -25,7 +25,23 @@ import configparser
 FILENAME = '.xandikos'
 
 
-class CollectionConfig(object):
+class CollectionMetadata(object):
+    """Metadata for a configuration."""
+
+    def get_color(self):
+        raise NotImplementedError(self.get_color)
+
+    def get_comment(self):
+        raise NotImplementedError(self.get_comment)
+
+    def get_displayname(self):
+        raise NotImplementedError(self.get_displayname)
+
+    def get_description(self):
+        raise NotImplementedError(self.get_description)
+
+
+class FileBasedCollectionMetadata(CollectionMetadata):
     """Metadata for a configuration."""
 
     def __init__(self, cp=None):
@@ -37,7 +53,7 @@ class CollectionConfig(object):
     def from_file(cls, f):
         cp = configparser.ConfigParser()
         cp.read_file(f)
-        return CollectionConfig(cp)
+        return cls(cp)
 
     def get_color(self):
         return self._configparser['DEFAULT']['color']

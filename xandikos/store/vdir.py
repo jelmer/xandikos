@@ -39,7 +39,7 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
-from .config import CollectionConfig
+from .config import FileBasedCollectionMetadata
 
 
 DEFAULT_ENCODING = 'utf-8'
@@ -63,7 +63,7 @@ class VdirStore(Store):
 
     @property
     def config(self):
-        return CollectionConfig()
+        return FileBasedCollectionMetadata()
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
