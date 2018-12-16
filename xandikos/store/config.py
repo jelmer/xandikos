@@ -66,3 +66,6 @@ class FileBasedCollectionMetadata(CollectionMetadata):
 
     def get_description(self):
         return self._configparser['DEFAULT']['description']
+
+
+

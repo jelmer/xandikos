@@ -39,7 +39,10 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
-from .config import FileBasedCollectionMetadata
+from .config import (
+    CollectionMetadata,
+    FileBasedCollectionMetadata,
+    )
 
 
 from dulwich.file import GitFile
@@ -57,6 +60,45 @@ DEFAULT_ENCODING = 'utf-8'
 
 
 logger = logging.getLogger(__name__)
+
+
+class RepoCollectionMetadata(CollectionMetadata):
+
+    def __init__(self, repo):
+        self._repo = repo
+
+    def get_color(self):
+        config = self._repo.get_config()
+        try:
+            color = config.get(b'xandikos', b'color')
+        except KeyError:
+            return None
+        else:
+            return color.decode(DEFAULT_ENCODING)
+
+    def get_displayname(self):
+        config = self._repo.get_config()
+        try:
+            displayname = config.get(b'xandikos', b'displayname')
+        except KeyError:
+            return None
+        else:
+            return displayname.decode(DEFAULT_ENCODING)
+
+    def get_description(self):
+        desc = self._repo.get_description()
+        if desc is not None:
+            desc = desc.decode(DEFAULT_ENCODING)
+        return desc
+
+    def get_comment(self):
+        config = self._repo.get_config()
+        try:
+            comment = config.get(b'xandikos', b'comment')
+        except KeyError:
+            return None
+        else:
+            return comment.decode(DEFAULT_ENCODING)
 
 
 class locked_index(object):
@@ -93,6 +135,10 @@ class GitStore(Store):
     @property
     def config(self):
         return FileBasedCollectionMetadata()
+
+    @property
+    def git_config(self):
+        return RepoCollectionMetadata(self.repo)
 
     def __repr__(self):
         return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
@@ -259,10 +305,7 @@ class GitStore(Store):
         try:
             return self.config.get_description()
         except KeyError:
-            desc = self.repo.get_description()
-            if desc is not None:
-                desc = desc.decode(DEFAULT_ENCODING)
-            return desc
+            return self.git_config.get_description()
 
     def set_description(self, description):
         """Set extended description.
@@ -288,13 +331,7 @@ class GitStore(Store):
         try:
             return self.config.get_comment()
         except KeyError:
-            config = self.repo.get_config()
-            try:
-                comment = config.get(b'xandikos', b'comment')
-            except KeyError:
-                return None
-            else:
-                return comment.decode(DEFAULT_ENCODING)
+            return self.git_config.get_comment()
 
     def get_color(self):
         """Get color.
@@ -304,13 +341,7 @@ class GitStore(Store):
         try:
             return self.config.get_color()
         except KeyError:
-            config = self.repo.get_config()
-            try:
-                color = config.get(b'xandikos', b'color')
-            except KeyError:
-                return None
-            else:
-                return color.decode(DEFAULT_ENCODING)
+            return self.git_config.get_color()
 
     def set_color(self, color):
         """Set the color code for this store."""
@@ -328,13 +359,7 @@ class GitStore(Store):
         try:
             return self.config.get_displayname()
         except KeyError:
-            config = self.repo.get_config()
-            try:
-                displayname = config.get(b'xandikos', b'displayname')
-            except KeyError:
-                return None
-            else:
-                return displayname.decode(DEFAULT_ENCODING)
+            return self.git_config.get_displayname()
 
     def set_displayname(self, displayname):
         """Set the display name.
