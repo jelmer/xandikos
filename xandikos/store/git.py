@@ -20,6 +20,7 @@
 """Git store.
 """
 
+from io import BytesIO
 import logging
 import os
 import shutil
@@ -42,7 +43,7 @@ from . import (
 from .config import (
     CollectionMetadata,
     FileBasedCollectionMetadata,
-    )
+)
 
 
 from dulwich.file import GitFile
@@ -69,36 +70,70 @@ class RepoCollectionMetadata(CollectionMetadata):
 
     def get_color(self):
         config = self._repo.get_config()
-        try:
-            color = config.get(b'xandikos', b'color')
-        except KeyError:
-            return None
+        color = config.get(b'xandikos', b'color')
+        if color == b'':
+            raise KeyError
+        return color.decode(DEFAULT_ENCODING)
+
+    def set_color(self, color):
+        config = self._repo.get_config()
+        if color is not None:
+            config.set(
+                b'xandikos', b'color', color.encode(DEFAULT_ENCODING))
         else:
-            return color.decode(DEFAULT_ENCODING)
+            # TODO(jelmer): Add and use config.remove()
+            config.set(b'xandikos', b'color', b'')
+        self._write_config(config)
+
+    def _write_config(self, config):
+        f = BytesIO()
+        config.write_to_file(f)
+        self._repo._put_named_file('config', f.getvalue())
 
     def get_displayname(self):
         config = self._repo.get_config()
-        try:
-            displayname = config.get(b'xandikos', b'displayname')
-        except KeyError:
-            return None
+        displayname = config.get(b'xandikos', b'displayname')
+        if displayname == b'':
+            raise KeyError
+        return displayname.decode(DEFAULT_ENCODING)
+
+    def set_displayname(self, displayname):
+        config = self._repo.get_config()
+        if displayname is not None:
+            config.set(b'xandikos', b'displayname',
+                       displayname.encode(DEFAULT_ENCODING))
         else:
-            return displayname.decode(DEFAULT_ENCODING)
+            config.set(b'xandikos', b'displayname', b'')
+        self._write_config(config)
 
     def get_description(self):
         desc = self._repo.get_description()
-        if desc is not None:
-            desc = desc.decode(DEFAULT_ENCODING)
-        return desc
+        if desc in (None, b''):
+            raise KeyError
+        return desc.decode(DEFAULT_ENCODING)
+
+    def set_description(self, description):
+        if description is not None:
+            self._repo.set_description(description.encode(DEFAULT_ENCODING))
+        else:
+            self._repo.set_description(b'')
 
     def get_comment(self):
         config = self._repo.get_config()
-        try:
-            comment = config.get(b'xandikos', b'comment')
-        except KeyError:
-            return None
+        comment = config.get(b'xandikos', b'comment')
+        if comment == b'':
+            raise KeyError
+        return comment.decode(DEFAULT_ENCODING)
+
+    def set_comment(self, comment):
+        config = self._repo.get_config()
+        if comment is not None:
+            config.set(
+                b'xandikos', b'comment', comment.encode(DEFAULT_ENCODING))
         else:
-            return comment.decode(DEFAULT_ENCODING)
+            # TODO(jelmer): Add and use config.remove()
+            config.set(b'xandikos', b'comment', b'')
+        self._write_config(config)
 
 
 class locked_index(object):
@@ -305,23 +340,24 @@ class GitStore(Store):
         try:
             return self.config.get_description()
         except KeyError:
-            return self.git_config.get_description()
+            try:
+                return self.git_config.get_description()
+            except KeyError:
+                return None
 
     def set_description(self, description):
         """Set extended description.
 
         :param description: repository description as string
         """
-        return self.repo.set_description(description.encode(DEFAULT_ENCODING))
+        self.git_config.set_description(description)
 
     def set_comment(self, comment):
         """Set comment.
 
         :param comment: Comment
         """
-        config = self.repo.get_config()
-        config.set(b'xandikos', b'comment', comment.encode(DEFAULT_ENCODING))
-        config.write_to_path()
+        self.git_config.set_comment(comment)
 
     def get_comment(self):
         """Get comment.
@@ -331,7 +367,10 @@ class GitStore(Store):
         try:
             return self.config.get_comment()
         except KeyError:
-            return self.git_config.get_comment()
+            try:
+                return self.git_config.get_comment()
+            except KeyError:
+                return None
 
     def get_color(self):
         """Get color.
@@ -341,15 +380,14 @@ class GitStore(Store):
         try:
             return self.config.get_color()
         except KeyError:
-            return self.git_config.get_color()
+            try:
+                return self.git_config.get_color()
+            except KeyError:
+                return None
 
     def set_color(self, color):
         """Set the color code for this store."""
-        config = self.repo.get_config()
-        config.set(
-            b'xandikos', b'color',
-            color.encode(DEFAULT_ENCODING) if color else b'')
-        config.write_to_path()
+        self.git_config.set_color(color)
 
     def get_displayname(self):
         """Get display name.
@@ -359,17 +397,17 @@ class GitStore(Store):
         try:
             return self.config.get_displayname()
         except KeyError:
-            return self.git_config.get_displayname()
+            try:
+                return self.git_config.get_displayname()
+            except KeyError:
+                return None
 
     def set_displayname(self, displayname):
         """Set the display name.
 
         :param displayname: New display name
         """
-        config = self.repo.get_config()
-        config.set(b'xandikos', b'displayname',
-                   displayname.encode(DEFAULT_ENCODING))
-        config.write_to_path()
+        self.git_config.set_displayname(displayname)
 
     def set_type(self, store_type):
         """Set store type.

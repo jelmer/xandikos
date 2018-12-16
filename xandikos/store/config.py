@@ -29,7 +29,13 @@ class CollectionMetadata(object):
     """Metadata for a configuration."""
 
     def get_color(self):
+        """Get the color for this collection.
+        """
         raise NotImplementedError(self.get_color)
+
+    def set_color(self, color):
+        """Change the color of this collection."""
+        raise NotImplementedError(self.set_color)
 
     def get_comment(self):
         raise NotImplementedError(self.get_comment)
@@ -67,5 +73,26 @@ class FileBasedCollectionMetadata(CollectionMetadata):
     def get_description(self):
         return self._configparser['DEFAULT']['description']
 
+    def set_color(self, color):
+        if color is not None:
+            self._configparser['DEFAULT']['color'] = color
+        else:
+            del self._configparser['DEFAULT']['color']
 
+    def set_displayname(self, displayname):
+        if displayname is not None:
+            self._configparser['DEFAULT']['displayname'] = displayname
+        else:
+            del self._configparser['DEFAULT']['displayname']
 
+    def set_description(self, description):
+        if description is not None:
+            self._configparser['DEFAULT']['description'] = description
+        else:
+            del self._configparser['DEFAULT']['description']
+
+    def set_comment(self, comment):
+        if comment is not None:
+            self._configparser['DEFAULT']['comment'] = comment
+        else:
+            del self._configparser['DEFAULT']['comment']
