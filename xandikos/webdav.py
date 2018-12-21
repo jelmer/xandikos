@@ -1095,6 +1095,7 @@ def create_href(href, base_href=None):
 def read_href_element(et):
     el = urllib.parse.unquote(et.text)
     el = urllib.parse.urlsplit(el)
+    # TODO(jelmer): Check that the hostname matches the local hostname?
     return el.path
 
 
