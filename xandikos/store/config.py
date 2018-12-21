@@ -50,10 +50,16 @@ class CollectionMetadata(object):
 class FileBasedCollectionMetadata(CollectionMetadata):
     """Metadata for a configuration."""
 
-    def __init__(self, cp=None):
+    def __init__(self, cp=None, save=None):
         if cp is None:
             cp = configparser.ConfigParser()
         self._configparser = cp
+        self._save_cb = save
+
+    def _save(self):
+        if self._save_cb is None:
+            return
+        self._save_cb(self._configparser)
 
     @classmethod
     def from_file(cls, f):
@@ -78,21 +84,25 @@ class FileBasedCollectionMetadata(CollectionMetadata):
             self._configparser['DEFAULT']['color'] = color
         else:
             del self._configparser['DEFAULT']['color']
+        self._save()
 
     def set_displayname(self, displayname):
         if displayname is not None:
             self._configparser['DEFAULT']['displayname'] = displayname
         else:
             del self._configparser['DEFAULT']['displayname']
+        self._save()
 
     def set_description(self, description):
         if description is not None:
             self._configparser['DEFAULT']['description'] = description
         else:
             del self._configparser['DEFAULT']['description']
+        self._save()
 
     def set_comment(self, comment):
         if comment is not None:
             self._configparser['DEFAULT']['comment'] = comment
         else:
             del self._configparser['DEFAULT']['comment']
+        self._save()

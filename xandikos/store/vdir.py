@@ -22,6 +22,7 @@
 See https://github.com/pimutils/vdirsyncer/blob/master/docs/vdir.rst
 """
 
+import configparser
 import errno
 import hashlib
 import logging
@@ -39,7 +40,10 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
-from .config import FileBasedCollectionMetadata
+from .config import (
+    FileBasedCollectionMetadata,
+    FILENAME as CONFIG_FILENAME,
+)
 
 
 DEFAULT_ENCODING = 'utf-8'
@@ -60,10 +64,13 @@ class VdirStore(Store):
         self._fname_to_uid = {}
         # Maps uids to (sha, fname)
         self._uid_to_fname = {}
+        cp = configparser.ConfigParser()
+        cp.read([os.path.join(self.path, CONFIG_FILENAME)])
 
-    @property
-    def config(self):
-        return FileBasedCollectionMetadata()
+        def save_config(cp):
+            with open(os.path.join(self.path, CONFIG_FILENAME), 'wb') as f:
+                cp.write(f)
+        self.config = FileBasedCollectionMetadata(cp, save=save_config)
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)

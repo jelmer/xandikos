@@ -20,6 +20,7 @@
 """Git store.
 """
 
+import configparser
 from io import BytesIO
 import logging
 import os
@@ -41,6 +42,7 @@ from . import (
     open_by_extension,
 )
 from .config import (
+    FILENAME as CONFIG_FILENAME,
     CollectionMetadata,
     FileBasedCollectionMetadata,
 )
@@ -166,14 +168,20 @@ class GitStore(Store):
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
+        try:
+            cf = self._get_raw(CONFIG_FILENAME)
+        except KeyError:
+            self.config = RepoCollectionMetadata(self.repo)
+        else:
+            cp = configparser.ConfigParser()
+            cp.read_string(cf)
 
-    @property
-    def config(self):
-        return FileBasedCollectionMetadata()
-
-    @property
-    def git_config(self):
-        return RepoCollectionMetadata(self.repo)
+            def save_config(cp):
+                f = BytesIO()
+                cp.write(f)
+                self._import_one(
+                    CONFIG_FILENAME, f.getvalue(), "Update configuration")
+            self.config = FileBasedCollectionMetadata(cp, save=save_config)
 
     def __repr__(self):
         return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
@@ -340,24 +348,21 @@ class GitStore(Store):
         try:
             return self.config.get_description()
         except KeyError:
-            try:
-                return self.git_config.get_description()
-            except KeyError:
-                return None
+            return None
 
     def set_description(self, description):
         """Set extended description.
 
         :param description: repository description as string
         """
-        self.git_config.set_description(description)
+        self.config.set_description(description)
 
     def set_comment(self, comment):
         """Set comment.
 
         :param comment: Comment
         """
-        self.git_config.set_comment(comment)
+        self.config.set_comment(comment)
 
     def get_comment(self):
         """Get comment.
@@ -367,10 +372,7 @@ class GitStore(Store):
         try:
             return self.config.get_comment()
         except KeyError:
-            try:
-                return self.git_config.get_comment()
-            except KeyError:
-                return None
+            return None
 
     def get_color(self):
         """Get color.
@@ -380,14 +382,11 @@ class GitStore(Store):
         try:
             return self.config.get_color()
         except KeyError:
-            try:
-                return self.git_config.get_color()
-            except KeyError:
-                return None
+            return None
 
     def set_color(self, color):
         """Set the color code for this store."""
-        self.git_config.set_color(color)
+        self.config.set_color(color)
 
     def get_displayname(self):
         """Get display name.
@@ -397,17 +396,14 @@ class GitStore(Store):
         try:
             return self.config.get_displayname()
         except KeyError:
-            try:
-                return self.git_config.get_displayname()
-            except KeyError:
-                return None
+            return None
 
     def set_displayname(self, displayname):
         """Set the display name.
 
         :param displayname: New display name
         """
-        self.git_config.set_displayname(displayname)
+        self.config.set_displayname(displayname)
 
     def set_type(self, store_type):
         """Set store type.
