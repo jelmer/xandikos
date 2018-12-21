@@ -262,13 +262,13 @@ class BaseGitStoreTest(BaseStoreTest):
             [('foo.ics', 'text/calendar', bid)],
             list(gc.iter_with_etag()))
 
-    def test_get_description(self):
+    def test_get_description_from_git_config(self):
         gc = self.create_store()
-        try:
-            gc.repo.set_description(b'a repo description')
-        except NotImplementedError:
-            self.skipTest('old dulwich version without '
-                          'MemoryRepo.set_description')
+        config = gc.repo.get_config()
+        config.set(b'xandikos', b'test', b'test')
+        if getattr(config, 'path', None):
+            config.write_to_path()
+        gc.repo.set_description(b'a repo description')
         self.assertEqual(gc.get_description(), 'a repo description')
 
     def test_displayname(self):

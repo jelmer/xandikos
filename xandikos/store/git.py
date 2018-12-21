@@ -21,7 +21,7 @@
 """
 
 import configparser
-from io import BytesIO
+from io import BytesIO, StringIO
 import logging
 import os
 import shutil
@@ -69,6 +69,11 @@ class RepoCollectionMetadata(CollectionMetadata):
 
     def __init__(self, repo):
         self._repo = repo
+
+    @classmethod
+    def present(cls, repo):
+        config = repo.get_config()
+        return config.has_section((b'xandikos', ))
 
     def get_color(self):
         config = self._repo.get_config()
@@ -168,20 +173,27 @@ class GitStore(Store):
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
-        try:
-            cf = self._get_raw(CONFIG_FILENAME)
-        except KeyError:
-            self.config = RepoCollectionMetadata(self.repo)
+
+    @property
+    def config(self):
+        if RepoCollectionMetadata.present(self.repo):
+            return RepoCollectionMetadata(self.repo)
         else:
             cp = configparser.ConfigParser()
-            cp.read_string(cf)
+            try:
+                cf = self._get_raw(CONFIG_FILENAME)
+            except KeyError:
+                pass
+            else:
+                cp.read_string(cf)
 
             def save_config(cp):
-                f = BytesIO()
+                f = StringIO()
                 cp.write(f)
                 self._import_one(
-                    CONFIG_FILENAME, f.getvalue(), "Update configuration")
-            self.config = FileBasedCollectionMetadata(cp, save=save_config)
+                    CONFIG_FILENAME, [f.getvalue().encode('utf-8')],
+                    "Update configuration")
+            return FileBasedCollectionMetadata(cp, save=save_config)
 
     def __repr__(self):
         return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
