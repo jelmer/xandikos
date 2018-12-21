@@ -142,6 +142,21 @@ class RepoCollectionMetadata(CollectionMetadata):
             config.set(b'xandikos', b'comment', b'')
         self._write_config(config)
 
+    def set_type(self, store_type):
+        config = self._repo.get_config()
+        config.set(b'xandikos', b'type', store_type.encode(DEFAULT_ENCODING))
+        self._write_config(config)
+
+    def get_type(self):
+        config = self._repo.get_config()
+        store_type = config.get(b'xandikos', b'type')
+        store_type = store_type.decode(DEFAULT_ENCODING)
+        if store_type not in VALID_STORE_TYPES:
+            logging.warning(
+                'Invalid store type %s set for %r.',
+                store_type, self.repo)
+        return store_type
+
 
 class locked_index(object):
 
@@ -187,12 +202,12 @@ class GitStore(Store):
             else:
                 cp.read_string(cf)
 
-            def save_config(cp):
+            def save_config(cp, message):
                 f = StringIO()
                 cp.write(f)
                 self._import_one(
                     CONFIG_FILENAME, [f.getvalue().encode('utf-8')],
-                    "Update configuration")
+                    message)
             return FileBasedCollectionMetadata(cp, save=save_config)
 
     def __repr__(self):
@@ -422,27 +437,17 @@ class GitStore(Store):
 
         :param store_type: New store type (one of VALID_STORE_TYPES)
         """
-        config = self.repo.get_config()
-        config.set(b'xandikos', b'type', store_type.encode(DEFAULT_ENCODING))
-        config.write_to_path()
+        self.config.set_type(store_type)
 
     def get_type(self):
         """Get store type.
 
         This looks in git config first, then falls back to guessing.
         """
-        config = self.repo.get_config()
         try:
-            store_type = config.get(b'xandikos', b'type')
+            return self.config.get_type()
         except KeyError:
             return super(GitStore, self).get_type()
-        else:
-            store_type = store_type.decode(DEFAULT_ENCODING)
-            if store_type not in VALID_STORE_TYPES:
-                logging.warning(
-                    'Invalid store type %s set for %r.',
-                    store_type, self.repo)
-            return store_type
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.

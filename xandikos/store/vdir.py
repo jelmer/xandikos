@@ -67,7 +67,7 @@ class VdirStore(Store):
         cp = configparser.ConfigParser()
         cp.read([os.path.join(self.path, CONFIG_FILENAME)])
 
-        def save_config(cp):
+        def save_config(cp, message):
             with open(os.path.join(self.path, CONFIG_FILENAME), 'wb') as f:
                 cp.write(f)
         self.config = FileBasedCollectionMetadata(cp, save=save_config)
@@ -305,18 +305,6 @@ class VdirStore(Store):
         :param displayname: New display name
         """
         self._write_metadata('displayname', displayname)
-
-    def set_type(self, store_type):
-        """Set store type.
-
-        :param store_type: New store type (one of VALID_STORE_TYPES)
-        """
-        raise NotImplementedError(self.set_type)
-
-    def get_type(self):
-        """Get store type.
-        """
-        raise NotImplementedError(self.get_type)
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.

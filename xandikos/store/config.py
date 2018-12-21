@@ -56,10 +56,10 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         self._configparser = cp
         self._save_cb = save
 
-    def _save(self):
+    def _save(self, message):
         if self._save_cb is None:
             return
-        self._save_cb(self._configparser)
+        self._save_cb(self._configparser, message)
 
     @classmethod
     def from_file(cls, f):
@@ -84,25 +84,32 @@ class FileBasedCollectionMetadata(CollectionMetadata):
             self._configparser['DEFAULT']['color'] = color
         else:
             del self._configparser['DEFAULT']['color']
-        self._save()
+        self._save("Set color.")
 
     def set_displayname(self, displayname):
         if displayname is not None:
             self._configparser['DEFAULT']['displayname'] = displayname
         else:
             del self._configparser['DEFAULT']['displayname']
-        self._save()
+        self._save("Set display name.")
 
     def set_description(self, description):
         if description is not None:
             self._configparser['DEFAULT']['description'] = description
         else:
             del self._configparser['DEFAULT']['description']
-        self._save()
+        self._save("Set description.")
 
     def set_comment(self, comment):
         if comment is not None:
             self._configparser['DEFAULT']['comment'] = comment
         else:
             del self._configparser['DEFAULT']['comment']
-        self._save()
+        self._save("Set comment.")
+
+    def set_type(self, store_type):
+        self._configparser['DEFAULT']['type'] = store_type
+        self._save("Set collection type.")
+
+    def get_type(self):
+        return self._configparser['DEFAULT']['type']
