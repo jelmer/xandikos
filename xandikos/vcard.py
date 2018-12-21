@@ -29,6 +29,7 @@ class VCardFile(File):
 
     def validate(self):
         c = b''.join(self.content).strip()
+        # TODO(jelmer): Do more extensive checking of VCards
         if not c.startswith((b'BEGIN:VCARD\r\n', b'BEGIN:VCARD\n')) or \
            not c.endswith(b'\nEND:VCARD'):
             raise InvalidFileContents(
