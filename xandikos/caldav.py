@@ -77,6 +77,14 @@ class Calendar(webdav.Collection):
         """Set the calendar color."""
         raise NotImplementedError(self.set_calendar_color)
 
+    def get_calendar_order(self):
+        """Return the calendar order."""
+        raise NotImplementedError(self.get_calendar_order)
+
+    def set_calendar_order(self, order):
+        """Set the calendar order."""
+        raise NotImplementedError(self.set_calendar_order)
+
     def get_calendar_timezone(self):
         """Return calendar timezone.
 
@@ -252,6 +260,20 @@ class CalendarDataProperty(davcommon.SubbedProperty):
         # TODO(jelmer): Don't hardcode encoding
         # TODO(jelmer): Strip invalid characters or raise an exception
         el.text = serialized_cal.decode('utf-8')
+
+
+class CalendarOrderProperty(webdav.Property):
+    """Provides calendar-order property.
+    """
+
+    name = '{http://apple.com/ns/ical/}calendar-order'
+    resource_type = CALENDAR_RESOURCE_TYPE
+
+    def get_value(self, base_href, resource, el, environ):
+        el.text = resource.get_calendar_order()
+
+    def set_value(self, href, resource, el):
+        resource.set_calendar_order(el.text)
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):

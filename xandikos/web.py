@@ -404,6 +404,15 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def set_calendar_color(self, color):
         self.store.set_color(color)
 
+    def get_calendar_order(self):
+        order = self.store.config.get_order()
+        if not order:
+            raise KeyError
+        return order
+
+    def set_calendar_order(self, order):
+        self.store.config.set_order(order)
+
     def get_calendar_timezone(self):
         # TODO(jelmer): Read a magic file from the store?
         raise KeyError
@@ -857,6 +866,7 @@ class XandikosApp(webdav.WebDAVApp):
             carddav.AddressbookHomeSetProperty(),
             caldav.CalendarDescriptionProperty(),
             caldav.CalendarColorProperty(),
+            caldav.CalendarOrderProperty(),
             caldav.SupportedCalendarComponentSetProperty(),
             carddav.AddressbookDescriptionProperty(),
             carddav.PrincipalAddressProperty(),

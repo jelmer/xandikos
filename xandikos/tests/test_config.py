@@ -112,6 +112,13 @@ class MetadataTests(object):
         self._config.set_description(None)
         self.assertRaises(KeyError, self._config.get_description)
 
+    def test_order(self):
+        self.assertRaises(KeyError, self._config.get_order)
+        self._config.set_order('this is a order')
+        self.assertEqual('this is a order', self._config.get_order())
+        self._config.set_order(None)
+        self.assertRaises(KeyError, self._config.get_order)
+
 
 class FileMetadataTests(TestCase, MetadataTests):
 

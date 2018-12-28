@@ -46,6 +46,12 @@ class CollectionMetadata(object):
     def get_description(self):
         raise NotImplementedError(self.get_description)
 
+    def get_order(self):
+        raise NotImplementedError(self.get_order)
+
+    def set_order(self, order):
+        raise NotImplementedError(self.set_order)
+
 
 class FileBasedCollectionMetadata(CollectionMetadata):
     """Metadata for a configuration."""
@@ -113,3 +119,16 @@ class FileBasedCollectionMetadata(CollectionMetadata):
 
     def get_type(self):
         return self._configparser['DEFAULT']['type']
+
+    def get_order(self):
+        return self._configparser['calendar']['order']
+
+    def set_order(self, order):
+        try:
+            self._configparser.add_section('calendar')
+        except configparser.DuplicateSectionError:
+            pass
+        if order is None:
+            del self._configparser['calendar']['order']
+        else:
+            self._configparser['calendar']['order'] = order
