@@ -63,6 +63,7 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `Tasks <https://github.com/tasks/tasks/tree/caldav>`_
 - `AgendaV <http://agendav.org/>`_
 - `CardBook <https://gitlab.com/cardbook/cardbook/>`_
+- Apple's iOS
 
 Dependencies
 ============
