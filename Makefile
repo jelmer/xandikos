@@ -14,7 +14,7 @@ check:
 	$(PYTHON) -m unittest $(TESTSUITE)
 
 style:
-	flake8
+	python3 -m flake8
 
 web:
 	$(PYTHON) -m xandikos.web
