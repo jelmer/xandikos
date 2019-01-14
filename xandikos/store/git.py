@@ -528,6 +528,8 @@ class BareGitStore(GitStore):
             tree = self.repo.object_store[ctag.encode('ascii')]
         for (name, mode, sha) in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
+            if name == CONFIG_FILENAME:
+                continue
             yield (name, mode, sha)
 
     @classmethod
@@ -701,11 +703,15 @@ class TreeGitStore(GitStore):
             tree = self.repo.object_store[ctag.encode('ascii')]
             for (name, mode, sha) in tree.iteritems():
                 name = name.decode(DEFAULT_ENCODING)
+                if name == CONFIG_FILENAME:
+                    continue
                 yield (name, mode, sha)
         else:
             index = self.repo.open_index()
             for (name, sha, mode) in index.iterobjects():
                 name = name.decode(DEFAULT_ENCODING)
+                if name == CONFIG_FILENAME:
+                    continue
                 yield (name, mode, sha)
 
     def subdirectories(self):

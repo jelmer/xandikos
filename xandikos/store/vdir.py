@@ -209,6 +209,8 @@ class VdirStore(Store):
         for name in os.listdir(self.path):
             if name.endswith('.tmp'):
                 continue
+            if name == CONFIG_FILENAME:
+                continue
             if name.endswith('.ics'):
                 content_type = 'text/calendar'
             elif name.endswith('.vcf'):
