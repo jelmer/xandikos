@@ -214,7 +214,8 @@ class GitStore(Store):
             except KeyError:
                 pass
             else:
-                cp.read_string(cf)
+                if cf is not None:
+                    cp.read(b''.join(cf).decode('utf-8'))
 
             def save_config(cp, message):
                 f = StringIO()
