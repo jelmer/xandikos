@@ -215,7 +215,7 @@ class GitStore(Store):
                 pass
             else:
                 if cf is not None:
-                    cp.read(b''.join(cf).decode('utf-8'))
+                    cp.read_string(b''.join(cf).decode('utf-8'))
 
             def save_config(cp, message):
                 f = StringIO()
