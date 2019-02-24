@@ -1028,6 +1028,9 @@ def traverse_resource(base_resource, base_href, depth):
         (href, resource, depth) = todo.popleft()
         if COLLECTION_RESOURCE_TYPE in resource.resource_types:
             # caldavzap/carddavmate require this
+            # https://tools.ietf.org/html/rfc4918#section-5.2
+            # mentions that a trailing slash *SHOULD* be added for
+            # collections.
             href = ensure_trailing_slash(href)
         yield (href, resource)
         if depth == "0":
