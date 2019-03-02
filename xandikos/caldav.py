@@ -376,7 +376,7 @@ def as_tz_aware_ts(dt, default_timezone):
 
 
 def apply_time_range_vevent(start, end, comp, tzify):
-    if comp['DTSTART'] is None:
+    if 'DTSTART' not in comp:
         raise MissingProperty('DTSTART')
 
     if not (end > tzify(comp['DTSTART'].dt)):
