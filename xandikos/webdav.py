@@ -1014,14 +1014,19 @@ def ensure_trailing_slash(href):
     return href + '/'
 
 
-def traverse_resource(base_resource, base_href, depth):
+def traverse_resource(base_resource, base_href, depth, members=None):
     """Traverse a resource.
 
     :param base_resource: Resource to traverse from
     :param base_href: href for base resource
     :param depth: Depth ("0", "1", "infinity")
+    :param members: Function to use to get members of each
+        collection.
     :return: Iterator over (URL, Resource) tuples
     """
+    if members is None:
+        def members(c):
+            return c.members()
     todo = collections.deque([(base_href, base_resource, depth)])
     while todo:
         (href, resource, depth) = todo.popleft()
@@ -1041,7 +1046,7 @@ def traverse_resource(base_resource, base_href, depth):
         else:
             raise AssertionError("invalid depth %r" % depth)
         if COLLECTION_RESOURCE_TYPE in resource.resource_types:
-            for (child_name, child_resource) in resource.members():
+            for (child_name, child_resource) in members(resource):
                 child_href = urllib.parse.urljoin(href, child_name)
                 todo.append((child_href, child_resource, nextdepth))
 

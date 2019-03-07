@@ -154,6 +154,19 @@ class Calendar(webdav.Collection):
         """
         return TRANSPARENCY_OPAQUE
 
+    def calendar_query(self, filter):
+        """Query for all the members of this calendar that match `filter`.
+
+        This is a naive implementation; subclasses should ideally provide
+        their own implementation that is faster.
+
+        :param filter: Filter to check against
+        :return: Iterator over name, resource objects
+        """
+        for name, resource in self.members():
+            if filter is None or filter.check(name, resource):
+                yield name, resource
+
 
 class CalendarHomeSet(object):
 
@@ -585,6 +598,22 @@ def get_calendar_timezone(resource):
         return get_pytz_from_text(tztext)
 
 
+class CalDavFilter(object):
+
+    def __init__(self, elem, tzify):
+        self.elem = elem
+        self.tzify = tzify
+
+    def check(self, href, resource):
+        try:
+            return apply_filter(self.elem, resource, self.tzify)
+        except MissingProperty as e:
+            logging.warning(
+                'calendar_query: Ignoring calendar object %s, due '
+                'to missing property %s', href, e.property_name)
+            return False
+
+
 class CalendarQueryReporter(webdav.Reporter):
 
     name = '{%s}calendar-query' % NAMESPACE
@@ -594,7 +623,7 @@ class CalendarQueryReporter(webdav.Reporter):
     @webdav.multistatus
     def report(self, environ, body, resources_by_hrefs, properties, base_href,
                base_resource, depth):
-        # TODO(jelmer): Verify that resource is an addressbook
+        # TODO(jelmer): Verify that resource is a calendar
         requested = None
         filter_el = None
         tztext = None
@@ -615,17 +644,10 @@ class CalendarQueryReporter(webdav.Reporter):
 
         def tzify(dt):
             return as_tz_aware_ts(dt, tz)
+        filter = CalDavFilter(filter_el, tzify)
         for (href, resource) in webdav.traverse_resource(
-                base_resource, base_href, depth):
-            try:
-                filter_result = apply_filter(filter_el, resource, tzify)
-            except MissingProperty as e:
-                logging.warning(
-                    'calendar_query: Ignoring calendar object %s, due '
-                    'to missing property %s', href, e.property_name)
-                continue
-            if not filter_result:
-                continue
+                base_resource, base_href, depth,
+                members=lambda r: r.calendar_query(filter)):
             propstat = davcommon.get_properties_with_data(
                 self.data_property, href, resource, properties, environ,
                 requested)
