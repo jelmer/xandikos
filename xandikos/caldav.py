@@ -644,10 +644,14 @@ class CalendarQueryReporter(webdav.Reporter):
 
         def tzify(dt):
             return as_tz_aware_ts(dt, tz)
+
+        def members(collection):
+            return c.subcollections() + r.calendar_query(filter)
+
         filter = CalDavFilter(filter_el, tzify)
         for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth,
-                members=lambda r: r.calendar_query(filter)):
+                members=members):
             propstat = davcommon.get_properties_with_data(
                 self.data_property, href, resource, properties, environ,
                 requested)

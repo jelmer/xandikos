@@ -99,6 +99,21 @@ class File(object):
             yield "Modified " + item_description
 
 
+class Filter(object):
+    """A filter that can be used to query for certain resources.
+
+    Filters are often resource-type specific.
+    """
+
+    def check(self, name, resource):
+        """Check if this filter applies to a resource.
+
+        :param name: Name of the resource
+        :param resource: Resource object
+        """
+        raise NotImplementedError(self.check)
+
+
 def open_by_content_type(content, content_type, extra_file_handlers):
     """Open a file based on content type.
 
@@ -181,6 +196,18 @@ class Store(object):
         :yield: (name, content_type, etag) tuples
         """
         raise NotImplementedError(self.iter_with_etag)
+
+    def iter_with_filter(self, filter):
+        """Iterate over all items in the store that match a particular filter.
+
+        :param filter: Filter to apply
+        :yield: (name, file, etag) tuples
+        """
+        for (name, content_type, etag) in self.iter_with_etag():
+            # TODO(jelmer): Implement notes/indexes.rst
+            file = self.store.get_file(name, content_type, etag)
+            if filter.check(name, file):
+                yield (name, file, etag)
 
     def get_file(self, name, content_type=None, etag=None):
         """Get the contents of an object.

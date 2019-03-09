@@ -105,12 +105,12 @@ def extract_strong_etag(etag):
 class ObjectResource(webdav.Resource):
     """Object resource."""
 
-    def __init__(self, store, name, content_type, etag):
+    def __init__(self, store, name, content_type, etag, file=None):
         self.store = store
         self.name = name
         self.etag = etag
         self.content_type = content_type
-        self._file = None
+        self._file = file
 
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
@@ -225,8 +225,8 @@ class StoreBasedCollection(object):
         else:
             raise NotImplementedError(self.set_resource_types)
 
-    def _get_resource(self, name, content_type, etag):
-        return ObjectResource(self.store, name, content_type, etag)
+    def _get_resource(self, name, content_type, etag, file=None):
+        return ObjectResource(self.store, name, content_type, etag, file=file)
 
     def _get_subcollection(self, name):
         return self.backend.get_resource(posixpath.join(self.relpath, name))
@@ -254,6 +254,10 @@ class StoreBasedCollection(object):
         for (name, content_type, etag) in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
             ret.append((name, resource))
+        return ret + self.subcollections()
+
+    def subcollections(self):
+        ret = []
         for name in self.store.subdirectories():
             ret.append((name, self._get_subcollection(name)))
         return ret
@@ -457,6 +461,15 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def get_managed_attachments_server_url(self):
         # TODO(jelmer)
         raise KeyError
+
+    def calendar_query(self, filter):
+        ret = []
+        for (name, file, etag) in self.store.iter_with_filter(
+                filter=filter):
+            resource = self._get_resource(
+                name, file.content_type, etag, file=file)
+            ret.append((name, resource))
+        return ret
 
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
