@@ -205,7 +205,7 @@ class Store(object):
         """
         for (name, content_type, etag) in self.iter_with_etag():
             # TODO(jelmer): Implement notes/indexes.rst
-            file = self.store.get_file(name, content_type, etag)
+            file = self.get_file(name, content_type, etag)
             if filter.check(name, file):
                 yield (name, file, etag)
 
