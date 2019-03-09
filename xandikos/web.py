@@ -417,7 +417,7 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         self.store.config.set_order(order)
 
     def get_calendar_timezone(self):
-        # TODO(jelmer): Read a magic file from the store?
+        # TODO(jelmer): Read from config
         raise KeyError
 
     def set_calendar_timezone(self, content):

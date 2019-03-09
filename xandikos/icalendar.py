@@ -21,15 +21,32 @@
 
 """
 
+import datetime
 import logging
 
 from icalendar.cal import Calendar, component_factory
 from icalendar.prop import vText
-from xandikos.store import File, InvalidFileContents
+from xandikos.store import (
+    Filter,
+    File,
+    InvalidFileContents,
+)
+
+from . import (
+    collation as _mod_collation,
+)
 
 # TODO(jelmer): Populate this further based on
 # https://tools.ietf.org/html/rfc5545#3.3.11
 _INVALID_CONTROL_CHARACTERS = ['\x0c', '\x01']
+
+
+class MissingProperty(Exception):
+
+    def __init__(self, property_name):
+        super(MissingProperty, self).__init__(
+            "Property %r missing" % property_name)
+        self.property_name = property_name
 
 
 def validate_calendar(cal, strict=False):
@@ -198,6 +215,264 @@ def describe_calendar_delta(old_cal, new_cal):
                 logging.debug("Changed %s/%s or %s/%s from %s to %s.",
                               old_component.name, field, new_component.name,
                               field, old_value, new_value)
+
+
+def apply_time_range_vevent(start, end, comp, tzify):
+    if 'DTSTART' not in comp:
+        raise MissingProperty('DTSTART')
+
+    if not (end > tzify(comp['DTSTART'].dt)):
+        return False
+
+    if 'DTEND' in comp:
+        if tzify(comp['DTEND'].dt) < tzify(comp['DTSTART'].dt):
+            logging.debug('Invalid DTEND < DTSTART')
+        return (start < tzify(comp['DTEND'].dt))
+
+    if 'DURATION' in comp:
+        return (start < tzify(comp['DTSTART'].dt) + comp['DURATION'].dt)
+    if getattr(comp['DTSTART'].dt, 'time', None) is not None:
+        return (start <= tzify(comp['DTSTART'].dt))
+    else:
+        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
+
+
+def apply_time_range_vjournal(start, end, comp, tzify):
+    if 'DTSTART' not in comp:
+        return False
+
+    if not (end > tzify(comp['DTSTART'].dt)):
+        return False
+
+    if getattr(comp['DTSTART'].dt, 'time', None) is not None:
+        return (start <= tzify(comp['DTSTART'].dt))
+    else:
+        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
+
+
+def apply_time_range_vtodo(start, end, comp, tzify):
+    if 'DTSTART' in comp:
+        if 'DURATION' in comp and 'DUE' not in comp:
+            return (
+                start <= tzify(comp['DTSTART'].dt) + comp['DURATION'].dt and
+                (end > tzify(comp['DTSTART'].dt) or
+                 end >= tzify(comp['DTSTART'].dt) + comp['DURATION'].dt)
+            )
+        elif 'DUE' in comp and 'DURATION' not in comp:
+            return (
+                (start <= tzify(comp['DTSTART'].dt) or
+                 start < tzify(comp['DUE'].dt)) and
+                (end > tzify(comp['DTSTART'].dt) or
+                 end < tzify(comp['DUE'].dt))
+            )
+        else:
+            return (start <= tzify(comp['DTSTART'].dt) and
+                    end > tzify(comp['DTSTART'].dt))
+    elif 'DUE' in comp:
+        return start < tzify(comp['DUE'].dt) and end >= tzify(comp['DUE'].dt)
+    elif 'COMPLETED' in comp:
+        if 'CREATED' in comp:
+            return (
+                (start <= tzify(comp['CREATED'].dt) or
+                 start <= tzify(comp['COMPLETED'].dt)) and
+                (end >= tzify(comp['CREATED'].dt) or
+                 end >= tzify(comp['COMPLETED'].dt))
+            )
+        else:
+            return (
+                start <= tzify(comp['COMPLETED'].dt) and
+                end >= tzify(comp['COMPLETED'].dt)
+            )
+    elif 'CREATED' in comp:
+        return end >= tzify(comp['CREATED'].dt)
+    else:
+        return True
+
+
+def apply_time_range_vfreebusy(start, end, comp, tzify):
+    if 'DTSTART' in comp and 'DTEND' in comp:
+        return (
+            start <= tzify(comp['DTEND'].dt) and
+            end > tzify(comp['DTEND'].dt)
+        )
+
+    for period in comp.get('FREEBUSY', []):
+        if start < period.end and end > period.start:
+            return True
+
+    return False
+
+
+def apply_time_range_valarm(start, end, comp, tzify):
+    raise NotImplementedError(apply_time_range_valarm)
+
+
+class ComponentTimeRangeMatcher(object):
+
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+
+    def match(self, comp, tzify):
+        # According to https://tools.ietf.org/html/rfc4791, section 9.9 these
+        # are the properties to check.
+        component_handlers = {
+            'VEVENT': apply_time_range_vevent,
+            'VTODO': apply_time_range_vtodo,
+            'VJOURNAL': apply_time_range_vjournal,
+            'VFREEBUSY': apply_time_range_vfreebusy,
+            'VALARM': apply_time_range_valarm}
+        try:
+            component_handler = component_handlers[comp.name]
+        except KeyError:
+            logging.warning('unknown component %r in time-range filter',
+                            comp.name)
+            return False
+        return component_handler(self.start, self.end, comp, tzify)
+
+
+class TextMatcher(object):
+
+    def __init__(self, text, collation='i;ascii-casemap',
+                 negate_condition=False):
+        self.text = text
+        self.collation = collation
+        self.negate_condition = negate_condition
+
+    def match(self, prop):
+        matches = _mod_collation.get_collation(self.collation)(self.text, prop)
+        if self.negate_condition:
+            return not matches
+        else:
+            return matches
+
+
+class ComponentFilter(object):
+
+    def __init__(self, name, children=None, is_not_defined=False,
+                 time_range=None):
+        self.name = name
+        self.children = children
+        self.is_not_defined = is_not_defined
+        self.time_range = time_range
+        self.children = children or []
+
+    def match(self, comp, tzify):
+        # From https://tools.ietf.org/html/rfc4791, 9.7.1:
+        # A CALDAV:comp-filter is said to match if:
+
+        # 2. The CALDAV:comp-filter XML element contains a
+        # CALDAV:is-not-defined XML element and the calendar object or calendar
+        # component type specified by the "name" attribute does not exist in
+        # the current scope;
+        if self.is_not_defined:
+            return comp.name != self.name
+
+        # 1: The CALDAV:comp-filter XML element is empty and the calendar
+        # object or calendar component type specified by the "name" attribute
+        # exists in the current scope;
+        if comp.name != self.name:
+            return False
+
+        # 3. The CALDAV:comp-filter XML element contains a CALDAV:time-range
+        # XML element and at least one recurrence instance in the targeted
+        # calendar component is scheduled to overlap the specified time range
+        if self.time_range is not None and not self.time_range.match(comp):
+            return False
+
+        # ... and all specified CALDAV:prop-filter and CALDAV:comp-filter child
+        # XML elements also match the targeted calendar component;
+        for child in self.children:
+            if isinstance(child, ComponentFilter):
+                if not any(child.match(c, tzify) for c in comp.subcomponents):
+                    return False
+            elif isinstance(child, PropertyFilter):
+                if not child.match(comp, tzify):
+                    return False
+            else:
+                raise TypeError(child)
+
+        return True
+
+
+class PropertyFilter(object):
+
+    def __init__(self, name, children=None, is_not_defined=False):
+        self.name = name
+        self.is_not_defined = is_not_defined
+        self.children = children or []
+
+    def match(self, comp):
+        # From https://tools.ietf.org/html/rfc4791, 9.7.2:
+        # A CALDAV:comp-filter is said to match if:
+
+        # The CALDAV:prop-filter XML element contains a CALDAV:is-not-defined
+        # XML element and no property of the type specified by the "name"
+        # attribute exists in the enclosing calendar component;
+
+        if self.is_not_defined:
+            return self.name not in comp
+
+        try:
+            prop = comp[self.name]
+        except KeyError:
+            return False
+
+        if self.time_range and not self.time_range.match(prop):
+            return False
+
+        for child in self.children:
+            if not child.match(prop):
+                return False
+
+        return True
+
+
+class ParameterFilter(object):
+
+    def __init__(self, name, is_not_defined=False):
+        self.name = name
+        self.is_not_defined = is_not_defined
+
+    def match(self, prop):
+        if self.is_not_defined:
+            return self.name not in prop.params
+
+        try:
+            value = prop.params[self.name]
+        except KeyError:
+            return False
+
+        for child in self.children:
+            if not child.match(value):
+                return False
+        return True
+
+
+class CalendarFilter(Filter):
+    """A filter that works on ICalendar files."""
+
+    def __init__(self, tzify, component_filter=None):
+        self.component_filter = component_filter
+        self.tzify = tzify
+
+    def check(self, name, file):
+        if file.content_type != 'text/calendar':
+            return False
+        c = file.calendar
+        if c is None:
+            return False
+
+        if self.component_filter is None:
+            return True
+
+        try:
+            return self.component_filter.match(file.calendar, self.tzify)
+        except MissingProperty as e:
+            logging.warning(
+                'calendar_query: Ignoring calendar object %s, due '
+                'to missing property %s', name, e.property_name)
+            return False
 
 
 class ICalendarFile(File):

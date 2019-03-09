@@ -21,7 +21,16 @@
 
 import unittest
 
-from xandikos.icalendar import ICalendarFile, validate_calendar
+from xandikos import (
+    collation as _mod_collation,
+    )
+from xandikos.icalendar import (
+    CalendarFilter,
+    ComponentFilter,
+    ICalendarFile,
+    TextMatcher,
+    validate_calendar,
+)
 from xandikos.store import InvalidFileContents
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -92,3 +101,43 @@ class ExtractCalendarUIDTests(unittest.TestCase):
         self.assertRaises(InvalidFileContents, fi.validate)
         self.assertEqual(["Invalid character b'\\\\x0c' in field SUMMARY"],
                          list(validate_calendar(fi.calendar, strict=False)))
+
+
+class CalendarFilterTests(unittest.TestCase):
+
+    def setUp(self):
+        self.cal = ICalendarFile([EXAMPLE_VCALENDAR1], 'text/calendar')
+
+    def test_simple_comp_filter(self):
+        filter = CalendarFilter(
+            None, ComponentFilter('VCALENDAR', [ComponentFilter('VEVENT')]))
+        self.assertFalse(filter.check('file', self.cal))
+        filter = CalendarFilter(
+            None, ComponentFilter('VCALENDAR', [ComponentFilter('VTODO')]))
+        self.assertTrue(filter.check('file', self.cal))
+
+
+class TextMatchTest(unittest.TestCase):
+
+    def test_default_collation(self):
+        tm = TextMatcher(b"foobar")
+        self.assertTrue(tm.match(b"FOOBAR"))
+        self.assertTrue(tm.match(b"foobar"))
+        self.assertFalse(tm.match(b"fobar"))
+
+    def test_casecmp_collation(self):
+        tm = TextMatcher(b'foobar', collation='i;ascii-casemap')
+        self.assertTrue(tm.match(b"FOOBAR"))
+        self.assertTrue(tm.match(b"foobar"))
+        self.assertFalse(tm.match(b"fobar"))
+
+    def test_cmp_collation(self):
+        tm = TextMatcher(b'foobar', 'i;octet')
+        self.assertFalse(tm.match(b"FOOBAR"))
+        self.assertTrue(tm.match(b"foobar"))
+        self.assertFalse(tm.match(b"fobar"))
+
+    def test_unknown_collation(self):
+        tm = TextMatcher(b'foobar', collation='i;blah')
+        self.assertRaises(_mod_collation.UnknownCollation,
+                          tm.match, b"FOOBAR")

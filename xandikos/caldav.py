@@ -22,9 +22,18 @@
 https://tools.ietf.org/html/rfc4791
 """
 import datetime
-import logging
 import pytz
 
+from .icalendar import (
+    CalendarFilter,
+    ComponentFilter,
+    ParameterFilter,
+    PropertyFilter,
+    TextMatcher,
+    ComponentTimeRangeMatcher,
+    MissingProperty,
+    apply_time_range_vevent,
+)
 from icalendar.cal import component_factory, Calendar as ICalendar, FreeBusy
 from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
 
@@ -50,14 +59,6 @@ FEATURE = 'calendar-access'
 
 TRANSPARENCY_TRANSPARENT = 'transparent'
 TRANSPARENCY_OPAQUE = 'opaque'
-
-
-class MissingProperty(Exception):
-
-    def __init__(self, property_name):
-        super(MissingProperty, self).__init__(
-            "Property %r missing" % property_name)
-        self.property_name = property_name
 
 
 class Calendar(webdav.Collection):
@@ -310,7 +311,7 @@ class CalendarMultiGetReporter(davcommon.MultiGetReporter):
     data_property = CalendarDataProperty()
 
 
-def apply_prop_filter(el, comp, tzify):
+def parse_prop_filter(el):
     name = el.get('name')
     # From https://tools.ietf.org/html/rfc4791, 9.7.2:
     # A CALDAV:comp-filter is said to match if:
@@ -322,57 +323,54 @@ def apply_prop_filter(el, comp, tzify):
         len(el) == 1 and
         el[0].tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined'
     ):
-        return name not in comp
+        is_not_defined = True
+    else:
+        is_not_defined = False
 
-    try:
-        prop = comp[name]
-    except KeyError:
-        return False
+    time_range = None
+    children = []
 
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
-            if not apply_time_range_prop(subel, prop, tzify):
-                return False
+            time_range = parse_time_range(subel)
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
-            if not apply_text_match(subel, prop):
-                return False
+            children.append(parse_text_match(subel))
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}param-filter':
-            if not apply_param_filter(subel, prop):
-                return False
-    return True
+            children.append(parse_param_filter(subel))
+        else:
+            raise AssertionError("unknown subelement %r" % subel.tag)
+    return PropertyFilter(
+        name=name, is_not_defined=is_not_defined, time_range=time_range,
+        children=children)
 
 
-def apply_text_match(el, value):
+def parse_text_match(el, value):
     collation = el.get('collation', 'i;ascii-casemap')
     negate_condition = el.get('negate-condition', 'no')
-    matches = davcommon.get_collation(collation)(el.text, value)
 
-    if negate_condition == 'yes':
-        return (not matches)
-    else:
-        return matches
+    return TextMatcher(
+        el.text, collation=collation,
+        negate_condition=(negate_condition == 'yes'))
 
 
-def apply_param_filter(el, prop):
+def parse_param_filter(el, prop):
     name = el.get('name')
     if (
         len(el) == 1 and
         el[0].tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined'
     ):
-        return name not in prop.params
+        is_not_defined = True
+    else:
+        is_not_defined = False
 
-    try:
-        value = prop.params[name]
-    except KeyError:
-        return False
-
+    children = []
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
-            if not apply_text_match(subel, value):
-                return False
+            children.append(parse_text_match(subel))
         else:
             raise AssertionError('unknown tag %r in param-filter', subel.tag)
-    return True
+    return ParameterFilter(
+        name=name, is_not_defined=is_not_defined, children=children)
 
 
 def _parse_time_range(el):
@@ -393,6 +391,11 @@ def _parse_time_range(el):
     return (start, end)
 
 
+def parse_time_range(el):
+    (start, end) = _parse_time_range(el)
+    return ComponentTimeRangeMatcher(start, end)
+
+
 def as_tz_aware_ts(dt, default_timezone):
     if not getattr(dt, 'time', None):
         dt = datetime.datetime.combine(dt, datetime.time())
@@ -402,121 +405,7 @@ def as_tz_aware_ts(dt, default_timezone):
     return dt
 
 
-def apply_time_range_vevent(start, end, comp, tzify):
-    if 'DTSTART' not in comp:
-        raise MissingProperty('DTSTART')
-
-    if not (end > tzify(comp['DTSTART'].dt)):
-        return False
-
-    if 'DTEND' in comp:
-        if tzify(comp['DTEND'].dt) < tzify(comp['DTSTART'].dt):
-            logging.debug('Invalid DTEND < DTSTART')
-        return (start < tzify(comp['DTEND'].dt))
-
-    if 'DURATION' in comp:
-        return (start < tzify(comp['DTSTART'].dt) + comp['DURATION'].dt)
-    if getattr(comp['DTSTART'].dt, 'time', None) is not None:
-        return (start <= tzify(comp['DTSTART'].dt))
-    else:
-        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
-
-
-def apply_time_range_vjournal(start, end, comp, tzify):
-    if 'DTSTART' not in comp:
-        return False
-
-    if not (end > tzify(comp['DTSTART'].dt)):
-        return False
-
-    if getattr(comp['DTSTART'].dt, 'time', None) is not None:
-        return (start <= tzify(comp['DTSTART'].dt))
-    else:
-        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
-
-
-def apply_time_range_vtodo(start, end, comp, tzify):
-    if 'DTSTART' in comp:
-        if 'DURATION' in comp and 'DUE' not in comp:
-            return (
-                start <= tzify(comp['DTSTART'].dt) + comp['DURATION'].dt and
-                (end > tzify(comp['DTSTART'].dt) or
-                 end >= tzify(comp['DTSTART'].dt) + comp['DURATION'].dt)
-            )
-        elif 'DUE' in comp and 'DURATION' not in comp:
-            return (
-                (start <= tzify(comp['DTSTART'].dt) or
-                 start < tzify(comp['DUE'].dt)) and
-                (end > tzify(comp['DTSTART'].dt) or
-                 end < tzify(comp['DUE'].dt))
-            )
-        else:
-            return (start <= tzify(comp['DTSTART'].dt) and
-                    end > tzify(comp['DTSTART'].dt))
-    elif 'DUE' in comp:
-        return start < tzify(comp['DUE'].dt) and end >= tzify(comp['DUE'].dt)
-    elif 'COMPLETED' in comp:
-        if 'CREATED' in comp:
-            return (
-                (start <= tzify(comp['CREATED'].dt) or
-                 start <= tzify(comp['COMPLETED'].dt)) and
-                (end >= tzify(comp['CREATED'].dt) or
-                 end >= tzify(comp['COMPLETED'].dt))
-            )
-        else:
-            return (
-                start <= tzify(comp['COMPLETED'].dt) and
-                end >= tzify(comp['COMPLETED'].dt)
-            )
-    elif 'CREATED' in comp:
-        return end >= tzify(comp['CREATED'].dt)
-    else:
-        return True
-
-
-def apply_time_range_vfreebusy(start, end, comp, tzify):
-    if 'DTSTART' in comp and 'DTEND' in comp:
-        return (
-            start <= tzify(comp['DTEND'].dt) and
-            end > tzify(comp['DTEND'].dt)
-        )
-
-    for period in comp.get('FREEBUSY', []):
-        if start < period.end and end > period.start:
-            return True
-
-    return False
-
-
-def apply_time_range_valarm(start, end, comp, tzify):
-    raise NotImplementedError(apply_time_range_valarm)
-
-
-def apply_time_range_comp(el, comp, tzify):
-    # According to https://tools.ietf.org/html/rfc4791, section 9.9 these are
-    # the properties to check.
-    (start, end) = _parse_time_range(el)
-    component_handlers = {
-        'VEVENT': apply_time_range_vevent,
-        'VTODO': apply_time_range_vtodo,
-        'VJOURNAL': apply_time_range_vjournal,
-        'VFREEBUSY': apply_time_range_vfreebusy,
-        'VALARM': apply_time_range_valarm}
-    try:
-        component_handler = component_handlers[comp.name]
-    except KeyError:
-        logging.warning('unknown component %r in time-range filter',
-                        comp.name)
-        return False
-    return component_handler(start, end, comp, tzify)
-
-
-def apply_time_range_prop(el, val, tzify):
-    (start, end) = _parse_time_range(el)
-    raise NotImplementedError(apply_time_range_prop)
-
-
-def apply_comp_filter(el, comp, tzify):
+def parse_comp_filter(el, tzify):
     """Compile a comp-filter element into a Python function.
     """
     name = el.get('name')
@@ -530,13 +419,12 @@ def apply_comp_filter(el, comp, tzify):
         len(el) == 1 and
         el[0].tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined'
     ):
-        return comp.name != name
+        is_not_defined = True
+    else:
+        is_not_defined = False
 
-    # 1: The CALDAV:comp-filter XML element is empty and the calendar object or
-    # calendar component type specified by the "name" attribute exists in the
-    # current scope;
-    if comp.name != name:
-        return False
+    time_range = None
+    children = []
 
     # 3. The CALDAV:comp-filter XML element contains a CALDAV:time-range XML
     # element and at least one recurrence instance in the targeted calendar
@@ -545,18 +433,16 @@ def apply_comp_filter(el, comp, tzify):
     # also match the targeted calendar component;
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}comp-filter':
-            if not any(apply_comp_filter(subel, c, tzify)
-                       for c in comp.subcomponents):
-                return False
+            children.append(parse_comp_filter(subel))
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}prop-filter':
-            if not apply_prop_filter(subel, comp, tzify):
-                return False
+            children.append(parse_prop_filter(subel))
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
-            if not apply_time_range_comp(subel, comp, tzify):
-                return False
+            time_range = parse_time_range(subel)
         else:
             raise AssertionError('unknown filter tag %r' % subel.tag)
-    return True
+    return ComponentFilter(
+        name=name, is_not_defined=is_not_defined, time_range=time_range,
+        children=children)
 
 
 def calendar_from_resource(resource):
@@ -573,11 +459,12 @@ def apply_filter(el, resource, tzify):
     """
     if el is None:
         # Empty filter, let's not bother parsing
-        return lambda x: True
+        return True
     c = calendar_from_resource(resource)
     if c is None:
         return False
-    return apply_comp_filter(list(el)[0], c, tzify)
+    filter = parse_comp_filter(list(el)[0])
+    return filter.match(c, tzify)
 
 
 def extract_tzid(cal):
@@ -601,17 +488,12 @@ def get_calendar_timezone(resource):
 class CalDavFilter(object):
 
     def __init__(self, elem, tzify):
-        self.elem = elem
+        self.comp_filter = parse_comp_filter(elem)
         self.tzify = tzify
 
     def check(self, href, resource):
-        try:
-            return apply_filter(self.elem, resource, self.tzify)
-        except MissingProperty as e:
-            logging.warning(
-                'calendar_query: Ignoring calendar object %s, due '
-                'to missing property %s', href, e.property_name)
-            return False
+        filter = CalendarFilter(self.tzify, self.comp_filter)
+        return filter.check(resource.file.calendar)
 
 
 class CalendarQueryReporter(webdav.Reporter):
@@ -646,7 +528,8 @@ class CalendarQueryReporter(webdav.Reporter):
             return as_tz_aware_ts(dt, tz)
 
         def members(collection):
-            return c.subcollections() + r.calendar_query(filter)
+            return (collection.subcollections() +
+                    collection.calendar_query(filter))
 
         filter = CalDavFilter(filter_el, tzify)
         for (href, resource) in webdav.traverse_resource(
