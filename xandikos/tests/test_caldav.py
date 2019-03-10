@@ -17,11 +17,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-import unittest
-
 from wsgiref.util import setup_testing_defaults
 
-from xandikos import caldav, davcommon
+from xandikos import caldav
 from xandikos.webdav import Property, WebDAVApp, ET
 
 from xandikos.tests import test_webdav
@@ -72,4 +70,3 @@ class WebTests(test_webdav.WebTestCase):
         code, headers, contents = self.mkcalendar(app, '/resource/bla')
         self.assertEqual('201 Created', code)
         self.assertEqual(b'', contents)
-

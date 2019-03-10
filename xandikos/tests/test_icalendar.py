@@ -30,13 +30,12 @@ from xandikos import (
 )
 from xandikos.icalendar import (
     CalendarFilter,
-    ComponentFilter,
     ICalendarFile,
     MissingProperty,
-    PropertyFilter,
     TextMatcher,
     validate_calendar,
     apply_time_range_vevent,
+    as_tz_aware_ts,
 )
 from xandikos.store import InvalidFileContents
 
@@ -168,14 +167,14 @@ class TextMatchTest(unittest.TestCase):
 
     def test_unknown_collation(self):
         self.assertRaises(
-                _mod_collation.UnknownCollation, TextMatcher,
-                b'foobar', collation='i;blah')
+            _mod_collation.UnknownCollation, TextMatcher,
+            b'foobar', collation='i;blah')
 
 
 class ApplyTimeRangeVeventTests(unittest.TestCase):
 
     def _tzify(self, dt):
-        return caldav.as_tz_aware_ts(dt, 'UTC')
+        return as_tz_aware_ts(dt, 'UTC')
 
     def test_missing_dtstart(self):
         ev = Event()

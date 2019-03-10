@@ -27,6 +27,7 @@ import pytz
 from .icalendar import (
     CalendarFilter,
     apply_time_range_vevent,
+    as_tz_aware_ts,
 )
 from icalendar.cal import component_factory, Calendar as ICalendar, FreeBusy
 from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
@@ -386,15 +387,6 @@ def _parse_time_range(el):
 def parse_time_range(el, cls):
     (start, end) = _parse_time_range(el)
     return cls(start, end)
-
-
-def as_tz_aware_ts(dt, default_timezone):
-    if not getattr(dt, 'time', None):
-        dt = datetime.datetime.combine(dt, datetime.time())
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=default_timezone)
-    assert dt.tzinfo
-    return dt
 
 
 def parse_comp_filter(el, cls):

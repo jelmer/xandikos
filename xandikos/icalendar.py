@@ -307,6 +307,17 @@ def apply_time_range_valarm(start, end, comp, tzify):
     raise NotImplementedError(apply_time_range_valarm)
 
 
+class PropertyTimeRangeMatcher(object):
+
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+
+    def match(self, prop, tzify):
+        dt = tzify(prop.dt)
+        return (dt >= self.start and dt <= self.end)
+
+
 class ComponentTimeRangeMatcher(object):
 
     def __init__(self, start, end):
@@ -366,7 +377,7 @@ class ComponentFilter(object):
             self.is_not_defined, self.time_range)
 
     def filter_subcomponent(self, name, is_not_defined=False,
-                             time_range=None):
+                            time_range=None):
         ret = ComponentFilter(
             name=name, is_not_defined=is_not_defined, time_range=time_range)
         self.children.append(ret)
@@ -505,7 +516,7 @@ class CalendarFilter(Filter):
         self.children = []
 
     def filter_subcomponent(self, name, is_not_defined=False,
-                             time_range=None):
+                            time_range=None):
         ret = ComponentFilter(
             name=name, is_not_defined=is_not_defined, time_range=time_range)
         self.children.append(ret)
@@ -602,3 +613,12 @@ class ICalendarFile(File):
             except KeyError:
                 pass
         raise KeyError
+
+
+def as_tz_aware_ts(dt, default_timezone):
+    if not getattr(dt, 'time', None):
+        dt = datetime.datetime.combine(dt, datetime.time())
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=default_timezone)
+    assert dt.tzinfo
+    return dt

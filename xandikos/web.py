@@ -40,7 +40,7 @@ from xandikos import (access, apache, caldav, carddav, quota, sync, webdav,
 from xandikos.icalendar import (
     ICalendarFile,
     CalendarFilter,
-    )
+)
 from xandikos.store import (
     DuplicateUidError,
     InvalidFileContents,

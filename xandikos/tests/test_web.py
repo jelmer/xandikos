@@ -29,7 +29,7 @@ from ..store.vdir import VdirStore
 from ..web import (
     XandikosBackend,
     CalendarCollection,
-    )
+)
 
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -46,7 +46,6 @@ UID:bdc22720-b9e1-42c9-89c2-a85405d8fbff
 END:VTODO
 END:VCALENDAR
 """
-
 
 
 class CalendarCollectionTests(unittest.TestCase):

@@ -81,5 +81,3 @@ class MultiGetReporter(webdav.Reporter):
 
 
 # see https://tools.ietf.org/html/rfc4790
-
-
