@@ -1800,7 +1800,7 @@ class WebDAVApp(object):
             return [e.message.encode(DEFAULT_ENCODING)]
         except NotAcceptableError as e:
             start_response('406 Not Acceptable', [])
-            return [e.message.encode(DEFAULT_ENCODING)]
+            return [str(e).encode(DEFAULT_ENCODING)]
         except UnsupportedMediaType as e:
             start_response('415 Unsupported Media Type', [])
             return [('Unsupported media type %r' % e.content_type)
