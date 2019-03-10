@@ -23,11 +23,12 @@ import unittest
 
 from xandikos import (
     collation as _mod_collation,
-    )
+)
 from xandikos.icalendar import (
     CalendarFilter,
     ComponentFilter,
     ICalendarFile,
+    PropertyFilter,
     TextMatcher,
     validate_calendar,
 )
@@ -116,6 +117,32 @@ class CalendarFilterTests(unittest.TestCase):
             None, ComponentFilter('VCALENDAR', [ComponentFilter('VTODO')]))
         self.assertTrue(filter.check('file', self.cal))
 
+    def test_prop_presence_filter(self):
+        filter = CalendarFilter(
+            None, ComponentFilter(
+                'VCALENDAR',
+                [ComponentFilter('VTODO', [PropertyFilter('X-SUMMARY')])]))
+        self.assertFalse(filter.check('file', self.cal))
+        filter = CalendarFilter(
+            None, ComponentFilter(
+                'VCALENDAR',
+                [ComponentFilter('VTODO', [PropertyFilter('SUMMARY')])]))
+        self.assertTrue(filter.check('file', self.cal))
+
+    def test_prop_text_match(self):
+        filter = CalendarFilter(
+            None, ComponentFilter(
+                'VCALENDAR',
+                [ComponentFilter('VTODO', [PropertyFilter(
+                    'SUMMARY', [TextMatcher(b'do something different')])])]))
+        self.assertFalse(filter.check('file', self.cal))
+        filter = CalendarFilter(
+            None, ComponentFilter(
+                'VCALENDAR',
+                [ComponentFilter('VTODO', [PropertyFilter(
+                    'SUMMARY', [TextMatcher(b'do something')])])]))
+        self.assertTrue(filter.check('file', self.cal))
+
 
 class TextMatchTest(unittest.TestCase):
 
@@ -138,6 +165,6 @@ class TextMatchTest(unittest.TestCase):
         self.assertFalse(tm.match(b"fobar"))
 
     def test_unknown_collation(self):
-        tm = TextMatcher(b'foobar', collation='i;blah')
-        self.assertRaises(_mod_collation.UnknownCollation,
-                          tm.match, b"FOOBAR")
+        self.assertRaises(
+                _mod_collation.UnknownCollation, TextMatcher,
+                b'foobar', collation='i;blah')

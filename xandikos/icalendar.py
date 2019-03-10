@@ -336,11 +336,13 @@ class TextMatcher(object):
     def __init__(self, text, collation='i;ascii-casemap',
                  negate_condition=False):
         self.text = text
-        self.collation = collation
+        self.collation = _mod_collation.get_collation(collation)
         self.negate_condition = negate_condition
 
     def match(self, prop):
-        matches = _mod_collation.get_collation(self.collation)(self.text, prop)
+        if isinstance(prop, vText):
+            prop = prop.encode()
+        matches = self.collation(self.text, prop)
         if self.negate_condition:
             return not matches
         else:
@@ -397,12 +399,13 @@ class ComponentFilter(object):
 
 class PropertyFilter(object):
 
-    def __init__(self, name, children=None, is_not_defined=False):
+    def __init__(self, name, children=None, is_not_defined=False, time_range=None):
         self.name = name
         self.is_not_defined = is_not_defined
         self.children = children or []
+        self.time_range = time_range
 
-    def match(self, comp):
+    def match(self, comp, tzify):
         # From https://tools.ietf.org/html/rfc4791, 9.7.2:
         # A CALDAV:comp-filter is said to match if:
 
@@ -418,7 +421,7 @@ class PropertyFilter(object):
         except KeyError:
             return False
 
-        if self.time_range and not self.time_range.match(prop):
+        if self.time_range and not self.time_range.match(prop, tzify):
             return False
 
         for child in self.children:
