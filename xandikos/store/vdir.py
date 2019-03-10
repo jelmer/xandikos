@@ -68,7 +68,7 @@ class VdirStore(Store):
         cp.read([os.path.join(self.path, CONFIG_FILENAME)])
 
         def save_config(cp, message):
-            with open(os.path.join(self.path, CONFIG_FILENAME), 'wb') as f:
+            with open(os.path.join(self.path, CONFIG_FILENAME), 'w') as f:
                 cp.write(f)
         self.config = FileBasedCollectionMetadata(cp, save=save_config)
 
@@ -240,14 +240,14 @@ class VdirStore(Store):
 
         :return: repository description as string
         """
-        raise NotImplementedError(self.get_description)
+        return self.config.get_description()
 
     def set_description(self, description):
         """Set extended description.
 
         :param description: repository description as string
         """
-        raise NotImplementedError(self.set_description)
+        self.config.set_description(description)
 
     def set_comment(self, comment):
         """Set comment.
@@ -284,7 +284,8 @@ class VdirStore(Store):
         :return: A Color code, or None
         """
         color = self._read_metadata('color')
-        assert color.startswith('#')
+        if color is not None:
+            assert color.startswith('#')
         return color
 
     def set_color(self, color):

@@ -149,13 +149,14 @@ class Calendar(webdav.Collection):
         """
         return TRANSPARENCY_OPAQUE
 
-    def calendar_query(self, filter):
+    def calendar_query(self, create_filter_fn):
         """Query for all the members of this calendar that match `filter`.
 
         This is a naive implementation; subclasses should ideally provide
         their own implementation that is faster.
 
-        :param filter: Filter to check against
+        :param create_filter_fn: Callback that constructs a
+            filter; takes a filter building class.
         :return: Iterator over name, resource objects
         """
         for name, resource in self.members():
@@ -513,11 +514,13 @@ class CalendarQueryReporter(webdav.Reporter):
         def tzify(dt):
             return as_tz_aware_ts(dt, tz)
 
+        def filter_fn(cls):
+            return parse_comp_filter(filter_el, cls(tzify))
+
         def members(collection):
             return (collection.subcollections() +
-                    collection.calendar_query(filter))
+                    collection.calendar_query(filter_fn))
 
-        filter = CalDavFilter(filter_el, tzify)
         for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth,
                 members=members):

@@ -37,7 +37,10 @@ import urllib.parse
 from xandikos import __version__ as xandikos_version
 from xandikos import (access, apache, caldav, carddav, quota, sync, webdav,
                       infit, scheduling, timezones)
-from xandikos.icalendar import ICalendarFile
+from xandikos.icalendar import (
+    ICalendarFile,
+    CalendarFilter,
+    )
 from xandikos.store import (
     DuplicateUidError,
     InvalidFileContents,
@@ -462,8 +465,9 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         # TODO(jelmer)
         raise KeyError
 
-    def calendar_query(self, filter):
+    def calendar_query(self, create_filter_fn):
         ret = []
+        filter = create_filter_fn(CalendarFilter)
         for (name, file, etag) in self.store.iter_with_filter(
                 filter=filter):
             resource = self._get_resource(

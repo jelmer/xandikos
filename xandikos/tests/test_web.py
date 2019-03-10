@@ -16,3 +16,76 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
+
+"""Tests for xandikos.web."""
+
+import os
+import shutil
+import tempfile
+import unittest
+
+from ..icalendar import ICalendarFile
+from ..store.vdir import VdirStore
+from ..web import (
+    XandikosBackend,
+    CalendarCollection,
+    )
+
+
+EXAMPLE_VCALENDAR1 = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN
+BEGIN:VTODO
+CREATED:20150314T223512Z
+DTSTAMP:20150527T221952Z
+LAST-MODIFIED:20150314T223512Z
+STATUS:NEEDS-ACTION
+SUMMARY:do something
+UID:bdc22720-b9e1-42c9-89c2-a85405d8fbff
+END:VTODO
+END:VCALENDAR
+"""
+
+
+
+class CalendarCollectionTests(unittest.TestCase):
+
+    def setUp(self):
+        super(CalendarCollectionTests, self).setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+
+        self.store = VdirStore.create(os.path.join(self.tempdir, 'c'))
+        self.store.load_extra_file_handler(ICalendarFile)
+        self.backend = XandikosBackend(self.tempdir)
+
+        self.cal = CalendarCollection(self.backend, 'c', self.store)
+
+    def test_description(self):
+        self.store.set_description('foo')
+        self.assertEqual('foo', self.cal.get_calendar_description())
+
+    def test_color(self):
+        self.assertRaises(KeyError, self.cal.get_calendar_color)
+        self.cal.set_calendar_color('#aabbcc')
+        self.assertEqual('#aabbcc', self.cal.get_calendar_color())
+
+    def test_get_supported_calendar_components(self):
+        self.assertEqual(
+            ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"],
+            self.cal.get_supported_calendar_components())
+
+    def test_calendar_query_vtodos(self):
+        def create_fn(cls):
+            f = cls(None)
+            f.filter_subcomponent('VCALENDAR').filter_subcomponent('VTODO')
+            return f
+        self.assertEqual([], self.cal.calendar_query(create_fn))
+        self.store.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        result = self.cal.calendar_query(create_fn)
+        self.assertEqual(1, len(result))
+        self.assertEqual('foo.ics', result[0][0])
+        self.assertIs(self.store, result[0][1].store)
+        self.assertEqual('foo.ics', result[0][1].name)
+        self.assertEqual('text/calendar', result[0][1].content_type)
