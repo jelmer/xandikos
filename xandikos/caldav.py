@@ -229,6 +229,17 @@ def extract_from_calendar(incal, outcal, requested):
                     extract_from_calendar(insub, outsub, tag)
         elif tag.tag == ('{%s}prop' % NAMESPACE):
             outcal[tag.get('name')] = incal[tag.get('name')]
+        elif tag.tag == ('{%s}expand' % NAMESPACE):
+            # TODO(jelmer): https://github.com/jelmer/xandikos/issues/102
+            raise NotImplementedError('expand is not yet implemented')
+        elif tag.tag == ('{%s}limit-recurrence-set' % NAMESPACE):
+            # TODO(jelmer): https://github.com/jelmer/xandikos/issues/103
+            raise NotImplementedError(
+                'limit-recurrence-set is not yet implemented')
+        elif tag.tag == ('{%s}limit-freebusy-set' % NAMESPACE):
+            # TODO(jelmer): https://github.com/jelmer/xandikos/issues/104
+            raise NotImplementedError(
+                'limit-freebusy-set is not yet implemented')
         else:
             raise AssertionError('invalid element %r' % tag)
 
