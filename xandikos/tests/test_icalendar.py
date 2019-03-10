@@ -19,7 +19,11 @@
 
 """Tests for xandikos.icalendar."""
 
+from datetime import datetime
+
 import unittest
+
+from icalendar.cal import Event
 
 from xandikos import (
     collation as _mod_collation,
@@ -28,9 +32,11 @@ from xandikos.icalendar import (
     CalendarFilter,
     ComponentFilter,
     ICalendarFile,
+    MissingProperty,
     PropertyFilter,
     TextMatcher,
     validate_calendar,
+    apply_time_range_vevent,
 )
 from xandikos.store import InvalidFileContents
 
@@ -110,37 +116,33 @@ class CalendarFilterTests(unittest.TestCase):
         self.cal = ICalendarFile([EXAMPLE_VCALENDAR1], 'text/calendar')
 
     def test_simple_comp_filter(self):
-        filter = CalendarFilter(
-            None, ComponentFilter('VCALENDAR', [ComponentFilter('VEVENT')]))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent('VEVENT')
         self.assertFalse(filter.check('file', self.cal))
-        filter = CalendarFilter(
-            None, ComponentFilter('VCALENDAR', [ComponentFilter('VTODO')]))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent('VTODO')
         self.assertTrue(filter.check('file', self.cal))
 
     def test_prop_presence_filter(self):
-        filter = CalendarFilter(
-            None, ComponentFilter(
-                'VCALENDAR',
-                [ComponentFilter('VTODO', [PropertyFilter('X-SUMMARY')])]))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_property('X-SUMMARY')
         self.assertFalse(filter.check('file', self.cal))
-        filter = CalendarFilter(
-            None, ComponentFilter(
-                'VCALENDAR',
-                [ComponentFilter('VTODO', [PropertyFilter('SUMMARY')])]))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_property('SUMMARY')
         self.assertTrue(filter.check('file', self.cal))
 
     def test_prop_text_match(self):
-        filter = CalendarFilter(
-            None, ComponentFilter(
-                'VCALENDAR',
-                [ComponentFilter('VTODO', [PropertyFilter(
-                    'SUMMARY', [TextMatcher(b'do something different')])])]))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_property('SUMMARY').filter_text_match(
+                b'do something different')
         self.assertFalse(filter.check('file', self.cal))
-        filter = CalendarFilter(
-            None, ComponentFilter(
-                'VCALENDAR',
-                [ComponentFilter('VTODO', [PropertyFilter(
-                    'SUMMARY', [TextMatcher(b'do something')])])]))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_property('SUMMARY').filter_text_match(
+                b'do something')
         self.assertTrue(filter.check('file', self.cal))
 
 
@@ -168,3 +170,15 @@ class TextMatchTest(unittest.TestCase):
         self.assertRaises(
                 _mod_collation.UnknownCollation, TextMatcher,
                 b'foobar', collation='i;blah')
+
+
+class ApplyTimeRangeVeventTests(unittest.TestCase):
+
+    def _tzify(self, dt):
+        return caldav.as_tz_aware_ts(dt, 'UTC')
+
+    def test_missing_dtstart(self):
+        ev = Event()
+        self.assertRaises(
+            MissingProperty, apply_time_range_vevent,
+            datetime.utcnow(), datetime.utcnow(), ev, self._tzify)

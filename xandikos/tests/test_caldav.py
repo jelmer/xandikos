@@ -17,10 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from datetime import datetime
 import unittest
-
-from icalendar.cal import Event
 
 from wsgiref.util import setup_testing_defaults
 
@@ -76,14 +73,3 @@ class WebTests(test_webdav.WebTestCase):
         self.assertEqual('201 Created', code)
         self.assertEqual(b'', contents)
 
-
-class ApplyTimeRangeVeventTests(unittest.TestCase):
-
-    def _tzify(self, dt):
-        return caldav.as_tz_aware_ts(dt, 'UTC')
-
-    def test_missing_dtstart(self):
-        ev = Event()
-        self.assertRaises(
-            caldav.MissingProperty, caldav.apply_time_range_vevent,
-            datetime.utcnow(), datetime.utcnow(), ev, self._tzify)

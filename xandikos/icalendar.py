@@ -333,9 +333,10 @@ class ComponentTimeRangeMatcher(object):
 
 class TextMatcher(object):
 
-    def __init__(self, text, collation='i;ascii-casemap',
-                 negate_condition=False):
+    def __init__(self, text, collation=None, negate_condition=False):
         self.text = text
+        if collation is None:
+            collation = 'i;ascii-casemap'
         self.collation = _mod_collation.get_collation(collation)
         self.negate_condition = negate_condition
 
@@ -358,6 +359,28 @@ class ComponentFilter(object):
         self.is_not_defined = is_not_defined
         self.time_range = time_range
         self.children = children or []
+
+    def __repr__(self):
+        return '%s(%r, children=%r, is_not_defined=%r, time_range=%r)' % (
+            self.__class__.__name__, self.children,
+            self.is_not_defined, self.time_range)
+
+    def filter_subcomponent(self, name, is_not_defined=False,
+                             time_range=None):
+        ret = ComponentFilter(
+            name=name, is_not_defined=is_not_defined, time_range=time_range)
+        self.children.append(ret)
+        return ret
+
+    def filter_property(self, name, is_not_defined=False, time_range=None):
+        ret = PropertyFilter(
+            name=name, is_not_defined=is_not_defined, time_range=time_range)
+        self.children.append(ret)
+        return ret
+
+    def filter_time_range(self, start, end):
+        self.time_range = ComponentTimeRangeMatcher(start, end)
+        return self.time_range
 
     def match(self, comp, tzify):
         # From https://tools.ietf.org/html/rfc4791, 9.7.1:
@@ -399,11 +422,32 @@ class ComponentFilter(object):
 
 class PropertyFilter(object):
 
-    def __init__(self, name, children=None, is_not_defined=False, time_range=None):
+    def __init__(self, name, children=None, is_not_defined=False,
+                 time_range=None):
         self.name = name
         self.is_not_defined = is_not_defined
         self.children = children or []
         self.time_range = time_range
+
+    def __repr__(self):
+        return '%s(%r, children=%r, is_not_defined=%r, time_range=%r)' % (
+            self.__class__.__name__, self.children,
+            self.is_not_defined, self.time_range)
+
+    def filter_parameter(self, name, is_not_defined=False):
+        ret = ParameterFilter(name=name, is_not_defined=is_not_defined)
+        self.children.append(ret)
+        return ret
+
+    def filter_time_range(self, start, end):
+        self.time_range = PropertyTimeRangeMatcher(start, end)
+        return self.time_range
+
+    def filter_text_match(self, text, collation=None, negate_condition=False):
+        ret = TextMatcher(
+            text, collation=collation, negate_condition=negate_condition)
+        self.children.append(ret)
+        return ret
 
     def match(self, comp, tzify):
         # From https://tools.ietf.org/html/rfc4791, 9.7.2:
@@ -433,9 +477,10 @@ class PropertyFilter(object):
 
 class ParameterFilter(object):
 
-    def __init__(self, name, is_not_defined=False):
+    def __init__(self, name, children=None, is_not_defined=False):
         self.name = name
         self.is_not_defined = is_not_defined
+        self.children = children or []
 
     def match(self, prop):
         if self.is_not_defined:
@@ -455,9 +500,16 @@ class ParameterFilter(object):
 class CalendarFilter(Filter):
     """A filter that works on ICalendar files."""
 
-    def __init__(self, tzify, component_filter=None):
-        self.component_filter = component_filter
+    def __init__(self, tzify):
         self.tzify = tzify
+        self.children = []
+
+    def filter_subcomponent(self, name, is_not_defined=False,
+                             time_range=None):
+        ret = ComponentFilter(
+            name=name, is_not_defined=is_not_defined, time_range=time_range)
+        self.children.append(ret)
+        return ret
 
     def check(self, name, file):
         if file.content_type != 'text/calendar':
@@ -466,16 +518,16 @@ class CalendarFilter(Filter):
         if c is None:
             return False
 
-        if self.component_filter is None:
-            return True
-
-        try:
-            return self.component_filter.match(file.calendar, self.tzify)
-        except MissingProperty as e:
-            logging.warning(
-                'calendar_query: Ignoring calendar object %s, due '
-                'to missing property %s', name, e.property_name)
-            return False
+        for child_filter in self.children:
+            try:
+                if not child_filter.match(file.calendar, self.tzify):
+                    return False
+            except MissingProperty as e:
+                logging.warning(
+                    'calendar_query: Ignoring calendar object %s, due '
+                    'to missing property %s', name, e.property_name)
+                return False
+        return True
 
 
 class ICalendarFile(File):

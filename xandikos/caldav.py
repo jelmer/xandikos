@@ -26,12 +26,6 @@ import pytz
 
 from .icalendar import (
     CalendarFilter,
-    ComponentFilter,
-    ParameterFilter,
-    PropertyFilter,
-    TextMatcher,
-    ComponentTimeRangeMatcher,
-    MissingProperty,
     apply_time_range_vevent,
 )
 from icalendar.cal import component_factory, Calendar as ICalendar, FreeBusy
@@ -311,7 +305,7 @@ class CalendarMultiGetReporter(davcommon.MultiGetReporter):
     data_property = CalendarDataProperty()
 
 
-def parse_prop_filter(el):
+def parse_prop_filter(el, cls):
     name = el.get('name')
     # From https://tools.ietf.org/html/rfc4791, 9.7.2:
     # A CALDAV:comp-filter is said to match if:
@@ -327,33 +321,30 @@ def parse_prop_filter(el):
     else:
         is_not_defined = False
 
-    time_range = None
-    children = []
+    prop_filter = cls(name=name, is_not_defined=is_not_defined)
 
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
-            time_range = parse_time_range(subel)
+            parse_time_range(subel, prop_filter.filter_time_range)
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
-            children.append(parse_text_match(subel))
+            parse_text_match(subel, prop_filter.filter_text_match)
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}param-filter':
-            children.append(parse_param_filter(subel))
+            parse_param_filter(subel, prop_filter.filter_parameter)
         else:
             raise AssertionError("unknown subelement %r" % subel.tag)
-    return PropertyFilter(
-        name=name, is_not_defined=is_not_defined, time_range=time_range,
-        children=children)
+    return prop_filter
 
 
-def parse_text_match(el, value):
+def parse_text_match(el, cls):
     collation = el.get('collation', 'i;ascii-casemap')
     negate_condition = el.get('negate-condition', 'no')
 
-    return TextMatcher(
+    return cls(
         el.text, collation=collation,
         negate_condition=(negate_condition == 'yes'))
 
 
-def parse_param_filter(el, prop):
+def parse_param_filter(el, cls):
     name = el.get('name')
     if (
         len(el) == 1 and
@@ -363,14 +354,14 @@ def parse_param_filter(el, prop):
     else:
         is_not_defined = False
 
-    children = []
+    param_filter = cls(name=name, is_not_defined=is_not_defined)
+
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
-            children.append(parse_text_match(subel))
+            parse_text_match(subel, param_filter.filter_time_range)
         else:
             raise AssertionError('unknown tag %r in param-filter', subel.tag)
-    return ParameterFilter(
-        name=name, is_not_defined=is_not_defined, children=children)
+    return param_filter
 
 
 def _parse_time_range(el):
@@ -391,9 +382,9 @@ def _parse_time_range(el):
     return (start, end)
 
 
-def parse_time_range(el):
+def parse_time_range(el, cls):
     (start, end) = _parse_time_range(el)
-    return ComponentTimeRangeMatcher(start, end)
+    return cls(start, end)
 
 
 def as_tz_aware_ts(dt, default_timezone):
@@ -405,7 +396,7 @@ def as_tz_aware_ts(dt, default_timezone):
     return dt
 
 
-def parse_comp_filter(el, tzify):
+def parse_comp_filter(el, cls):
     """Compile a comp-filter element into a Python function.
     """
     name = el.get('name')
@@ -423,8 +414,7 @@ def parse_comp_filter(el, tzify):
     else:
         is_not_defined = False
 
-    time_range = None
-    children = []
+    comp_filter = cls(name=name, is_not_defined=is_not_defined)
 
     # 3. The CALDAV:comp-filter XML element contains a CALDAV:time-range XML
     # element and at least one recurrence instance in the targeted calendar
@@ -433,16 +423,14 @@ def parse_comp_filter(el, tzify):
     # also match the targeted calendar component;
     for subel in el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}comp-filter':
-            children.append(parse_comp_filter(subel))
+            parse_comp_filter(subel, comp_filter.filter_subcomponent)
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}prop-filter':
-            children.append(parse_prop_filter(subel))
+            parse_prop_filter(subel, comp_filter.filter_property)
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
-            time_range = parse_time_range(subel)
+            parse_time_range(subel, comp_filter.filter_time_range)
         else:
             raise AssertionError('unknown filter tag %r' % subel.tag)
-    return ComponentFilter(
-        name=name, is_not_defined=is_not_defined, time_range=time_range,
-        children=children)
+    return comp_filter
 
 
 def calendar_from_resource(resource):
@@ -488,12 +476,10 @@ def get_calendar_timezone(resource):
 class CalDavFilter(object):
 
     def __init__(self, elem, tzify):
-        self.comp_filter = parse_comp_filter(elem)
-        self.tzify = tzify
+        self.filter = parse_comp_filter(elem, CalendarFilter(tzify))
 
     def check(self, href, resource):
-        filter = CalendarFilter(self.tzify, self.comp_filter)
-        return filter.check(resource.file.calendar)
+        return self.filter.check(resource.file.calendar)
 
 
 class CalendarQueryReporter(webdav.Reporter):
