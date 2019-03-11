@@ -90,6 +90,21 @@ class CalendarCollectionTests(unittest.TestCase):
         self.assertEqual('foo.ics', result[0][1].name)
         self.assertEqual('text/calendar', result[0][1].content_type)
 
+    def test_calendar_query_vtodo_by_uid(self):
+        def create_fn(cls):
+            f = cls(None)
+            f.filter_subcomponent('VCALENDAR').filter_subcomponent('VTODO').filter_property(
+                'UID').filter_text_match(b'bdc22720-b9e1-42c9-89c2-a85405d8fbff')
+            return f
+        self.assertEqual([], self.cal.calendar_query(create_fn))
+        self.store.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        result = self.cal.calendar_query(create_fn)
+        self.assertEqual(1, len(result))
+        self.assertEqual('foo.ics', result[0][0])
+        self.assertIs(self.store, result[0][1].store)
+        self.assertEqual('foo.ics', result[0][1].name)
+        self.assertEqual('text/calendar', result[0][1].content_type)
+
     def test_get_supported_calendar_data_types(self):
         self.assertEqual(
             [('text/calendar', '1.0'), ('text/calendar', '2.0')],
