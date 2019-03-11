@@ -1070,7 +1070,7 @@ def main(argv):
         server.serve_forever()
     except KeyboardInterrupt:
         pass
-    finally:
+    else:
         server.shutdown()
 
 
