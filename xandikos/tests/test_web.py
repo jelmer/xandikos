@@ -24,6 +24,7 @@ import shutil
 import tempfile
 import unittest
 
+from .. import caldav
 from ..icalendar import ICalendarFile
 from ..store.vdir import VdirStore
 from ..web import (
@@ -88,3 +89,46 @@ class CalendarCollectionTests(unittest.TestCase):
         self.assertIs(self.store, result[0][1].store)
         self.assertEqual('foo.ics', result[0][1].name)
         self.assertEqual('text/calendar', result[0][1].content_type)
+
+    def test_get_supported_calendar_data_types(self):
+        self.assertEqual(
+            [('text/calendar', '1.0'), ('text/calendar', '2.0')],
+            self.cal.get_supported_calendar_data_types())
+
+    def test_get_max_date_time(self):
+        self.assertEqual(
+            "99991231T235959Z", self.cal.get_max_date_time())
+
+    def test_get_min_date_time(self):
+        self.assertEqual(
+            "00010101T000000Z", self.cal.get_min_date_time())
+
+    def test_members(self):
+        self.assertEqual([], self.cal.members())
+        self.store.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        result = self.cal.members()
+        self.assertEqual(1, len(result))
+        self.assertEqual('foo.ics', result[0][0])
+        self.assertIs(self.store, result[0][1].store)
+        self.assertEqual('foo.ics', result[0][1].name)
+        self.assertEqual('text/calendar', result[0][1].content_type)
+
+    def test_get_member(self):
+        self.assertRaises(KeyError, self.cal.get_member, 'foo.ics')
+        self.store.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        result = self.cal.get_member('foo.ics')
+        self.assertIs(self.store, result.store)
+        self.assertEqual('foo.ics', result.name)
+        self.assertEqual('text/calendar', result.content_type)
+
+    def test_delete_member(self):
+        self.assertRaises(KeyError, self.cal.get_member, 'foo.ics')
+        self.store.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
+        self.cal.get_member('foo.ics')
+        self.cal.delete_member('foo.ics')
+        self.assertRaises(KeyError, self.cal.get_member, 'foo.ics')
+
+    def test_get_schedule_calendar_transparency(self):
+        self.assertEqual(
+            caldav.TRANSPARENCY_OPAQUE,
+            self.cal.get_schedule_calendar_transparency())
