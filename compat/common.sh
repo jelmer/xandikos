@@ -12,6 +12,8 @@ set -e
 
 xandikos_cleanup() {
 	[ -z ${XANDIKOS_PID} ] || kill -INT ${XANDIKOS_PID}
+	sleep 2
+	[ -z ${XANDIKOS_PID} ] || kill -TERM ${XANDIKOS_PID}
 	rm --preserve-root -rf ${SERVEDIR}
 	cat ${DAEMON_LOG}
 	wait ${XANDIKOS_PID} || true
