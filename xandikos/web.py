@@ -1066,6 +1066,10 @@ def main(argv):
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
 
+    import signal
+    # Set SIGINT to default handler; this appears to be necessary
+    # when running under coverage.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
