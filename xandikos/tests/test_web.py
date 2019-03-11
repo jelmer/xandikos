@@ -93,8 +93,11 @@ class CalendarCollectionTests(unittest.TestCase):
     def test_calendar_query_vtodo_by_uid(self):
         def create_fn(cls):
             f = cls(None)
-            f.filter_subcomponent('VCALENDAR').filter_subcomponent('VTODO').filter_property(
-                'UID').filter_text_match(b'bdc22720-b9e1-42c9-89c2-a85405d8fbff')
+            f.filter_subcomponent(
+                'VCALENDAR').filter_subcomponent(
+                'VTODO').filter_property(
+                'UID').filter_text_match(
+                    b'bdc22720-b9e1-42c9-89c2-a85405d8fbff')
             return f
         self.assertEqual([], self.cal.calendar_query(create_fn))
         self.store.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
