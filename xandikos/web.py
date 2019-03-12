@@ -662,6 +662,9 @@ class Principal(webdav.Principal):
     def get_principal_url(self):
         return '.'
 
+    def get_principal_address(self):
+        raise KeyError
+
     def get_calendar_home_set(self):
         return CALENDAR_HOME_SET
 
