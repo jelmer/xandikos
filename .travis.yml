@@ -21,7 +21,7 @@ matrix:
     #  dist: xenial
 install:
   - pip install pip --upgrade
-  - pip install flake8 pycalendar
+  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz
   - sudo apt-get install -qq libneon27-dev curl python2.7
   - sudo apt-get install -qq cargo
   - python setup.py develop
