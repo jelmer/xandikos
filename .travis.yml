@@ -1,6 +1,7 @@
 language: python
 cache: pip
 sudo: true
+dist: xenial
 addons:
   apt:
     update: true
@@ -21,9 +22,9 @@ matrix:
     #  dist: xenial
 install:
   - sudo apt-get install -qq libneon27-dev curl python2.7
-  - sudo apt-get install -qq cargo make python3-attr
+  - sudo apt-get install -qq cargo make
   - pip install pip --upgrade
-  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attr
+  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs
   - python setup.py develop
 script:
   - make style
