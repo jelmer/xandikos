@@ -25,6 +25,12 @@ check-litmus-all:
 check-litmus:
 	./compat/xandikos-litmus.sh "${LITMUS_TESTS}"
 
+check-pycaldav:
+	./compat/xandikos-pycaldav.sh
+
+coverage-pycaldav:
+	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-pycaldav.sh
+
 coverage-litmus:
 	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-litmus.sh "${LITMUS_TESTS}"
 
@@ -46,7 +52,7 @@ check-caldavtester-all:
 coverage-caldavtester-all:
 	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-caldavtester.sh
 
-check-all: check check-vdirsyncer check-litmus check-caldavtester style
+check-all: check check-vdirsyncer check-litmus check-caldavtester check-pycaldav style
 
 coverage-all: coverage coverage-litmus coverage-vdirsyncer coverage-caldavtester
 
