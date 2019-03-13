@@ -30,5 +30,5 @@ EOF
 run_xandikos 5233 --defaults
 
 pushd $(dirname $0)/pycaldav
-pytest-3 tests "$@"
+${PYTHON:-python3} -m pytest tests "$@"
 popd
