@@ -20,10 +20,10 @@ matrix:
     #- python: 3.8-dev
     #  dist: xenial
 install:
-  - pip install pip --upgrade
-  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz
   - sudo apt-get install -qq libneon27-dev curl python2.7
-  - sudo apt-get install -qq cargo make
+  - sudo apt-get install -qq cargo make python3-attr
+  - pip install pip --upgrade
+  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attr
   - python setup.py develop
 script:
   - make style
@@ -33,7 +33,6 @@ script:
   - make check-caldavtester
   - make check-pycaldav
   - if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
-        pip install "attrs>=17.4.0"
         make check-vdirsyncer;
     fi
 cache:
