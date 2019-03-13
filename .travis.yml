@@ -16,6 +16,7 @@ matrix:
     - python: 3.7
       dist: xenial
     # defusedxml appears to be broken on Python 3.8:
+    # See https://github.com/tiran/defusedxml/pull/24
     #- python: 3.8-dev
     #  dist: xenial
 install:
