@@ -722,6 +722,9 @@ class Principal(webdav.Principal):
         # TODO(jelmer): make this configurable
         return 'inbox'
 
+    def get_creationdate(self):
+        raise KeyError
+
 
 class PrincipalBare(CollectionSetResource, Principal):
     """Principal user resource."""
