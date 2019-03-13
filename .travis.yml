@@ -23,18 +23,18 @@ install:
   - pip install pip --upgrade
   - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz
   - sudo apt-get install -qq libneon27-dev curl python2.7
-  - sudo apt-get install -qq cargo
+  - sudo apt-get install -qq cargo make
   - python setup.py develop
 script:
   - make style
   - make check
   # Retrieve litmus from Xandikos server for now, since webdav.org is down.
   - make check-litmus LITMUS_URL=https://www.xandikos.org/litmus-0.13.tar.gz
+  - make check-caldavtester
+  - make check-pycaldav
   - if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
         pip install "attrs>=17.4.0"
         make check-vdirsyncer;
     fi
-  - make check-caldavtester
-  - make check-pycaldav
 cache:
   pip: true
