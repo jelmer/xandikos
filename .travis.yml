@@ -33,8 +33,9 @@ script:
   - make check-litmus LITMUS_URL=https://www.xandikos.org/litmus-0.13.tar.gz
   - make check-caldavtester
   - make check-pycaldav
-  - if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
-        make check-vdirsyncer;
-    fi
+  # Disabled because of https://github.com/pimutils/vdirsyncer/issues/789
+  #- if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
+  #      make check-vdirsyncer;
+  #  fi
 cache:
   pip: true
