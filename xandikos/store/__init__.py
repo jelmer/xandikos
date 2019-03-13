@@ -98,6 +98,25 @@ class File(object):
         else:
             yield "Modified " + item_description
 
+    def _get_index(self, key):
+        """Obtain an index for this file.
+
+        :param key: Index key
+        :yield: Index values
+        """
+        raise NotImplementedError(self._get_index)
+
+    def get_indexes(self, keys):
+        """Obtain indexes for this file.
+
+        :param keys: Iterable of index keys
+        :return: Dictionary mapping key names to values
+        """
+        ret = {}
+        for k in keys:
+            ret[k] = list(self._get_index(k))
+        return ret
+
 
 class Filter(object):
     """A filter that can be used to query for certain resources.
@@ -110,8 +129,25 @@ class Filter(object):
 
         :param name: Name of the resource
         :param resource: Resource object
+        :return: boolean
         """
         raise NotImplementedError(self.check)
+
+    def indexes(self):
+        """Returns a list of indexes that could be used to apply this filter.
+
+        :return: AND-list of OR-options
+        """
+        raise NotImplementedError(self.indexes)
+
+    def check_from_indexes(self, name, indexes):
+        """Check from a set of indexes whether a resource matches.
+
+        :param name: Name of the resource
+        :param indexes: Dictionary mapping index names to values
+        :return: boolean
+        """
+        raise NotImplementedError(self.check_from_indexes)
 
 
 def open_by_content_type(content, content_type, extra_file_handlers):
@@ -203,10 +239,42 @@ class Store(object):
         :param filter: Filter to apply
         :yield: (name, file, etag) tuples
         """
+        try:
+            necessary_indexes = filter.indexes()
+        except NotImplementedError:
+            pass
+        else:
+            available_indexes = self.available_indexes()
+            needed_indexes = []
+            for indexes in necessary_indexes:
+                found = False
+                for index in indexes:
+                    if index in available_indexes:
+                        needed_indexes.append(index)
+                        found = True
+                if not found:
+                    break
+            else:
+                return self._iter_with_filter_indexes(filter, needed_indexes)
+        return self._iter_with_filter_naive(filter)
+
+    def _get_indexes(self, name, keys):
+        return {}
+
+    def available_indexes(self):
+        return []
+
+    def _iter_with_filter_naive(self, filter):
         for (name, content_type, etag) in self.iter_with_etag():
-            # TODO(jelmer): Implement notes/indexes.rst
             file = self.get_file(name, content_type, etag)
             if filter.check(name, file):
+                yield (name, file, etag)
+
+    def _iter_with_filter_indexes(self, filter, indexes):
+        for (name, content_type, etag) in self.iter_with_etag():
+            file_indexes = self._get_indexes(name, indexes)
+            if filter.check_from_indexes(name, file_indexes):
+                file = self.get_file(name, content_type, etag)
                 yield (name, file, etag)
 
     def get_file(self, name, content_type=None, etag=None):

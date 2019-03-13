@@ -71,6 +71,8 @@ class VdirStore(Store):
             with open(os.path.join(self.path, CONFIG_FILENAME), 'w') as f:
                 cp.write(f)
         self.config = FileBasedCollectionMetadata(cp, save=save_config)
+        self._indexes = {}
+        self._in_index = set()
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
@@ -103,6 +105,24 @@ class VdirStore(Store):
             if e.errno == errno.ENOENT:
                 raise KeyError
             raise
+
+    def _get_indexes(self, name, keys):
+        etag = self._get_etag(name)
+        if etag not in self._in_index:
+            file = self.get_file(name, None, etag)
+            indexes = file.get_indexes(keys)
+            for k, v in indexes.items():
+                self._indexes[k][etag] = v
+            self._in_index.add(etag)
+            return indexes
+        else:
+            indexes = {}
+            for k in keys:
+                indexes[k] = self._indexes[k][etag]
+            return indexes
+
+    def available_indexes(self):
+        return self._indexes.keys()
 
     def _scan_uids(self):
         removed = set(self._fname_to_uid.keys())

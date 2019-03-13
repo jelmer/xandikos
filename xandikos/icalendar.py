@@ -430,6 +430,17 @@ class ComponentFilter(object):
 
         return True
 
+    def indexes(self):
+        if self.is_not_defined:
+            mine = "!C=" + self.name
+        else:
+            mine = 'C=' + self.name
+        for child in self.children:
+            for tl in child.indexes():
+                yield [(mine + '/' + child_index) for child_index in tl]
+        if not self.children:
+            yield [mine]
+
 
 class PropertyFilter(object):
 
@@ -485,6 +496,13 @@ class PropertyFilter(object):
 
         return True
 
+    def indexes(self):
+        if self.is_not_defined:
+            mine = "!P=" + self.name
+        else:
+            mine = 'P=' + self.name
+        yield [mine]
+
 
 class ParameterFilter(object):
 
@@ -539,6 +557,12 @@ class CalendarFilter(Filter):
                     'to missing property %s', name, e.property_name)
                 return False
         return True
+
+    def indexes(self):
+        subindexes = []
+        for child in self.children:
+            subindexes.extend(child.indexes())
+        return subindexes
 
 
 class ICalendarFile(File):
@@ -613,6 +637,28 @@ class ICalendarFile(File):
             except KeyError:
                 pass
         raise KeyError
+
+    def _get_index(self, key):
+        todo = [(self.calendar, key.split('/'))]
+        rest = []
+        while todo:
+            (c, segments) = todo.pop(0)
+            if segments and segments[0].startswith('C='):
+                if c.name == segments[0][2:]:
+                    if len(segments) > 1 and segments[1].startswith('C='):
+                        todo.extend(
+                            (comp, segments[1:]) for comp in c.subcomponents)
+                    else:
+                        rest.append((c, segments[1:]))
+
+        for c, segments in rest:
+            if not segments:
+                yield True
+            elif segments[0].startswith('P='):
+                assert len(segments) == 1
+                yield c[segments[0]]
+            else:
+                raise AssertionError('segments: %r' % segments)
 
 
 def as_tz_aware_ts(dt, default_timezone):

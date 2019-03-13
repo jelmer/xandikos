@@ -117,6 +117,11 @@ class CalendarFilterTests(unittest.TestCase):
     def test_simple_comp_filter(self):
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent('VEVENT')
+        self.assertEqual(filter.indexes(), [['C=VCALENDAR/C=VEVENT']])
+        self.assertEqual(
+            self.cal.get_indexes(
+                ['C=VCALENDAR/C=VEVENT', 'C=VCALENDAR/C=VTODO']),
+            {'C=VCALENDAR/C=VEVENT': [], 'C=VCALENDAR/C=VTODO': [True]})
         self.assertFalse(filter.check('file', self.cal))
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent('VTODO')
@@ -126,6 +131,9 @@ class CalendarFilterTests(unittest.TestCase):
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
             'VTODO').filter_property('X-SUMMARY')
+        self.assertEqual(
+            filter.indexes(),
+            [['C=VCALENDAR/C=VTODO/P=X-SUMMARY']])
         self.assertFalse(filter.check('file', self.cal))
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
@@ -137,6 +145,9 @@ class CalendarFilterTests(unittest.TestCase):
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
             'VTODO').filter_property('SUMMARY').filter_text_match(
                 b'do something different')
+        self.assertEqual(
+            filter.indexes(),
+            [['C=VCALENDAR/C=VTODO/P=SUMMARY']])
         self.assertFalse(filter.check('file', self.cal))
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
