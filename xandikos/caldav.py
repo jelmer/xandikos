@@ -837,8 +837,8 @@ class ManagedAttachmentsServerURLProperty(webdav.Property):
     def get_value(self, base_href, resource, el, environ):
         # The RFC specifies that this property can be set on a calendar home
         # collection.
-        # However, there is no matching resource type and we don't want to force
-        # all resources to implement it. So we just check whether the
+        # However, there is no matching resource type and we don't want to
+        # force all resources to implement it. So we just check whether the
         # attribute is present.
         fn = getattr(resource, 'get_managed_attachments_server_url', None)
         if fn is None:
