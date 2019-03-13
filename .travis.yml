@@ -31,6 +31,7 @@ script:
   # Retrieve litmus from Xandikos server for now, since webdav.org is down.
   - make check-litmus LITMUS_URL=https://www.xandikos.org/litmus-0.13.tar.gz
   - if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
+        pip install "attrs>=17.4.0"
         make check-vdirsyncer;
     fi
   - make check-caldavtester
