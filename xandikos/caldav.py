@@ -147,16 +147,19 @@ class Calendar(webdav.Collection):
         """Return max attachment size."""
         raise NotImplementedError(self.get_max_attachment_size)
 
-    def get_managed_attachments_server_url(self):
-        """Return the attachments server URL."""
-        raise NotImplementedError(self.get_managed_attachments_server_url)
-
     def get_schedule_calendar_transparency(self):
         """Get calendar transparency.
 
         Possible values are TRANSPARENCY_TRANSPARENT and TRANSPARENCY_OPAQUE
         """
         return TRANSPARENCY_OPAQUE
+
+
+class CalendarHomeSet(object):
+
+    def get_managed_attachments_server_url(self):
+        """Return the attachments server URL."""
+        raise NotImplementedError(self.get_managed_attachments_server_url)
 
 
 class PrincipalExtensions:
@@ -832,7 +835,15 @@ class ManagedAttachmentsServerURLProperty(webdav.Property):
     in_allprops = False
 
     def get_value(self, base_href, resource, el, environ):
-        href = resource.get_managed_attachments_server_url()
+        # The RFC specifies that this property can be set on a calendar home
+        # collection.
+        # However, there is no matching resource type and we don't want to force
+        # all resources to implement it. So we just check whether the
+        # attribute is present.
+        fn = getattr(resource, 'get_managed_attachments_server_url', None)
+        if fn is None:
+            raise KeyError
+        href = fn()
         if href is not None:
             el.append(webdav.create_href(href, base_href))
 
