@@ -59,6 +59,16 @@ def validate_calendar(cal, strict=False):
         yield error
 
 
+def create_subindexes(indexes, base):
+    ret = {}
+    for k, v in indexes.items():
+        if k.startswith(base + '/'):
+            ret[k[len(base) + 1:]] = v
+        elif k == base:
+            ret[None] = v
+    return ret
+
+
 def validate_component(comp, strict=False):
     """Validate a calendar component.
 
@@ -351,6 +361,9 @@ class TextMatcher(object):
         self.collation = _mod_collation.get_collation(collation)
         self.negate_condition = negate_condition
 
+    def match_indexes(self, indexes):
+        return any(self.match(k) for k in indexes[None])
+
     def match(self, prop):
         if isinstance(prop, vText):
             prop = prop.encode()
@@ -430,11 +443,28 @@ class ComponentFilter(object):
 
         return True
 
-    def indexes(self):
+    def match_indexes(self, indexes, tzify):
+        myindex = 'C=' + self.name
         if self.is_not_defined:
-            mine = "!C=" + self.name
-        else:
-            mine = 'C=' + self.name
+            return not bool(indexes[myindex])
+
+        subindexes = create_subindexes(indexes, myindex)
+
+        if not self.children and not self.time_range:
+            return bool(indexes[myindex])
+
+        if (self.time_range is not None and
+                not self.time_range.match_indexes(subindexes, tzify)):
+            return False
+
+        for child in self.children:
+            if not child.match_indexes(subindexes, tzify):
+                return False
+
+        return True
+
+    def indexes(self):
+        mine = 'C=' + self.name
         for child in self.children:
             for tl in child.indexes():
                 yield [(mine + '/' + child_index) for child_index in tl]
@@ -496,11 +526,26 @@ class PropertyFilter(object):
 
         return True
 
-    def indexes(self):
+    def match_indexes(self, indexes, tzify):
+        myindex = 'P=' + self.name
         if self.is_not_defined:
-            mine = "!P=" + self.name
-        else:
-            mine = 'P=' + self.name
+            return not bool(indexes[myindex])
+        subindexes = create_subindexes(indexes, myindex)
+        if not self.children and not self.time_range:
+            return bool(indexes[myindex])
+
+        if (self.time_range is not None and
+                not self.time_range.match_indexes(subindexes, tzify)):
+            return False
+
+        for child in self.children:
+            if not child.match_indexes(subindexes):
+                return False
+
+        return True
+
+    def indexes(self):
+        mine = 'P=' + self.name
         yield [mine]
 
 
@@ -555,6 +600,13 @@ class CalendarFilter(Filter):
                 logging.warning(
                     'calendar_query: Ignoring calendar object %s, due '
                     'to missing property %s', name, e.property_name)
+                return False
+        return True
+
+    def check_from_indexes(self, name, indexes):
+        for child_filter in self.children:
+            if not child_filter.match_indexes(
+                    indexes, self.tzify):
                 return False
         return True
 

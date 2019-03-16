@@ -122,10 +122,18 @@ class CalendarFilterTests(unittest.TestCase):
             self.cal.get_indexes(
                 ['C=VCALENDAR/C=VEVENT', 'C=VCALENDAR/C=VTODO']),
             {'C=VCALENDAR/C=VEVENT': [], 'C=VCALENDAR/C=VTODO': [True]})
+        self.assertFalse(
+            filter.check_from_indexes(
+                'file', {'C=VCALENDAR/C=VEVENT': [],
+                         'C=VCALENDAR/C=VTODO': [True]}))
         self.assertFalse(filter.check('file', self.cal))
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent('VTODO')
         self.assertTrue(filter.check('file', self.cal))
+        self.assertTrue(
+            filter.check_from_indexes(
+                'file', {'C=VCALENDAR/C=VEVENT': [],
+                         'C=VCALENDAR/C=VTODO': [True]}))
 
     def test_prop_presence_filter(self):
         filter = CalendarFilter(None)
@@ -134,10 +142,16 @@ class CalendarFilterTests(unittest.TestCase):
         self.assertEqual(
             filter.indexes(),
             [['C=VCALENDAR/C=VTODO/P=X-SUMMARY']])
+        self.assertFalse(
+            filter.check_from_indexes(
+                'file', {'C=VCALENDAR/C=VTODO/P=X-SUMMARY': []}))
         self.assertFalse(filter.check('file', self.cal))
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
             'VTODO').filter_property('SUMMARY')
+        self.assertTrue(
+            filter.check_from_indexes(
+                'file', {'C=VCALENDAR/C=VTODO/P=SUMMARY': [b'do something']}))
         self.assertTrue(filter.check('file', self.cal))
 
     def test_prop_text_match(self):
@@ -148,11 +162,17 @@ class CalendarFilterTests(unittest.TestCase):
         self.assertEqual(
             filter.indexes(),
             [['C=VCALENDAR/C=VTODO/P=SUMMARY']])
+        self.assertFalse(
+            filter.check_from_indexes(
+                'file', {'C=VCALENDAR/C=VTODO/P=SUMMARY': [b'do something']}))
         self.assertFalse(filter.check('file', self.cal))
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
             'VTODO').filter_property('SUMMARY').filter_text_match(
                 b'do something')
+        self.assertTrue(
+            filter.check_from_indexes(
+                'file', {'C=VCALENDAR/C=VTODO/P=SUMMARY': [b'do something']}))
         self.assertTrue(filter.check('file', self.cal))
 
 
