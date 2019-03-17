@@ -433,7 +433,8 @@ class ComponentFilter(object):
         # 3. The CALDAV:comp-filter XML element contains a CALDAV:time-range
         # XML element and at least one recurrence instance in the targeted
         # calendar component is scheduled to overlap the specified time range
-        if self.time_range is not None and not self.time_range.match(comp, tzify):
+        if (self.time_range is not None and
+                not self.time_range.match(comp, tzify)):
             return False
 
         # ... and all specified CALDAV:prop-filter and CALDAV:comp-filter child
