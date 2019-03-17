@@ -355,11 +355,18 @@ class ComponentTimeRangeMatcher(object):
 class TextMatcher(object):
 
     def __init__(self, text, collation=None, negate_condition=False):
+        if isinstance(text, str):
+            text = text.encode()
         self.text = text
         if collation is None:
             collation = 'i;ascii-casemap'
         self.collation = _mod_collation.get_collation(collation)
         self.negate_condition = negate_condition
+
+    def __repr__(self):
+        return '%s(%r, collation=%r, negate_condition=%r)' % (
+            self.__class__.__name__, self.text, self.collation,
+            self.negate_condition)
 
     def match_indexes(self, indexes):
         return any(self.match(k) for k in indexes[None])
