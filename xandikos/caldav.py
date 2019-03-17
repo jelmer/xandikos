@@ -516,10 +516,12 @@ class CalendarQueryReporter(webdav.Reporter):
         for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth,
                 members=members):
-            propstat = davcommon.get_properties_with_data(
-                self.data_property, href, resource, properties, environ,
-                requested)
-            yield webdav.Status(href, '200 OK', propstat=list(propstat))
+            # Ideally traverse_resource would only return the right things.
+            if getattr(resource, 'content_type', None) == 'text/calendar':
+                propstat = davcommon.get_properties_with_data(
+                    self.data_property, href, resource, properties, environ,
+                    requested)
+                yield webdav.Status(href, '200 OK', propstat=list(propstat))
 
 
 class CalendarColorProperty(webdav.Property):
