@@ -22,6 +22,7 @@
 https://tools.ietf.org/html/rfc4791
 """
 import datetime
+import itertools
 import pytz
 
 from .icalendar import (
@@ -160,9 +161,7 @@ class Calendar(webdav.Collection):
             filter; takes a filter building class.
         :return: Iterator over name, resource objects
         """
-        for name, resource in self.members():
-            if filter is None or filter.check(name, resource):
-                yield name, resource
+        raise NotImplementedError(self.calendar_query)
 
 
 class CalendarHomeSet(object):
@@ -309,6 +308,7 @@ class CalendarMultiGetReporter(davcommon.MultiGetReporter):
 
 def parse_prop_filter(el, cls):
     name = el.get('name')
+
     # From https://tools.ietf.org/html/rfc4791, 9.7.2:
     # A CALDAV:comp-filter is said to match if:
 
@@ -332,6 +332,8 @@ def parse_prop_filter(el, cls):
             parse_text_match(subel, prop_filter.filter_text_match)
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}param-filter':
             parse_param_filter(subel, prop_filter.filter_parameter)
+        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+            pass
         else:
             raise AssertionError("unknown subelement %r" % subel.tag)
     return prop_filter
@@ -393,6 +395,7 @@ def parse_comp_filter(el, cls):
     """Compile a comp-filter element into a Python function.
     """
     name = el.get('name')
+
     # From https://tools.ietf.org/html/rfc4791, 9.7.1:
     # A CALDAV:comp-filter is said to match if:
 
@@ -426,6 +429,15 @@ def parse_comp_filter(el, cls):
     return comp_filter
 
 
+def parse_filter(filter_el, cls):
+    for subel in filter_el:
+        if subel.tag == '{urn:ietf:params:xml:ns:caldav}comp-filter':
+            parse_comp_filter(subel, cls.filter_subcomponent)
+        else:
+            raise AssertionError('unknown filter tag %r' % subel.tag)
+    return cls
+
+
 def calendar_from_resource(resource):
     try:
         if resource.get_content_type() != 'text/calendar':
@@ -433,19 +445,6 @@ def calendar_from_resource(resource):
     except KeyError:
         return None
     return resource.file.calendar
-
-
-def apply_filter(el, resource, tzify):
-    """Compile a filter element into a Python function.
-    """
-    if el is None:
-        # Empty filter, let's not bother parsing
-        return True
-    c = calendar_from_resource(resource)
-    if c is None:
-        return False
-    filter = parse_comp_filter(list(el)[0])
-    return filter.match(c, tzify)
 
 
 def extract_tzid(cal):
@@ -507,11 +506,12 @@ class CalendarQueryReporter(webdav.Reporter):
             return as_tz_aware_ts(dt, tz)
 
         def filter_fn(cls):
-            return parse_comp_filter(filter_el, cls(tzify).parse_comp_filter)
+            return parse_filter(filter_el, cls(tzify))
 
         def members(collection):
-            return (collection.subcollections() +
-                    collection.calendar_query(filter_fn))
+            return itertools.chain(
+                collection.calendar_query(filter_fn),
+                collection.subcollections())
 
         for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth,
