@@ -507,7 +507,7 @@ class CalendarQueryReporter(webdav.Reporter):
             return as_tz_aware_ts(dt, tz)
 
         def filter_fn(cls):
-            return parse_comp_filter(filter_el, cls(tzify))
+            return parse_comp_filter(filter_el, cls(tzify).parse_comp_filter)
 
         def members(collection):
             return (collection.subcollections() +
