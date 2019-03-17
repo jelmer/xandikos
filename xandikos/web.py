@@ -263,10 +263,9 @@ class StoreBasedCollection(object):
         for (fname, content_type, fetag) in self.store.iter_with_etag():
             if name == fname:
                 return self._get_resource(name, content_type, fetag)
-        else:
-            if name in self.store.subdirectories():
-                return self._get_subcollection(name)
-            raise KeyError(name)
+        if name in self.store.subdirectories():
+            return self._get_subcollection(name)
+        raise KeyError(name)
 
     def delete_member(self, name, etag=None):
         assert name != ''

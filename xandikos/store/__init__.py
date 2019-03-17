@@ -174,9 +174,10 @@ class Store(object):
     def load_extra_file_handler(self, file_handler):
         self.extra_file_handlers[file_handler.content_type] = file_handler
 
-    def iter_with_etag(self):
+    def iter_with_etag(self, ctag=None):
         """Iterate over all items in the store with etag.
 
+        :param ctag: Possible ctag to iterate for
         :yield: (name, content_type, etag) tuples
         """
         raise NotImplementedError(self.iter_with_etag)
@@ -195,9 +196,11 @@ class Store(object):
                 self._get_raw(name, etag), content_type,
                 extra_file_handlers=self.extra_file_handlers)
 
-    def _get_raw(self, name, etag):
+    def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
 
+        :param name: Filename
+        :param etag: Optional etag to return
         :return: raw contents
         """
         raise NotImplementedError(self._get_raw)
@@ -270,7 +273,7 @@ class Store(object):
         """
         raise NotImplementedError(self.get_displayname)
 
-    def set_displayname(self):
+    def set_displayname(self, displayname):
         """Set the display name of this store.
         """
         raise NotImplementedError(self.set_displayname)

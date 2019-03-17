@@ -92,11 +92,9 @@ class VdirStore(Store):
         """Get the raw contents of an object.
 
         :param name: Name of the item
-        :param etag: Optional etag
+        :param etag: Optional etag (ignored)
         :return: raw contents as chunks
         """
-        if etag is None:
-            etag = self._get_etag(name)
         path = os.path.join(self.path, name)
         try:
             with open(path, 'rb') as f:

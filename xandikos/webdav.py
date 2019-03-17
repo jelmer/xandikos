@@ -51,7 +51,7 @@ class BadRequestError(Exception):
     """Base class for bad request errors."""
 
     def __init__(self, message):
-        super(Exception, self).__init__(message)
+        super(BadRequestError, self).__init__(message)
         self.message = message
 
 
@@ -59,7 +59,7 @@ class NotAcceptableError(Exception):
     """Base class for not acceptable errors."""
 
     def __init__(self, available_content_types, acceptable_content_types):
-        super(Exception, self).__init__(
+        super(NotAcceptableError, self).__init__(
             "Unable to convert from content types %r to one of %r" % (
                 available_content_types, acceptable_content_types))
         self.available_content_types = available_content_types
@@ -70,7 +70,7 @@ class UnsupportedMediaType(Exception):
     """Base class for unsupported media type errors."""
 
     def __init__(self, content_type):
-        super(Exception, self).__init__(
+        super(UnsupportedMediaType, self).__init__(
             "Unsupported media type: %r" % (content_type, ))
         self.content_type = content_type
 
@@ -79,7 +79,7 @@ class UnauthorizedError(Exception):
     """Base class for unauthorized errors."""
 
     def __init__(self):
-        super(Exception, self).__init__(
+        super(UnauthorizedError, self).__init__(
             "Request unauthorized")
 
 
@@ -164,8 +164,7 @@ def etag_matches(condition, actual_etag):
             return True
         if etag.strip(' ') == actual_etag:
             return True
-    else:
-        return False
+    return False
 
 
 class NeedsMultiStatus(Exception):
@@ -729,7 +728,7 @@ class Resource(object):
         """
         raise NotImplementedError(self.set_comment)
 
-    def get_comment(self, comment):
+    def get_comment(self):
         """Get resource comment.
 
         :return: comment

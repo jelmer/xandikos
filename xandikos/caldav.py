@@ -93,7 +93,7 @@ class Calendar(webdav.Collection):
         """
         raise NotImplementedError(self.get_calendar_timezone)
 
-    def set_calendar_timezone(self):
+    def set_calendar_timezone(self, content):
         """Set calendar timezone.
 
         This should be an iCalendar object with exactly one
