@@ -386,7 +386,7 @@ class ComponentFilter(object):
 
     def __repr__(self):
         return '%s(%r, children=%r, is_not_defined=%r, time_range=%r)' % (
-            self.__class__.__name__, self.children,
+            self.__class__.__name__, self.name, self.children,
             self.is_not_defined, self.time_range)
 
     def filter_subcomponent(self, name, is_not_defined=False,
@@ -426,7 +426,7 @@ class ComponentFilter(object):
         # 3. The CALDAV:comp-filter XML element contains a CALDAV:time-range
         # XML element and at least one recurrence instance in the targeted
         # calendar component is scheduled to overlap the specified time range
-        if self.time_range is not None and not self.time_range.match(comp):
+        if self.time_range is not None and not self.time_range.match(comp, tzify):
             return False
 
         # ... and all specified CALDAV:prop-filter and CALDAV:comp-filter child
@@ -483,7 +483,7 @@ class PropertyFilter(object):
 
     def __repr__(self):
         return '%s(%r, children=%r, is_not_defined=%r, time_range=%r)' % (
-            self.__class__.__name__, self.children,
+            self.__class__.__name__, self.name, self.children,
             self.is_not_defined, self.time_range)
 
     def filter_parameter(self, name, is_not_defined=False):
@@ -615,6 +615,9 @@ class CalendarFilter(Filter):
         for child in self.children:
             subindexes.extend(child.indexes())
         return subindexes
+
+    def __repr__(self):
+        return '%s(%r)' % (self.__class__.__name__, self.children)
 
 
 class ICalendarFile(File):
