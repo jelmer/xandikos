@@ -253,17 +253,15 @@ class StoreBasedCollection(object):
         return create_strong_etag(self.store.get_ctag())
 
     def members(self):
-        ret = []
         for (name, content_type, etag) in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
-            ret.append((name, resource))
-        return ret + self.subcollections()
+            yield (name, resource)
+        for (name, resource) in self.subcollections():
+            yield (name, resource)
 
     def subcollections(self):
-        ret = []
         for name in self.store.subdirectories():
-            ret.append((name, self._get_subcollection(name)))
-        return ret
+            yield (name, self._get_subcollection(name))
 
     def get_member(self, name):
         assert name != ''
@@ -466,14 +464,12 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         raise KeyError
 
     def calendar_query(self, create_filter_fn):
-        ret = []
         filter = create_filter_fn(CalendarFilter)
         for (name, file, etag) in self.store.iter_with_filter(
                 filter=filter):
             resource = self._get_resource(
                 name, file.content_type, etag, file=file)
-            ret.append((name, resource))
-        return ret
+            yield (name, resource)
 
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
@@ -541,14 +537,12 @@ class CollectionSetResource(webdav.Collection):
         return []
 
     def members(self):
-        ret = []
         p = self.backend._map_to_file_path(self.relpath)
         for name in os.listdir(p):
             if name.startswith('.'):
                 continue
             resource = self.get_member(name)
-            ret.append((name, resource))
-        return ret
+            yield (name, resource)
 
     def get_member(self, name):
         assert name != ''

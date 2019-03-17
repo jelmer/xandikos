@@ -81,9 +81,9 @@ class CalendarCollectionTests(unittest.TestCase):
             f = cls(None)
             f.filter_subcomponent('VCALENDAR').filter_subcomponent('VTODO')
             return f
-        self.assertEqual([], self.cal.calendar_query(create_fn))
+        self.assertEqual([], list(self.cal.calendar_query(create_fn)))
         self.store.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        result = self.cal.calendar_query(create_fn)
+        result = list(self.cal.calendar_query(create_fn))
         self.assertEqual(1, len(result))
         self.assertEqual('foo.ics', result[0][0])
         self.assertIs(self.store, result[0][1].store)
@@ -99,9 +99,9 @@ class CalendarCollectionTests(unittest.TestCase):
                 'UID').filter_text_match(
                     b'bdc22720-b9e1-42c9-89c2-a85405d8fbff')
             return f
-        self.assertEqual([], self.cal.calendar_query(create_fn))
+        self.assertEqual([], list(self.cal.calendar_query(create_fn)))
         self.store.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        result = self.cal.calendar_query(create_fn)
+        result = list(self.cal.calendar_query(create_fn))
         self.assertEqual(1, len(result))
         self.assertEqual('foo.ics', result[0][0])
         self.assertIs(self.store, result[0][1].store)
@@ -122,9 +122,9 @@ class CalendarCollectionTests(unittest.TestCase):
             "00010101T000000Z", self.cal.get_min_date_time())
 
     def test_members(self):
-        self.assertEqual([], self.cal.members())
+        self.assertEqual([], list(self.cal.members()))
         self.store.import_one('foo.ics', 'text/calendar', [EXAMPLE_VCALENDAR1])
-        result = self.cal.members()
+        result = list(self.cal.members())
         self.assertEqual(1, len(result))
         self.assertEqual('foo.ics', result[0][0])
         self.assertIs(self.store, result[0][1].store)
