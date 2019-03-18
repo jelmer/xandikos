@@ -20,6 +20,12 @@
 """Indexing.
 """
 
+import collections
+import logging
+
+
+INDEXING_THRESHOLD = 10
+
 
 class Index(object):
     """Index management."""
@@ -31,6 +37,10 @@ class Index(object):
     def get_values(self, name, etag, keys):
         """Get the values for specified keys for a name."""
         raise NotImplementedError(self.get_values)
+
+    def iter_etags(self):
+        """Return all the etags covered by this index."""
+        raise NotImplementedError(self.iter_etags)
 
 
 class MemoryIndex(Index):
@@ -53,7 +63,54 @@ class MemoryIndex(Index):
                 return None
         return indexes
 
+    def iter_etags(self):
+        return iter(self._in_index)
+
     def add_values(self, name, etag, values):
         for k, v in values.items():
             self._indexes[k][etag] = v
         self._in_index.add(etag)
+
+    def reset(self, keys):
+        self._in_index = set()
+        self._indexes = {}
+        for key in keys:
+            self._indexes[key] = {}
+
+
+class IndexManager(object):
+
+    def __init__(self, index, threshold=INDEXING_THRESHOLD):
+        self.index = index
+        self.desired = collections.defaultdict(lambda: 0)
+        self.indexing_threshold = threshold
+
+    def find_present_keys(self, necessary_keys):
+        available_keys = self.index.available_keys()
+        needed_keys = []
+        missing_keys = []
+        new_index_keys = set()
+        for keys in necessary_keys:
+            found = False
+            for key in keys:
+                if key in available_keys:
+                    needed_keys.append(key)
+                    found = True
+            if not found:
+                for key in keys:
+                    self.desired[key] += 1
+                    if self.desired[key] > self.indexing_threshold:
+                        new_index_keys.add(key)
+                missing_keys.extend(keys)
+        if not missing_keys:
+            return needed_keys
+
+        if new_index_keys:
+            logging.debug('Adding new index keys: %r', new_index_keys)
+            self.index.reset(
+                set(self.index.available_keys()) | new_index_keys)
+
+        # TODO(jelmer): Maybe best to check if missing_keys are satisfiable
+        # now?
+
+        return None

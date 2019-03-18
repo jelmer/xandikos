@@ -58,7 +58,7 @@ class VdirStore(Store):
     """
 
     def __init__(self, path, check_for_duplicate_uids=True):
-        super(VdirStore, self).__init__()
+        super(VdirStore, self).__init__(MemoryIndex())
         self.path = path
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
@@ -72,7 +72,6 @@ class VdirStore(Store):
             with open(os.path.join(self.path, CONFIG_FILENAME), 'w') as f:
                 cp.write(f)
         self.config = FileBasedCollectionMetadata(cp, save=save_config)
-        self.index = MemoryIndex()
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)

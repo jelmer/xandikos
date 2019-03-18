@@ -195,7 +195,7 @@ class GitStore(Store):
 
     def __init__(self, repo, ref=b'refs/heads/master',
                  check_for_duplicate_uids=True):
-        super(GitStore, self).__init__()
+        super(GitStore, self).__init__(MemoryIndex())
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
@@ -203,7 +203,6 @@ class GitStore(Store):
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
-        self.index = MemoryIndex()
 
     @property
     def config(self):

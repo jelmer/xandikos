@@ -351,6 +351,9 @@ class ComponentTimeRangeMatcher(object):
             return False
         return component_handler(self.start, self.end, comp, tzify)
 
+    def match_indexes(self, indexes, tzify):
+        raise NotImplementedError(self.match_indexes)
+
 
 class TextMatcher(object):
 
@@ -719,7 +722,10 @@ class ICalendarFile(File):
                 yield True
             elif segments[0].startswith('P='):
                 assert len(segments) == 1
-                yield c[segments[0]]
+                try:
+                    yield c[segments[0][2:]]
+                except KeyError:
+                    pass
             else:
                 raise AssertionError('segments: %r' % segments)
 

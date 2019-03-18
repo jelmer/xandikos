@@ -150,6 +150,59 @@ class BaseStoreTest(object):
             b''.join(ret_file.content),
             EXAMPLE_VCALENDAR2.replace(b'\n', b'\r\n'))
 
+    def test_get_by_index(self):
+        gc = self.create_store()
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one('bar.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR2])
+        self.assertEqual({}, dict(gc.index_manager.desired))
+
+        filtertext = 'C=VCALENDAR/C=VTODO/P=SUMMARY'
+
+        class DummyFilter(Filter):
+
+            def __init__(self, text):
+                self.text = text
+
+            def index_keys(self):
+                return [[filtertext]]
+
+            def check_from_indexes(self, name, index_values):
+                return any(self.text in v.encode()
+                           for v in index_values[filtertext])
+
+            def check(self, name, resource):
+                if resource.content_type != 'text/calendar':
+                    return False
+                return self.text in b''.join(resource.content)
+
+        self.assertEqual(
+            2, len(list(gc.iter_with_filter(
+                filter=DummyFilter(b'do something')))))
+
+        [(ret_name, ret_file, ret_etag)] = list(gc.iter_with_filter(
+            filter=DummyFilter(b'do something else')))
+        self.assertEqual(
+            {filtertext: 2},
+            dict(gc.index_manager.desired))
+
+        # Force index
+        gc.index.reset([filtertext])
+
+        [(ret_name, ret_file, ret_etag)] = list(gc.iter_with_filter(
+            filter=DummyFilter(b'do something else')))
+        self.assertEqual(
+            {filtertext: 2},
+            dict(gc.index_manager.desired))
+
+        self.assertEqual(ret_name, name2)
+        self.assertEqual(ret_etag, etag2)
+        self.assertEqual(ret_file.content_type, 'text/calendar')
+        self.assertEqual(
+            b''.join(ret_file.content),
+            EXAMPLE_VCALENDAR2.replace(b'\n', b'\r\n'))
+
     def test_import_one_duplicate_uid(self):
         gc = self.create_store()
         (name, etag) = gc.import_one('foo.ics', 'text/calendar',

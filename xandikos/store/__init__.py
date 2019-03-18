@@ -25,6 +25,8 @@ are always strong, and should be returned without wrapping quotes.
 
 import mimetypes
 
+from .index import IndexManager
+
 STORE_TYPE_ADDRESSBOOK = 'addressbook'
 STORE_TYPE_CALENDAR = 'calendar'
 STORE_TYPE_PRINCIPAL = 'principal'
@@ -219,9 +221,10 @@ class InvalidFileContents(Exception):
 class Store(object):
     """A object store."""
 
-    def __init__(self):
+    def __init__(self, index):
         self.extra_file_handlers = {}
-        self.index = None
+        self.index = index
+        self.index_manager = IndexManager(self.index)
 
     def load_extra_file_handler(self, file_handler):
         self.extra_file_handlers[file_handler.content_type] = file_handler
@@ -240,25 +243,17 @@ class Store(object):
         :param filter: Filter to apply
         :yield: (name, file, etag) tuples
         """
-        if self.index is not None:
+        if self.index_manager is not None:
             try:
                 necessary_keys = filter.index_keys()
             except NotImplementedError:
                 pass
             else:
-                available_keys = self.index.available_keys()
-                needed_keys = []
-                for keys in necessary_keys:
-                    found = False
-                    for index in keys:
-                        if index in available_keys:
-                            needed_keys.append(index)
-                            found = True
-                    if not found:
-                        break
-                else:
+                present_keys = self.index_manager.find_present_keys(
+                    necessary_keys)
+                if present_keys is not None:
                     return self._iter_with_filter_indexes(
-                        filter, needed_keys)
+                        filter, present_keys)
         return self._iter_with_filter_naive(filter)
 
     def _iter_with_filter_naive(self, filter):
