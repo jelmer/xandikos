@@ -279,6 +279,8 @@ class Store(object):
                 if filter.check_from_indexes(name, file_values):
                     yield (name, file, etag)
             else:
+                if file_values is None:
+                    continue
                 if filter.check_from_indexes(name, file_values):
                     file = self.get_file(name, content_type, etag)
                     yield (name, file, etag)

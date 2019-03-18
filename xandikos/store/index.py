@@ -47,7 +47,10 @@ class MemoryIndex(Index):
             raise KeyError(etag)
         indexes = {}
         for k in keys:
-            indexes[k] = self._indexes[k][etag]
+            try:
+                indexes[k] = self._indexes[k][etag]
+            except KeyError:
+                return None
         return indexes
 
     def add_values(self, name, etag, values):
