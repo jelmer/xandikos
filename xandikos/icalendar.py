@@ -471,10 +471,10 @@ class ComponentFilter(object):
 
         return True
 
-    def indexes(self):
+    def index_keys(self):
         mine = 'C=' + self.name
         for child in self.children:
-            for tl in child.indexes():
+            for tl in child.index_keys():
                 yield [(mine + '/' + child_index) for child_index in tl]
         if not self.children:
             yield [mine]
@@ -552,7 +552,7 @@ class PropertyFilter(object):
 
         return True
 
-    def indexes(self):
+    def index_keys(self):
         mine = 'P=' + self.name
         yield [mine]
 
@@ -618,10 +618,10 @@ class CalendarFilter(Filter):
                 return False
         return True
 
-    def indexes(self):
+    def index_keys(self):
         subindexes = []
         for child in self.children:
-            subindexes.extend(child.indexes())
+            subindexes.extend(child.index_keys())
         return subindexes
 
     def __repr__(self):

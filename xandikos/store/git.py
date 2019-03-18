@@ -46,6 +46,7 @@ from .config import (
     CollectionMetadata,
     FileBasedCollectionMetadata,
 )
+from .index import MemoryIndex
 
 
 from dulwich.file import GitFile
@@ -202,6 +203,7 @@ class GitStore(Store):
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
+        self.index = MemoryIndex()
 
     @property
     def config(self):

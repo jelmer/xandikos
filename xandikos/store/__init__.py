@@ -133,12 +133,12 @@ class Filter(object):
         """
         raise NotImplementedError(self.check)
 
-    def indexes(self):
+    def index_keys(self):
         """Returns a list of indexes that could be used to apply this filter.
 
         :return: AND-list of OR-options
         """
-        raise NotImplementedError(self.indexes)
+        raise NotImplementedError(self.index_keys)
 
     def check_from_indexes(self, name, indexes):
         """Check from a set of indexes whether a resource matches.
@@ -221,6 +221,7 @@ class Store(object):
 
     def __init__(self):
         self.extra_file_handlers = {}
+        self.index = None
 
     def load_extra_file_handler(self, file_handler):
         self.extra_file_handlers[file_handler.content_type] = file_handler
@@ -239,30 +240,26 @@ class Store(object):
         :param filter: Filter to apply
         :yield: (name, file, etag) tuples
         """
-        try:
-            necessary_indexes = filter.indexes()
-        except NotImplementedError:
-            pass
-        else:
-            available_indexes = self.available_indexes()
-            needed_indexes = []
-            for indexes in necessary_indexes:
-                found = False
-                for index in indexes:
-                    if index in available_indexes:
-                        needed_indexes.append(index)
-                        found = True
-                if not found:
-                    break
+        if self.index is not None:
+            try:
+                necessary_keys = filter.index_keys()
+            except NotImplementedError:
+                pass
             else:
-                return self._iter_with_filter_indexes(filter, needed_indexes)
+                available_keys = self.index.available_keys()
+                needed_keys = []
+                for keys in necessary_keys:
+                    found = False
+                    for index in keys:
+                        if index in available_keys:
+                            needed_keys.append(index)
+                            found = True
+                    if not found:
+                        break
+                else:
+                    return self._iter_with_filter_indexes(
+                        filter, needed_keys)
         return self._iter_with_filter_naive(filter)
-
-    def _get_indexes(self, name, keys):
-        return {}
-
-    def available_indexes(self):
-        return []
 
     def _iter_with_filter_naive(self, filter):
         for (name, content_type, etag) in self.iter_with_etag():
@@ -270,12 +267,21 @@ class Store(object):
             if filter.check(name, file):
                 yield (name, file, etag)
 
-    def _iter_with_filter_indexes(self, filter, indexes):
+    def _iter_with_filter_indexes(self, filter, keys):
         for (name, content_type, etag) in self.iter_with_etag():
-            file_indexes = self._get_indexes(name, indexes)
-            if filter.check_from_indexes(name, file_indexes):
+            try:
+                file_values = self.index.get_values(name, etag, keys)
+            except KeyError:
+                # Index values not yet present for this file.
                 file = self.get_file(name, content_type, etag)
-                yield (name, file, etag)
+                file_values = file.get_indexes(keys)
+                self.index.add_values(name, etag, file_values)
+                if filter.check_from_indexes(name, file_values):
+                    yield (name, file, etag)
+            else:
+                if filter.check_from_indexes(name, file_values):
+                    file = self.get_file(name, content_type, etag)
+                    yield (name, file, etag)
 
     def get_file(self, name, content_type=None, etag=None):
         """Get the contents of an object.
