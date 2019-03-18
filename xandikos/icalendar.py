@@ -25,7 +25,10 @@ import datetime
 import logging
 
 from icalendar.cal import Calendar, component_factory
-from icalendar.prop import vText
+from icalendar.prop import (
+    vDatetime,
+    vText,
+    )
 from xandikos.store import (
     Filter,
     File,
@@ -330,21 +333,27 @@ class PropertyTimeRangeMatcher(object):
 
 class ComponentTimeRangeMatcher(object):
 
-    def __init__(self, start, end):
+    all_props = [
+        'DTSTART', 'DTEND', 'DURATION', 'CREATED', 'COMPLETED', 'DUE',
+        'FREEBUSY']
+
+    # According to https://tools.ietf.org/html/rfc4791, section 9.9 these
+    # are the properties to check.
+    component_handlers = {
+        'VEVENT': apply_time_range_vevent,
+        'VTODO': apply_time_range_vtodo,
+        'VJOURNAL': apply_time_range_vjournal,
+        'VFREEBUSY': apply_time_range_vfreebusy,
+        'VALARM': apply_time_range_valarm}
+
+    def __init__(self, start, end, comp=None):
         self.start = start
         self.end = end
+        self.comp = comp
 
     def match(self, comp, tzify):
-        # According to https://tools.ietf.org/html/rfc4791, section 9.9 these
-        # are the properties to check.
-        component_handlers = {
-            'VEVENT': apply_time_range_vevent,
-            'VTODO': apply_time_range_vtodo,
-            'VJOURNAL': apply_time_range_vjournal,
-            'VFREEBUSY': apply_time_range_vfreebusy,
-            'VALARM': apply_time_range_valarm}
         try:
-            component_handler = component_handlers[comp.name]
+            component_handler = self.component_handlers[comp.name]
         except KeyError:
             logging.warning('unknown component %r in time-range filter',
                             comp.name)
@@ -352,7 +361,33 @@ class ComponentTimeRangeMatcher(object):
         return component_handler(self.start, self.end, comp, tzify)
 
     def match_indexes(self, indexes, tzify):
-        raise NotImplementedError(self.match_indexes)
+        vs = {}
+        for name, value in indexes.items():
+            if name in self.all_props:
+                vs[name] = vDatetime.from_ical(value)
+
+        try:
+            component_handler = self.component_handlers[self.comp]
+        except KeyError:
+            logging.warning('unknown component %r in time-range filter',
+                            self.comp)
+            return False
+        return component_handler(self.start, self.end, self.comp, tzify)
+
+    def index_keys(self):
+        if self.comp == 'VEVENT':
+            props = ['DTSTART', 'DTEND', 'DURATION']
+        elif self.comp == 'VTODO':
+            props = ['DTSTART', 'DUE', 'DURATION', 'CREATED', 'COMPLETED']
+        elif self.comp == 'VJOURNAL':
+            props = ['DTSTART']
+        elif self.comp == 'VFREEBUSY':
+            props = ['DTSTART', 'DTEND', 'FREEBUSY']
+        elif self.comp == 'VALARM':
+            raise NotImplementedError
+        else:
+            props = self.all_props
+        return [['P=' + prop] for prop in props]
 
 
 class TextMatcher(object):
@@ -413,7 +448,8 @@ class ComponentFilter(object):
         return ret
 
     def filter_time_range(self, start, end):
-        self.time_range = ComponentTimeRangeMatcher(start, end)
+        self.time_range = ComponentTimeRangeMatcher(
+            start, end, comp=self.name)
         return self.time_range
 
     def match(self, comp, tzify):
@@ -476,7 +512,9 @@ class ComponentFilter(object):
 
     def index_keys(self):
         mine = 'C=' + self.name
-        for child in self.children:
+        for child in (
+                self.children +
+                ([self.time_range] if self.time_range else [])):
             for tl in child.index_keys():
                 yield [(mine + '/' + child_index) for child_index in tl]
         if not self.children:
