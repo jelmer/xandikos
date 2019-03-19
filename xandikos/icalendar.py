@@ -65,7 +65,7 @@ def validate_calendar(cal, strict=False):
 def create_subindexes(indexes, base):
     ret = {}
     for k, v in indexes.items():
-        if k.startswith(base + '/'):
+        if k is not None and k.startswith(base + '/'):
             ret[k[len(base) + 1:]] = v
         elif k == base:
             ret[None] = v
@@ -490,15 +490,16 @@ class ComponentFilter(object):
 
         return True
 
+    def _implicitly_defined(self):
+        return any(not getattr(child, 'is_not_defined', False)
+                   for child in self.children)
+
     def match_indexes(self, indexes, tzify):
         myindex = 'C=' + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
 
         subindexes = create_subindexes(indexes, myindex)
-
-        if not self.children and not self.time_range:
-            return bool(indexes[myindex])
 
         if (self.time_range is not None and
                 not self.time_range.match_indexes(subindexes, tzify)):
@@ -507,6 +508,9 @@ class ComponentFilter(object):
         for child in self.children:
             if not child.match_indexes(subindexes, tzify):
                 return False
+
+        if not self._implicitly_defined():
+            return bool(indexes[myindex])
 
         return True
 
@@ -517,7 +521,7 @@ class ComponentFilter(object):
                 ([self.time_range] if self.time_range else [])):
             for tl in child.index_keys():
                 yield [(mine + '/' + child_index) for child_index in tl]
-        if not self.children:
+        if not self._implicitly_defined():
             yield [mine]
 
 

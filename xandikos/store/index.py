@@ -60,7 +60,7 @@ class MemoryIndex(Index):
             try:
                 indexes[k] = self._indexes[k][etag]
             except KeyError:
-                return None
+                indexes[k] = []
         return indexes
 
     def iter_etags(self):
