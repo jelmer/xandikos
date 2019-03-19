@@ -312,21 +312,12 @@ def parse_prop_filter(el, cls):
     # From https://tools.ietf.org/html/rfc4791, 9.7.2:
     # A CALDAV:comp-filter is said to match if:
 
-    # The CALDAV:prop-filter XML element contains a CALDAV:is-not-defined XML
-    # element and no property of the type specified by the "name" attribute
-    # exists in the enclosing calendar component;
-    if (
-        len(el) == 1 and
-        el[0].tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined'
-    ):
-        is_not_defined = True
-    else:
-        is_not_defined = False
-
-    prop_filter = cls(name=name, is_not_defined=is_not_defined)
+    prop_filter = cls(name=name)
 
     for subel in el:
-        if subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
+        if subel.tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+            prop_filter.is_not_defined = True
+        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
             parse_time_range(subel, prop_filter.filter_time_range)
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
             parse_text_match(subel, prop_filter.filter_text_match)
@@ -350,18 +341,13 @@ def parse_text_match(el, cls):
 
 def parse_param_filter(el, cls):
     name = el.get('name')
-    if (
-        len(el) == 1 and
-        el[0].tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined'
-    ):
-        is_not_defined = True
-    else:
-        is_not_defined = False
 
-    param_filter = cls(name=name, is_not_defined=is_not_defined)
+    param_filter = cls(name=name)
 
     for subel in el:
-        if subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
+        if subel.tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+            param_filter.is_not_defined = True
+        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
             parse_text_match(subel, param_filter.filter_time_range)
         else:
             raise AssertionError('unknown tag %r in param-filter', subel.tag)
@@ -399,18 +385,7 @@ def parse_comp_filter(el, cls):
     # From https://tools.ietf.org/html/rfc4791, 9.7.1:
     # A CALDAV:comp-filter is said to match if:
 
-    # 2. The CALDAV:comp-filter XML element contains a CALDAV:is-not-defined
-    # XML element and the calendar object or calendar component type specified
-    # by the "name" attribute does not exist in the current scope;
-    if (
-        len(el) == 1 and
-        el[0].tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined'
-    ):
-        is_not_defined = True
-    else:
-        is_not_defined = False
-
-    comp_filter = cls(name=name, is_not_defined=is_not_defined)
+    comp_filter = cls(name=name)
 
     # 3. The CALDAV:comp-filter XML element contains a CALDAV:time-range XML
     # element and at least one recurrence instance in the targeted calendar
@@ -418,6 +393,8 @@ def parse_comp_filter(el, cls):
     # specified CALDAV:prop-filter and CALDAV:comp-filter child XML elements
     # also match the targeted calendar component;
     for subel in el:
+        if subel.tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+            comp_filter.is_not_defined = True
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}comp-filter':
             parse_comp_filter(subel, comp_filter.filter_subcomponent)
         elif subel.tag == '{urn:ietf:params:xml:ns:caldav}prop-filter':
