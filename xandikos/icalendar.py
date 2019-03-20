@@ -27,8 +27,9 @@ import logging
 from icalendar.cal import Calendar, component_factory
 from icalendar.prop import (
     vDatetime,
+    vDDDTypes,
     vText,
-    )
+)
 from xandikos.store import (
     Filter,
     File,
@@ -264,6 +265,7 @@ def apply_time_range_vjournal(start, end, comp, tzify):
 
 
 def apply_time_range_vtodo(start, end, comp, tzify):
+    # See RFC4719, section 9.9
     if 'DTSTART' in comp:
         if 'DURATION' in comp and 'DUE' not in comp:
             return (
@@ -326,9 +328,16 @@ class PropertyTimeRangeMatcher(object):
         self.start = start
         self.end = end
 
+    def __repr__(self):
+        return "%s(%r, %r)" % (self.__class__.__name__, self.start, self.end)
+
     def match(self, prop, tzify):
         dt = tzify(prop.dt)
         return (dt >= self.start and dt <= self.end)
+
+    def match_indexes(self, prop, tzify):
+        return any(self.match(vDDDTypes(vDatetime.from_ical(p)), tzify)
+                   for p in prop[None])
 
 
 class ComponentTimeRangeMatcher(object):
@@ -351,6 +360,14 @@ class ComponentTimeRangeMatcher(object):
         self.end = end
         self.comp = comp
 
+    def __repr__(self):
+        if self.comp is not None:
+            return "%s(%r, %r, comp=%r)" % (
+                self.__class__.__name__, self.start, self.end, self.comp)
+        else:
+            return "%s(%r, %r)" % (
+                self.__class__.__name__, self.start, self.end)
+
     def match(self, comp, tzify):
         try:
             component_handler = self.component_handlers[comp.name]
@@ -363,8 +380,9 @@ class ComponentTimeRangeMatcher(object):
     def match_indexes(self, indexes, tzify):
         vs = {}
         for name, value in indexes.items():
-            if name in self.all_props:
-                vs[name] = vDatetime.from_ical(value)
+            if name and name[2:] in self.all_props:
+                if value:
+                    vs[name[2:]] = vDDDTypes(vDatetime.from_ical(value[0]))
 
         try:
             component_handler = self.component_handlers[self.comp]
@@ -372,7 +390,7 @@ class ComponentTimeRangeMatcher(object):
             logging.warning('unknown component %r in time-range filter',
                             self.comp)
             return False
-        return component_handler(self.start, self.end, self.comp, tzify)
+        return component_handler(self.start, self.end, vs, tzify)
 
     def index_keys(self):
         if self.comp == 'VEVENT':

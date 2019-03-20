@@ -21,6 +21,7 @@
 
 from datetime import datetime
 
+import pytz
 import unittest
 
 from icalendar.cal import Event
@@ -154,6 +155,29 @@ class CalendarFilterTests(unittest.TestCase):
                 'file', {'C=VCALENDAR/C=VTODO/P=SUMMARY': [b'do something']}))
         self.assertTrue(filter.check('file', self.cal))
 
+    def test_prop_explicitly_missing_filter(self):
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VEVENT').filter_property('X-SUMMARY', is_not_defined=True)
+        self.assertEqual(
+            filter.index_keys(),
+            [['C=VCALENDAR/C=VEVENT/P=X-SUMMARY'], ['C=VCALENDAR/C=VEVENT']])
+        self.assertFalse(
+            filter.check_from_indexes(
+                'file',
+                {'C=VCALENDAR/C=VEVENT/P=X-SUMMARY': [],
+                 'C=VCALENDAR/C=VEVENT': []}))
+        self.assertFalse(filter.check('file', self.cal))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_property('X-SUMMARY', is_not_defined=True)
+        self.assertTrue(
+            filter.check_from_indexes(
+                'file', {
+                    'C=VCALENDAR/C=VTODO/P=X-SUMMARY': [],
+                    'C=VCALENDAR/C=VTODO': [True]}))
+        self.assertTrue(filter.check('file', self.cal))
+
     def test_prop_text_match(self):
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
@@ -173,6 +197,76 @@ class CalendarFilterTests(unittest.TestCase):
         self.assertTrue(
             filter.check_from_indexes(
                 'file', {'C=VCALENDAR/C=VTODO/P=SUMMARY': [b'do something']}))
+        self.assertTrue(filter.check('file', self.cal))
+
+    def _tzify(self, dt):
+        return as_tz_aware_ts(dt, pytz.utc)
+
+    def test_prop_apply_time_range(self):
+        filter = CalendarFilter(self._tzify)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_property('CREATED').filter_time_range(
+                self._tzify(datetime.fromisoformat('2019-03-10 22:35:12')),
+                self._tzify(datetime.fromisoformat('2019-03-18 22:35:12')))
+        self.assertEqual(
+            filter.index_keys(),
+            [['C=VCALENDAR/C=VTODO/P=CREATED']])
+        self.assertFalse(
+            filter.check_from_indexes(
+                'file',
+                {'C=VCALENDAR/C=VTODO/P=CREATED': ['20150314T223512Z']}))
+        self.assertFalse(filter.check('file', self.cal))
+        filter = CalendarFilter(self._tzify)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_property('CREATED').filter_time_range(
+                self._tzify(datetime.fromisoformat('2015-03-10 22:35:12')),
+                self._tzify(datetime.fromisoformat('2015-03-18 22:35:12')))
+        self.assertTrue(
+            filter.check_from_indexes(
+                'file',
+                {'C=VCALENDAR/C=VTODO/P=CREATED': ['20150314T223512Z']}))
+        self.assertTrue(filter.check('file', self.cal))
+
+    def test_comp_apply_time_range(self):
+        filter = CalendarFilter(self._tzify)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_time_range(
+                self._tzify(datetime.fromisoformat('2015-03-03 22:35:12')),
+                self._tzify(datetime.fromisoformat('2015-03-10 22:35:12')))
+        self.assertEqual(
+            filter.index_keys(),
+            [['C=VCALENDAR/C=VTODO/P=DTSTART'],
+             ['C=VCALENDAR/C=VTODO/P=DUE'],
+             ['C=VCALENDAR/C=VTODO/P=DURATION'],
+             ['C=VCALENDAR/C=VTODO/P=CREATED'],
+             ['C=VCALENDAR/C=VTODO/P=COMPLETED'],
+             ['C=VCALENDAR/C=VTODO']])
+        self.assertFalse(
+            filter.check_from_indexes(
+                'file',
+                {'C=VCALENDAR/C=VTODO/P=CREATED': ['20150314T223512Z'],
+                 'C=VCALENDAR/C=VTODO': [True],
+                 'C=VCALENDAR/C=VTODO/P=DUE': [],
+                 'C=VCALENDAR/C=VTODO/P=DURATION': [],
+                 'C=VCALENDAR/C=VTODO/P=COMPLETED': [],
+                 'C=VCALENDAR/C=VTODO/P=DTSTART': [],
+                 }))
+        self.assertFalse(filter.check('file', self.cal))
+        filter = CalendarFilter(self._tzify)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_time_range(
+                self._tzify(datetime.fromisoformat('2015-03-10 22:35:12')),
+                self._tzify(datetime.fromisoformat('2015-03-18 22:35:12')))
+        self.assertTrue(
+            filter.check_from_indexes(
+                'file',
+                {'C=VCALENDAR/C=VTODO/P=CREATED': ['20150314T223512Z'],
+                 'C=VCALENDAR/C=VTODO': [True],
+                 'C=VCALENDAR/C=VTODO/P=DUE': [],
+                 'C=VCALENDAR/C=VTODO/P=DURATION': [],
+                 'C=VCALENDAR/C=VTODO/P=COMPLETED': [],
+                 'C=VCALENDAR/C=VTODO/P=DTSTART': [],
+                 }))
         self.assertTrue(filter.check('file', self.cal))
 
 
