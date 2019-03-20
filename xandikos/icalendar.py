@@ -645,8 +645,8 @@ class ParameterFilter(object):
 class CalendarFilter(Filter):
     """A filter that works on ICalendar files."""
 
-    def __init__(self, tzify):
-        self.tzify = tzify
+    def __init__(self, default_timezone):
+        self.tzify = lambda dt: as_tz_aware_ts(dt, default_timezone)
         self.children = []
 
     def filter_subcomponent(self, name, is_not_defined=False,

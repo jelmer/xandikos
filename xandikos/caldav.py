@@ -442,15 +442,6 @@ def get_calendar_timezone(resource):
         return get_pytz_from_text(tztext)
 
 
-class CalDavFilter(object):
-
-    def __init__(self, elem, tzify):
-        self.filter = parse_comp_filter(elem, CalendarFilter(tzify))
-
-    def check(self, href, resource):
-        return self.filter.check(resource.file.calendar)
-
-
 class CalendarQueryReporter(webdav.Reporter):
 
     name = '{%s}calendar-query' % NAMESPACE
@@ -479,11 +470,8 @@ class CalendarQueryReporter(webdav.Reporter):
         else:
             tz = get_calendar_timezone(base_resource)
 
-        def tzify(dt):
-            return as_tz_aware_ts(dt, tz)
-
         def filter_fn(cls):
-            return parse_filter(filter_el, cls(tzify))
+            return parse_filter(filter_el, cls(tz))
 
         def members(collection):
             return itertools.chain(
