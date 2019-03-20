@@ -382,7 +382,10 @@ class ComponentTimeRangeMatcher(object):
         for name, value in indexes.items():
             if name and name[2:] in self.all_props:
                 if value:
-                    vs[name[2:]] = vDDDTypes(vDatetime.from_ical(value[0]))
+                    if not isinstance(value[0], vDDDTypes):
+                        vs[name[2:]] = vDDDTypes(vDatetime.from_ical(value[0]))
+                    else:
+                        vs[name[2:]] = value[0]
 
         try:
             component_handler = self.component_handlers[self.comp]
