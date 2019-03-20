@@ -136,6 +136,30 @@ class CalendarFilterTests(unittest.TestCase):
                 'file', {'C=VCALENDAR/C=VEVENT': [],
                          'C=VCALENDAR/C=VTODO': [True]}))
 
+    def test_simple_comp_missing_filter(self):
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO', is_not_defined=True)
+        self.assertEqual(
+            filter.index_keys(), [['C=VCALENDAR/C=VTODO'], ['C=VCALENDAR']])
+        self.assertFalse(
+            filter.check_from_indexes(
+                'file', {
+                    'C=VCALENDAR': [True],
+                    'C=VCALENDAR/C=VEVENT': [],
+                    'C=VCALENDAR/C=VTODO': [True]}))
+        self.assertFalse(filter.check('file', self.cal))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VEVENT', is_not_defined=True)
+        self.assertTrue(filter.check('file', self.cal))
+        self.assertTrue(
+            filter.check_from_indexes(
+                'file', {
+                    'C=VCALENDAR': [True],
+                    'C=VCALENDAR/C=VEVENT': [],
+                    'C=VCALENDAR/C=VTODO': [True]}))
+
     def test_prop_presence_filter(self):
         filter = CalendarFilter(None)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
