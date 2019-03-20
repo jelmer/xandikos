@@ -17,14 +17,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from datetime import datetime
-import unittest
-
-from icalendar.cal import Event
-
 from wsgiref.util import setup_testing_defaults
 
-from xandikos import caldav, davcommon
+from xandikos import caldav
 from xandikos.webdav import Property, WebDAVApp, ET
 
 from xandikos.tests import test_webdav
@@ -75,48 +70,3 @@ class WebTests(test_webdav.WebTestCase):
         code, headers, contents = self.mkcalendar(app, '/resource/bla')
         self.assertEqual('201 Created', code)
         self.assertEqual(b'', contents)
-
-
-class ApplyTextMatchTest(unittest.TestCase):
-
-    def test_default_collation(self):
-        el = ET.Element('someel')
-        el.text = b"foobar"
-        self.assertTrue(caldav.apply_text_match(el, b"FOOBAR"))
-        self.assertTrue(caldav.apply_text_match(el, b"foobar"))
-        self.assertFalse(caldav.apply_text_match(el, b"fobar"))
-
-    def test_casecmp_collation(self):
-        el = ET.Element('someel')
-        el.set('collation', 'i;ascii-casemap')
-        el.text = b"foobar"
-        self.assertTrue(caldav.apply_text_match(el, b"FOOBAR"))
-        self.assertTrue(caldav.apply_text_match(el, b"foobar"))
-        self.assertFalse(caldav.apply_text_match(el, b"fobar"))
-
-    def test_cmp_collation(self):
-        el = ET.Element('someel')
-        el.text = b"foobar"
-        el.set('collation', 'i;octet')
-        self.assertFalse(caldav.apply_text_match(el, b"FOOBAR"))
-        self.assertTrue(caldav.apply_text_match(el, b"foobar"))
-        self.assertFalse(caldav.apply_text_match(el, b"fobar"))
-
-    def test_unknown_collation(self):
-        el = ET.Element('someel')
-        el.set('collation', 'i;blah')
-        el.text = b"foobar"
-        self.assertRaises(davcommon.UnknownCollation,
-                          caldav.apply_text_match, el, b"FOOBAR")
-
-
-class ApplyTimeRangeVeventTests(unittest.TestCase):
-
-    def _tzify(self, dt):
-        return caldav.as_tz_aware_ts(dt, 'UTC')
-
-    def test_missing_dtstart(self):
-        ev = Event()
-        self.assertRaises(
-            caldav.MissingProperty, caldav.apply_time_range_vevent,
-            datetime.utcnow(), datetime.utcnow(), ev, self._tzify)

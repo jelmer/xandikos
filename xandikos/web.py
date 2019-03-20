@@ -37,7 +37,10 @@ import urllib.parse
 from xandikos import __version__ as xandikos_version
 from xandikos import (access, apache, caldav, carddav, quota, sync, webdav,
                       infit, scheduling, timezones)
-from xandikos.icalendar import ICalendarFile
+from xandikos.icalendar import (
+    ICalendarFile,
+    CalendarFilter,
+)
 from xandikos.store import (
     DuplicateUidError,
     InvalidFileContents,
@@ -105,12 +108,12 @@ def extract_strong_etag(etag):
 class ObjectResource(webdav.Resource):
     """Object resource."""
 
-    def __init__(self, store, name, content_type, etag):
+    def __init__(self, store, name, content_type, etag, file=None):
         self.store = store
         self.name = name
         self.etag = etag
         self.content_type = content_type
-        self._file = None
+        self._file = file
 
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
@@ -225,8 +228,8 @@ class StoreBasedCollection(object):
         else:
             raise NotImplementedError(self.set_resource_types)
 
-    def _get_resource(self, name, content_type, etag):
-        return ObjectResource(self.store, name, content_type, etag)
+    def _get_resource(self, name, content_type, etag, file=None):
+        return ObjectResource(self.store, name, content_type, etag, file=file)
 
     def _get_subcollection(self, name):
         return self.backend.get_resource(posixpath.join(self.relpath, name))
@@ -250,13 +253,15 @@ class StoreBasedCollection(object):
         return create_strong_etag(self.store.get_ctag())
 
     def members(self):
-        ret = []
         for (name, content_type, etag) in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
-            ret.append((name, resource))
+            yield (name, resource)
+        for (name, resource) in self.subcollections():
+            yield (name, resource)
+
+    def subcollections(self):
         for name in self.store.subdirectories():
-            ret.append((name, self._get_subcollection(name)))
-        return ret
+            yield (name, self._get_subcollection(name))
 
     def get_member(self, name):
         assert name != ''
@@ -413,7 +418,7 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         self.store.config.set_order(order)
 
     def get_calendar_timezone(self):
-        # TODO(jelmer): Read a magic file from the store?
+        # TODO(jelmer): Read from config
         raise KeyError
 
     def set_calendar_timezone(self, content):
@@ -457,6 +462,14 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def get_managed_attachments_server_url(self):
         # TODO(jelmer)
         raise KeyError
+
+    def calendar_query(self, create_filter_fn):
+        filter = create_filter_fn(CalendarFilter)
+        for (name, file, etag) in self.store.iter_with_filter(
+                filter=filter):
+            resource = self._get_resource(
+                name, file.content_type, etag, file=file)
+            yield (name, resource)
 
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
@@ -524,14 +537,12 @@ class CollectionSetResource(webdav.Collection):
         return []
 
     def members(self):
-        ret = []
         p = self.backend._map_to_file_path(self.relpath)
         for name in os.listdir(p):
             if name.startswith('.'):
                 continue
             resource = self.get_member(name)
-            ret.append((name, resource))
-        return ret
+            yield (name, resource)
 
     def get_member(self, name):
         assert name != ''

@@ -25,6 +25,8 @@ are always strong, and should be returned without wrapping quotes.
 
 import mimetypes
 
+from .index import IndexManager
+
 STORE_TYPE_ADDRESSBOOK = 'addressbook'
 STORE_TYPE_CALENDAR = 'calendar'
 STORE_TYPE_PRINCIPAL = 'principal'
@@ -44,6 +46,8 @@ MIMETYPES.add_type('text/calendar', '.ics')
 MIMETYPES.add_type('text/vcard', '.vcf')
 
 DEFAULT_MIME_TYPE = 'application/octet-stream'
+
+PARANOID = False
 
 
 class File(object):
@@ -97,6 +101,57 @@ class File(object):
             yield "Added " + item_description
         else:
             yield "Modified " + item_description
+
+    def _get_index(self, key):
+        """Obtain an index for this file.
+
+        :param key: Index key
+        :yield: Index values
+        """
+        raise NotImplementedError(self._get_index)
+
+    def get_indexes(self, keys):
+        """Obtain indexes for this file.
+
+        :param keys: Iterable of index keys
+        :return: Dictionary mapping key names to values
+        """
+        ret = {}
+        for k in keys:
+            ret[k] = list(self._get_index(k))
+        return ret
+
+
+class Filter(object):
+    """A filter that can be used to query for certain resources.
+
+    Filters are often resource-type specific.
+    """
+
+    def check(self, name, resource):
+        """Check if this filter applies to a resource.
+
+        :param name: Name of the resource
+        :param resource: Resource object
+        :return: boolean
+        """
+        raise NotImplementedError(self.check)
+
+    def index_keys(self):
+        """Returns a list of indexes that could be used to apply this filter.
+
+        :return: AND-list of OR-options
+        """
+        raise NotImplementedError(self.index_keys)
+
+    def check_from_indexes(self, name, indexes):
+        """Check from a set of indexes whether a resource matches.
+
+        :param name: Name of the resource
+        :param indexes: Dictionary mapping index names to values
+        :return: boolean
+        """
+        raise NotImplementedError(self.check_from_indexes)
 
 
 def open_by_content_type(content, content_type, extra_file_handlers):
@@ -168,8 +223,10 @@ class InvalidFileContents(Exception):
 class Store(object):
     """A object store."""
 
-    def __init__(self):
+    def __init__(self, index):
         self.extra_file_handlers = {}
+        self.index = index
+        self.index_manager = IndexManager(self.index)
 
     def load_extra_file_handler(self, file_handler):
         self.extra_file_handlers[file_handler.content_type] = file_handler
@@ -181,6 +238,58 @@ class Store(object):
         :yield: (name, content_type, etag) tuples
         """
         raise NotImplementedError(self.iter_with_etag)
+
+    def iter_with_filter(self, filter):
+        """Iterate over all items in the store that match a particular filter.
+
+        :param filter: Filter to apply
+        :yield: (name, file, etag) tuples
+        """
+        if self.index_manager is not None:
+            try:
+                necessary_keys = filter.index_keys()
+            except NotImplementedError:
+                pass
+            else:
+                present_keys = self.index_manager.find_present_keys(
+                    necessary_keys)
+                if present_keys is not None:
+                    return self._iter_with_filter_indexes(
+                        filter, present_keys)
+        return self._iter_with_filter_naive(filter)
+
+    def _iter_with_filter_naive(self, filter):
+        for (name, content_type, etag) in self.iter_with_etag():
+            file = self.get_file(name, content_type, etag)
+            if filter.check(name, file):
+                yield (name, file, etag)
+
+    def _iter_with_filter_indexes(self, filter, keys):
+        for (name, content_type, etag) in self.iter_with_etag():
+            try:
+                file_values = self.index.get_values(name, etag, keys)
+            except KeyError:
+                # Index values not yet present for this file.
+                file = self.get_file(name, content_type, etag)
+                file_values = file.get_indexes(self.index.available_keys())
+                self.index.add_values(name, etag, file_values)
+                if filter.check_from_indexes(name, file_values):
+                    yield (name, file, etag)
+            else:
+                if file_values is None:
+                    continue
+                file = self.get_file(name, content_type, etag)
+                if PARANOID:
+                    if file_values != file.get_indexes(keys):
+                        raise AssertionError('%r != %r' % (
+                            file_values, file.get_indexes(keys)))
+                    if (filter.check_from_indexes(name, file_values) !=
+                            filter.check(name, file)):
+                        raise AssertionError(
+                            'index based filter not matching real file filter')
+                if filter.check_from_indexes(name, file_values):
+                    file = self.get_file(name, content_type, etag)
+                    yield (name, file, etag)
 
     def get_file(self, name, content_type=None, etag=None):
         """Get the contents of an object.
