@@ -26,7 +26,6 @@ import itertools
 import pytz
 
 from .icalendar import (
-    CalendarFilter,
     apply_time_range_vevent,
     as_tz_aware_ts,
 )
