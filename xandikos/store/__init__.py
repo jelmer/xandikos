@@ -47,6 +47,8 @@ MIMETYPES.add_type('text/vcard', '.vcf')
 
 DEFAULT_MIME_TYPE = 'application/octet-stream'
 
+PARANOID = False
+
 
 class File(object):
     """A file type handler."""
@@ -269,13 +271,22 @@ class Store(object):
             except KeyError:
                 # Index values not yet present for this file.
                 file = self.get_file(name, content_type, etag)
-                file_values = file.get_indexes(keys)
+                file_values = file.get_indexes(self.index.available_keys())
                 self.index.add_values(name, etag, file_values)
                 if filter.check_from_indexes(name, file_values):
                     yield (name, file, etag)
             else:
                 if file_values is None:
                     continue
+                file = self.get_file(name, content_type, etag)
+                if PARANOID:
+                    if file_values != file.get_indexes(keys):
+                        raise AssertionError('%r != %r' % (
+                            file_values, file.get_indexes(keys)))
+                    if (filter.check_from_indexes(name, file_values) !=
+                            filter.check(name, file)):
+                        raise AssertionError(
+                            'index based filter not matching real file filter')
                 if filter.check_from_indexes(name, file_values):
                     file = self.get_file(name, content_type, etag)
                     yield (name, file, etag)
