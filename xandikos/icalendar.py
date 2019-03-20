@@ -620,6 +620,11 @@ class PropertyFilter(object):
 
     def index_keys(self):
         mine = 'P=' + self.name
+        for child in self.children:
+            if not isinstance(child, ParameterFilter):
+                continue
+            for tl in child.index_keys():
+                yield [(mine + '/' + child_index) for child_index in tl]
         yield [mine]
 
 
@@ -630,13 +635,37 @@ class ParameterFilter(object):
         self.is_not_defined = is_not_defined
         self.children = children or []
 
+    def filter_text_match(self, text, collation=None, negate_condition=False):
+        ret = TextMatcher(
+            text, collation=collation, negate_condition=negate_condition)
+        self.children.append(ret)
+        return ret
+
     def match(self, prop):
         if self.is_not_defined:
             return self.name not in prop.params
 
         try:
-            value = prop.params[self.name]
+            value = prop.params[self.name].encode()
         except KeyError:
+            return False
+
+        for child in self.children:
+            if not child.match(value):
+                return False
+        return True
+
+    def index_keys(self):
+        yield ['A=' + self.name]
+
+    def match_indexes(self, indexes):
+        myindex = 'A=' + self.name
+        if self.is_not_defined:
+            return not bool(indexes[myindex])
+
+        try:
+            value = indexes[myindex][0]
+        except IndexError:
             return False
 
         for child in self.children:

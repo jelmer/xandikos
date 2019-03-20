@@ -55,6 +55,21 @@ END:VTODO
 END:VCALENDAR
 """
 
+EXAMPLE_VCALENDAR_WITH_PARAM = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//bitfire web engineering//DAVdroid 0.8.0 (ical4j 1.0.x)//EN
+BEGIN:VTODO
+CREATED;TZID=America/Denver:20150314T223512Z
+DTSTAMP:20150527T221952Z
+LAST-MODIFIED:20150314T223512Z
+STATUS:NEEDS-ACTION
+SUMMARY:do something
+UID:bdc22720-b9e1-42c9-89c2-a85405d8fbff
+END:VTODO
+END:VCALENDAR
+"""
+
 EXAMPLE_VCALENDAR_NO_UID = b"""\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -221,6 +236,34 @@ class CalendarFilterTests(unittest.TestCase):
         self.assertTrue(
             filter.check_from_indexes(
                 'file', {'C=VCALENDAR/C=VTODO/P=SUMMARY': [b'do something']}))
+        self.assertTrue(filter.check('file', self.cal))
+
+    def test_param_text_match(self):
+        self.cal = ICalendarFile(
+            [EXAMPLE_VCALENDAR_WITH_PARAM], 'text/calendar')
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_property('CREATED').filter_parameter(
+                'TZID').filter_text_match(
+                b'America/Blah')
+        self.assertEqual(
+            filter.index_keys(),
+            [['C=VCALENDAR/C=VTODO/P=CREATED/A=TZID'],
+             ['C=VCALENDAR/C=VTODO/P=CREATED']])
+        self.assertFalse(
+            filter.check_from_indexes(
+                'file',
+                {'C=VCALENDAR/C=VTODO/P=CREATED/A=TZID': [b'America/Denver']}))
+        self.assertFalse(filter.check('file', self.cal))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
+            'VTODO').filter_property('CREATED').filter_parameter(
+                'TZID').filter_text_match(
+                b'America/Denver')
+        self.assertTrue(
+            filter.check_from_indexes(
+                'file',
+                {'C=VCALENDAR/C=VTODO/P=CREATED/A=TZID': [b'America/Denver']}))
         self.assertTrue(filter.check('file', self.cal))
 
     def _tzify(self, dt):
