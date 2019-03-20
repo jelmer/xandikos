@@ -24,7 +24,7 @@ import collections
 import logging
 
 
-INDEXING_THRESHOLD = 10
+INDEXING_THRESHOLD = 5
 
 
 class Index(object):
@@ -57,6 +57,8 @@ class MemoryIndex(Index):
             raise KeyError(etag)
         indexes = {}
         for k in keys:
+            if k not in self._indexes:
+                raise AssertionError
             try:
                 indexes[k] = self._indexes[k][etag]
             except KeyError:
@@ -68,6 +70,8 @@ class MemoryIndex(Index):
 
     def add_values(self, name, etag, values):
         for k, v in values.items():
+            if k not in self._indexes:
+                raise AssertionError
             self._indexes[k][etag] = v
         self._in_index.add(etag)
 
