@@ -273,8 +273,8 @@ class CalendarFilterTests(unittest.TestCase):
         filter = CalendarFilter(self._tzify)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
             'VTODO').filter_property('CREATED').filter_time_range(
-                self._tzify(datetime.fromisoformat('2019-03-10 22:35:12')),
-                self._tzify(datetime.fromisoformat('2019-03-18 22:35:12')))
+                self._tzify(datetime(2019, 3, 10, 22, 35, 12)),
+                self._tzify(datetime(2019, 3, 18, 22, 35, 12)))
         self.assertEqual(
             filter.index_keys(),
             [['C=VCALENDAR/C=VTODO/P=CREATED']])
@@ -286,8 +286,8 @@ class CalendarFilterTests(unittest.TestCase):
         filter = CalendarFilter(self._tzify)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
             'VTODO').filter_property('CREATED').filter_time_range(
-                self._tzify(datetime.fromisoformat('2015-03-10 22:35:12')),
-                self._tzify(datetime.fromisoformat('2015-03-18 22:35:12')))
+                self._tzify(datetime(2015, 3, 10, 22, 35, 12)),
+                self._tzify(datetime(2015, 3, 18, 22, 35, 12)))
         self.assertTrue(
             filter.check_from_indexes(
                 'file',
@@ -298,8 +298,8 @@ class CalendarFilterTests(unittest.TestCase):
         filter = CalendarFilter(self._tzify)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
             'VTODO').filter_time_range(
-                self._tzify(datetime.fromisoformat('2015-03-03 22:35:12')),
-                self._tzify(datetime.fromisoformat('2015-03-10 22:35:12')))
+                self._tzify(datetime(2015, 3, 3, 22, 35, 12)),
+                self._tzify(datetime(2015, 3, 10, 22, 35, 12)))
         self.assertEqual(
             filter.index_keys(),
             [['C=VCALENDAR/C=VTODO/P=DTSTART'],
@@ -322,8 +322,8 @@ class CalendarFilterTests(unittest.TestCase):
         filter = CalendarFilter(self._tzify)
         filter.filter_subcomponent('VCALENDAR').filter_subcomponent(
             'VTODO').filter_time_range(
-                self._tzify(datetime.fromisoformat('2015-03-10 22:35:12')),
-                self._tzify(datetime.fromisoformat('2015-03-18 22:35:12')))
+                self._tzify(datetime(2015, 3, 10, 22, 35, 12)),
+                self._tzify(datetime(2015, 3, 18, 22, 35, 12)))
         self.assertTrue(
             filter.check_from_indexes(
                 'file',
