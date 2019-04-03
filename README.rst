@@ -69,7 +69,7 @@ Dependencies
 ============
 
 At the moment, Xandikos supports Python 3.4 and higher as well as Pypy 3. It
-also uses `Dulwich <https://github.com/jelmer/dulwich>`_,
+also uses `Dulwich <https://github.com/dulwich/dulwich>`_,
 `Jinja2 <http://jinja.pocoo.org/>`_,
 `icalendar <https://github.com/collective/icalendar>`_, and
 `defusedxml <https://github.com/tiran/defusedxml>`_.
