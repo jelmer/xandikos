@@ -232,83 +232,97 @@ def describe_calendar_delta(old_cal, new_cal):
 
 
 def apply_time_range_vevent(start, end, comp, tzify):
-    if 'DTSTART' not in comp:
+    dtstart = comp.get('DTSTART')
+    if not dtstart:
         raise MissingProperty('DTSTART')
 
-    if not (end > tzify(comp['DTSTART'].dt)):
+    if not (end > tzify(dtstart.dt)):
         return False
 
-    if 'DTEND' in comp:
-        if tzify(comp['DTEND'].dt) < tzify(comp['DTSTART'].dt):
+    dtend = comp.get('DTEND')
+    if dtend:
+        if tzify(dtend.dt) < tzify(dtstart.dt):
             logging.debug('Invalid DTEND < DTSTART')
-        return (start < tzify(comp['DTEND'].dt))
+        return (start < tzify(dtend.dt))
 
-    if 'DURATION' in comp:
-        return (start < tzify(comp['DTSTART'].dt) + comp['DURATION'].dt)
-    if getattr(comp['DTSTART'].dt, 'time', None) is not None:
-        return (start <= tzify(comp['DTSTART'].dt))
+    duration = comp.get('DURATION')
+    if duration:
+        return (start < tzify(dtstart.dt) + duration.dt)
+    if getattr(dtstart.dt, 'time', None) is not None:
+        return (start <= tzify(dtstart.dt))
     else:
-        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
+        return (start < (tzify(dtstart.dt) + datetime.timedelta(1)))
 
 
 def apply_time_range_vjournal(start, end, comp, tzify):
-    if 'DTSTART' not in comp:
+    dtstart = comp.get('DTSTART')
+    if not dtstart:
+        raise MissingProperty('DTSTART')
+
+    if not (end > tzify(dtstart.dt)):
         return False
 
-    if not (end > tzify(comp['DTSTART'].dt)):
-        return False
-
-    if getattr(comp['DTSTART'].dt, 'time', None) is not None:
-        return (start <= tzify(comp['DTSTART'].dt))
+    if getattr(dtstart.dt, 'time', None) is not None:
+        return (start <= tzify(dtstart.dt))
     else:
-        return (start < (tzify(comp['DTSTART'].dt) + datetime.timedelta(1)))
+        return (start < (tzify(dtstart.dt) + datetime.timedelta(1)))
 
 
 def apply_time_range_vtodo(start, end, comp, tzify):
+    dtstart = comp.get('DTSTART')
+    due = comp.get('DUE')
+
     # See RFC4719, section 9.9
-    if 'DTSTART' in comp:
-        if 'DURATION' in comp and 'DUE' not in comp:
+    if dtstart:
+        duration = comp.get('DURATION')
+        if duration and not due:
             return (
-                start <= tzify(comp['DTSTART'].dt) + comp['DURATION'].dt and
-                (end > tzify(comp['DTSTART'].dt) or
-                 end >= tzify(comp['DTSTART'].dt) + comp['DURATION'].dt)
+                start <= tzify(dtstart.dt) + duration.dt and
+                (end > tzify(dtstart.dt) or
+                 end >= tzify(dtstart.dt) + duration.dt)
             )
-        elif 'DUE' in comp and 'DURATION' not in comp:
+        elif due and not duration:
             return (
-                (start <= tzify(comp['DTSTART'].dt) or
-                 start < tzify(comp['DUE'].dt)) and
-                (end > tzify(comp['DTSTART'].dt) or
-                 end < tzify(comp['DUE'].dt))
-            )
-        else:
-            return (start <= tzify(comp['DTSTART'].dt) and
-                    end > tzify(comp['DTSTART'].dt))
-    elif 'DUE' in comp:
-        return start < tzify(comp['DUE'].dt) and end >= tzify(comp['DUE'].dt)
-    elif 'COMPLETED' in comp:
-        if 'CREATED' in comp:
-            return (
-                (start <= tzify(comp['CREATED'].dt) or
-                 start <= tzify(comp['COMPLETED'].dt)) and
-                (end >= tzify(comp['CREATED'].dt) or
-                 end >= tzify(comp['COMPLETED'].dt))
+                (start <= tzify(dtstart.dt) or
+                 start < tzify(due.dt)) and
+                (end > tzify(dtstart.dt) or
+                 end < tzify(due.dt))
             )
         else:
+            return (start <= tzify(dtstart.dt) and
+                    end > tzify(dtstart.dt))
+
+    if due:
+        return start < tzify(due.dt) and end >= tzify(due.dt)
+
+    completed = comp.get('COMPLETED')
+    created = comp.get('CREATED')
+    if completed:
+        if created:
             return (
-                start <= tzify(comp['COMPLETED'].dt) and
-                end >= tzify(comp['COMPLETED'].dt)
+                (start <= tzify(created.dt) or
+                 start <= tzify(completed.dt)) and
+                (end >= tzify(created.dt) or
+                 end >= tzify(completed.dt))
             )
-    elif 'CREATED' in comp:
-        return end >= tzify(comp['CREATED'].dt)
+        else:
+            return (
+                start <= tzify(completed.dt) and
+                end >= tzify(completed.dt)
+            )
+    elif created:
+        return end >= tzify(created.dt)
     else:
         return True
 
 
 def apply_time_range_vfreebusy(start, end, comp, tzify):
-    if 'DTSTART' in comp and 'DTEND' in comp:
+    dtstart = comp.get('DTSTART')
+    dtend = comp.get('DTEND')
+    if dtstart and dtend:
         return (
-            start <= tzify(comp['DTEND'].dt) and
-            end > tzify(comp['DTEND'].dt)
+            start <= tzify(dtend.dt) and
+            end > tzify(dtstart.dt)
         )
 
     for period in comp.get('FREEBUSY', []):
