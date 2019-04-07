@@ -2,6 +2,7 @@ xandikos (0.1.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * Bump debhelper from old 9 to 10.
+  * Re-export upstream signing key without extra signatures.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 07 Apr 2019 13:05:37 +0000
 
