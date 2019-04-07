@@ -763,6 +763,10 @@ class PrincipalBare(CollectionSetResource, Principal):
             'principal.html', accepted_content_languages, principal=self,
             self_url=self_url)
 
+    def subcollections(self):
+        # TODO(jelmer): Return members
+        return []
+
 
 class PrincipalCollection(Collection, Principal):
     """Principal user resource."""

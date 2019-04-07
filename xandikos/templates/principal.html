@@ -12,7 +12,7 @@
     <h2>Subcollections</h2>
 
     <ul>
-    {% for name, resource in getattr(principal, 'subcollections', list)() %}
+    {% for name, resource in principal.subcollections() %}
        <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
     {% endfor %}
     </ul>
