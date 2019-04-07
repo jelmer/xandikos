@@ -5,6 +5,7 @@ xandikos (0.1.0-1) UNRELEASED; urgency=medium
   * Re-export upstream signing key without extra signatures.
   * Bump debhelper compat to 12.
   * Bump standards version to 4.3.0 (no changes).
+  * Change section to web.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 07 Apr 2019 13:05:37 +0000
 

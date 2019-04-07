@@ -1,5 +1,5 @@
 Source: xandikos
-Section: python
+Section: web
 Priority: optional
 Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
 Homepage: https://www.xandikos.org/
