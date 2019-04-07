@@ -52,7 +52,7 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `Vdirsyncer <https://github.com/pimutils/vdirsyncer>`_
 - `caldavzap <https://www.inf-it.com/open-source/clients/caldavzap/>`_/`carddavmate <https://www.inf-it.com/open-source/clients/carddavmate/>`_
 - `evolution <https://wiki.gnome.org/Apps/Evolution>`_
-- `DAVdroid <https://davdroid.bitfire.at/>`_
+- `DAVx5 <https://www.davx5.com/>`_ (formerly DAVDroid)
 - `sogo connector for Icedove/Thunderbird <http://v2.sogo.nu/english/downloads/frontends.html>`_
 - `aCALdav syncer for Android <https://play.google.com/store/apps/details?id=de.we.acaldav&hl=en>`_
 - `pycardsyncer <https://github.com/geier/pycarddav>`_
@@ -63,12 +63,13 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `Tasks <https://github.com/tasks/tasks/tree/caldav>`_
 - `AgendaV <http://agendav.org/>`_
 - `CardBook <https://gitlab.com/cardbook/cardbook/>`_
+- Apple's iOS
 
 Dependencies
 ============
 
 At the moment, Xandikos supports Python 3.4 and higher as well as Pypy 3. It
-also uses `Dulwich <https://github.com/jelmer/dulwich>`_,
+also uses `Dulwich <https://github.com/dulwich/dulwich>`_,
 `Jinja2 <http://jinja.pocoo.org/>`_,
 `icalendar <https://github.com/collective/icalendar>`_, and
 `defusedxml <https://github.com/tiran/defusedxml>`_.

@@ -51,7 +51,7 @@ class BadRequestError(Exception):
     """Base class for bad request errors."""
 
     def __init__(self, message):
-        super(Exception, self).__init__(message)
+        super(BadRequestError, self).__init__(message)
         self.message = message
 
 
@@ -59,7 +59,7 @@ class NotAcceptableError(Exception):
     """Base class for not acceptable errors."""
 
     def __init__(self, available_content_types, acceptable_content_types):
-        super(Exception, self).__init__(
+        super(NotAcceptableError, self).__init__(
             "Unable to convert from content types %r to one of %r" % (
                 available_content_types, acceptable_content_types))
         self.available_content_types = available_content_types
@@ -70,7 +70,7 @@ class UnsupportedMediaType(Exception):
     """Base class for unsupported media type errors."""
 
     def __init__(self, content_type):
-        super(Exception, self).__init__(
+        super(UnsupportedMediaType, self).__init__(
             "Unsupported media type: %r" % (content_type, ))
         self.content_type = content_type
 
@@ -79,7 +79,7 @@ class UnauthorizedError(Exception):
     """Base class for unauthorized errors."""
 
     def __init__(self):
-        super(Exception, self).__init__(
+        super(UnauthorizedError, self).__init__(
             "Request unauthorized")
 
 
@@ -164,8 +164,7 @@ def etag_matches(condition, actual_etag):
             return True
         if etag.strip(' ') == actual_etag:
             return True
-    else:
-        return False
+    return False
 
 
 class NeedsMultiStatus(Exception):
@@ -729,7 +728,7 @@ class Resource(object):
         """
         raise NotImplementedError(self.set_comment)
 
-    def get_comment(self, comment):
+    def get_comment(self):
         """Get resource comment.
 
         :return: comment
@@ -1015,19 +1014,27 @@ def ensure_trailing_slash(href):
     return href + '/'
 
 
-def traverse_resource(base_resource, base_href, depth):
+def traverse_resource(base_resource, base_href, depth, members=None):
     """Traverse a resource.
 
     :param base_resource: Resource to traverse from
     :param base_href: href for base resource
     :param depth: Depth ("0", "1", "infinity")
+    :param members: Function to use to get members of each
+        collection.
     :return: Iterator over (URL, Resource) tuples
     """
+    if members is None:
+        def members(c):
+            return c.members()
     todo = collections.deque([(base_href, base_resource, depth)])
     while todo:
         (href, resource, depth) = todo.popleft()
         if COLLECTION_RESOURCE_TYPE in resource.resource_types:
             # caldavzap/carddavmate require this
+            # https://tools.ietf.org/html/rfc4918#section-5.2
+            # mentions that a trailing slash *SHOULD* be added for
+            # collections.
             href = ensure_trailing_slash(href)
         yield (href, resource)
         if depth == "0":
@@ -1039,7 +1046,7 @@ def traverse_resource(base_resource, base_href, depth):
         else:
             raise AssertionError("invalid depth %r" % depth)
         if COLLECTION_RESOURCE_TYPE in resource.resource_types:
-            for (child_name, child_resource) in resource.members():
+            for (child_name, child_resource) in members(resource):
                 child_href = urllib.parse.urljoin(href, child_name)
                 todo.append((child_href, child_resource, nextdepth))
 
@@ -1093,7 +1100,10 @@ def create_href(href, base_href=None):
 
 
 def read_href_element(et):
-    return urllib.parse.unquote(et.text)
+    el = urllib.parse.unquote(et.text)
+    el = urllib.parse.urlsplit(el)
+    # TODO(jelmer): Check that the hostname matches the local hostname?
+    return el.path
 
 
 class ExpandPropertyReporter(Reporter):
@@ -1794,7 +1804,7 @@ class WebDAVApp(object):
             return [e.message.encode(DEFAULT_ENCODING)]
         except NotAcceptableError as e:
             start_response('406 Not Acceptable', [])
-            return [e.message.encode(DEFAULT_ENCODING)]
+            return [str(e).encode(DEFAULT_ENCODING)]
         except UnsupportedMediaType as e:
             start_response('415 Unsupported Media Type', [])
             return [('Unsupported media type %r' % e.content_type)

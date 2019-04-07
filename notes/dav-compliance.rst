@@ -250,6 +250,7 @@ Apple-specific Properties
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - calendar-color [supported]
+- calendar-order [supported]
 - getctag [supported]
 - refreshrate [supported]
 

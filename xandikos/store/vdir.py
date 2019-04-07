@@ -22,6 +22,7 @@
 See https://github.com/pimutils/vdirsyncer/blob/master/docs/vdir.rst
 """
 
+import configparser
 import errno
 import hashlib
 import logging
@@ -39,7 +40,11 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
-from .config import CollectionConfig
+from .config import (
+    FileBasedCollectionMetadata,
+    FILENAME as CONFIG_FILENAME,
+)
+from .index import MemoryIndex
 
 
 DEFAULT_ENCODING = 'utf-8'
@@ -53,17 +58,20 @@ class VdirStore(Store):
     """
 
     def __init__(self, path, check_for_duplicate_uids=True):
-        super(VdirStore, self).__init__()
+        super(VdirStore, self).__init__(MemoryIndex())
         self.path = path
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid = {}
         # Maps uids to (sha, fname)
         self._uid_to_fname = {}
+        cp = configparser.ConfigParser()
+        cp.read([os.path.join(self.path, CONFIG_FILENAME)])
 
-    @property
-    def config(self):
-        return CollectionConfig()
+        def save_config(cp, message):
+            with open(os.path.join(self.path, CONFIG_FILENAME), 'w') as f:
+                cp.write(f)
+        self.config = FileBasedCollectionMetadata(cp, save=save_config)
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
@@ -85,11 +93,9 @@ class VdirStore(Store):
         """Get the raw contents of an object.
 
         :param name: Name of the item
-        :param etag: Optional etag
+        :param etag: Optional etag (ignored)
         :return: raw contents as chunks
         """
-        if etag is None:
-            etag = self._get_etag(name)
         path = os.path.join(self.path, name)
         try:
             with open(path, 'rb') as f:
@@ -202,6 +208,8 @@ class VdirStore(Store):
         for name in os.listdir(self.path):
             if name.endswith('.tmp'):
                 continue
+            if name == CONFIG_FILENAME:
+                continue
             if name.endswith('.ics'):
                 content_type = 'text/calendar'
             elif name.endswith('.vcf'):
@@ -233,14 +241,14 @@ class VdirStore(Store):
 
         :return: repository description as string
         """
-        raise NotImplementedError(self.get_description)
+        return self.config.get_description()
 
     def set_description(self, description):
         """Set extended description.
 
         :param description: repository description as string
         """
-        raise NotImplementedError(self.set_description)
+        self.config.set_description(description)
 
     def set_comment(self, comment):
         """Set comment.
@@ -277,7 +285,8 @@ class VdirStore(Store):
         :return: A Color code, or None
         """
         color = self._read_metadata('color')
-        assert color.startswith('#')
+        if color is not None:
+            assert color.startswith('#')
         return color
 
     def set_color(self, color):
@@ -298,18 +307,6 @@ class VdirStore(Store):
         :param displayname: New display name
         """
         self._write_metadata('displayname', displayname)
-
-    def set_type(self, store_type):
-        """Set store type.
-
-        :param store_type: New store type (one of VALID_STORE_TYPES)
-        """
-        raise NotImplementedError(self.set_type)
-
-    def get_type(self):
-        """Get store type.
-        """
-        raise NotImplementedError(self.get_type)
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.

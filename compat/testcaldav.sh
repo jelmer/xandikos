@@ -13,4 +13,4 @@ else
 fi
 
 cd ccs-caldavtester
-exec env python2 ./testcaldav.py "$@"
+python2 ./testcaldav.py "$@"
