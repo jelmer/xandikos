@@ -23,7 +23,7 @@
 from setuptools import find_packages, setup
 import sys
 
-version = "0.0.12"
+version = "0.1.0"
 
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
