@@ -2,7 +2,7 @@
 # encoding: utf-8
 #
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
+# Copyright (C) 2016-2017 Jelmer Vernooij <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -23,22 +23,20 @@
 from setuptools import find_packages, setup
 import sys
 
-version = "0.0.11"
-
-if sys.platform != 'win32':
-    # Win32 setup breaks on non-ascii characters
-    author = "Jelmer Vernooĳ"
-else:
-    author = "Jelmer Vernooij"
+version = "0.1.0"
 
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
+
+if sys.platform == 'win32':
+    # Strip out non-mbcs characters
+    long_description = long_description.encode('ascii', 'replace').decode()
 
 setup(name="xandikos",
       description="Lightweight CalDAV/CardDAV server",
       long_description=long_description,
       version=version,
-      author=author,
+      author="Jelmer Vernooij",
       author_email="jelmer@jelmer.uk",
       license="GNU GPLv3 or later",
       url="https://www.xandikos.org/",
@@ -58,6 +56,7 @@ setup(name="xandikos",
           'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5',
           'Programming Language :: Python :: 3.6',
+          'Programming Language :: Python :: 3.7',
           'Programming Language :: Python :: Implementation :: CPython',
           'Programming Language :: Python :: Implementation :: PyPy',
           'Operating System :: POSIX',

@@ -20,6 +20,8 @@
 """Git store.
 """
 
+import configparser
+from io import BytesIO, StringIO
 import logging
 import os
 import shutil
@@ -39,7 +41,12 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
-from .config import CollectionConfig
+from .config import (
+    FILENAME as CONFIG_FILENAME,
+    CollectionMetadata,
+    FileBasedCollectionMetadata,
+)
+from .index import MemoryIndex
 
 
 from dulwich.file import GitFile
@@ -57,6 +64,113 @@ DEFAULT_ENCODING = 'utf-8'
 
 
 logger = logging.getLogger(__name__)
+
+
+class RepoCollectionMetadata(CollectionMetadata):
+
+    def __init__(self, repo):
+        self._repo = repo
+
+    @classmethod
+    def present(cls, repo):
+        config = repo.get_config()
+        return config.has_section((b'xandikos', ))
+
+    def get_color(self):
+        config = self._repo.get_config()
+        color = config.get(b'xandikos', b'color')
+        if color == b'':
+            raise KeyError
+        return color.decode(DEFAULT_ENCODING)
+
+    def set_color(self, color):
+        config = self._repo.get_config()
+        if color is not None:
+            config.set(
+                b'xandikos', b'color', color.encode(DEFAULT_ENCODING))
+        else:
+            # TODO(jelmer): Add and use config.remove()
+            config.set(b'xandikos', b'color', b'')
+        self._write_config(config)
+
+    def _write_config(self, config):
+        f = BytesIO()
+        config.write_to_file(f)
+        self._repo._put_named_file('config', f.getvalue())
+
+    def get_displayname(self):
+        config = self._repo.get_config()
+        displayname = config.get(b'xandikos', b'displayname')
+        if displayname == b'':
+            raise KeyError
+        return displayname.decode(DEFAULT_ENCODING)
+
+    def set_displayname(self, displayname):
+        config = self._repo.get_config()
+        if displayname is not None:
+            config.set(b'xandikos', b'displayname',
+                       displayname.encode(DEFAULT_ENCODING))
+        else:
+            config.set(b'xandikos', b'displayname', b'')
+        self._write_config(config)
+
+    def get_description(self):
+        desc = self._repo.get_description()
+        if desc in (None, b''):
+            raise KeyError
+        return desc.decode(DEFAULT_ENCODING)
+
+    def set_description(self, description):
+        if description is not None:
+            self._repo.set_description(description.encode(DEFAULT_ENCODING))
+        else:
+            self._repo.set_description(b'')
+
+    def get_comment(self):
+        config = self._repo.get_config()
+        comment = config.get(b'xandikos', b'comment')
+        if comment == b'':
+            raise KeyError
+        return comment.decode(DEFAULT_ENCODING)
+
+    def set_comment(self, comment):
+        config = self._repo.get_config()
+        if comment is not None:
+            config.set(
+                b'xandikos', b'comment', comment.encode(DEFAULT_ENCODING))
+        else:
+            # TODO(jelmer): Add and use config.remove()
+            config.set(b'xandikos', b'comment', b'')
+        self._write_config(config)
+
+    def set_type(self, store_type):
+        config = self._repo.get_config()
+        config.set(b'xandikos', b'type', store_type.encode(DEFAULT_ENCODING))
+        self._write_config(config)
+
+    def get_type(self):
+        config = self._repo.get_config()
+        store_type = config.get(b'xandikos', b'type')
+        store_type = store_type.decode(DEFAULT_ENCODING)
+        if store_type not in VALID_STORE_TYPES:
+            logging.warning(
+                'Invalid store type %s set for %r.',
+                store_type, self.repo)
+        return store_type
+
+    def get_order(self):
+        config = self._repo.get_config()
+        order = config.get(b'xandikos', b'calendar-order')
+        if order == b'':
+            raise KeyError
+        return order.decode('utf-8')
+
+    def set_order(self, order):
+        config = self._repo.get_config()
+        if order is None:
+            order = ''
+        config.set(b'xandikos', b'calendar-order', order.encode('utf-8'))
+        self._write_config(config)
 
 
 class locked_index(object):
@@ -81,7 +195,7 @@ class GitStore(Store):
 
     def __init__(self, repo, ref=b'refs/heads/master',
                  check_for_duplicate_uids=True):
-        super(GitStore, self).__init__()
+        super(GitStore, self).__init__(MemoryIndex())
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
@@ -92,7 +206,25 @@ class GitStore(Store):
 
     @property
     def config(self):
-        return CollectionConfig()
+        if RepoCollectionMetadata.present(self.repo):
+            return RepoCollectionMetadata(self.repo)
+        else:
+            cp = configparser.ConfigParser()
+            try:
+                cf = self._get_raw(CONFIG_FILENAME)
+            except KeyError:
+                pass
+            else:
+                if cf is not None:
+                    cp.read_string(b''.join(cf).decode('utf-8'))
+
+            def save_config(cp, message):
+                f = StringIO()
+                cp.write(f)
+                self._import_one(
+                    CONFIG_FILENAME, [f.getvalue().encode('utf-8')],
+                    message)
+            return FileBasedCollectionMetadata(cp, save=save_config)
 
     def __repr__(self):
         return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
@@ -259,26 +391,21 @@ class GitStore(Store):
         try:
             return self.config.get_description()
         except KeyError:
-            desc = self.repo.get_description()
-            if desc is not None:
-                desc = desc.decode(DEFAULT_ENCODING)
-            return desc
+            return None
 
     def set_description(self, description):
         """Set extended description.
 
         :param description: repository description as string
         """
-        return self.repo.set_description(description.encode(DEFAULT_ENCODING))
+        self.config.set_description(description)
 
     def set_comment(self, comment):
         """Set comment.
 
         :param comment: Comment
         """
-        config = self.repo.get_config()
-        config.set(b'xandikos', b'comment', comment.encode(DEFAULT_ENCODING))
-        config.write_to_path()
+        self.config.set_comment(comment)
 
     def get_comment(self):
         """Get comment.
@@ -288,13 +415,7 @@ class GitStore(Store):
         try:
             return self.config.get_comment()
         except KeyError:
-            config = self.repo.get_config()
-            try:
-                comment = config.get(b'xandikos', b'comment')
-            except KeyError:
-                return None
-            else:
-                return comment.decode(DEFAULT_ENCODING)
+            return None
 
     def get_color(self):
         """Get color.
@@ -304,24 +425,11 @@ class GitStore(Store):
         try:
             return self.config.get_color()
         except KeyError:
-            config = self.repo.get_config()
-            try:
-                color = config.get(b'xandikos', b'color')
-            except KeyError:
-                return None
-            else:
-                return color.decode(DEFAULT_ENCODING)
+            return None
 
     def set_color(self, color):
         """Set the color code for this store."""
-        config = self.repo.get_config()
-        # Strip leading # to work around
-        # https://github.com/jelmer/dulwich/issues/511
-        # TODO(jelmer): Drop when that bug gets fixed.
-        config.set(
-            b'xandikos', b'color',
-            color.lstrip('#').encode(DEFAULT_ENCODING) if color else b'')
-        config.write_to_path()
+        self.config.set_color(color)
 
     def get_displayname(self):
         """Get display name.
@@ -331,50 +439,31 @@ class GitStore(Store):
         try:
             return self.config.get_displayname()
         except KeyError:
-            config = self.repo.get_config()
-            try:
-                displayname = config.get(b'xandikos', b'displayname')
-            except KeyError:
-                return None
-            else:
-                return displayname.decode(DEFAULT_ENCODING)
+            return None
 
     def set_displayname(self, displayname):
         """Set the display name.
 
         :param displayname: New display name
         """
-        config = self.repo.get_config()
-        config.set(b'xandikos', b'displayname',
-                   displayname.encode(DEFAULT_ENCODING))
-        config.write_to_path()
+        self.config.set_displayname(displayname)
 
     def set_type(self, store_type):
         """Set store type.
 
         :param store_type: New store type (one of VALID_STORE_TYPES)
         """
-        config = self.repo.get_config()
-        config.set(b'xandikos', b'type', store_type.encode(DEFAULT_ENCODING))
-        config.write_to_path()
+        self.config.set_type(store_type)
 
     def get_type(self):
         """Get store type.
 
         This looks in git config first, then falls back to guessing.
         """
-        config = self.repo.get_config()
         try:
-            store_type = config.get(b'xandikos', b'type')
+            return self.config.get_type()
         except KeyError:
             return super(GitStore, self).get_type()
-        else:
-            store_type = store_type.decode(DEFAULT_ENCODING)
-            if store_type not in VALID_STORE_TYPES:
-                logging.warning(
-                    'Invalid store type %s set for %r.',
-                    store_type, self.repo)
-            return store_type
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.
@@ -440,6 +529,8 @@ class BareGitStore(GitStore):
             tree = self.repo.object_store[ctag.encode('ascii')]
         for (name, mode, sha) in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
+            if name == CONFIG_FILENAME:
+                continue
             yield (name, mode, sha)
 
     @classmethod
@@ -613,11 +704,15 @@ class TreeGitStore(GitStore):
             tree = self.repo.object_store[ctag.encode('ascii')]
             for (name, mode, sha) in tree.iteritems():
                 name = name.decode(DEFAULT_ENCODING)
+                if name == CONFIG_FILENAME:
+                    continue
                 yield (name, mode, sha)
         else:
             index = self.repo.open_index()
             for (name, sha, mode) in index.iterobjects():
                 name = name.decode(DEFAULT_ENCODING)
+                if name == CONFIG_FILENAME:
+                    continue
                 yield (name, mode, sha)
 
     def subdirectories(self):

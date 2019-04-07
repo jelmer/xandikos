@@ -1,6 +1,7 @@
 language: python
 cache: pip
 sudo: true
+dist: xenial
 addons:
   apt:
     update: true
@@ -8,6 +9,7 @@ python:
   - 3.4
   - 3.5
   - 3.6
+  - 3.7
   - pypy3.5
 env:
   global: PYTHONHASHSEED=random
@@ -16,29 +18,25 @@ matrix:
     - python: 3.7
       dist: xenial
     # defusedxml appears to be broken on Python 3.8:
+    # See https://github.com/tiran/defusedxml/pull/24
     #- python: 3.8-dev
     #  dist: xenial
 install:
-  - pip install pip --upgrade
-  - pip install coverage codecov flake8 pycalendar
   - sudo apt-get install -qq libneon27-dev curl python2.7
-  - sudo apt-get install -qq cargo
+  - sudo apt-get install -qq cargo make
+  - pip install pip --upgrade
+  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs
   - python setup.py develop
 script:
   - make style
-  - make coverage
-  - mv .coverage .coverage.unit
+  - make check
   # Retrieve litmus from Xandikos server for now, since webdav.org is down.
-  - make coverage-litmus LITMUS_URL=https://www.xandikos.org/litmus-0.13.tar.gz
-  - mv .coverage .coverage.litmus
-  - if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
-        make coverage-vdirsyncer;
-        mv .coverage .coverage.vdirsyncer;
-    fi
-  - make coverage-caldavtester
-  - mv .coverage .coverage.caldavtester
-after_success:
-  - python -m coverage combine
-  - codecov
+  - make check-litmus LITMUS_URL=https://www.xandikos.org/litmus-0.13.tar.gz
+  - make check-caldavtester
+  - make check-pycaldav
+  # Disabled because of https://github.com/pimutils/vdirsyncer/issues/789
+  #- if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
+  #      make check-vdirsyncer;
+  #  fi
 cache:
   pip: true

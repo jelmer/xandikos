@@ -26,6 +26,13 @@ Authorization
 In the simplest form, users only have access to the resources under their own
 principal.
 
+As a second step, we could let users configure ACLs; one way of doing this would be
+to allow adding authentication in the collection configuration. I.e. something like::
+
+   [acl]
+   read = jelmer, joe
+   write = jelmer
+
 Storage
 -------
 

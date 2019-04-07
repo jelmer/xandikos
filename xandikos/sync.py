@@ -100,13 +100,12 @@ class SyncCollectionReporter(webdav.Reporter):
             diff_iter = itertools.islice(diff_iter, nresults)
 
         for (name, old_resource, new_resource) in diff_iter:
-            propstat = []
+            subhref = urllib.parse.urljoin(
+                webdav.ensure_trailing_slash(href), name)
             if new_resource is None:
-                for prop in requested:
-                    propstat.append(
-                        webdav.PropStatus('404 Not Found', None,
-                                          ET.Element(prop.tag)))
+                yield webdav.Status(subhref, status='404 Not Found')
             else:
+                propstat = []
                 for prop in requested:
                     if old_resource is not None:
                         old_propstat = webdav.get_property_from_element(
@@ -117,9 +116,7 @@ class SyncCollectionReporter(webdav.Reporter):
                         href, new_resource, properties, environ, prop)
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
-            yield webdav.Status(
-                urllib.parse.urljoin(webdav.ensure_trailing_slash(href), name),
-                propstat=propstat)
+                yield webdav.Status(subhref, propstat=propstat)
         yield SyncToken(new_token)
 
 

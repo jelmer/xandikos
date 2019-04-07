@@ -7,8 +7,8 @@
 
     <p>Principals on this server:
       <ul>
-          {% for name in principals %}
-              <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
+          {% for path in principals %}
+              <li><a href="{{ urljoin(self_url+'/', path.lstrip('/')+'/') }}">{{ path }}</a></li>
           {% endfor %}
       </ul>
     </p>

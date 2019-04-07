@@ -12,10 +12,8 @@
     <h2>Subcollections</h2>
 
     <ul>
-    {% for name, resource in principal.members() %}
-    {% if '{DAV:}collection' in resource.resource_types %}
+    {% for name, resource in principal.subcollections() %}
        <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
-    {% endif %}
     {% endfor %}
     </ul>
 

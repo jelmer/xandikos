@@ -29,7 +29,7 @@ from dulwich.repo import Repo
 
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
-    DuplicateUidError, File, InvalidETag, NoSuchItem)
+    DuplicateUidError, File, InvalidETag, NoSuchItem, Filter)
 from xandikos.store.git import (
     GitStore, BareGitStore, TreeGitStore)
 from xandikos.store.vdir import (
@@ -119,6 +119,89 @@ class BaseStoreTest(object):
         self.assertIsInstance(etag, str)
         self.assertEqual([('foo.ics', 'text/calendar', etag)],
                          list(gc.iter_with_etag()))
+
+    def test_with_filter(self):
+        gc = self.create_store()
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one('bar.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR2])
+
+        class DummyFilter(Filter):
+
+            def __init__(self, text):
+                self.text = text
+
+            def check(self, name, resource):
+                if resource.content_type != 'text/calendar':
+                    return False
+                return self.text in b''.join(resource.content)
+
+        self.assertEqual(
+            2, len(list(gc.iter_with_filter(
+                filter=DummyFilter(b'do something')))))
+
+        [(ret_name, ret_file, ret_etag)] = list(gc.iter_with_filter(
+            filter=DummyFilter(b'do something else')))
+        self.assertEqual(ret_name, name2)
+        self.assertEqual(ret_etag, etag2)
+        self.assertEqual(ret_file.content_type, 'text/calendar')
+        self.assertEqual(
+            b''.join(ret_file.content),
+            EXAMPLE_VCALENDAR2.replace(b'\n', b'\r\n'))
+
+    def test_get_by_index(self):
+        gc = self.create_store()
+        (name1, etag1) = gc.import_one('foo.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one('bar.ics', 'text/calendar',
+                                       [EXAMPLE_VCALENDAR2])
+        self.assertEqual({}, dict(gc.index_manager.desired))
+
+        filtertext = 'C=VCALENDAR/C=VTODO/P=SUMMARY'
+
+        class DummyFilter(Filter):
+
+            def __init__(self, text):
+                self.text = text
+
+            def index_keys(self):
+                return [[filtertext]]
+
+            def check_from_indexes(self, name, index_values):
+                return any(self.text in v.encode()
+                           for v in index_values[filtertext])
+
+            def check(self, name, resource):
+                if resource.content_type != 'text/calendar':
+                    return False
+                return self.text in b''.join(resource.content)
+
+        self.assertEqual(
+            2, len(list(gc.iter_with_filter(
+                filter=DummyFilter(b'do something')))))
+
+        [(ret_name, ret_file, ret_etag)] = list(gc.iter_with_filter(
+            filter=DummyFilter(b'do something else')))
+        self.assertEqual(
+            {filtertext: 2},
+            dict(gc.index_manager.desired))
+
+        # Force index
+        gc.index.reset([filtertext])
+
+        [(ret_name, ret_file, ret_etag)] = list(gc.iter_with_filter(
+            filter=DummyFilter(b'do something else')))
+        self.assertEqual(
+            {filtertext: 2},
+            dict(gc.index_manager.desired))
+
+        self.assertEqual(ret_name, name2)
+        self.assertEqual(ret_etag, etag2)
+        self.assertEqual(ret_file.content_type, 'text/calendar')
+        self.assertEqual(
+            b''.join(ret_file.content),
+            EXAMPLE_VCALENDAR2.replace(b'\n', b'\r\n'))
 
     def test_import_one_duplicate_uid(self):
         gc = self.create_store()
@@ -262,13 +345,13 @@ class BaseGitStoreTest(BaseStoreTest):
             [('foo.ics', 'text/calendar', bid)],
             list(gc.iter_with_etag()))
 
-    def test_get_description(self):
+    def test_get_description_from_git_config(self):
         gc = self.create_store()
-        try:
-            gc.repo.set_description(b'a repo description')
-        except NotImplementedError:
-            self.skipTest('old dulwich version without '
-                          'MemoryRepo.set_description')
+        config = gc.repo.get_config()
+        config.set(b'xandikos', b'test', b'test')
+        if getattr(config, 'path', None):
+            config.write_to_path()
+        gc.repo.set_description(b'a repo description')
         self.assertEqual(gc.get_description(), 'a repo description')
 
     def test_displayname(self):

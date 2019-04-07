@@ -21,7 +21,11 @@
 
 https://tools.ietf.org/html/rfc6352
 """
-from xandikos import davcommon, webdav
+from xandikos import (
+    collation as _mod_collation,
+    davcommon,
+    webdav,
+)
 
 ET = webdav.ET
 
@@ -229,7 +233,7 @@ def apply_text_match(el, value):
     match_type = el.get('match-type', 'contains')
     if match_type != 'contains':
         raise NotImplementedError('match_type != contains: %r' % match_type)
-    matches = davcommon.collations[collation](el.text, value)
+    matches = _mod_collation.collations[collation](el.text, value)
 
     if negate_condition == 'yes':
         return (not matches)

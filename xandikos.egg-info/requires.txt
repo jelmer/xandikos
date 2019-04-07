@@ -1,4 +1,0 @@
-icalendar
-dulwich>=0.19.1
-defusedxml
-jinja2

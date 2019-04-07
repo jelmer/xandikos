@@ -2,7 +2,6 @@ include *.rst
 include AUTHORS
 include COPYING
 include Makefile
-include TODO
 include compat/*.sh
 include compat/*.rst
 include compat/*.xml
