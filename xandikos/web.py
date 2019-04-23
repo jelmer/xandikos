@@ -24,6 +24,7 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
+from aiohttp import web
 from email.utils import parseaddr
 import functools
 import hashlib
@@ -31,6 +32,11 @@ import jinja2
 import logging
 import os
 import posixpath
+from prometheus_client import (
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+)
+
 import shutil
 import urllib.parse
 
@@ -1002,6 +1008,12 @@ def create_principal_defaults(backend, principal):
         logging.info('Create inbox in %s.', resource.store.path)
 
 
+async def metrics_handler(request):
+    resp = web.Response(body=generate_latest())
+    resp.content_type = CONTENT_TYPE_LATEST
+    return resp
+
+
 def main(argv):
     import argparse
     import sys
@@ -1089,6 +1101,7 @@ def main(argv):
     wsgi_handler = WSGIHandler(app)
 
     app = web.Application()
+    app.router.add_route("GET", "/metrics", metrics_handler)
     app.router.add_route("*", "/{path_info:.*}", wsgi_handler)
     web.run_app(app, port=options.port, host=options.listen_address)
 
