@@ -1084,9 +1084,13 @@ def main(argv):
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
 
-    #  listen='%s:%s' % (options.listen_address, options.port))
-    import aiowsgi
-    aiowsgi.serve(app)
+    from aiohttp import web
+    from aiohttp_wsgi import WSGIHandler
+    wsgi_handler = WSGIHandler(app)
+
+    app = web.Application()
+    app.router.add_route("*", "/{path_info:.*}", wsgi_handler)
+    web.run_app(app, port=options.port, host=options.listen_address)
 
 
 if __name__ == '__main__':
