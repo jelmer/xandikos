@@ -22,8 +22,32 @@
 
 import logging
 import os
+import posixpath
 
-from xandikos.web import XandikosBackend, XandikosApp
+from xandikos.web import (
+    XandikosBackend,
+    XandikosApp,
+    WELLKNOWN_DAV_PATHS,
+)
+
+
+class WellknownRedirector(object):
+    """Redirect paths under .well-known/ to the appropriate paths."""
+
+    def __init__(self, inner_app, dav_root):
+        self._inner_app = inner_app
+        self._dav_root = dav_root
+
+    def __call__(self, environ, start_response):
+        # See https://tools.ietf.org/html/rfc6764
+        path = posixpath.normpath(
+            environ['SCRIPT_NAME'] + environ['PATH_INFO'])
+        if path in WELLKNOWN_DAV_PATHS:
+            start_response('302 Found', [
+                ('Location', self._dav_root)])
+            return []
+        return self._inner_app(environ, start_response)
+
 
 backend = XandikosBackend(path=os.environ['XANDIKOSPATH'])
 if not os.path.isdir(backend.path):

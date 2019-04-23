@@ -953,24 +953,6 @@ class XandikosApp(webdav.WebDAVApp):
         ])
 
 
-class WellknownRedirector(object):
-    """Redirect paths under .well-known/ to the appropriate paths."""
-
-    def __init__(self, inner_app, dav_root):
-        self._inner_app = inner_app
-        self._dav_root = dav_root
-
-    def __call__(self, environ, start_response):
-        # See https://tools.ietf.org/html/rfc6764
-        path = posixpath.normpath(
-            environ['SCRIPT_NAME'] + environ['PATH_INFO'])
-        if path in WELLKNOWN_DAV_PATHS:
-            start_response('302 Found', [
-                ('Location', self._dav_root)])
-            return []
-        return self._inner_app(environ, start_response)
-
-
 def create_principal_defaults(backend, principal):
     """Create default calendar and addressbook for a principal.
 
@@ -1012,6 +994,15 @@ async def metrics_handler(request):
     resp = web.Response(body=generate_latest())
     resp.content_type = CONTENT_TYPE_LATEST
     return resp
+
+
+class RedirectDavHandler(object):
+
+    def __init__(self, dav_root):
+        self._dav_root = dav_root
+
+    async def __call__(self, request):
+        return web.HTTPFound(self._dav_root)
 
 
 def main(argv):
@@ -1092,7 +1083,6 @@ def main(argv):
         backend,
         current_user_principal=options.current_user_principal)
 
-    app = WellknownRedirector(app, options.route_prefix)
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
 
@@ -1101,6 +1091,9 @@ def main(argv):
     wsgi_handler = WSGIHandler(app)
 
     app = web.Application()
+    for path in WELLKNOWN_DAV_PATHS:
+        app.router.add_route(
+            "*", path, RedirectDavHandler(options.route_prefix))
     app.router.add_route("GET", "/metrics", metrics_handler)
     app.router.add_route("*", "/{path_info:.*}", wsgi_handler)
     web.run_app(app, port=options.port, host=options.listen_address)
