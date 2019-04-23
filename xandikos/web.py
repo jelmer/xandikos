@@ -1117,22 +1117,13 @@ def main(argv):
         backend,
         current_user_principal=options.current_user_principal)
 
-    from wsgiref.simple_server import make_server
     app = WellknownRedirector(app, options.route_prefix)
-    server = make_server(options.listen_address, options.port, app)
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
 
-    import signal
-    # Set SIGINT to default handler; this appears to be necessary
-    # when running under coverage.
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    else:
-        server.shutdown()
+    #  listen='%s:%s' % (options.listen_address, options.port))
+    import aiowsgi
+    aiowsgi.serve(app)
 
 
 if __name__ == '__main__':
