@@ -25,7 +25,7 @@ install:
   - sudo apt-get install -qq libneon27-dev curl python2.7
   - sudo apt-get install -qq cargo make
   - pip install pip --upgrade
-  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs
+  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs aiohttp aiohttp-wsgi prometheus-client
   - python setup.py develop
 script:
   - make style
