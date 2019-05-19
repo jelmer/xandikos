@@ -179,6 +179,8 @@ class locked_index(object):
         self._path = path
 
     def __enter__(self):
+        # TODO(jelmer): This can raise dulwich.file.FileLocked;
+        # https://github.com/jelmer/xandikos/issues/66
         self._file = GitFile(self._path, 'wb')
         self._index = Index(self._path)
         return self._index
