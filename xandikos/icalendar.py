@@ -722,8 +722,14 @@ class CalendarFilter(Filter):
 
     def check_from_indexes(self, name, indexes):
         for child_filter in self.children:
-            if not child_filter.match_indexes(
-                    indexes, self.tzify):
+            try:
+                if not child_filter.match_indexes(
+                        indexes, self.tzify):
+                    return False
+            except MissingProperty as e:
+                logging.warning(
+                    'calendar_query: Ignoring calendar object %s, due '
+                    'to missing property %s', name, e.property_name)
                 return False
         return True
 
