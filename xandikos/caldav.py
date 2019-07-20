@@ -222,6 +222,28 @@ class CalendarDescriptionProperty(webdav.Property):
         raise NotImplementedError
 
 
+def _extract_from_component(incomp, outcomp, requested):
+    for tag in requested:
+        if tag.tag == ('{%s}comp' % NAMESPACE):
+            for insub in incomp.subcomponents:
+                if insub.name == tag.get('name'):
+                    outsub = component_factory[insub.name]()
+                    outcomp.add_component(outsub)
+                    _extract_from_component(insub, outsub, tag)
+        elif tag.tag == ('{%s}prop' % NAMESPACE):
+            outcomp[tag.get('name')] = incomp[tag.get('name')]
+        elif tag.tag == ('{%s}allprop' % NAMESPACE):
+            for propname in incomp:
+                outcomp[propname] = incomp[propname]
+        elif tag.tag == ('{%s}allcomp' % NAMESPACE):
+            for insub in incomp.subcomponents:
+                outsub = component_factory[insub.name]()
+                outcomp.add_component(outsub)
+                _extract_from_component(insub, outsub, tag)
+        else:
+            raise AssertionError('invalid element %r' % tag)
+
+
 def extract_from_calendar(incal, outcal, requested):
     """Extract requested components/properties from calendar.
 
@@ -229,17 +251,11 @@ def extract_from_calendar(incal, outcal, requested):
     :param outcal: Calendar to write to
     :param requested: <calendar-data> element with requested
         components/properties
-    :return: A Calendar
     """
     for tag in requested:
         if tag.tag == ('{%s}comp' % NAMESPACE):
-            for insub in incal.subcomponents:
-                if insub.name == tag.get('name'):
-                    outsub = component_factory[insub.name]
-                    outcal.add_component(outsub)
-                    extract_from_calendar(insub, outsub, tag)
-        elif tag.tag == ('{%s}prop' % NAMESPACE):
-            outcal[tag.get('name')] = incal[tag.get('name')]
+            if incal.name == tag.get('name'):
+                _extract_from_component(incal, outcal, tag)
         elif tag.tag == ('{%s}expand' % NAMESPACE):
             # TODO(jelmer): https://github.com/jelmer/xandikos/issues/102
             raise NotImplementedError('expand is not yet implemented')
