@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from icalendar.cal import component_factory, Calendar as ICalendar
+from icalendar.cal import Calendar as ICalendar
 import unittest
 from wsgiref.util import setup_testing_defaults
 
