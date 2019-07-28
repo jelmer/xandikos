@@ -129,12 +129,12 @@ class BaseStoreTest(object):
 
         class DummyFilter(Filter):
 
+            content_type = 'text/calendar'
+
             def __init__(self, text):
                 self.text = text
 
             def check(self, name, resource):
-                if resource.content_type != 'text/calendar':
-                    return False
                 return self.text in b''.join(resource.content)
 
         self.assertEqual(
@@ -156,11 +156,15 @@ class BaseStoreTest(object):
                                        [EXAMPLE_VCALENDAR1])
         (name2, etag2) = gc.import_one('bar.ics', 'text/calendar',
                                        [EXAMPLE_VCALENDAR2])
+        (name3, etag3) = gc.import_one('bar.txt', 'text/plain',
+                                       [b'Not a calendar file.'])
         self.assertEqual({}, dict(gc.index_manager.desired))
 
         filtertext = 'C=VCALENDAR/C=VTODO/P=SUMMARY'
 
         class DummyFilter(Filter):
+
+            content_type = 'text/calendar'
 
             def __init__(self, text):
                 self.text = text
@@ -173,8 +177,6 @@ class BaseStoreTest(object):
                            for v in index_values[filtertext])
 
             def check(self, name, resource):
-                if resource.content_type != 'text/calendar':
-                    return False
                 return self.text in b''.join(resource.content)
 
         self.assertEqual(

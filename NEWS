@@ -2,6 +2,9 @@
 
  * Fix <calendar-data> subelement filtering. (Jelmer Vernooĳ)
 
+ * Skip non-calendar files for calendar-query operations.
+   (Jelmer Vernooĳ, #108)
+
 0.1.0	2019-04-07
 
 Initial release.

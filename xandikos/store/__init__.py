@@ -128,6 +128,8 @@ class Filter(object):
     Filters are often resource-type specific.
     """
 
+    content_type = None
+
     def check(self, name, resource):
         """Check if this filter applies to a resource.
 
@@ -260,12 +262,16 @@ class Store(object):
 
     def _iter_with_filter_naive(self, filter):
         for (name, content_type, etag) in self.iter_with_etag():
+            if not filter.content_type == content_type:
+                continue
             file = self.get_file(name, content_type, etag)
             if filter.check(name, file):
                 yield (name, file, etag)
 
     def _iter_with_filter_indexes(self, filter, keys):
         for (name, content_type, etag) in self.iter_with_etag():
+            if not filter.content_type == content_type:
+                continue
             try:
                 file_values = self.index.get_values(name, etag, keys)
             except KeyError:

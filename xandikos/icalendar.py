@@ -691,6 +691,8 @@ class ParameterFilter(object):
 class CalendarFilter(Filter):
     """A filter that works on ICalendar files."""
 
+    content_type = 'text/calendar'
+
     def __init__(self, default_timezone):
         self.tzify = lambda dt: as_tz_aware_ts(dt, default_timezone)
         self.children = []
@@ -703,8 +705,6 @@ class CalendarFilter(Filter):
         return ret
 
     def check(self, name, file):
-        if file.content_type != 'text/calendar':
-            return False
         c = file.calendar
         if c is None:
             return False
