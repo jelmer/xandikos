@@ -6,6 +6,8 @@ xandikos (0.1.0-1) UNRELEASED; urgency=medium
   * Bump debhelper compat to 12.
   * Bump standards version to 4.3.0 (no changes).
   * Change section to web.
+  * Update standards version, no changes needed.
+  * Remove obsolete fields Name from debian/upstream/metadata.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 07 Apr 2019 13:05:37 +0000
 
