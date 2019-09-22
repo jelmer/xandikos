@@ -139,7 +139,7 @@ class WebTests(WebTestCase):
 
     def test_get_body(self):
         class TestResource(Resource):
-            def get_body(self):
+            async def get_body(self):
                 return [b'this is content']
 
             def get_last_modified(self):
