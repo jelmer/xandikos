@@ -1334,14 +1334,13 @@ def _send_dav_responses(responses, out_encoding):
 
 def _send_simple_dav_error(environ, statuscode, error,
                            description):
-    status = Status(request_uri(environ), statuscode, error=error,
+    status = Status(request.url, statuscode, error=error,
                     responsedescription=description)
     return _send_dav_responses(status, DEFAULT_ENCODING)
 
 
-def _send_not_found(environ):
-    path = request_uri(environ)
-    body = [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
+def _send_not_found(request):
+    body = [b'Path ' + request.path.encode(DEFAULT_ENCODING) + b' not found.']
     return Response(body=body, status=404, reason='Not Found')
 
 
@@ -1444,11 +1443,11 @@ class DeleteMethod(Method):
     async def handle(self, request, environ, app):
         unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is None:
-            return _send_not_found(environ)
+            return _send_not_found(request)
         container_path, item_name = posixpath.split(path)
         pr = app.backend.get_resource(container_path)
         if pr is None:
-            return _send_not_found(environ)
+            return _send_not_found(request)
         current_etag = r.get_etag()
         if_match = request.headers.get('If-Match', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
@@ -1464,7 +1463,7 @@ class PostMethod(Method):
         new_contents = _readBody(environ)
         unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is None:
-            return _send_not_found(environ)
+            return _send_not_found(request)
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             return _send_method_not_allowed(
                 app._get_allowed_methods(request))
@@ -1517,7 +1516,7 @@ class PutMethod(Method):
         container_path, name = posixpath.split(path)
         r = app.backend.get_resource(container_path)
         if r is None:
-            return _send_not_found(environ)
+            return _send_not_found(request)
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             return _send_method_not_allowed(
                 app._get_allowed_methods(request))
@@ -1540,7 +1539,7 @@ class ReportMethod(Method):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         base_href, unused_path, r = app._get_resource_from_environ(request, environ)
         if r is None:
-            return _send_not_found(environ)
+            return _send_not_found(request)
         depth = request.headers.get("Depth", "0")
         et = await _readXmlBody(request, None)
         try:
@@ -1571,7 +1570,7 @@ class PropfindMethod(Method):
         base_href, unused_path, base_resource = (
             app._get_resource_from_environ(request, environ))
         if base_resource is None:
-            return Status(request_uri(environ), '404 Not Found')
+            return Status(request.url, '404 Not Found')
         # Default depth is infinity, per RFC2518
         depth = request.headers.get("Depth", "infinity")
         if not request.can_ready_body():
@@ -1612,7 +1611,7 @@ class ProppatchMethod(Method):
     async def handle(self, request, environ, app):
         href, unused_path, resource = app._get_resource_from_environ(request, environ)
         if resource is None:
-            return Status(request_uri(environ), '404 Not Found')
+            return Status(request.url, '404 Not Found')
         et = await _readXmlBody(request, '{DAV:}propertyupdate')
         propstat = []
         for el in et:
@@ -1621,7 +1620,7 @@ class ProppatchMethod(Method):
                                       % el.tag)
             propstat.extend(apply_modify_prop(el, href, resource,
                                               app.properties))
-        return [Status(request_uri(environ), propstat=propstat)]
+        return [Status(request.url, propstat=propstat)]
 
 
 class MkcolMethod(Method):
@@ -1668,7 +1667,7 @@ class OptionsMethod(Method):
             unused_href, unused_path, r = (
                 app._get_resource_from_environ(request, environ))
             if r is None:
-                return _send_not_found(environ)
+                return _send_not_found(request)
             dav_features = app._get_dav_features(r)
             headers.append(('DAV', ', '.join(dav_features)))
             allowed_methods = app._get_allowed_methods(request)
@@ -1697,7 +1696,7 @@ class GetMethod(Method):
 async def _do_get(request, environ, app, send_body):
     unused_href, unused_path, r = app._get_resource_from_environ(request, environ)
     if r is None:
-        return _send_not_found(environ)
+        return _send_not_found(request)
     accept_content_types = parse_accept_header(
         request.headers.get('Accept', '*/*'))
     accept_content_languages = parse_accept_header(
@@ -1757,6 +1756,7 @@ class WSGIRequest(object):
         self.headers = CIMultiDict([
             (k[5:], v) for k, v in environ.items()
             if k.startswith('HTTP_')])
+        self.url = request_uri(environ)
 
     def can_ready_body(self):
         return ('CONTENT_TYPE' in self._environ or
@@ -1859,6 +1859,8 @@ class WebDAVApp(object):
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ['SCRIPT_NAME'] = ''
         request = WSGIRequest(environ)
+        environ = {
+            'SCRIPT_NAME': environ['SCRIPT_NAME']}
         response = loop.run_until_complete(self._handle_request(request, environ))
         return response.for_wsgi(start_response)
     
