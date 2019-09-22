@@ -89,15 +89,26 @@ class Response(object):
     """
 
     def __init__(self, status=200, reason='OK', body=None, headers=None):
-        self.status = status
-        self.reason = reason
+        if isinstance(status, str):
+            self.status = int(status.split(' ', 1)[0])
+            self.reason = status.split(' ', 1)[1]
+        else:
+            self.status = status
+            self.reason = reason
         self.body = body or []
-        self.headers = headers or {}
+        if isinstance(headers, dict):
+            self.headers = list(headers.items())
+        elif isinstance(headers, list):
+            self.headers = list(headers)
+        elif not headers:
+            self.headers = []
+        else:
+            raise TypeError(headers)
 
     def for_wsgi(self, start_response):
         start_response(
             '%d %s' % (self.status, self.reason),
-            headers=list(self.headers.items()))
+            headers=self.headers)
         return self.body
         
 
@@ -288,7 +299,8 @@ def multistatus(req_fn):
 
     async def wrapper(self, environ, start_response, *args, **kwargs):
         responses = await req_fn(self, environ, *args, **kwargs)
-        return _send_dav_responses(start_response, responses, DEFAULT_ENCODING)
+        response = _send_dav_responses(responses, DEFAULT_ENCODING)
+        return response.for_wsgi(start_response)
 
     return wrapper
 
@@ -1281,18 +1293,20 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
         yield (href, resource)
 
 
-def _send_xml_response(start_response, status, et, out_encoding):
+def _send_xml_response(status, et, out_encoding):
     body_type = 'text/xml; charset="%s"' % out_encoding
     if os.environ.get('XANDIKOS_DUMP_DAV_XML'):
         print("OUT: " + ET.tostring(et).decode('utf-8'))
     body = ET.tostringlist(et, encoding=out_encoding)
-    start_response(status, [
-        ('Content-Type', body_type),
-        ('Content-Length', str(sum(map(len, body))))])
-    return body
+    return Response(
+        status=status,
+        body=body,
+        headers={
+        'Content-Type': body_type,
+        'Content-Length': str(sum(map(len, body)))})
 
 
-def _send_dav_responses(start_response, responses, out_encoding):
+def _send_dav_responses(responses, out_encoding):
     if isinstance(responses, Status):
         try:
             (body, body_type) = responses.get_single_body(
@@ -1300,22 +1314,21 @@ def _send_dav_responses(start_response, responses, out_encoding):
         except NeedsMultiStatus:
             responses = [responses]
         else:
-            start_response(responses.status, [
-                ('Content-Type', body_type),
-                ('Content-Length', str(sum(map(len, body))))])
-            return body
+            return Response(status=responses.status, headers={
+                'Content-Type': body_type,
+                'Content-Length': str(sum(map(len, body)))},
+                body=body)
     ret = ET.Element('{DAV:}multistatus')
     for response in responses:
         ret.append(response.aselement())
-    return _send_xml_response(start_response, '207 Multi-Status', ret,
-                              out_encoding)
+    return _send_xml_response('207 Multi-Status', ret, out_encoding)
 
 
-def _send_simple_dav_error(environ, start_response, statuscode, error,
+def _send_simple_dav_error(environ, statuscode, error,
                            description):
     status = Status(request_uri(environ), statuscode, error=error,
                     responsedescription=description)
-    return _send_dav_responses(start_response, status, DEFAULT_ENCODING)
+    return _send_dav_responses(status, DEFAULT_ENCODING)
 
 
 def _send_not_found(environ):
@@ -1462,10 +1475,11 @@ class PostMethod(Method):
         try:
             (name, etag) = r.create_member(None, new_contents, content_type)
         except PreconditionFailure as e:
-            return _send_simple_dav_error(
-                environ, start_response, '412 Precondition Failed',
+            response = _send_simple_dav_error(
+                environ, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
+            return response.for_wsgi(start_response)
         href = (
             environ['SCRIPT_NAME'] +
             urllib.parse.urljoin(ensure_trailing_slash(path), name)
@@ -1485,29 +1499,30 @@ class PutMethod(Method):
             current_etag = None
         if_match = environ.get('HTTP_IF_MATCH', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
-            start_response('412 Precondition Failed', [])
-            return []
+            response = Response(status='412 Precondition Failed')
+            return response.for_wsgi(start_response)
         if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
         if if_none_match and etag_matches(if_none_match, current_etag):
-            start_response('412 Precondition Failed', [])
-            return []
+            response = Response(status='412 Precondition Failed')
+            return response.for_wsgi(start_response)
         if r is not None:
             # Item already exists; update it
             try:
                 new_etag = r.set_body(new_contents, current_etag)
             except PreconditionFailure as e:
-                return _send_simple_dav_error(
-                    environ, start_response, '412 Precondition Failed',
+                response = _send_simple_dav_error(
+                    environ, '412 Precondition Failed',
                     error=ET.Element(e.precondition),
                     description=e.description)
+                return response.for_wsgi(start_response)
             except NotImplementedError:
                 response = _send_method_not_allowed(
                     environ, app._get_allowed_methods(environ))
                 return response.for_wsgi(start_response)
             else:
-                start_response('204 No Content', [
+                response = Response(status='204 No Content', headers=[
                     ('ETag', new_etag)])
-                return []
+                return response.for_wsgi(start_response)
         content_type = environ.get('CONTENT_TYPE')
         container_path, name = posixpath.split(path)
         r = app.backend.get_resource(container_path)
@@ -1522,13 +1537,15 @@ class PutMethod(Method):
             (new_name, new_etag) = r.create_member(
                 name, new_contents, content_type)
         except PreconditionFailure as e:
-            return _send_simple_dav_error(
-                environ, start_response, '412 Precondition Failed',
+            response = _send_simple_dav_error(
+                environ, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
-        start_response('201 Created', [
+            return response.for_wsgi(start_response)
+        response = Response(
+            status=201, reason='Created', headers=[
             ('ETag', new_etag)])
-        return []
+        return response.for_wsgi(start_response) 
 
 
 class ReportMethod(Method):
@@ -1545,17 +1562,19 @@ class ReportMethod(Method):
             reporter = app.reporters[et.tag]
         except KeyError:
             logging.warning('Client requested unknown REPORT %s', et.tag)
-            return _send_simple_dav_error(
+            response = _send_simple_dav_error(
                 environ, start_response,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
                 description=('Unknown report %s.' % et.tag)
             )
+            return response.for_wsgi(start_response)
         if not reporter.supported_on(r):
-            return _send_simple_dav_error(
-                environ, start_response,
+            response = _send_simple_dav_error(
+                environ, 
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
                 description=('Report %s not supported on resource.' % et.tag)
             )
+            return response.for_wsgi(start_response)
         return reporter.report(
             environ, start_response, et,
             functools.partial(
@@ -1647,8 +1666,8 @@ class MkcolMethod(Method):
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:
-            start_response('409 Conflict', [])
-            return []
+            response = Response(status=409, reason='Conflict')
+            return response.for_wsgi(start_response)
         if base_content_type in ('text/xml', 'application/xml'):
             # Extended MKCOL (RFC5689)
             et = _readXmlBody(environ, '{DAV:}mkcol')
@@ -1661,11 +1680,12 @@ class MkcolMethod(Method):
             ret = ET.Element('{DAV:}mkcol-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
-            return _send_xml_response(start_response, '201 Created', ret,
-                                      DEFAULT_ENCODING)
+            response = _send_xml_response(
+                '201 Created', ret, DEFAULT_ENCODING)
+            return response.for_wsgi(start_response)
         else:
-            start_response('201 Created', [])
-            return []
+            response = Response(status=201, reason='Created')
+            return response.for_wsgi(start_response)
 
 
 class OptionsMethod(Method):
@@ -1687,28 +1707,29 @@ class OptionsMethod(Method):
         # Content-Length: 0 must be sent. This implies that there is
         # content (albeit empty), and thus a 204 is not a valid reply.
         # Thunderbird also fails if a 204 is sent rather than a 200.
-        start_response('200 OK', headers + [
+        response = Response(status=200, reason='OK', headers=headers + [
             ('Content-Length', '0')])
-        return []
+        return response.for_wsgi(start_response)
 
 
 class HeadMethod(Method):
 
     async def handle(self, environ, start_response, app):
-        return await _do_get(environ, start_response, app, send_body=False)
+        response = await _do_get(environ, app, send_body=False)
+        return response.for_wsgi(start_response)
 
 
 class GetMethod(Method):
 
     async def handle(self, environ, start_response, app):
-        return await _do_get(environ, start_response, app, send_body=True)
+        response = await _do_get(environ, app, send_body=True)
+        return response.for_wsgi(start_response)
 
 
-async def _do_get(environ, start_response, app, send_body):
+async def _do_get(environ, app, send_body):
     unused_href, unused_path, r = app._get_resource_from_environ(environ)
     if r is None:
-        response = _send_not_found(environ)
-        return response.for_wsgi(start_response)
+        return _send_not_found(environ)
     accept_content_types = parse_accept_header(
         environ.get('HTTP_ACCEPT', '*/*'))
     accept_content_languages = parse_accept_header(
@@ -1728,8 +1749,7 @@ async def _do_get(environ, start_response, app, send_body):
         if_none_match and current_etag is not None and
         etag_matches(if_none_match, current_etag)
     ):
-        start_response('304 Not Modified', [])
-        return []
+        return Response(status='304 Not Modified')
     headers = [
         ('Content-Length', str(content_length)),
     ]
@@ -1745,11 +1765,10 @@ async def _do_get(environ, start_response, app, send_body):
         headers.append(('Last-Modified', last_modified))
     if content_languages is not None:
         headers.append(('Content-Language', ', '.join(content_languages)))
-    start_response('200 OK', headers)
     if send_body:
-        return body
+        return Response(body=body, status=200, reason='OK', headers=headers)
     else:
-        return []
+        return Response(status=200, reason='OK', headers=headers)
 
 
 class WebDAVApp(object):
