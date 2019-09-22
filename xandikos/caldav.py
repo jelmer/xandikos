@@ -882,7 +882,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
     name = '{urn:ietf:params:xml:ns:caldav}free-busy-query'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def report(self, environ, start_response, body, resources_by_hrefs,
+    def report(self, environ, body, resources_by_hrefs,
                properties, base_href, base_resource, depth):
         requested = None
         for el in body:
@@ -908,13 +908,12 @@ class FreeBusyQueryReporter(webdav.Reporter):
             webdav.traverse_resource(base_resource, base_href, depth),
             start, end, tzify))
         ret.add_component(fb)
-        start_response('200 OK', [])
-        return [ret.to_ical()]
+        return webdav.Response(status='200 OK', body=[ret.to_ical()])
 
 
 class MkcalendarMethod(webdav.Method):
 
-    async def handle(self, environ, start_response, app):
+    async def handle(self, environ, app):
         try:
             content_type = environ['CONTENT_TYPE']
         except KeyError:
@@ -928,15 +927,14 @@ class MkcalendarMethod(webdav.Method):
         href, path, resource = app._get_resource_from_environ(environ)
         if resource is not None:
             return webdav._send_simple_dav_error(
-                environ, start_response,
+                environ, 
                 '403 Forbidden',
                 error=ET.Element('{DAV:}resource-must-be-null'),
                 description=('Something already exists at %r' % path))
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:
-            start_response('409 Conflict', [])
-            return []
+            return webdav.Response(status='409 Conflict')
         el = ET.Element('{DAV:}resourcetype')
         app.properties['{DAV:}resourcetype'].get_value(
             href, resource, el, environ)
@@ -957,7 +955,6 @@ class MkcalendarMethod(webdav.Method):
             for propstat_el in webdav.propstat_as_xml(propstat):
                 ret.append(propstat_el)
             return webdav._send_xml_response(
-                start_response, '201 Created', ret, webdav.DEFAULT_ENCODING)
+                '201 Created', ret, webdav.DEFAULT_ENCODING)
         else:
-            start_response('201 Created', [])
-            return []
+            return webdav.Response(status='201 Created')
