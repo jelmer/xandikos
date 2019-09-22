@@ -25,6 +25,7 @@ functionality should live in xandikos.caldav/xandikos.carddav respectively.
 
 # TODO(jelmer): Add authorization support
 
+import asyncio
 import collections
 import fnmatch
 import functools
@@ -268,8 +269,8 @@ class Status(object):
 
 def multistatus(req_fn):
 
-    def wrapper(self, environ, start_response, *args, **kwargs):
-        responses = req_fn(self, environ, *args, **kwargs)
+    async def wrapper(self, environ, start_response, *args, **kwargs):
+        responses = await req_fn(self, environ, *args, **kwargs)
         return _send_dav_responses(start_response, responses, DEFAULT_ENCODING)
 
     return wrapper
@@ -668,13 +669,13 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_etag)
 
-    def get_body(self):
+    async def get_body(self):
         """Get resource contents.
 
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
-    def render(self, self_url, accepted_content_types, accepted_languages):
+    async def render(self, self_url, accepted_content_types, accepted_languages):
         """'Render' this resource in the specified content type.
 
         The default implementation just checks that the
@@ -691,7 +692,7 @@ class Resource(object):
         content_types = pick_content_types(
             accepted_content_types, [self.get_content_type()])
         assert content_types == [self.get_content_type()]
-        body = self.get_body()
+        body = await self.get_body()
         try:
             content_language = self.get_content_language()
         except KeyError:
@@ -704,7 +705,8 @@ class Resource(object):
 
         :return: Length of this objects content.
         """
-        return sum(map(len, self.get_body()))
+        loop = asyncio.get_event_loop()
+        return sum(map(len, loop.run_until_complete(self.get_body())))
 
     def get_content_language(self):
         """Get content language.
@@ -1396,7 +1398,7 @@ class Method(object):
     def name(self):
         return type(self).__name__.upper()[:-6]
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, environ, start_response, app):
         raise NotImplementedError(self.handle)
 
     def allow(self, environ):
@@ -1406,7 +1408,7 @@ class Method(object):
 
 class DeleteMethod(Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, environ, start_response, app):
         unused_href, path, r = app._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ, start_response)
@@ -1426,7 +1428,7 @@ class DeleteMethod(Method):
 
 class PostMethod(Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, environ, start_response, app):
         # see RFC5995
         new_contents = _readBody(environ)
         unused_href, path, r = app._get_resource_from_environ(environ)
@@ -1454,7 +1456,7 @@ class PostMethod(Method):
 
 class PutMethod(Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, environ, start_response, app):
         new_contents = _readBody(environ)
         unused_href, path, r = app._get_resource_from_environ(environ)
         if r is not None:
@@ -1510,7 +1512,7 @@ class PutMethod(Method):
 
 class ReportMethod(Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, environ, start_response, app):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         base_href, unused_path, r = app._get_resource_from_environ(environ)
         if r is None:
@@ -1542,7 +1544,7 @@ class ReportMethod(Method):
 class PropfindMethod(Method):
 
     @multistatus
-    def handle(self, environ, app):
+    async def handle(self, environ, app):
         base_href, unused_path, base_resource = (
             app._get_resource_from_environ(environ))
         if base_resource is None:
@@ -1587,7 +1589,7 @@ class PropfindMethod(Method):
 class ProppatchMethod(Method):
 
     @multistatus
-    def handle(self, environ, app):
+    async def handle(self, environ, app):
         href, unused_path, resource = app._get_resource_from_environ(environ)
         if resource is None:
             return Status(request_uri(environ), '404 Not Found')
@@ -1604,7 +1606,7 @@ class ProppatchMethod(Method):
 
 class MkcolMethod(Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, environ, start_response, app):
         try:
             content_type = environ['CONTENT_TYPE']
         except KeyError:
@@ -1646,7 +1648,7 @@ class MkcolMethod(Method):
 
 class OptionsMethod(Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, environ, start_response, app):
         headers = []
         if environ['PATH_INFO'] != '*':
             unused_href, unused_path, r = (
@@ -1669,17 +1671,17 @@ class OptionsMethod(Method):
 
 class HeadMethod(Method):
 
-    def handle(self, environ, start_response, app):
-        return _do_get(environ, start_response, app, send_body=False)
+    async def handle(self, environ, start_response, app):
+        return await _do_get(environ, start_response, app, send_body=False)
 
 
 class GetMethod(Method):
 
-    def handle(self, environ, start_response, app):
-        return _do_get(environ, start_response, app, send_body=True)
+    async def handle(self, environ, start_response, app):
+        return await _do_get(environ, start_response, app, send_body=True)
 
 
-def _do_get(environ, start_response, app, send_body):
+async def _do_get(environ, start_response, app, send_body):
     unused_href, unused_path, r = app._get_resource_from_environ(environ)
     if r is None:
         return _send_not_found(environ, start_response)
@@ -1694,7 +1696,7 @@ def _do_get(environ, start_response, app, send_body):
         current_etag,
         content_type,
         content_languages
-    ) = r.render(environ['SCRIPT_NAME'] + environ['PATH_INFO'],
+    ) = await r.render(environ['SCRIPT_NAME'] + environ['PATH_INFO'],
                  accept_content_types, accept_content_languages)
 
     if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
@@ -1797,8 +1799,9 @@ class WebDAVApp(object):
         except KeyError:
             return _send_method_not_allowed(environ, start_response,
                                             self._get_allowed_methods(environ))
+        loop = asyncio.get_event_loop()
         try:
-            return do.handle(environ, start_response, self)
+            return loop.run_until_complete(do.handle(environ, start_response, self))
         except BadRequestError as e:
             start_response('400 Bad Request', [])
             return [e.message.encode(DEFAULT_ENCODING)]

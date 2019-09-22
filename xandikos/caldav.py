@@ -21,6 +21,7 @@
 
 https://tools.ietf.org/html/rfc4791
 """
+import asyncio
 import datetime
 import itertools
 import pytz
@@ -322,7 +323,8 @@ class CalendarDataProperty(davcommon.SubbedProperty):
 
     def get_value_ext(self, base_href, resource, el, environ, requested):
         if len(requested) == 0:
-            serialized_cal = b''.join(resource.get_body())
+            loop = asyncio.get_event_loop()
+            serialized_cal = b''.join(loop.run_until_complete(resource.get_body()))
         else:
             c = ICalendar()
             calendar = calendar_from_resource(resource)
@@ -912,7 +914,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
 
 class MkcalendarMethod(webdav.Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, environ, start_response, app):
         try:
             content_type = environ['CONTENT_TYPE']
         except KeyError:

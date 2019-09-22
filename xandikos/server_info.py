@@ -56,7 +56,7 @@ class ServerInfo(object):
             self._token = h.hexdigest()
         return self._token
 
-    def get_body(self):
+    async def get_body(self):
         el = ET.Element('{DAV:}server-info')
         el.set('token', self.token)
         server_el = ET.SubElement(el, 'server-instance-info')
