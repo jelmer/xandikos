@@ -308,7 +308,7 @@ class Status(object):
 def multistatus(req_fn):
 
     async def wrapper(self, environ, *args, **kwargs):
-        responses = await req_fn(self, environ, *args, **kwargs)
+        responses = [resp async for resp in req_fn(self, environ, *args, **kwargs)]
         return _send_dav_responses(responses, DEFAULT_ENCODING)
 
     return wrapper
@@ -1111,7 +1111,7 @@ class Reporter(object):
                        for rs in self.resource_type)
         return self.resource_type in resource.resource_types
 
-    def report(self, environ, request_body, resources_by_hrefs,
+    async def report(self, environ, request_body, resources_by_hrefs,
                properties, href, resource, depth):
         """Send a report.
 
@@ -1122,7 +1122,7 @@ class Reporter(object):
         :param href: Base resource href
         :param resource: Resource to start from
         :param depth: Depth ("0", "1", ...)
-        :return: chunked body
+        :return: a response
         """
         raise NotImplementedError(self.report)
 
@@ -1198,10 +1198,11 @@ class ExpandPropertyReporter(Reporter):
         return Status(href, '200 OK', propstat=ret)
 
     @multistatus
-    def report(self, environ, request_body, resources_by_hrefs, properties,
+    async def report(self, environ, request_body, resources_by_hrefs, properties,
                href, resource, depth):
-        return self._populate(request_body, resources_by_hrefs, properties,
-                              href, resource, environ)
+        async for resp in self._populate(request_body, resources_by_hrefs, properties,
+                href, resource, environ):
+            yield resp
 
 
 class SupportedLockProperty(Property):
@@ -1401,9 +1402,9 @@ def apply_modify_prop(el, href, resource, properties):
 async def _readBody(request):
     request_body_size = request.content_length
     if request_body_size is None:
-        return [await request.read()]
+        return [await request.content.read()]
     else:
-        return [await request.read(request_body_size)]
+        return [await request.content.read(request_body_size)]
 
 
 async def _readXmlBody(request, expected_tag=None):
@@ -1444,7 +1445,7 @@ class DeleteMethod(Method):
         unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is None:
             return _send_not_found(request)
-        container_path, item_name = posixpath.split(path)
+        container_path, item_name = posixpath.split(path.rstrip('/'))
         pr = app.backend.get_resource(container_path)
         if pr is None:
             return _send_not_found(request)
@@ -1557,7 +1558,7 @@ class ReportMethod(Method):
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
                 description=('Report %s not supported on resource.' % et.tag)
             )
-        return reporter.report(
+        return await reporter.report(
             environ, et, functools.partial(
                 _get_resources_by_hrefs, app.backend, environ),
             app.properties, base_href, r, depth)
@@ -1570,10 +1571,11 @@ class PropfindMethod(Method):
         base_href, unused_path, base_resource = (
             app._get_resource_from_environ(request, environ))
         if base_resource is None:
-            return Status(request.url, '404 Not Found')
+            yield Status(request.url, '404 Not Found')
+            return
         # Default depth is infinity, per RFC2518
         depth = request.headers.get("Depth", "infinity")
-        if not request.can_ready_body():
+        if not request.can_read_body:
             requested = None
         else:
             et = await _readXmlBody(request, '{DAV:}propfind')
@@ -1598,11 +1600,10 @@ class PropfindMethod(Method):
             else:
                 raise BadRequestError(
                     'Expected prop/allprop/propname tag, got ' + requested.tag)
-            ret.append(Status(href, '200 OK', propstat=list(propstat)))
+            yield Status(href, '200 OK', propstat=list(propstat))
         # By my reading of the WebDAV RFC, it should be legal to return
         # '200 OK' here if Depth=0, but the RFC is not super clear and
         # some clients don't seem to like it .
-        return ret
 
 
 class ProppatchMethod(Method):
@@ -1757,16 +1758,23 @@ class WSGIRequest(object):
             (k[5:], v) for k, v in environ.items()
             if k.startswith('HTTP_')])
         self.url = request_uri(environ)
+        class StreamWrapper(object):
 
-    def can_ready_body(self):
+            def __init__(self, stream):
+                self._stream = stream
+
+            async def read(self, size=None):
+                return self._stream.read(size)
+
+        self.content = StreamWrapper(self._environ['wsgi.input'])
+
+    @property
+    def can_read_body(self):
         return ('CONTENT_TYPE' in self._environ or
                 self._environ.get('CONTENT_LENGTH') != '0')
 
-    async def read(self, size=None):
-        if size is None:
-            return self._environ['wsgi.input'].read()
-        else:
-            return self._environ['wsgi.input'].read(size)
+    async def read(self):
+        return self._environ['wsgi.input'].read()
 
 
 class WebDAVApp(object):

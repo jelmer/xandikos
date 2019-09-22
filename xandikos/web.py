@@ -1046,6 +1046,7 @@ class RedirectDavHandler(object):
         self._dav_root = dav_root
 
     async def __call__(self, request):
+        from aiohttp import web
         return web.HTTPFound(self._dav_root)
 
 

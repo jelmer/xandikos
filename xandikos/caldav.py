@@ -501,8 +501,9 @@ class CalendarQueryReporter(webdav.Reporter):
     data_property = CalendarDataProperty()
 
     @webdav.multistatus
-    def report(self, environ, body, resources_by_hrefs, properties, base_href,
-               base_resource, depth):
+    async def report(
+            self, environ, body, resources_by_hrefs, properties, base_href,
+            base_resource, depth):
         # TODO(jelmer): Verify that resource is a calendar
         requested = None
         filter_el = None
@@ -882,7 +883,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
     name = '{urn:ietf:params:xml:ns:caldav}free-busy-query'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def report(self, environ, body, resources_by_hrefs,
+    async def report(self, environ, body, resources_by_hrefs,
                properties, base_href, base_resource, depth):
         requested = None
         for el in body:
