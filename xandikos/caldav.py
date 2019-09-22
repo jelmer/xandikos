@@ -862,15 +862,12 @@ class FreeBusyQueryReporter(webdav.Reporter):
 
 class MkcalendarMethod(webdav.Method):
 
-    async def handle(self, environ, app):
-        try:
-            content_type = environ['CONTENT_TYPE']
-        except KeyError:
-            base_content_type = None
-        else:
-            base_content_type, params = webdav.parse_type(content_type)
+    async def handle(self, request, environ, app):
+        content_type = request.content_type
+        base_content_type, params = webdav.parse_type(content_type)
         if base_content_type not in (
-            'text/xml', 'application/xml', None, 'text/plain'
+            'text/xml', 'application/xml', None, 'text/plain',
+            'application/octet-stream',
         ):
             raise webdav.UnsupportedMediaType(content_type)
         href, path, resource = app._get_resource_from_environ(environ)
@@ -890,8 +887,8 @@ class MkcalendarMethod(webdav.Method):
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         app.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):
-            et = webdav._readXmlBody(
-                environ, '{urn:ietf:params:xml:ns:caldav}mkcalendar')
+            et = await webdav._readXmlBody(
+                request, '{urn:ietf:params:xml:ns:caldav}mkcalendar')
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':

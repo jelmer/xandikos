@@ -1399,25 +1399,20 @@ def apply_modify_prop(el, href, resource, properties):
             yield PropStatus(statuscode, None, ET.Element(propel.tag))
 
 
-def _readBody(environ):
-    try:
-        request_body_size = int(environ['CONTENT_LENGTH'])
-    except KeyError:
-        return [environ['wsgi.input'].read()]
+async def _readBody(request):
+    request_body_size = request.content_length
+    if request_body_size is None:
+        return [await request.read()]
     else:
-        return [environ['wsgi.input'].read(request_body_size)]
+        return [await request.read(request_body_size)]
 
 
-def _readXmlBody(environ, expected_tag=None):
-    try:
-        content_type = environ['CONTENT_TYPE']
-    except KeyError:
-        pass  # Just assume it's okay?
-    else:
-        base_content_type, params = parse_type(content_type)
-        if base_content_type not in ('text/xml', 'application/xml'):
-            raise UnsupportedMediaType(content_type)
-    body = b''.join(_readBody(environ))
+async def _readXmlBody(request, expected_tag=None):
+    content_type = request.content_type
+    base_content_type, params = parse_type(content_type)
+    if base_content_type not in ('text/xml', 'application/xml'):
+        raise UnsupportedMediaType(content_type)
+    body = b''.join(await _readBody(request))
     if os.environ.get('XANDIKOS_DUMP_DAV_XML'):
         print("IN: " + body.decode('utf-8'))
     try:
@@ -1436,7 +1431,7 @@ class Method(object):
     def name(self):
         return type(self).__name__.upper()[:-6]
 
-    async def handle(self, environ, app):
+    async def handle(self, request, environ, app):
         raise NotImplementedError(self.handle)
 
     def allow(self, environ):
@@ -1446,7 +1441,7 @@ class Method(object):
 
 class DeleteMethod(Method):
 
-    async def handle(self, environ, app):
+    async def handle(self, request, environ, app):
         unused_href, path, r = app._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ)
@@ -1464,7 +1459,7 @@ class DeleteMethod(Method):
 
 class PostMethod(Method):
 
-    async def handle(self, environ, app):
+    async def handle(self, request, environ, app):
         # see RFC5995
         new_contents = _readBody(environ)
         unused_href, path, r = app._get_resource_from_environ(environ)
@@ -1473,7 +1468,7 @@ class PostMethod(Method):
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             return _send_method_not_allowed(
                 environ, app._get_allowed_methods(environ))
-        content_type = environ['CONTENT_TYPE'].split(';')[0]
+        content_type, params = parse_type(request.content_type)
         try:
             (name, etag) = r.create_member(None, new_contents, content_type)
         except PreconditionFailure as e:
@@ -1490,8 +1485,8 @@ class PostMethod(Method):
 
 class PutMethod(Method):
 
-    async def handle(self, environ, app):
-        new_contents = _readBody(environ)
+    async def handle(self, request, environ, app):
+        new_contents = await _readBody(request)
         unused_href, path, r = app._get_resource_from_environ(environ)
         if r is not None:
             current_etag = r.get_etag()
@@ -1518,7 +1513,7 @@ class PutMethod(Method):
             else:
                 return Response(status='204 No Content', headers=[
                     ('ETag', new_etag)])
-        content_type = environ.get('CONTENT_TYPE')
+        content_type = request.content_type
         container_path, name = posixpath.split(path)
         r = app.backend.get_resource(container_path)
         if r is None:
@@ -1541,13 +1536,13 @@ class PutMethod(Method):
 
 class ReportMethod(Method):
 
-    async def handle(self, environ, app):
+    async def handle(self, request, environ, app):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         base_href, unused_path, r = app._get_resource_from_environ(environ)
         if r is None:
             return _send_not_found(environ)
         depth = environ.get("HTTP_DEPTH", "0")
-        et = _readXmlBody(environ, None)
+        et = await _readXmlBody(request, None)
         try:
             reporter = app.reporters[et.tag]
         except KeyError:
@@ -1572,20 +1567,17 @@ class ReportMethod(Method):
 class PropfindMethod(Method):
 
     @multistatus
-    async def handle(self, environ, app):
+    async def handle(self, request, environ, app):
         base_href, unused_path, base_resource = (
             app._get_resource_from_environ(environ))
         if base_resource is None:
             return Status(request_uri(environ), '404 Not Found')
         # Default depth is infinity, per RFC2518
         depth = environ.get("HTTP_DEPTH", "infinity")
-        if (
-            'CONTENT_TYPE' not in environ and
-            environ.get('CONTENT_LENGTH') == '0'
-        ):
+        if not request.can_ready_body():
             requested = None
         else:
-            et = _readXmlBody(environ, '{DAV:}propfind')
+            et = await _readXmlBody(request, '{DAV:}propfind')
             try:
                 [requested] = et
             except ValueError:
@@ -1617,11 +1609,11 @@ class PropfindMethod(Method):
 class ProppatchMethod(Method):
 
     @multistatus
-    async def handle(self, environ, app):
+    async def handle(self, request, environ, app):
         href, unused_path, resource = app._get_resource_from_environ(environ)
         if resource is None:
             return Status(request_uri(environ), '404 Not Found')
-        et = _readXmlBody(environ, '{DAV:}propertyupdate')
+        et = await _readXmlBody(request, '{DAV:}propertyupdate')
         propstat = []
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
@@ -1634,15 +1626,12 @@ class ProppatchMethod(Method):
 
 class MkcolMethod(Method):
 
-    async def handle(self, environ, app):
-        try:
-            content_type = environ['CONTENT_TYPE']
-        except KeyError:
-            base_content_type = None
-        else:
-            base_content_type, params = parse_type(content_type)
+    async def handle(self, request, environ, app):
+        content_type = request.content_type
+        base_content_type, params = parse_type(content_type)
         if base_content_type not in (
-            'text/plain', 'text/xml', 'application/xml', None
+            'text/plain', 'text/xml', 'application/xml', None,
+            'application/octet-stream',
         ):
             raise UnsupportedMediaType(base_content_type)
         href, path, resource = app._get_resource_from_environ(environ)
@@ -1655,7 +1644,7 @@ class MkcolMethod(Method):
             return Response(status=409, reason='Conflict')
         if base_content_type in ('text/xml', 'application/xml'):
             # Extended MKCOL (RFC5689)
-            et = _readXmlBody(environ, '{DAV:}mkcol')
+            et = await _readXmlBody(request, '{DAV:}mkcol')
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
@@ -1673,7 +1662,7 @@ class MkcolMethod(Method):
 
 class OptionsMethod(Method):
 
-    async def handle(self, environ, app):
+    async def handle(self, request, environ, app):
         headers = []
         if environ['PATH_INFO'] != '*':
             unused_href, unused_path, r = (
@@ -1695,17 +1684,17 @@ class OptionsMethod(Method):
 
 class HeadMethod(Method):
 
-    async def handle(self, environ, app):
-        return await _do_get(environ, app, send_body=False)
+    async def handle(self, request, environ, app):
+        return await _do_get(request, environ, app, send_body=False)
 
 
 class GetMethod(Method):
 
-    async def handle(self, environ, app):
-        return await _do_get(environ, app, send_body=True)
+    async def handle(self, request, environ, app):
+        return await _do_get(request, environ, app, send_body=True)
 
 
-async def _do_get(environ, app, send_body):
+async def _do_get(request, environ, app, send_body):
     unused_href, unused_path, r = app._get_resource_from_environ(environ)
     if r is None:
         return _send_not_found(environ)
@@ -1754,8 +1743,24 @@ class WSGIRequest(object):
     """Request object for wsgi requests (with environ)."""
 
     def __init__(self, environ):
-        self.environ = environ
+        self._environ = environ
         self.method = environ['REQUEST_METHOD']
+        self.content_type = environ.get(
+            'CONTENT_TYPE', 'application/octet-stream')
+        try:
+            self.content_length = int(environ['CONTENT_LENGTH'])
+        except KeyError:
+            self.content_length = None
+
+    def can_ready_body(self):
+        return ('CONTENT_TYPE' in self._environ or
+                self._environ.get('CONTENT_LENGTH') != '0')
+
+    async def read(self, size=None):
+        if size is None:
+            return self._environ['wsgi.input'].read()
+        else:
+            return self._environ['wsgi.input'].read(size)
 
 
 class WebDAVApp(object):
@@ -1827,7 +1832,7 @@ class WebDAVApp(object):
         except KeyError:
             return _send_method_not_allowed(environ, self._get_allowed_methods(environ))
         try:
-            return await do.handle(environ, self)
+            return await do.handle(request, environ, self)
         except BadRequestError as e:
             return Response(
                 status='400 Bad Request',
@@ -1853,10 +1858,7 @@ class WebDAVApp(object):
         return response.for_wsgi(start_response)
     
     async def aiohttp_handler(self, request):
-        environ = {
-            'PATH_INFO': request.raw_path,
-            'CONTENT_TYPE': request.content_type,
-            }
+        environ = {}
         response = await self._handle_request(request, environ)
         return response.for_aiohttp()
 
