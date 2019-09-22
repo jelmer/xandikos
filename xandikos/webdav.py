@@ -84,6 +84,23 @@ class UnauthorizedError(Exception):
             "Request unauthorized")
 
 
+class Response(object):
+    """Generic wrapper for HTTP-style responses.
+    """
+
+    def __init__(self, status=200, reason='OK', body=None, headers=None):
+        self.status = status
+        self.reason = reason
+        self.body = body or []
+        self.headers = headers or {}
+
+    def for_wsgi(self, start_response):
+        start_response(
+            '%d %s' % (self.status, self.reason),
+            headers=list(self.headers.items()))
+        return self.body
+        
+
 def pick_content_types(accepted_content_types, available_content_types):
     """Pick best content types for a client.
 
@@ -1301,16 +1318,16 @@ def _send_simple_dav_error(environ, start_response, statuscode, error,
     return _send_dav_responses(start_response, status, DEFAULT_ENCODING)
 
 
-def _send_not_found(environ, start_response):
+def _send_not_found(environ):
     path = request_uri(environ)
-    start_response('404 Not Found', [])
-    return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
+    body = [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
+    return Response(body=body, status=404, reason='Not Found')
 
 
-def _send_method_not_allowed(environ, start_response, allowed_methods):
-    start_response('405 Method Not Allowed', [
-        ('Allow', ', '.join(allowed_methods))])
-    return []
+def _send_method_not_allowed(environ, allowed_methods):
+    return Response(
+        status=405, reason='Method Not Allowed',
+        headers={'Allow': ', '.join(allowed_methods)})
 
 
 def apply_modify_prop(el, href, resource, properties):
@@ -1411,19 +1428,21 @@ class DeleteMethod(Method):
     async def handle(self, environ, start_response, app):
         unused_href, path, r = app._get_resource_from_environ(environ)
         if r is None:
-            return _send_not_found(environ, start_response)
+            response = _send_not_found(environ)
+            return response.for_wsgi(start_response)
         container_path, item_name = posixpath.split(path)
         pr = app.backend.get_resource(container_path)
         if pr is None:
-            return _send_not_found(environ, start_response)
+            response = _send_not_found(environ)
+            return response.for_wsgi(start_response)
         current_etag = r.get_etag()
         if_match = environ.get('HTTP_IF_MATCH', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
-            start_response('412 Precondition Failed', [])
-            return []
+            response = Response(status=412, reason='Precondition Failed')
+            return response.for_wsgi(start_response)
         pr.delete_member(item_name, current_etag)
-        start_response('204 No Content', [])
-        return []
+        response = Response(status=204, reason='No Content')
+        return response.for_wsgi(start_response)
 
 
 class PostMethod(Method):
@@ -1433,11 +1452,12 @@ class PostMethod(Method):
         new_contents = _readBody(environ)
         unused_href, path, r = app._get_resource_from_environ(environ)
         if r is None:
-            return _send_not_found(environ, start_response)
+            response = _send_not_found(environ)
+            return response.for_wsgi(start_response)
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
-            return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
+            response = _send_method_not_allowed(
+                environ, app._get_allowed_methods(environ))
+            return response.for_wsgi(start_response)
         content_type = environ['CONTENT_TYPE'].split(';')[0]
         try:
             (name, etag) = r.create_member(None, new_contents, content_type)
@@ -1450,8 +1470,8 @@ class PostMethod(Method):
             environ['SCRIPT_NAME'] +
             urllib.parse.urljoin(ensure_trailing_slash(path), name)
         )
-        start_response('200 OK', [('Location', href)])
-        return []
+        response = Response(headers={'Location': href})
+        return response.for_wsgi(start_response)
 
 
 class PutMethod(Method):
@@ -1481,9 +1501,9 @@ class PutMethod(Method):
                     error=ET.Element(e.precondition),
                     description=e.description)
             except NotImplementedError:
-                return _send_method_not_allowed(
-                    environ, start_response,
-                    app._get_allowed_methods(environ))
+                response = _send_method_not_allowed(
+                    environ, app._get_allowed_methods(environ))
+                return response.for_wsgi(start_response)
             else:
                 start_response('204 No Content', [
                     ('ETag', new_etag)])
@@ -1492,11 +1512,12 @@ class PutMethod(Method):
         container_path, name = posixpath.split(path)
         r = app.backend.get_resource(container_path)
         if r is None:
-            return _send_not_found(environ, start_response)
+            response = _send_not_found(environ)
+            return response.for_wsgi(start_response)
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
-            return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
+            response = _send_method_not_allowed(
+                environ, app._get_allowed_methods(environ))
+            return response.for_wsgi(start_response)
         try:
             (new_name, new_etag) = r.create_member(
                 name, new_contents, content_type)
@@ -1516,7 +1537,8 @@ class ReportMethod(Method):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         base_href, unused_path, r = app._get_resource_from_environ(environ)
         if r is None:
-            return _send_not_found(environ, start_response)
+            response = _send_not_found(environ)
+            return response.for_wsgi(start_response)
         depth = environ.get("HTTP_DEPTH", "0")
         et = _readXmlBody(environ, None)
         try:
@@ -1619,9 +1641,9 @@ class MkcolMethod(Method):
             raise UnsupportedMediaType(base_content_type)
         href, path, resource = app._get_resource_from_environ(environ)
         if resource is not None:
-            return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
+            response = _send_method_not_allowed(
+                environ, app._get_allowed_methods(environ))
+            return response.for_wsgi(start_response)
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:
@@ -1654,7 +1676,8 @@ class OptionsMethod(Method):
             unused_href, unused_path, r = (
                 app._get_resource_from_environ(environ))
             if r is None:
-                return _send_not_found(environ, start_response)
+                response = _send_not_found(environ)
+                return response.for_wsgi(start_response)
             dav_features = app._get_dav_features(r)
             headers.append(('DAV', ', '.join(dav_features)))
             allowed_methods = app._get_allowed_methods(environ)
@@ -1684,7 +1707,8 @@ class GetMethod(Method):
 async def _do_get(environ, start_response, app, send_body):
     unused_href, unused_path, r = app._get_resource_from_environ(environ)
     if r is None:
-        return _send_not_found(environ, start_response)
+        response = _send_not_found(environ)
+        return response.for_wsgi(start_response)
     accept_content_types = parse_accept_header(
         environ.get('HTTP_ACCEPT', '*/*'))
     accept_content_languages = parse_accept_header(
@@ -1797,8 +1821,8 @@ class WebDAVApp(object):
         try:
             do = self.methods[method]
         except KeyError:
-            return _send_method_not_allowed(environ, start_response,
-                                            self._get_allowed_methods(environ))
+            response = _send_method_not_allowed(environ, self._get_allowed_methods(environ))
+            return response.for_wsgi(start_response)
         loop = asyncio.get_event_loop()
         try:
             return loop.run_until_complete(do.handle(environ, start_response, self))
