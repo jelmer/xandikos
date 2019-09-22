@@ -29,6 +29,7 @@ def test_suite():
         'store',
         'webdav',
         'web',
+        'wsgi',
     ]
     module_names = ['xandikos.tests.test_' + name for name in names]
     loader = unittest.TestLoader()
