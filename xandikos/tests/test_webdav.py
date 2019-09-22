@@ -65,7 +65,10 @@ class WebTests(WebTestCase):
         return self._method(app, 'LOCK', path)
 
     def mkcol(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL'}
+        environ = {
+            'PATH_INFO': path,
+            'REQUEST_METHOD': 'MKCOL',
+            }
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -120,6 +123,7 @@ class WebTests(WebTestCase):
         environ = {
             'PATH_INFO': path,
             'REQUEST_METHOD': 'PROPFIND',
+            'CONTENT_TYPE': 'text/xml',
             'wsgi.input': BytesIO(body),
         }
         setup_testing_defaults(environ)
