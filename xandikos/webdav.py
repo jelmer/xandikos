@@ -1798,10 +1798,9 @@ class WebDAVApp(object):
                 ret.append(name)
         return ret
 
-    def __call__(self, environ, start_response):
+    async def _handle_request(self, environ):
         if environ.get('HTTP_EXPECT', '') != '':
-            start_response('417 Expectation Failed', [])
-            return []
+            return Response(status='417 Expectation Failed')
         if 'SCRIPT_NAME' not in environ:
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ['SCRIPT_NAME'] = ''
@@ -1809,26 +1808,31 @@ class WebDAVApp(object):
         try:
             do = self.methods[method]
         except KeyError:
-            response = _send_method_not_allowed(environ, self._get_allowed_methods(environ))
-            return response.for_wsgi(start_response)
-        loop = asyncio.get_event_loop()
+            return _send_method_not_allowed(environ, self._get_allowed_methods(environ))
         try:
-            response = loop.run_until_complete(do.handle(environ, self))
+            return await do.handle(environ, self)
         except BadRequestError as e:
-            response = Response(
+            return Response(
                 status='400 Bad Request',
                 body=[e.message.encode(DEFAULT_ENCODING)])
         except NotAcceptableError as e:
-            response = Response(
+            return Response(
                 status='406 Not Acceptable',
                 body=[str(e).encode(DEFAULT_ENCODING)])
         except UnsupportedMediaType as e:
-            response = Response(
+            return Response(
                 status='415 Unsupported Media Type',
                 body=[('Unsupported media type %r' % e.content_type)
                     .encode(DEFAULT_ENCODING)])
         except UnauthorizedError:
-            response = Response(
+            return Response(
                 status='401 Unauthorized', 
                 body=[('Please login.'.encode(DEFAULT_ENCODING))])
+
+    def handle_wsgi_request(self, environ, start_response):
+        loop = asyncio.get_event_loop()
+        response = loop.run_until_complete(self._handle_request(environ))
         return response.for_wsgi(start_response)
+
+    # Backwards compatibility
+    __call__ = handle_wsgi_request
