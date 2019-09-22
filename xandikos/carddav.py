@@ -315,7 +315,7 @@ class AddressbookQueryReporter(webdav.Reporter):
     data_property = AddressDataProperty()
 
     @webdav.multistatus
-    def report(self, environ, body, resources_by_hrefs, properties, base_href,
+    async def report(self, environ, body, resources_by_hrefs, properties, base_href,
                base_resource, depth):
         requested = None
         filter_el = None
