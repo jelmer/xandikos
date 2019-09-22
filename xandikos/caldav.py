@@ -921,7 +921,7 @@ class MkcalendarMethod(webdav.Method):
             'application/octet-stream',
         ):
             raise webdav.UnsupportedMediaType(content_type)
-        href, path, resource = app._get_resource_from_environ(environ)
+        href, path, resource = app._get_resource_from_environ(request, environ)
         if resource is not None:
             return webdav._send_simple_dav_error(
                 environ, 
