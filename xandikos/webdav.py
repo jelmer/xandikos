@@ -84,6 +84,34 @@ class UnauthorizedError(Exception):
             "Request unauthorized")
 
 
+class Response(object):
+    """Generic wrapper for HTTP-style responses.
+    """
+
+    def __init__(self, status=200, reason='OK', body=None, headers=None):
+        if isinstance(status, str):
+            self.status = int(status.split(' ', 1)[0])
+            self.reason = status.split(' ', 1)[1]
+        else:
+            self.status = status
+            self.reason = reason
+        self.body = body or []
+        if isinstance(headers, dict):
+            self.headers = list(headers.items())
+        elif isinstance(headers, list):
+            self.headers = list(headers)
+        elif not headers:
+            self.headers = []
+        else:
+            raise TypeError(headers)
+
+    def for_wsgi(self, start_response):
+        start_response(
+            '%d %s' % (self.status, self.reason),
+            headers=self.headers)
+        return self.body
+        
+
 def pick_content_types(accepted_content_types, available_content_types):
     """Pick best content types for a client.
 
@@ -269,9 +297,9 @@ class Status(object):
 
 def multistatus(req_fn):
 
-    async def wrapper(self, environ, start_response, *args, **kwargs):
+    async def wrapper(self, environ, *args, **kwargs):
         responses = await req_fn(self, environ, *args, **kwargs)
-        return _send_dav_responses(start_response, responses, DEFAULT_ENCODING)
+        return _send_dav_responses(responses, DEFAULT_ENCODING)
 
     return wrapper
 
@@ -1073,12 +1101,11 @@ class Reporter(object):
                        for rs in self.resource_type)
         return self.resource_type in resource.resource_types
 
-    def report(self, environ, start_response, request_body, resources_by_hrefs,
+    def report(self, environ, request_body, resources_by_hrefs,
                properties, href, resource, depth):
         """Send a report.
 
         :param environ: wsgi environ
-        :param start_response: WSGI start_response function
         :param request_body: XML Element for request body
         :param resources_by_hrefs: Function for retrieving resource by HREF
         :param properties: Dictionary mapping names to DAVProperty instances
@@ -1264,18 +1291,20 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
         yield (href, resource)
 
 
-def _send_xml_response(start_response, status, et, out_encoding):
+def _send_xml_response(status, et, out_encoding):
     body_type = 'text/xml; charset="%s"' % out_encoding
     if os.environ.get('XANDIKOS_DUMP_DAV_XML'):
         print("OUT: " + ET.tostring(et).decode('utf-8'))
     body = ET.tostringlist(et, encoding=out_encoding)
-    start_response(status, [
-        ('Content-Type', body_type),
-        ('Content-Length', str(sum(map(len, body))))])
-    return body
+    return Response(
+        status=status,
+        body=body,
+        headers={
+        'Content-Type': body_type,
+        'Content-Length': str(sum(map(len, body)))})
 
 
-def _send_dav_responses(start_response, responses, out_encoding):
+def _send_dav_responses(responses, out_encoding):
     if isinstance(responses, Status):
         try:
             (body, body_type) = responses.get_single_body(
@@ -1283,34 +1312,33 @@ def _send_dav_responses(start_response, responses, out_encoding):
         except NeedsMultiStatus:
             responses = [responses]
         else:
-            start_response(responses.status, [
-                ('Content-Type', body_type),
-                ('Content-Length', str(sum(map(len, body))))])
-            return body
+            return Response(status=responses.status, headers={
+                'Content-Type': body_type,
+                'Content-Length': str(sum(map(len, body)))},
+                body=body)
     ret = ET.Element('{DAV:}multistatus')
     for response in responses:
         ret.append(response.aselement())
-    return _send_xml_response(start_response, '207 Multi-Status', ret,
-                              out_encoding)
+    return _send_xml_response('207 Multi-Status', ret, out_encoding)
 
 
-def _send_simple_dav_error(environ, start_response, statuscode, error,
+def _send_simple_dav_error(environ, statuscode, error,
                            description):
     status = Status(request_uri(environ), statuscode, error=error,
                     responsedescription=description)
-    return _send_dav_responses(start_response, status, DEFAULT_ENCODING)
+    return _send_dav_responses(status, DEFAULT_ENCODING)
 
 
-def _send_not_found(environ, start_response):
+def _send_not_found(environ):
     path = request_uri(environ)
-    start_response('404 Not Found', [])
-    return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
+    body = [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
+    return Response(body=body, status=404, reason='Not Found')
 
 
-def _send_method_not_allowed(environ, start_response, allowed_methods):
-    start_response('405 Method Not Allowed', [
-        ('Allow', ', '.join(allowed_methods))])
-    return []
+def _send_method_not_allowed(environ, allowed_methods):
+    return Response(
+        status=405, reason='Method Not Allowed',
+        headers={'Allow': ', '.join(allowed_methods)})
 
 
 def apply_modify_prop(el, href, resource, properties):
@@ -1398,7 +1426,7 @@ class Method(object):
     def name(self):
         return type(self).__name__.upper()[:-6]
 
-    async def handle(self, environ, start_response, app):
+    async def handle(self, environ, app):
         raise NotImplementedError(self.handle)
 
     def allow(self, environ):
@@ -1408,55 +1436,51 @@ class Method(object):
 
 class DeleteMethod(Method):
 
-    async def handle(self, environ, start_response, app):
+    async def handle(self, environ, app):
         unused_href, path, r = app._get_resource_from_environ(environ)
         if r is None:
-            return _send_not_found(environ, start_response)
+            return _send_not_found(environ)
         container_path, item_name = posixpath.split(path)
         pr = app.backend.get_resource(container_path)
         if pr is None:
-            return _send_not_found(environ, start_response)
+            return _send_not_found(environ)
         current_etag = r.get_etag()
         if_match = environ.get('HTTP_IF_MATCH', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
-            start_response('412 Precondition Failed', [])
-            return []
+            return Response(status=412, reason='Precondition Failed')
         pr.delete_member(item_name, current_etag)
-        start_response('204 No Content', [])
-        return []
+        return Response(status=204, reason='No Content')
 
 
 class PostMethod(Method):
 
-    async def handle(self, environ, start_response, app):
+    async def handle(self, environ, app):
         # see RFC5995
         new_contents = _readBody(environ)
         unused_href, path, r = app._get_resource_from_environ(environ)
         if r is None:
-            return _send_not_found(environ, start_response)
+            return _send_not_found(environ)
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
+                environ, app._get_allowed_methods(environ))
         content_type = environ['CONTENT_TYPE'].split(';')[0]
         try:
             (name, etag) = r.create_member(None, new_contents, content_type)
         except PreconditionFailure as e:
             return _send_simple_dav_error(
-                environ, start_response, '412 Precondition Failed',
+                environ, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
         href = (
             environ['SCRIPT_NAME'] +
             urllib.parse.urljoin(ensure_trailing_slash(path), name)
         )
-        start_response('200 OK', [('Location', href)])
-        return []
+        return Response(headers={'Location': href})
 
 
 class PutMethod(Method):
 
-    async def handle(self, environ, start_response, app):
+    async def handle(self, environ, app):
         new_contents = _readBody(environ)
         unused_href, path, r = app._get_resource_from_environ(environ)
         if r is not None:
@@ -1465,58 +1489,53 @@ class PutMethod(Method):
             current_etag = None
         if_match = environ.get('HTTP_IF_MATCH', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
-            start_response('412 Precondition Failed', [])
-            return []
+            return Response(status='412 Precondition Failed')
         if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
         if if_none_match and etag_matches(if_none_match, current_etag):
-            start_response('412 Precondition Failed', [])
-            return []
+            return Response(status='412 Precondition Failed')
         if r is not None:
             # Item already exists; update it
             try:
                 new_etag = r.set_body(new_contents, current_etag)
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
-                    environ, start_response, '412 Precondition Failed',
+                    environ, '412 Precondition Failed',
                     error=ET.Element(e.precondition),
                     description=e.description)
             except NotImplementedError:
                 return _send_method_not_allowed(
-                    environ, start_response,
-                    app._get_allowed_methods(environ))
+                    environ, app._get_allowed_methods(environ))
             else:
-                start_response('204 No Content', [
+                return Response(status='204 No Content', headers=[
                     ('ETag', new_etag)])
-                return []
         content_type = environ.get('CONTENT_TYPE')
         container_path, name = posixpath.split(path)
         r = app.backend.get_resource(container_path)
         if r is None:
-            return _send_not_found(environ, start_response)
+            return _send_not_found(environ)
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
+                environ, app._get_allowed_methods(environ))
         try:
             (new_name, new_etag) = r.create_member(
                 name, new_contents, content_type)
         except PreconditionFailure as e:
             return _send_simple_dav_error(
-                environ, start_response, '412 Precondition Failed',
+                environ, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
-        start_response('201 Created', [
+        return Response(
+            status=201, reason='Created', headers=[
             ('ETag', new_etag)])
-        return []
 
 
 class ReportMethod(Method):
 
-    async def handle(self, environ, start_response, app):
+    async def handle(self, environ, app):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
         base_href, unused_path, r = app._get_resource_from_environ(environ)
         if r is None:
-            return _send_not_found(environ, start_response)
+            return _send_not_found(environ)
         depth = environ.get("HTTP_DEPTH", "0")
         et = _readXmlBody(environ, None)
         try:
@@ -1524,19 +1543,18 @@ class ReportMethod(Method):
         except KeyError:
             logging.warning('Client requested unknown REPORT %s', et.tag)
             return _send_simple_dav_error(
-                environ, start_response,
+                environ,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
                 description=('Unknown report %s.' % et.tag)
             )
         if not reporter.supported_on(r):
             return _send_simple_dav_error(
-                environ, start_response,
+                environ, 
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
                 description=('Report %s not supported on resource.' % et.tag)
             )
         return reporter.report(
-            environ, start_response, et,
-            functools.partial(
+            environ, et, functools.partial(
                 _get_resources_by_hrefs, app.backend, environ),
             app.properties, base_href, r, depth)
 
@@ -1606,7 +1624,7 @@ class ProppatchMethod(Method):
 
 class MkcolMethod(Method):
 
-    async def handle(self, environ, start_response, app):
+    async def handle(self, environ, app):
         try:
             content_type = environ['CONTENT_TYPE']
         except KeyError:
@@ -1620,13 +1638,11 @@ class MkcolMethod(Method):
         href, path, resource = app._get_resource_from_environ(environ)
         if resource is not None:
             return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
+                environ, app._get_allowed_methods(environ))
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:
-            start_response('409 Conflict', [])
-            return []
+            return Response(status=409, reason='Conflict')
         if base_content_type in ('text/xml', 'application/xml'):
             # Extended MKCOL (RFC5689)
             et = _readXmlBody(environ, '{DAV:}mkcol')
@@ -1639,22 +1655,21 @@ class MkcolMethod(Method):
             ret = ET.Element('{DAV:}mkcol-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
-            return _send_xml_response(start_response, '201 Created', ret,
-                                      DEFAULT_ENCODING)
+            return _send_xml_response(
+                '201 Created', ret, DEFAULT_ENCODING)
         else:
-            start_response('201 Created', [])
-            return []
+            return Response(status=201, reason='Created')
 
 
 class OptionsMethod(Method):
 
-    async def handle(self, environ, start_response, app):
+    async def handle(self, environ, app):
         headers = []
         if environ['PATH_INFO'] != '*':
             unused_href, unused_path, r = (
                 app._get_resource_from_environ(environ))
             if r is None:
-                return _send_not_found(environ, start_response)
+                return _send_not_found(environ)
             dav_features = app._get_dav_features(r)
             headers.append(('DAV', ', '.join(dav_features)))
             allowed_methods = app._get_allowed_methods(environ)
@@ -1664,27 +1679,26 @@ class OptionsMethod(Method):
         # Content-Length: 0 must be sent. This implies that there is
         # content (albeit empty), and thus a 204 is not a valid reply.
         # Thunderbird also fails if a 204 is sent rather than a 200.
-        start_response('200 OK', headers + [
+        return Response(status=200, reason='OK', headers=headers + [
             ('Content-Length', '0')])
-        return []
 
 
 class HeadMethod(Method):
 
-    async def handle(self, environ, start_response, app):
-        return await _do_get(environ, start_response, app, send_body=False)
+    async def handle(self, environ, app):
+        return await _do_get(environ, app, send_body=False)
 
 
 class GetMethod(Method):
 
-    async def handle(self, environ, start_response, app):
-        return await _do_get(environ, start_response, app, send_body=True)
+    async def handle(self, environ, app):
+        return await _do_get(environ, app, send_body=True)
 
 
-async def _do_get(environ, start_response, app, send_body):
+async def _do_get(environ, app, send_body):
     unused_href, unused_path, r = app._get_resource_from_environ(environ)
     if r is None:
-        return _send_not_found(environ, start_response)
+        return _send_not_found(environ)
     accept_content_types = parse_accept_header(
         environ.get('HTTP_ACCEPT', '*/*'))
     accept_content_languages = parse_accept_header(
@@ -1704,8 +1718,7 @@ async def _do_get(environ, start_response, app, send_body):
         if_none_match and current_etag is not None and
         etag_matches(if_none_match, current_etag)
     ):
-        start_response('304 Not Modified', [])
-        return []
+        return Response(status='304 Not Modified')
     headers = [
         ('Content-Length', str(content_length)),
     ]
@@ -1721,11 +1734,10 @@ async def _do_get(environ, start_response, app, send_body):
         headers.append(('Last-Modified', last_modified))
     if content_languages is not None:
         headers.append(('Content-Language', ', '.join(content_languages)))
-    start_response('200 OK', headers)
     if send_body:
-        return body
+        return Response(body=body, status=200, reason='OK', headers=headers)
     else:
-        return []
+        return Response(status=200, reason='OK', headers=headers)
 
 
 class WebDAVApp(object):
@@ -1786,10 +1798,9 @@ class WebDAVApp(object):
                 ret.append(name)
         return ret
 
-    def __call__(self, environ, start_response):
+    async def _handle_request(self, environ):
         if environ.get('HTTP_EXPECT', '') != '':
-            start_response('417 Expectation Failed', [])
-            return []
+            return Response(status='417 Expectation Failed')
         if 'SCRIPT_NAME' not in environ:
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ['SCRIPT_NAME'] = ''
@@ -1797,21 +1808,31 @@ class WebDAVApp(object):
         try:
             do = self.methods[method]
         except KeyError:
-            return _send_method_not_allowed(environ, start_response,
-                                            self._get_allowed_methods(environ))
-        loop = asyncio.get_event_loop()
+            return _send_method_not_allowed(environ, self._get_allowed_methods(environ))
         try:
-            return loop.run_until_complete(do.handle(environ, start_response, self))
+            return await do.handle(environ, self)
         except BadRequestError as e:
-            start_response('400 Bad Request', [])
-            return [e.message.encode(DEFAULT_ENCODING)]
+            return Response(
+                status='400 Bad Request',
+                body=[e.message.encode(DEFAULT_ENCODING)])
         except NotAcceptableError as e:
-            start_response('406 Not Acceptable', [])
-            return [str(e).encode(DEFAULT_ENCODING)]
+            return Response(
+                status='406 Not Acceptable',
+                body=[str(e).encode(DEFAULT_ENCODING)])
         except UnsupportedMediaType as e:
-            start_response('415 Unsupported Media Type', [])
-            return [('Unsupported media type %r' % e.content_type)
-                    .encode(DEFAULT_ENCODING)]
+            return Response(
+                status='415 Unsupported Media Type',
+                body=[('Unsupported media type %r' % e.content_type)
+                    .encode(DEFAULT_ENCODING)])
         except UnauthorizedError:
-            start_response('401 Unauthorized', [])
-            return [('Please login.'.encode(DEFAULT_ENCODING))]
+            return Response(
+                status='401 Unauthorized', 
+                body=[('Please login.'.encode(DEFAULT_ENCODING))])
+
+    def handle_wsgi_request(self, environ, start_response):
+        loop = asyncio.get_event_loop()
+        response = loop.run_until_complete(self._handle_request(environ))
+        return response.for_wsgi(start_response)
+
+    # Backwards compatibility
+    __call__ = handle_wsgi_request
