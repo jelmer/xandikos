@@ -24,7 +24,6 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
-from aiohttp import web
 import asyncio
 from email.utils import parseaddr
 import functools
@@ -33,10 +32,6 @@ import jinja2
 import logging
 import os
 import posixpath
-from prometheus_client import (
-    generate_latest,
-    CONTENT_TYPE_LATEST,
-)
 
 import shutil
 import urllib.parse
@@ -1035,6 +1030,11 @@ def create_principal_defaults(backend, principal):
 
 
 async def metrics_handler(request):
+    from prometheus_client import (
+        generate_latest,
+        CONTENT_TYPE_LATEST,
+    )
+    from aiohttp import web
     resp = web.Response(body=generate_latest())
     resp.content_type = CONTENT_TYPE_LATEST
     return resp
@@ -1126,20 +1126,18 @@ def main(argv):
     app = XandikosApp(
         backend,
         current_user_principal=options.current_user_principal)
-
+    xandikos_handler = app.aiohttp_handler
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
 
     from aiohttp import web
-    from aiohttp_wsgi import WSGIHandler
-    wsgi_handler = WSGIHandler(app)
 
     app = web.Application()
     for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(
             "*", path, RedirectDavHandler(options.route_prefix))
     app.router.add_route("GET", "/metrics", metrics_handler)
-    app.router.add_route("*", "/{path_info:.*}", wsgi_handler)
+    app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
     web.run_app(app, port=options.port, host=options.listen_address)
 
 

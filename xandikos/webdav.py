@@ -110,6 +110,16 @@ class Response(object):
             '%d %s' % (self.status, self.reason),
             headers=self.headers)
         return self.body
+
+    def for_aiohttp(self):
+        from aiohttp import web
+        if isinstance(self.body, list):
+            body = b''.join(self.body)
+        else:
+            body = self.body
+        return web.Response(
+            status=self.status, reason=self.reason,
+            headers=self.headers, body=body)
         
 
 def pick_content_types(accepted_content_types, available_content_types):
@@ -1740,6 +1750,14 @@ async def _do_get(environ, app, send_body):
         return Response(status=200, reason='OK', headers=headers)
 
 
+class WSGIRequest(object):
+    """Request object for wsgi requests (with environ)."""
+
+    def __init__(self, environ):
+        self.environ = environ
+        self.method = environ['REQUEST_METHOD']
+
+
 class WebDAVApp(object):
     """A wsgi App that provides a WebDAV server.
 
@@ -1798,15 +1816,14 @@ class WebDAVApp(object):
                 ret.append(name)
         return ret
 
-    async def _handle_request(self, environ):
+    async def _handle_request(self, request, environ):
         if environ.get('HTTP_EXPECT', '') != '':
             return Response(status='417 Expectation Failed')
         if 'SCRIPT_NAME' not in environ:
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ['SCRIPT_NAME'] = ''
-        method = environ['REQUEST_METHOD']
         try:
-            do = self.methods[method]
+            do = self.methods[request.method]
         except KeyError:
             return _send_method_not_allowed(environ, self._get_allowed_methods(environ))
         try:
@@ -1831,8 +1848,17 @@ class WebDAVApp(object):
 
     def handle_wsgi_request(self, environ, start_response):
         loop = asyncio.get_event_loop()
-        response = loop.run_until_complete(self._handle_request(environ))
+        request = WSGIRequest(environ)
+        response = loop.run_until_complete(self._handle_request(request, environ))
         return response.for_wsgi(start_response)
+    
+    async def aiohttp_handler(self, request):
+        environ = {
+            'PATH_INFO': request.raw_path,
+            'CONTENT_TYPE': request.content_type,
+            }
+        response = await self._handle_request(request, environ)
+        return response.for_aiohttp()
 
     # Backwards compatibility
     __call__ = handle_wsgi_request

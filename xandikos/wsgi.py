@@ -49,25 +49,26 @@ class WellknownRedirector(object):
         return self._inner_app(environ, start_response)
 
 
-backend = XandikosBackend(path=os.environ['XANDIKOSPATH'])
-if not os.path.isdir(backend.path):
-    if os.getenv('AUTOCREATE'):
-        os.makedirs(os.environ['XANDIKOSPATH'])
-    else:
-        logging.warning('%r does not exist.', backend.path)
+if __name__ == '__main__':
+    backend = XandikosBackend(path=os.environ['XANDIKOSPATH'])
+    if not os.path.isdir(backend.path):
+        if os.getenv('AUTOCREATE'):
+            os.makedirs(os.environ['XANDIKOSPATH'])
+        else:
+            logging.warning('%r does not exist.', backend.path)
 
-current_user_principal = os.environ.get('CURRENT_USER_PRINCIPAL', '/user/')
-if not backend.get_resource(current_user_principal):
-    if os.getenv('AUTOCREATE'):
-        backend.create_principal(
-            current_user_principal,
-            create_defaults=os.environ['AUTOCREATE'] == 'defaults')
-    else:
-        logging.warning(
-            'default user principal \'%s\' does not exist. Create directory %s'
-            ' or set AUTOCREATE variable?',
-            current_user_principal, backend._map_to_file_path(
-                current_user_principal))
+    current_user_principal = os.environ.get('CURRENT_USER_PRINCIPAL', '/user/')
+    if not backend.get_resource(current_user_principal):
+        if os.getenv('AUTOCREATE'):
+            backend.create_principal(
+                current_user_principal,
+                create_defaults=os.environ['AUTOCREATE'] == 'defaults')
+        else:
+            logging.warning(
+                'default user principal \'%s\' does not exist. Create directory %s'
+                ' or set AUTOCREATE variable?',
+                current_user_principal, backend._map_to_file_path(
+                    current_user_principal))
 
-backend._mark_as_principal(current_user_principal)
-app = XandikosApp(backend, current_user_principal)
+    backend._mark_as_principal(current_user_principal)
+    app = XandikosApp(backend, current_user_principal)
