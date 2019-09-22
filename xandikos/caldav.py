@@ -21,7 +21,6 @@
 
 https://tools.ietf.org/html/rfc4791
 """
-import asyncio
 import datetime
 import itertools
 import pytz
@@ -200,7 +199,7 @@ class CalendarHomeSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, base_href, resource, el, environ):
+    async def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_home_set():
             href = webdav.ensure_trailing_slash(href)
             el.append(webdav.create_href(href, base_href))
@@ -215,11 +214,11 @@ class CalendarDescriptionProperty(webdav.Property):
     name = '{%s}calendar-description' % NAMESPACE
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, base_href, resource, el, environ):
+    async def get_value(self, base_href, resource, el, environ):
         el.text = resource.get_calendar_description()
 
     # TODO(jelmer): allow modification of this property
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         raise NotImplementedError
 
 
@@ -286,10 +285,9 @@ class CalendarDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/calendar')
 
-    def get_value_ext(self, base_href, resource, el, environ, requested):
+    async def get_value_ext(self, base_href, resource, el, environ, requested):
         if len(requested) == 0:
-            loop = asyncio.get_event_loop()
-            serialized_cal = b''.join(loop.run_until_complete(resource.get_body()))
+            serialized_cal = b''.join(await resource.get_body())
         else:
             c = ICalendar()
             calendar = calendar_from_resource(resource)
@@ -309,10 +307,10 @@ class CalendarOrderProperty(webdav.Property):
     name = '{http://apple.com/ns/ical/}calendar-order'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, base_href, resource, el, environ):
+    async def get_value(self, base_href, resource, el, environ):
         el.text = resource.get_calendar_order()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         resource.set_calendar_order(el.text)
 
 
@@ -496,7 +494,7 @@ class CalendarQueryReporter(webdav.Reporter):
                 collection.calendar_query(filter_fn),
                 collection.subcollections())
 
-        for (href, resource) in webdav.traverse_resource(
+        async for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth,
                 members=members):
             # Ideally traverse_resource would only return the right things.
@@ -504,7 +502,7 @@ class CalendarQueryReporter(webdav.Reporter):
                 propstat = davcommon.get_properties_with_data(
                     self.data_property, href, resource, properties, environ,
                     requested)
-                yield webdav.Status(href, '200 OK', propstat=list(propstat))
+                yield webdav.Status(href, '200 OK', propstat=[s async for s in propstat])
 
 
 class CalendarColorProperty(webdav.Property):
@@ -516,10 +514,10 @@ class CalendarColorProperty(webdav.Property):
     name = '{http://apple.com/ns/ical/}calendar-color'
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_calendar_color()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         resource.set_calendar_color(el.text)
 
 
@@ -538,7 +536,7 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for component in resource.get_supported_calendar_components():
             subel = ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}comp')
             subel.set('name', component)
@@ -556,7 +554,7 @@ class SupportedCalendarDataProperty(webdav.Property):
                      SCHEDULE_OUTBOX_RESOURCE_TYPE)
     in_allprops = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for (content_type, version) in (
                 resource.get_supported_calendar_data_types()):
             subel = ET.SubElement(
@@ -576,10 +574,10 @@ class CalendarTimezoneProperty(webdav.Property):
                      SCHEDULE_INBOX_RESOURCE_TYPE)
     in_allprops = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_calendar_timezone()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         if el is not None:
             resource.set_calendar_timezone(el.text)
         else:
@@ -599,7 +597,7 @@ class MinDateTimeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_min_date_time()
 
 
@@ -616,7 +614,7 @@ class MaxDateTimeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_max_date_time()
 
 
@@ -632,7 +630,7 @@ class MaxInstancesProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_instances())
 
 
@@ -649,7 +647,7 @@ class MaxAttendeesPerInstanceProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_attendees_per_instance())
 
 
@@ -666,7 +664,7 @@ class MaxResourceSizeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_resource_size())
 
 
@@ -681,7 +679,7 @@ class MaxAttachmentsPerResourceProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_attachments_per_resource())
 
 
@@ -696,7 +694,7 @@ class MaxAttachmentSizeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_attachment_size())
 
 
@@ -709,7 +707,7 @@ class ManagedAttachmentsServerURLProperty(webdav.Property):
     name = '{%s}managed-attachments-server-URL' % NAMESPACE
     in_allprops = False
 
-    def get_value(self, base_href, resource, el, environ):
+    async def get_value(self, base_href, resource, el, environ):
         # The RFC specifies that this property can be set on a calendar home
         # collection.
         # However, there is no matching resource type and we don't want to
@@ -735,7 +733,7 @@ class CalendarProxyReadForProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, base_href, resource, el, environ):
+    async def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_proxy_read_for():
             el.append(webdav.create_href(href, base_href))
 
@@ -752,7 +750,7 @@ class CalendarProxyWriteForProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, base_href, resource, el, environ):
+    async def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_proxy_write_for():
             el.append(webdav.create_href(href, base_href))
 
@@ -767,7 +765,7 @@ class ScheduleCalendarTransparencyProperty(webdav.Property):
     live = False
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    def get_value(self, base_href, resource, el, environ):
+    async def get_value(self, base_href, resource, el, environ):
         transp = resource.get_schedule_calendar_transparency()
         if transp == TRANSPARENCY_TRANSPARENT:
             ET.SubElement(el, '{%s}transparent' % NAMESPACE)
@@ -808,8 +806,8 @@ def extract_freebusy(comp, tzify):
     return ret
 
 
-def iter_freebusy(resources, start, end, tzify):
-    for (href, resource) in resources:
+async def iter_freebusy(resources, start, end, tzify):
+    async for (href, resource) in resources:
         c = calendar_from_resource(resource)
         if c is None:
             continue
@@ -854,9 +852,9 @@ class FreeBusyQueryReporter(webdav.Reporter):
         fb['DTSTAMP'] = vDDDTypes(tzify(datetime.datetime.now()))
         fb['DTSTART'] = vDDDTypes(start)
         fb['DTEND'] = vDDDTypes(end)
-        fb['FREEBUSY'] = list(iter_freebusy(
+        fb['FREEBUSY'] = [item async for item in iter_freebusy(
             webdav.traverse_resource(base_resource, base_href, depth),
-            start, end, tzify))
+            start, end, tzify)]
         ret.add_component(fb)
         return webdav.Response(status='200 OK', body=[ret.to_ical()])
 
@@ -883,7 +881,7 @@ class MkcalendarMethod(webdav.Method):
         except FileNotFoundError:
             return webdav.Response(status='409 Conflict')
         el = ET.Element('{DAV:}resourcetype')
-        app.properties['{DAV:}resourcetype'].get_value(
+        await app.properties['{DAV:}resourcetype'].get_value(
             href, resource, el, environ)
         ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
         app.properties['{DAV:}resourcetype'].set_value(href, resource, el)

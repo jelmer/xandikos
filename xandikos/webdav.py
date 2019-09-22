@@ -259,7 +259,7 @@ class Status(object):
 
     def __init__(self, href, status=None, error=None, responsedescription=None,
                  propstat=None):
-        self.href = href
+        self.href = str(href)
         self.status = status
         self.error = error
         self.propstat = propstat
@@ -341,18 +341,18 @@ class Property(object):
             return True
         return False
 
-    def is_set(self, href, resource, environ):
+    async def is_set(self, href, resource, environ):
         """Check if this property is set on a resource."""
         if not self.supported_on(resource):
             return False
         try:
-            self.get_value('/', resource, ET.Element(self.name), environ)
+            await self.get_value('/', resource, ET.Element(self.name), environ)
         except KeyError:
             return False
         else:
             return True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param href: Resource href
@@ -384,7 +384,7 @@ class ResourceTypeProperty(Property):
 
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
 
@@ -401,7 +401,7 @@ class DisplayNameProperty(Property):
     name = '{DAV:}displayname'
     resource_type = None
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_displayname()
 
     def set_value(self, href, resource, el):
@@ -418,7 +418,7 @@ class GetETagProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_etag()
 
 
@@ -435,7 +435,7 @@ class AddMemberProperty(Property):
     resource_type = COLLECTION_RESOURCE_TYPE
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         # Support POST against collection URL
         el.append(create_href('.', href))
 
@@ -451,7 +451,7 @@ class GetLastModifiedProperty(Property):
     live = True
     in_allprops = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         # Use rfc1123 date (section 3.3.1 of RFC2616)
         el.text = resource.get_last_modified().strftime(
             '%a, %d %b %Y %H:%M:%S GMT')
@@ -479,7 +479,7 @@ class CreationDateProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = format_datetime(resource.get_creationdate())
 
 
@@ -492,7 +492,7 @@ class GetContentLanguageProperty(Property):
     name = '{DAV:}getcontentlanguage'
     resource_type = None
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = ', '.join(resource.get_content_language())
 
 
@@ -505,8 +505,8 @@ class GetContentLengthProperty(Property):
     name = '{DAV:}getcontentlength'
     resource_type = None
 
-    def get_value(self, href, resource, el, environ):
-        el.text = str(resource.get_content_length())
+    async def get_value(self, href, resource, el, environ):
+        el.text = str(await resource.get_content_length())
 
 
 class GetContentTypeProperty(Property):
@@ -518,7 +518,7 @@ class GetContentTypeProperty(Property):
     name = '{DAV:}getcontenttype'
     resource_type = None
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_content_type()
 
 
@@ -537,7 +537,7 @@ class CurrentUserPrincipalProperty(Property):
         super(CurrentUserPrincipalProperty, self).__init__()
         self.get_current_user_principal = get_current_user_principal
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param name: A property name.
@@ -559,7 +559,7 @@ class PrincipalURLProperty(Property):
     in_allprops = True
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param name: A property name.
@@ -578,7 +578,7 @@ class SupportedReportSetProperty(Property):
     def __init__(self, reporters):
         self._reporters = reporters
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for name, reporter in self._reporters.items():
             if reporter.supported_on(resource):
                 bel = ET.SubElement(el, '{DAV:}supported-report')
@@ -595,7 +595,7 @@ class GetCTagProperty(Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_ctag()
 
 
@@ -625,7 +625,7 @@ class RefreshRateProperty(Property):
     resource_type = COLLECTION_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_refreshrate()
 
     def set_value(self, href, resource, el):
@@ -738,13 +738,12 @@ class Resource(object):
         return (body, sum(map(len, body)), self.get_etag(),
                 self.get_content_type(), content_language)
 
-    def get_content_length(self):
+    async def get_content_length(self):
         """Get content length.
 
         :return: Length of this objects content.
         """
-        loop = asyncio.get_event_loop()
-        return sum(map(len, loop.run_until_complete(self.get_body())))
+        return sum(map(len, await self.get_body()))
 
     def get_content_language(self):
         """Get content language.
@@ -945,7 +944,7 @@ class Principal(Resource):
         raise NotImplementedError(self.get_schedule_outbox_url)
 
 
-def get_property_from_name(href, resource, properties, name, environ):
+async def get_property_from_name(href, resource, properties, name, environ):
     """Get a single property on a resource.
 
     :param href: Resource href
@@ -955,11 +954,11 @@ def get_property_from_name(href, resource, properties, name, environ):
     :param name: name of property to resolve
     :return: PropStatus items
     """
-    return get_property_from_element(
+    return await get_property_from_element(
         href, resource, properties, environ, ET.Element(name))
 
 
-def get_property_from_element(href, resource, properties, environ, requested):
+async def get_property_from_element(href, resource, properties, environ, requested):
     """Get a single property on a resource.
 
     :param href: Resource href
@@ -985,9 +984,9 @@ def get_property_from_element(href, resource, properties, environ, requested):
             try:
                 get_value_ext = prop.get_value_ext
             except AttributeError:
-                prop.get_value(href, resource, ret, environ)
+                await prop.get_value(href, resource, ret, environ)
             else:
-                get_value_ext(href, resource, ret, environ, requested)
+                await get_value_ext(href, resource, ret, environ, requested)
         except KeyError:
             statuscode = '404 Not Found'
         else:
@@ -995,7 +994,7 @@ def get_property_from_element(href, resource, properties, environ, requested):
     return PropStatus(statuscode, responsedescription, ret)
 
 
-def get_properties(href, resource, properties, environ, requested):
+async def get_properties(href, resource, properties, environ, requested):
     """Get a set of properties.
 
     :param href: Resource Href
@@ -1006,11 +1005,11 @@ def get_properties(href, resource, properties, environ, requested):
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        yield get_property_from_element(
+        yield await get_property_from_element(
             href, resource, properties, environ, propreq)
 
 
-def get_property_names(href, resource, properties, environ, requested):
+async def get_property_names(href, resource, properties, environ, requested):
     """Get a set of property names.
 
     :param href: Resource Href
@@ -1021,11 +1020,11 @@ def get_property_names(href, resource, properties, environ, requested):
     :return: Iterator over PropStatus items
     """
     for name, prop in properties.items():
-        if prop.is_set(href, resource, environ):
+        if await prop.is_set(href, resource, environ):
             yield PropStatus('200 OK', None, ET.Element(name))
 
 
-def get_all_properties(href, resource, properties, environ):
+async def get_all_properties(href, resource, properties, environ):
     """Get all properties.
 
     :param href: Resource Href
@@ -1036,7 +1035,7 @@ def get_all_properties(href, resource, properties, environ):
     :return: Iterator over PropStatus items
     """
     for name in properties:
-        ps = get_property_from_name(href, resource, properties, name, environ)
+        ps = await get_property_from_name(href, resource, properties, name, environ)
         if ps.statuscode == '200 OK':
             yield ps
 
@@ -1054,7 +1053,7 @@ def ensure_trailing_slash(href):
     return href + '/'
 
 
-def traverse_resource(base_resource, base_href, depth, members=None):
+async def traverse_resource(base_resource, base_href, depth, members=None):
     """Traverse a resource.
 
     :param base_resource: Resource to traverse from
@@ -1153,7 +1152,7 @@ class ExpandPropertyReporter(Reporter):
 
     name = '{DAV:}expand-property'
 
-    def _populate(self, prop_list, resources_by_hrefs, properties, href,
+    async def _populate(self, prop_list, resources_by_hrefs, properties, href,
                   resource, environ):
         """Expand properties for a resource.
 
@@ -1169,7 +1168,7 @@ class ExpandPropertyReporter(Reporter):
         for prop in prop_list:
             prop_name = prop.get('name')
             # FIXME: Resolve prop_name on resource
-            propstat = get_property_from_name(
+            propstat = await get_property_from_name(
                 href, resource, properties, prop_name, environ)
             new_prop = ET.Element(propstat.prop.tag)
             child_hrefs = [
@@ -1195,7 +1194,7 @@ class ExpandPropertyReporter(Reporter):
             propstat = PropStatus(propstat.statuscode,
                                   propstat.responsedescription, prop=new_prop)
             ret.append(propstat)
-        return Status(href, '200 OK', propstat=ret)
+        yield Status(href, '200 OK', propstat=ret)
 
     @multistatus
     async def report(self, environ, request_body, resources_by_hrefs, properties,
@@ -1215,7 +1214,7 @@ class SupportedLockProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for (lockscope, locktype) in resource.get_supported_locks():
             entry = ET.SubElement(el, '{DAV:}lockentry')
             scope_el = ET.SubElement(entry, '{DAV:}lockscope')
@@ -1234,7 +1233,7 @@ class LockDiscoveryProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for activelock in resource.get_active_locks():
             entry = ET.SubElement(el, '{DAV:}activelock')
             type_el = ET.SubElement(entry, '{DAV:}locktype')
@@ -1263,7 +1262,7 @@ class CommentProperty(Property):
     live = False
     in_allprops = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_comment()
 
     def set_value(self, href, resource, el):
@@ -1585,7 +1584,7 @@ class PropfindMethod(Method):
                 raise BadRequestError(
                     'Received more than one element in propfind.')
         ret = []
-        for href, resource in traverse_resource(
+        async for href, resource in traverse_resource(
                 base_resource, base_href, depth):
             propstat = []
             if requested is None or requested.tag == '{DAV:}allprop':
@@ -1600,10 +1599,10 @@ class PropfindMethod(Method):
             else:
                 raise BadRequestError(
                     'Expected prop/allprop/propname tag, got ' + requested.tag)
-            yield Status(href, '200 OK', propstat=list(propstat))
+            yield Status(href, '200 OK', propstat=[s async for s in propstat])
         # By my reading of the WebDAV RFC, it should be legal to return
         # '200 OK' here if Depth=0, but the RFC is not super clear and
-        # some clients don't seem to like it .
+        # some clients don't seem to like it and prefer a 207 instead.
 
 
 class ProppatchMethod(Method):
@@ -1612,7 +1611,8 @@ class ProppatchMethod(Method):
     async def handle(self, request, environ, app):
         href, unused_path, resource = app._get_resource_from_environ(request, environ)
         if resource is None:
-            return Status(request.url, '404 Not Found')
+            yield Status(request.url, '404 Not Found')
+            return
         et = await _readXmlBody(request, '{DAV:}propertyupdate')
         propstat = []
         for el in et:
@@ -1621,7 +1621,7 @@ class ProppatchMethod(Method):
                                       % el.tag)
             propstat.extend(apply_modify_prop(el, href, resource,
                                               app.properties))
-        return [Status(request.url, propstat=propstat)]
+        yield Status(request.url, propstat=propstat)
 
 
 class MkcolMethod(Method):
@@ -1709,7 +1709,7 @@ async def _do_get(request, environ, app, send_body):
         current_etag,
         content_type,
         content_languages
-    ) = await r.render(request.path,
+    ) = await r.render(request.match_info['path_info'],
                  accept_content_types, accept_content_languages)
 
     if_none_match = request.headers.get('If-None-Match', None)
@@ -1745,8 +1745,8 @@ class WSGIRequest(object):
     def __init__(self, environ):
         self._environ = environ
         self.method = environ['REQUEST_METHOD']
-        self.raw_path = environ['PATH_INFO']
-        self.path = path_from_environ(environ, 'PATH_INFO')
+        self.raw_path = environ['SCRIPT_NAME'] + environ['PATH_INFO']
+        self.path = environ['SCRIPT_NAME'] + path_from_environ(environ, 'PATH_INFO')
         self.content_type = environ.get(
             'CONTENT_TYPE', 'application/octet-stream')
         try:
@@ -1767,6 +1767,7 @@ class WSGIRequest(object):
                 return self._stream.read(size)
 
         self.content = StreamWrapper(self._environ['wsgi.input'])
+        self.match_info = {'path_info': environ['PATH_INFO']}
 
     @property
     def can_read_body(self):
@@ -1804,9 +1805,8 @@ class WebDAVApp(object):
         ])
 
     def _get_resource_from_environ(self, request, environ):
-        href = (environ['SCRIPT_NAME'] + request.path)
-        r = self.backend.get_resource(request.path)
-        return (href, request.path, r)
+        r = self.backend.get_resource(request.match_info['path_info'])
+        return (request.path, request.match_info['path_info'], r)
 
     def register_properties(self, properties):
         for p in properties:
@@ -1867,8 +1867,7 @@ class WebDAVApp(object):
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ['SCRIPT_NAME'] = ''
         request = WSGIRequest(environ)
-        environ = {
-            'SCRIPT_NAME': environ['SCRIPT_NAME']}
+        environ = {'SCRIPT_NAME': environ['SCRIPT_NAME']}
         response = loop.run_until_complete(self._handle_request(request, environ))
         return response.for_wsgi(start_response)
     

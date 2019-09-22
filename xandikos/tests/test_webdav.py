@@ -247,7 +247,7 @@ class WebTests(WebTestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, ret, environ):
+            async def get_value(self, href, resource, ret, environ):
                 raise KeyError
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -265,7 +265,7 @@ class WebTests(WebTestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, ret, environ):
+            async def get_value(self, href, resource, ret, environ):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -285,13 +285,13 @@ class WebTests(WebTestCase):
         class TestProperty1(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, el, environ):
+            async def get_value(self, href, resource, el, environ):
                 ET.SubElement(el, '{DAV:}href').text = '/user/'
 
         class TestProperty2(Property):
             name = '{DAV:}somethingelse'
 
-            def get_value(self, href, resource, el, environ):
+            async def get_value(self, href, resource, el, environ):
                 pass
         app = self.makeApp(
             {'/resource': Resource()},
@@ -315,7 +315,7 @@ class WebTests(WebTestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, ret, environ):
+            async def get_value(self, href, resource, ret, environ):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
