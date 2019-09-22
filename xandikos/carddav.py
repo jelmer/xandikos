@@ -21,6 +21,7 @@
 
 https://tools.ietf.org/html/rfc6352
 """
+import asyncio
 from xandikos import (
     collation as _mod_collation,
     davcommon,
@@ -72,7 +73,8 @@ class AddressDataProperty(davcommon.SubbedProperty):
     def get_value_ext(self, href, resource, el, environ, requested):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
-        el.text = b''.join(resource.get_body()).decode('utf-8')
+        loop = asyncio.get_event_loop()
+        el.text = b''.join(loop.run_until_complete(resource.get_body())).decode('utf-8')
 
 
 class AddressbookDescriptionProperty(webdav.Property):

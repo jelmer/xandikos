@@ -691,6 +691,8 @@ class ParameterFilter(object):
 class CalendarFilter(Filter):
     """A filter that works on ICalendar files."""
 
+    content_type = 'text/calendar'
+
     def __init__(self, default_timezone):
         self.tzify = lambda dt: as_tz_aware_ts(dt, default_timezone)
         self.children = []
@@ -703,8 +705,6 @@ class CalendarFilter(Filter):
         return ret
 
     def check(self, name, file):
-        if file.content_type != 'text/calendar':
-            return False
         c = file.calendar
         if c is None:
             return False
@@ -722,8 +722,14 @@ class CalendarFilter(Filter):
 
     def check_from_indexes(self, name, indexes):
         for child_filter in self.children:
-            if not child_filter.match_indexes(
-                    indexes, self.tzify):
+            try:
+                if not child_filter.match_indexes(
+                        indexes, self.tzify):
+                    return False
+            except MissingProperty as e:
+                logging.warning(
+                    'calendar_query: Ignoring calendar object %s, due '
+                    'to missing property %s', name, e.property_name)
                 return False
         return True
 

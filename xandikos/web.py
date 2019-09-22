@@ -25,6 +25,7 @@ the carddav support, the caldav support and the DAV store.
 """
 
 from aiohttp import web
+import asyncio
 from email.utils import parseaddr
 import functools
 import hashlib
@@ -75,10 +76,12 @@ CALENDAR_HOME_SET = ['calendars']
 ADDRESSBOOK_HOME_SET = ['contacts']
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
-jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
+jinja_env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(TEMPLATES_DIR),
+    enable_async=True)
 
 
-def render_jinja_page(name, accepted_content_languages, **kwargs):
+async def render_jinja_page(name, accepted_content_languages, **kwargs):
     """Render a HTML page from jinja template.
 
     :param name: Name of the page
@@ -88,10 +91,12 @@ def render_jinja_page(name, accepted_content_languages, **kwargs):
     # TODO(jelmer): Support rendering other languages
     encoding = 'utf-8'
     template = jinja_env.get_template(name)
-    body = template.render(
+    body = await template.render_async(
         version=xandikos_version,
-        urljoin=urllib.parse.urljoin, **kwargs).encode(encoding)
-    return ([body], len(body), None, 'text/html; encoding=%s' % encoding,
+        urljoin=urllib.parse.urljoin, **kwargs)
+    body_encoded = body.encode(encoding)
+    return ([body_encoded], len(body_encoded),
+            None, 'text/html; encoding=%s' % encoding,
             ['en-UK'])
 
 
@@ -134,7 +139,7 @@ class ObjectResource(webdav.Resource):
                                              self.etag)
         return self._file
 
-    def get_body(self):
+    async def get_body(self):
         return self.file.content
 
     def set_body(self, data, replace_etag=None):
@@ -160,7 +165,8 @@ class ObjectResource(webdav.Resource):
         return self.content_type
 
     def get_content_length(self):
-        return sum(map(len, self.get_body()))
+        loop = asyncio.get_event_loop()
+        return sum(map(len, loop.run_until_complete(self.get_body())))
 
     def get_etag(self):
         return create_strong_etag(self.etag)
@@ -354,15 +360,15 @@ class StoreBasedCollection(object):
         # RFC2518, section 8.6.2 says this should recursively delete.
         self.store.destroy()
 
-    def get_body(self):
+    async def get_body(self):
         raise NotImplementedError(self.get_body)
 
-    def render(self, self_url, accepted_content_types,
+    async def render(self, self_url, accepted_content_types,
                accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        return render_jinja_page(
+        return await render_jinja_page(
             'collection.html', accepted_content_languages, collection=self,
             self_url=self_url)
 
@@ -589,12 +595,12 @@ class CollectionSetResource(webdav.Collection):
         # RFC2518, section 8.6.2 says this should recursively delete.
         shutil.rmtree(p)
 
-    def render(self, self_url, accepted_content_types,
+    async def render(self, self_url, accepted_content_types,
                accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        return render_jinja_page(
+        return await render_jinja_page(
             'root.html', accepted_content_languages, self_url=self_url)
 
     def get_is_executable(self):
@@ -627,7 +633,7 @@ class RootPage(webdav.Resource):
             principals=self.backend.find_principals(),
             self_url=self_url)
 
-    def get_body(self):
+    async def get_body(self):
         raise KeyError
 
     def get_content_length(self):
@@ -644,7 +650,8 @@ class RootPage(webdav.Resource):
 
     def get_etag(self):
         h = hashlib.md5()
-        for c in self.get_body():
+        loop = asyncio.get_event_loop()
+        for c in loop.run_until_complete(self.get_body()):
             h.update(c)
         return h.hexdigest()
 
@@ -760,12 +767,12 @@ class PrincipalBare(CollectionSetResource, Principal):
                 pass
         return p
 
-    def render(self, self_url, accepted_content_types,
+    async def render(self, self_url, accepted_content_types,
                accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        return render_jinja_page(
+        return await render_jinja_page(
             'principal.html', accepted_content_languages, principal=self,
             self_url=self_url)
 
