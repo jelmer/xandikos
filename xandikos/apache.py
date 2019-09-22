@@ -34,10 +34,10 @@ class ExecutableProperty(webdav.Property):
     resource_type = None
     live = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = ('T' if resource.get_is_executable() else 'F')
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         if el.text == 'T':
             resource.set_is_executable(True)
         elif el.text == 'F':

@@ -160,9 +160,8 @@ class ObjectResource(webdav.Resource):
     def get_content_type(self):
         return self.content_type
 
-    def get_content_length(self):
-        loop = asyncio.get_event_loop()
-        return sum(map(len, loop.run_until_complete(self.get_body())))
+    async def get_content_length(self):
+        return sum(map(len, await self.get_body()))
 
     def get_etag(self):
         return create_strong_etag(self.etag)
@@ -352,7 +351,7 @@ class StoreBasedCollection(object):
     def get_content_language(self):
         raise KeyError
 
-    def get_content_length(self):
+    async def get_content_length(self):
         raise KeyError
 
     def destroy(self):
@@ -607,7 +606,7 @@ class CollectionSetResource(webdav.Collection):
     def get_content_language(self):
         raise KeyError
 
-    def get_content_length(self):
+    async def get_content_length(self):
         raise KeyError
 
     def get_last_modified(self):
@@ -664,7 +663,7 @@ class RootPage(webdav.Resource):
     async def get_body(self):
         raise KeyError
 
-    def get_content_length(self):
+    async def get_content_length(self):
         raise KeyError
 
     def get_content_type(self):
@@ -1128,6 +1127,7 @@ def main(argv):
         backend,
         current_user_principal=options.current_user_principal)
     xandikos_handler = app.aiohttp_handler
+
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
 
@@ -1138,7 +1138,15 @@ def main(argv):
         app.router.add_route(
             "*", path, RedirectDavHandler(options.route_prefix))
     app.router.add_route("GET", "/metrics", metrics_handler)
-    app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+    if options.route_prefix.strip('/'):
+        xandikos_app = web.Application()
+        xandikos_app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+        async def redirect_to_subprefix(request):
+            return web.HTTPFound(options.route_prefix)
+        app.router.add_route("*", "/", redirect_to_subprefix)
+        app.add_subapp(options.route_prefix, xandikos_app)
+    else:
+        app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
     web.run_app(app, port=options.port, host=options.listen_address)
 
 
