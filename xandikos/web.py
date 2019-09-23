@@ -163,7 +163,7 @@ class ObjectResource(webdav.Resource):
     async def get_content_length(self):
         return sum(map(len, await self.get_body()))
 
-    def get_etag(self):
+    async def get_etag(self):
         return create_strong_etag(self.etag)
 
     def get_supported_locks(self):
@@ -259,7 +259,7 @@ class StoreBasedCollection(object):
     def get_ctag(self):
         return self.store.get_ctag()
 
-    def get_etag(self):
+    async def get_etag(self):
         return create_strong_etag(self.store.get_ctag())
 
     def members(self):
@@ -563,7 +563,7 @@ class CollectionSetResource(webdav.Collection):
     def get_sync_token(self):
         raise KeyError
 
-    def get_etag(self):
+    async def get_etag(self):
         raise KeyError
 
     def get_ctag(self):
@@ -675,10 +675,9 @@ class RootPage(webdav.Resource):
     def get_active_locks(self):
         return []
 
-    def get_etag(self):
+    async def get_etag(self):
         h = hashlib.md5()
-        loop = asyncio.get_event_loop()
-        for c in loop.run_until_complete(self.get_body()):
+        for c in await self.get_body():
             h.update(c)
         return h.hexdigest()
 

@@ -419,7 +419,7 @@ class GetETagProperty(Property):
     live = True
 
     async def get_value(self, href, resource, el, environ):
-        el.text = resource.get_etag()
+        el.text = await resource.get_etag()
 
 
 ADD_MEMBER_FEATURE = 'add-member'
@@ -699,7 +699,7 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_owner)
 
-    def get_etag(self):
+    async def get_etag(self):
         """Get the etag for this resource.
 
         Contains the ETag header value (from Section 14.19 of [RFC2616]) as it
@@ -735,7 +735,7 @@ class Resource(object):
             content_language = self.get_content_language()
         except KeyError:
             content_language = None
-        return (body, sum(map(len, body)), self.get_etag(),
+        return (body, sum(map(len, body)), await self.get_etag(),
                 self.get_content_type(), content_language)
 
     async def get_content_length(self):
@@ -1448,7 +1448,7 @@ class DeleteMethod(Method):
         pr = app.backend.get_resource(container_path)
         if pr is None:
             return _send_not_found(request)
-        current_etag = r.get_etag()
+        current_etag = await r.get_etag()
         if_match = request.headers.get('If-Match', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
             return Response(status=412, reason='Precondition Failed')
@@ -1488,7 +1488,7 @@ class PutMethod(Method):
         new_contents = await _readBody(request)
         unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is not None:
-            current_etag = r.get_etag()
+            current_etag = await r.get_etag()
         else:
             current_etag = None
         if_match = request.headers.get('If-Match', None)
@@ -1858,7 +1858,7 @@ class WebDAVApp(object):
                     .encode(DEFAULT_ENCODING)])
         except UnauthorizedError:
             return Response(
-                status='401 Unauthorized', 
+                status='401 Unauthorized',
                 body=[('Please login.'.encode(DEFAULT_ENCODING))])
 
     def handle_wsgi_request(self, environ, start_response):
@@ -1870,7 +1870,7 @@ class WebDAVApp(object):
         environ = {'SCRIPT_NAME': environ['SCRIPT_NAME']}
         response = loop.run_until_complete(self._handle_request(request, environ))
         return response.for_wsgi(start_response)
-    
+
     async def aiohttp_handler(self, request):
         environ = {'SCRIPT_NAME': ''}
         response = await self._handle_request(request, environ)
