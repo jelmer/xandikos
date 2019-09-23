@@ -152,7 +152,7 @@ class WebTests(WebTestCase):
             def get_content_language(self):
                 raise KeyError
 
-            def get_etag(self):
+            async def get_etag(self):
                 return "myetag"
 
             def get_content_type(self):
@@ -169,7 +169,7 @@ class WebTests(WebTestCase):
             def set_body(self, body, replace_etag=None):
                 new_body.extend(body)
 
-            def get_etag(self):
+            async def get_etag(self):
                 return '"blala"'
         app = self.makeApp({'/.well-known/carddav': TestResource()}, [])
         code, headers = self.put(
@@ -210,7 +210,7 @@ class WebTests(WebTestCase):
     def test_delete(self):
         class TestResource(Collection):
 
-            def get_etag(self):
+            async def get_etag(self):
                 return '"foo"'
 
             def delete_member(unused_self, name, etag=None):
