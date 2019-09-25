@@ -178,6 +178,25 @@ class Subscription(object):
         """Set the source URL for this calendar."""
         raise NotImplementedError(self.set_source_url)
 
+    def get_calendar_description(self):
+        """Return the calendar description."""
+        raise NotImplementedError(self.get_calendar_description)
+
+    def get_calendar_color(self):
+        """Return the calendar color."""
+        raise NotImplementedError(self.get_calendar_color)
+
+    def set_calendar_color(self, color):
+        """Set the calendar color."""
+        raise NotImplementedError(self.set_calendar_color)
+
+    def get_supported_calendar_components(self):
+        """Return set of supported calendar components in this calendar.
+
+        :return: iterable over component names
+        """
+        raise NotImplementedError(self.get_supported_calendar_components)
+
 
 class CalendarHomeSet(object):
 
@@ -228,7 +247,7 @@ class CalendarDescriptionProperty(webdav.Property):
     """
 
     name = '{%s}calendar-description' % NAMESPACE
-    resource_type = CALENDAR_RESOURCE_TYPE
+    resource_type = (CALENDAR_RESOURCE_TYPE, SUBSCRIPTION_RESOURCE_TYPE)
 
     def get_value(self, base_href, resource, el, environ):
         el.text = resource.get_calendar_description()
@@ -527,7 +546,7 @@ class CalendarColorProperty(webdav.Property):
     """
 
     name = '{http://apple.com/ns/ical/}calendar-color'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    resource_type = (CALENDAR_RESOURCE_TYPE, SUBSCRIPTION_RESOURCE_TYPE)
 
     def get_value(self, href, resource, el, environ):
         el.text = resource.get_calendar_color()
@@ -547,7 +566,8 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     name = '{%s}supported-calendar-component-set' % NAMESPACE
     resource_type = (CALENDAR_RESOURCE_TYPE,
                      SCHEDULE_INBOX_RESOURCE_TYPE,
-                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
+                     SCHEDULE_OUTBOX_RESOURCE_TYPE,
+                     SUBSCRIPTION_RESOURCE_TYPE)
     in_allprops = False
     live = True
 

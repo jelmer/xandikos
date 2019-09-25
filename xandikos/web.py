@@ -407,6 +407,23 @@ class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
     def set_source_url(self, url):
         self.store.set_source_url(url)
 
+    def get_calendar_description(self):
+        return self.store.get_description()
+
+    def get_calendar_color(self):
+        color = self.store.get_color()
+        if not color:
+            raise KeyError
+        if color and color[0] != '#':
+            color = '#' + color
+        return color
+
+    def set_calendar_color(self, color):
+        self.store.set_color(color)
+
+    def get_supported_calendar_components(self):
+        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
+
 
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
