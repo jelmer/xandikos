@@ -1805,8 +1805,11 @@ class WebDAVApp(object):
         ])
 
     def _get_resource_from_environ(self, request, environ):
-        r = self.backend.get_resource(request.match_info['path_info'])
-        return (request.path, request.match_info['path_info'], r)
+        path_info = request.match_info['path_info']
+        if not path_info.startswith('/'):
+            path_info = '/' + path_info
+        r = self.backend.get_resource(path_info)
+        return (request.path, path_info, r)
 
     def register_properties(self, properties):
         for p in properties:
@@ -1871,8 +1874,8 @@ class WebDAVApp(object):
         response = loop.run_until_complete(self._handle_request(request, environ))
         return response.for_wsgi(start_response)
 
-    async def aiohttp_handler(self, request):
-        environ = {'SCRIPT_NAME': ''}
+    async def aiohttp_handler(self, request, route_prefix='/'):
+        environ = {'SCRIPT_NAME': route_prefix}
         response = await self._handle_request(request, environ)
         return response.for_aiohttp()
 
