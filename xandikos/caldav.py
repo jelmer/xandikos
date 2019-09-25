@@ -162,6 +162,14 @@ class Calendar(webdav.Collection):
         """
         raise NotImplementedError(self.calendar_query)
 
+    def get_source_url(self):
+        """Get the source URL for this calendar."""
+        raise NotImplementedError(self.get_source_url)
+
+    def set_source_url(self, url):
+        """Set the source URL for this calendar."""
+        raise NotImplementedError(self.set_source_url)
+
 
 class CalendarHomeSet(object):
 
@@ -718,6 +726,18 @@ class ManagedAttachmentsServerURLProperty(webdav.Property):
         href = fn()
         if href is not None:
             el.append(webdav.create_href(href, base_href))
+
+
+class SourceProperty(webdav.Property):
+    """source property.
+    """
+    name = '{http://calendarserver.org/ns}source'
+    resource_type = CALENDAR_RESOURCE_TYPE
+    in_allprops = True
+    live = False
+
+    def get_value(self, base_href, resource, el, environ):
+        el.append(webdav.create_href(resource.get_source(), base_href))
 
 
 class CalendarProxyReadForProperty(webdav.Property):

@@ -294,6 +294,14 @@ class VdirStore(Store):
         assert color.startswith('#')
         self._write_metadata('color', color)
 
+    def get_source_url(self):
+        """Get source URL."""
+        return self._read_metadata('source')
+
+    def set_source_url(self, url):
+        """Set source URL."""
+        self._write_metadata('source', url)
+
     def get_displayname(self):
         """Get display name.
 

@@ -374,6 +374,15 @@ class BaseGitStoreTest(BaseStoreTest):
             c.write_to_path()
         self.assertEqual('334433', gc.get_color())
 
+    def test_get_source_url(self):
+        gc = self.create_store()
+        self.assertIs(None, gc.get_source_url())
+        c = gc.repo.get_config()
+        c.set(b'xandikos', b'source', b'www.google.com')
+        if getattr(c, 'path', None):
+            c.write_to_path()
+        self.assertEqual('www.google.com', gc.get_source_url())
+
     def test_default_no_subdirectories(self):
         gc = self.create_store()
         self.assertEqual([], gc.subdirectories())

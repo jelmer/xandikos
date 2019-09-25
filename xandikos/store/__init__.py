@@ -435,6 +435,14 @@ class Store(object):
         """
         raise NotImplementedError(self.subdirectories)
 
+    def get_source_url(self):
+        """Return source URL, if this is a subscription."""
+        raise NotImplementedError(self.get_source_url)
+
+    def set_source_url(self):
+        """Set the source URL."""
+        raise NotImplementedError(self.set_source_url)
+
 
 def open_store(location):
     """Open store from a location string.

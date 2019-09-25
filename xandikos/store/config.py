@@ -37,6 +37,16 @@ class CollectionMetadata(object):
         """Change the color of this collection."""
         raise NotImplementedError(self.set_color)
 
+    def get_source_url(self):
+        """Get the source URL for this collection.
+        """
+        raise NotImplementedError(self.get_source_url)
+
+    def set_source_url(self, url):
+        """Set the source URL for this collection.
+        """
+        raise NotImplementedError(self.set_source_url)
+
     def get_comment(self):
         raise NotImplementedError(self.get_comment)
 
@@ -72,6 +82,16 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         cp = configparser.ConfigParser()
         cp.read_file(f)
         return cls(cp)
+
+    def get_source_url(self):
+        return self._configparser['DEFAULT']['source']
+
+    def set_source_url(self, url):
+        if url is not None:
+            self._configparser['DEFAULT']['source'] = url
+        else:
+            del self._configparser['DEFAULT']['source']
+        self._save("Set source URL.")
 
     def get_color(self):
         return self._configparser['DEFAULT']['color']

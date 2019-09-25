@@ -76,6 +76,23 @@ class RepoCollectionMetadata(CollectionMetadata):
         config = repo.get_config()
         return config.has_section((b'xandikos', ))
 
+    def get_source_url(self):
+        config = self._repo.get_config()
+        url = config.get(b'xandikos', b'source')
+        if not url:
+            raise KeyError
+        return url.decode(DEFAULT_ENCODING)
+
+    def set_source_url(self, url):
+        config = self._repo.get_config()
+        if url is not None:
+            config.set(
+                b'xandikos', b'source', url.encode(DEFAULT_ENCODING))
+        else:
+            # TODO(jelmer): Add and use config.remove()
+            config.set(b'xandikos', b'source', b'')
+        self._write_config(config)
+
     def get_color(self):
         config = self._repo.get_config()
         color = config.get(b'xandikos', b'color')
@@ -432,6 +449,17 @@ class GitStore(Store):
     def set_color(self, color):
         """Set the color code for this store."""
         self.config.set_color(color)
+
+    def get_source_url(self):
+        """Get source URL."""
+        try:
+            return self.config.get_source_url()
+        except KeyError:
+            return None
+
+    def set_source_url(self, url):
+        """Set the source URL."""
+        self.config.set_source_url(url)
 
     def get_displayname(self):
         """Get display name.

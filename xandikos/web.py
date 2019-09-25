@@ -471,6 +471,15 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
                 name, file.content_type, etag, file=file)
             yield (name, resource)
 
+    def get_source_url(self):
+        source_url = self.store.get_source_url()
+        if source_url is None:
+            raise KeyError
+        return source_url
+
+    def set_source_url(self, url):
+        self.store.set_source_url(url)
+
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
 
@@ -882,6 +891,7 @@ class XandikosApp(webdav.WebDAVApp):
             webdav.GetContentTypeProperty(),
             webdav.GetContentLengthProperty(),
             webdav.GetContentLanguageProperty(),
+            caldav.SourceProperty(),
             caldav.CalendarHomeSetProperty(),
             carddav.AddressbookHomeSetProperty(),
             caldav.CalendarDescriptionProperty(),
