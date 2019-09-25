@@ -1122,10 +1122,11 @@ def main(argv):
             'Run xandikos with --autocreate?',
             options.current_user_principal)
 
-    app = XandikosApp(
+    main_app = XandikosApp(
         backend,
         current_user_principal=options.current_user_principal)
-    xandikos_handler = app.aiohttp_handler
+    async def xandikos_handler(request):
+        return await main_app.aiohttp_handler(request, options.route_prefix)
 
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
@@ -1143,7 +1144,7 @@ def main(argv):
         async def redirect_to_subprefix(request):
             return web.HTTPFound(options.route_prefix)
         app.router.add_route("*", "/", redirect_to_subprefix)
-        app.add_subapp(options.route_prefix, xandikos_app)
+        r = app.add_subapp(options.route_prefix, xandikos_app)
     else:
         app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
     web.run_app(app, port=options.port, host=options.listen_address)
