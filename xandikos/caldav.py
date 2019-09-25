@@ -45,6 +45,8 @@ NAMESPACE = 'urn:ietf:params:xml:ns:caldav'
 # https://tools.ietf.org/html/rfc4791, section 4.2
 CALENDAR_RESOURCE_TYPE = '{%s}calendar' % NAMESPACE
 
+SUBSCRIPTION_RESOURCE_TYPE = '{http://calendarserver.org/ns/}subscribed'
+
 # TODO(jelmer): These resource types belong in scheduling.py
 SCHEDULE_INBOX_RESOURCE_TYPE = '{%s}schedule-inbox' % NAMESPACE
 SCHEDULE_OUTBOX_RESOURCE_TYPE = '{%s}schedule-outbox' % NAMESPACE
@@ -161,6 +163,12 @@ class Calendar(webdav.Collection):
         :return: Iterator over name, resource objects
         """
         raise NotImplementedError(self.calendar_query)
+
+
+class Subscription(object):
+
+    resource_types = (webdav.Collection.resource_types +
+                      [SUBSCRIPTION_RESOURCE_TYPE])
 
     def get_source_url(self):
         """Get the source URL for this calendar."""
@@ -731,13 +739,16 @@ class ManagedAttachmentsServerURLProperty(webdav.Property):
 class SourceProperty(webdav.Property):
     """source property.
     """
-    name = '{http://calendarserver.org/ns}source'
-    resource_type = CALENDAR_RESOURCE_TYPE
+    name = '{http://calendarserver.org/ns/}source'
+    resource_type = SUBSCRIPTION_RESOURCE_TYPE
     in_allprops = True
     live = False
 
-    def get_value(self, base_href, resource, el, environ):
-        el.append(webdav.create_href(resource.get_source(), base_href))
+    async def get_value(self, base_href, resource, el, environ):
+        el.append(webdav.create_href(resource.get_source_url(), base_href))
+
+    async def set_value(self, href, resource, el):
+        raise NotImplementedError(self.set_value)
 
 
 class CalendarProxyReadForProperty(webdav.Property):

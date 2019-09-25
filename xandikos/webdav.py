@@ -936,8 +936,8 @@ def get_property_from_element(href, resource, properties, environ, requested):
     except KeyError:
         statuscode = '404 Not Found'
         logging.warning(
-            'Client requested unknown property %s',
-            requested.tag)
+            'Client requested unknown property %s on %s (%r)',
+            requested.tag, href, resource.resource_types)
     else:
         try:
             if not prop.supported_on(resource):

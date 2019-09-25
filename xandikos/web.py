@@ -51,6 +51,7 @@ from xandikos.store import (
     STORE_TYPE_PRINCIPAL,
     STORE_TYPE_SCHEDULE_INBOX,
     STORE_TYPE_SCHEDULE_OUTBOX,
+    STORE_TYPE_SUBSCRIPTION,
     STORE_TYPE_OTHER,
 )
 from xandikos.store.git import (
@@ -225,6 +226,9 @@ class StoreBasedCollection(object):
             self.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
         elif resource_types == {webdav.COLLECTION_RESOURCE_TYPE}:
             self.store.set_type(STORE_TYPE_OTHER)
+        elif resource_types == {webdav.COLLECTION_RESOURCE_TYPE,
+                                caldav.SUBSCRIPTION_RESOURCE_TYPE}:
+            self.store.set_type(STORE_TYPE_SUBSCRIPTION)
         else:
             raise NotImplementedError(self.set_resource_types)
 
@@ -392,6 +396,18 @@ class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
     """A schedling outbox collection."""
 
 
+class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
+
+    def get_source_url(self):
+        source_url = self.store.get_source_url()
+        if source_url is None:
+            raise KeyError
+        return source_url
+
+    def set_source_url(self, url):
+        self.store.set_source_url(url)
+
+
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
     def get_calendar_description(self):
@@ -470,15 +486,6 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             resource = self._get_resource(
                 name, file.content_type, etag, file=file)
             yield (name, resource)
-
-    def get_source_url(self):
-        source_url = self.store.get_source_url()
-        if source_url is None:
-            raise KeyError
-        return source_url
-
-    def set_source_url(self, url):
-        self.store.set_source_url(url)
 
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
@@ -834,6 +841,8 @@ class XandikosBackend(webdav.Backend):
 
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
+        if not relpath.startswith('/'):
+            raise ValueError('relpath %r should start with /')
         if relpath == '/':
             return RootPage(self)
         p = self._map_to_file_path(relpath)
@@ -853,6 +862,7 @@ class XandikosBackend(webdav.Backend):
                     STORE_TYPE_PRINCIPAL: PrincipalCollection,
                     STORE_TYPE_SCHEDULE_INBOX: ScheduleInbox,
                     STORE_TYPE_SCHEDULE_OUTBOX: ScheduleOutbox,
+                    STORE_TYPE_SUBSCRIPTION: SubscriptionCollection,
                     STORE_TYPE_OTHER: Collection
                 }[store.get_type()](self, relpath, store)
         else:
