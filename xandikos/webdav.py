@@ -1297,7 +1297,10 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
         if not href.startswith(script_name):
             resource = None
         else:
-            resource = backend.get_resource(href[len(script_name):])
+            path = href[len(script_name):]
+            if not path.startswith('/'):
+                path = '/' + path
+            resource = backend.get_resource(path)
         yield (href, resource)
 
 
@@ -1332,7 +1335,7 @@ def _send_dav_responses(responses, out_encoding):
     return _send_xml_response('207 Multi-Status', ret, out_encoding)
 
 
-def _send_simple_dav_error(environ, statuscode, error,
+def _send_simple_dav_error(request, statuscode, error,
                            description):
     status = Status(request.url, statuscode, error=error,
                     responsedescription=description)
@@ -1460,7 +1463,7 @@ class PostMethod(Method):
 
     async def handle(self, request, environ, app):
         # see RFC5995
-        new_contents = _readBody(environ)
+        new_contents = await _readBody(request)
         unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is None:
             return _send_not_found(request)
@@ -1472,7 +1475,7 @@ class PostMethod(Method):
             (name, etag) = r.create_member(None, new_contents, content_type)
         except PreconditionFailure as e:
             return _send_simple_dav_error(
-                environ, '412 Precondition Failed',
+                request, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
         href = (
@@ -1503,7 +1506,7 @@ class PutMethod(Method):
                 new_etag = r.set_body(new_contents, current_etag)
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
-                    environ, '412 Precondition Failed',
+                    request, '412 Precondition Failed',
                     error=ET.Element(e.precondition),
                     description=e.description)
             except NotImplementedError:
@@ -1525,7 +1528,7 @@ class PutMethod(Method):
                 name, new_contents, content_type)
         except PreconditionFailure as e:
             return _send_simple_dav_error(
-                environ, '412 Precondition Failed',
+                request, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
         return Response(
@@ -1547,13 +1550,13 @@ class ReportMethod(Method):
         except KeyError:
             logging.warning('Client requested unknown REPORT %s', et.tag)
             return _send_simple_dav_error(
-                environ,
+                request,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
                 description=('Unknown report %s.' % et.tag)
             )
         if not reporter.supported_on(r):
             return _send_simple_dav_error(
-                environ, 
+                request,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
                 description=('Report %s not supported on resource.' % et.tag)
             )

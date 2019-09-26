@@ -923,7 +923,7 @@ class MkcalendarMethod(webdav.Method):
         href, path, resource = app._get_resource_from_environ(request, environ)
         if resource is not None:
             return webdav._send_simple_dav_error(
-                environ, 
+                request,
                 '403 Forbidden',
                 error=ET.Element('{DAV:}resource-must-be-null'),
                 description=('Something already exists at %r' % path))

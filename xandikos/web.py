@@ -688,11 +688,11 @@ class RootPage(webdav.Resource):
         return ['en-UK']
 
     def get_member(self, name):
-        return self.backend.get_resource(name)
+        return self.backend.get_resource('/' + name)
 
     def delete_member(self, name, etag=None):
         # This doesn't have any non-collection members.
-        self.get_member(name).destroy()
+        self.get_member('/' + name).destroy()
 
     def get_is_executable(self):
         return False
