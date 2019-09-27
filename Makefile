@@ -6,9 +6,8 @@ TESTSUITE = xandikos.tests.test_suite
 LITMUS_TESTS ?= basic http
 CALDAVTESTER_TESTS ?= CalDAV/delete.xml \
 		      CalDAV/options.xml \
-		      CalDAV/vtodos.xml
-# Disabled due to https://github.com/aio-libs/aiohttp/issues/4109
-# CalDAV/schedulenomore.xml
+		      CalDAV/vtodos.xml \
+		      CalDAV/schedulenomore.xml
 XANDIKOS_COVERAGE ?= $(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web
 
 check:

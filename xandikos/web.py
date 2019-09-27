@@ -1136,7 +1136,8 @@ def main(argv):
     app = web.Application()
     for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(
-            "*", path, RedirectDavHandler(options.route_prefix))
+            "*", path,
+            RedirectDavHandler(options.route_prefix).__call__)
     app.router.add_route("GET", "/metrics", metrics_handler)
     if options.route_prefix.strip('/'):
         xandikos_app = web.Application()
