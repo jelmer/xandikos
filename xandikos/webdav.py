@@ -25,6 +25,7 @@ functionality should live in xandikos.caldav/xandikos.carddav respectively.
 
 # TODO(jelmer): Add authorization support
 
+import asyncio
 import collections
 import fnmatch
 import functools
@@ -82,6 +83,44 @@ class UnauthorizedError(Exception):
         super(UnauthorizedError, self).__init__(
             "Request unauthorized")
 
+
+class Response(object):
+    """Generic wrapper for HTTP-style responses.
+    """
+
+    def __init__(self, status=200, reason='OK', body=None, headers=None):
+        if isinstance(status, str):
+            self.status = int(status.split(' ', 1)[0])
+            self.reason = status.split(' ', 1)[1]
+        else:
+            self.status = status
+            self.reason = reason
+        self.body = body or []
+        if isinstance(headers, dict):
+            self.headers = list(headers.items())
+        elif isinstance(headers, list):
+            self.headers = list(headers)
+        elif not headers:
+            self.headers = []
+        else:
+            raise TypeError(headers)
+
+    def for_wsgi(self, start_response):
+        start_response(
+            '%d %s' % (self.status, self.reason),
+            headers=self.headers)
+        return self.body
+
+    def for_aiohttp(self):
+        from aiohttp import web
+        if isinstance(self.body, list):
+            body = b''.join(self.body)
+        else:
+            body = self.body
+        return web.Response(
+            status=self.status, reason=self.reason,
+            headers=self.headers, body=body)
+        
 
 def pick_content_types(accepted_content_types, available_content_types):
     """Pick best content types for a client.
@@ -220,7 +259,7 @@ class Status(object):
 
     def __init__(self, href, status=None, error=None, responsedescription=None,
                  propstat=None):
-        self.href = href
+        self.href = str(href)
         self.status = status
         self.error = error
         self.propstat = propstat
@@ -268,9 +307,9 @@ class Status(object):
 
 def multistatus(req_fn):
 
-    def wrapper(self, environ, start_response, *args, **kwargs):
-        responses = req_fn(self, environ, *args, **kwargs)
-        return _send_dav_responses(start_response, responses, DEFAULT_ENCODING)
+    async def wrapper(self, environ, *args, **kwargs):
+        responses = [resp async for resp in req_fn(self, environ, *args, **kwargs)]
+        return _send_dav_responses(responses, DEFAULT_ENCODING)
 
     return wrapper
 
@@ -302,18 +341,18 @@ class Property(object):
             return True
         return False
 
-    def is_set(self, href, resource, environ):
+    async def is_set(self, href, resource, environ):
         """Check if this property is set on a resource."""
         if not self.supported_on(resource):
             return False
         try:
-            self.get_value('/', resource, ET.Element(self.name), environ)
+            await self.get_value('/', resource, ET.Element(self.name), environ)
         except KeyError:
             return False
         else:
             return True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param href: Resource href
@@ -345,7 +384,7 @@ class ResourceTypeProperty(Property):
 
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
 
@@ -362,7 +401,7 @@ class DisplayNameProperty(Property):
     name = '{DAV:}displayname'
     resource_type = None
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_displayname()
 
     def set_value(self, href, resource, el):
@@ -379,8 +418,8 @@ class GetETagProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el, environ):
-        el.text = resource.get_etag()
+    async def get_value(self, href, resource, el, environ):
+        el.text = await resource.get_etag()
 
 
 ADD_MEMBER_FEATURE = 'add-member'
@@ -396,7 +435,7 @@ class AddMemberProperty(Property):
     resource_type = COLLECTION_RESOURCE_TYPE
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         # Support POST against collection URL
         el.append(create_href('.', href))
 
@@ -412,7 +451,7 @@ class GetLastModifiedProperty(Property):
     live = True
     in_allprops = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         # Use rfc1123 date (section 3.3.1 of RFC2616)
         el.text = resource.get_last_modified().strftime(
             '%a, %d %b %Y %H:%M:%S GMT')
@@ -440,7 +479,7 @@ class CreationDateProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = format_datetime(resource.get_creationdate())
 
 
@@ -453,7 +492,7 @@ class GetContentLanguageProperty(Property):
     name = '{DAV:}getcontentlanguage'
     resource_type = None
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = ', '.join(resource.get_content_language())
 
 
@@ -466,8 +505,8 @@ class GetContentLengthProperty(Property):
     name = '{DAV:}getcontentlength'
     resource_type = None
 
-    def get_value(self, href, resource, el, environ):
-        el.text = str(resource.get_content_length())
+    async def get_value(self, href, resource, el, environ):
+        el.text = str(await resource.get_content_length())
 
 
 class GetContentTypeProperty(Property):
@@ -479,7 +518,7 @@ class GetContentTypeProperty(Property):
     name = '{DAV:}getcontenttype'
     resource_type = None
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_content_type()
 
 
@@ -498,7 +537,7 @@ class CurrentUserPrincipalProperty(Property):
         super(CurrentUserPrincipalProperty, self).__init__()
         self.get_current_user_principal = get_current_user_principal
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param name: A property name.
@@ -520,7 +559,7 @@ class PrincipalURLProperty(Property):
     in_allprops = True
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
         :param name: A property name.
@@ -539,7 +578,7 @@ class SupportedReportSetProperty(Property):
     def __init__(self, reporters):
         self._reporters = reporters
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for name, reporter in self._reporters.items():
             if reporter.supported_on(resource):
                 bel = ET.SubElement(el, '{DAV:}supported-report')
@@ -556,7 +595,7 @@ class GetCTagProperty(Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_ctag()
 
 
@@ -586,7 +625,7 @@ class RefreshRateProperty(Property):
     resource_type = COLLECTION_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_refreshrate()
 
     def set_value(self, href, resource, el):
@@ -660,7 +699,7 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_owner)
 
-    def get_etag(self):
+    async def get_etag(self):
         """Get the etag for this resource.
 
         Contains the ETag header value (from Section 14.19 of [RFC2616]) as it
@@ -668,13 +707,13 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_etag)
 
-    def get_body(self):
+    async def get_body(self):
         """Get resource contents.
 
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
-    def render(self, self_url, accepted_content_types, accepted_languages):
+    async def render(self, self_url, accepted_content_types, accepted_languages):
         """'Render' this resource in the specified content type.
 
         The default implementation just checks that the
@@ -691,20 +730,20 @@ class Resource(object):
         content_types = pick_content_types(
             accepted_content_types, [self.get_content_type()])
         assert content_types == [self.get_content_type()]
-        body = self.get_body()
+        body = await self.get_body()
         try:
             content_language = self.get_content_language()
         except KeyError:
             content_language = None
-        return (body, sum(map(len, body)), self.get_etag(),
+        return (body, sum(map(len, body)), await self.get_etag(),
                 self.get_content_type(), content_language)
 
-    def get_content_length(self):
+    async def get_content_length(self):
         """Get content length.
 
         :return: Length of this objects content.
         """
-        return sum(map(len, self.get_body()))
+        return sum(map(len, await self.get_body()))
 
     def get_content_language(self):
         """Get content language.
@@ -905,7 +944,7 @@ class Principal(Resource):
         raise NotImplementedError(self.get_schedule_outbox_url)
 
 
-def get_property_from_name(href, resource, properties, name, environ):
+async def get_property_from_name(href, resource, properties, name, environ):
     """Get a single property on a resource.
 
     :param href: Resource href
@@ -915,11 +954,11 @@ def get_property_from_name(href, resource, properties, name, environ):
     :param name: name of property to resolve
     :return: PropStatus items
     """
-    return get_property_from_element(
+    return await get_property_from_element(
         href, resource, properties, environ, ET.Element(name))
 
 
-def get_property_from_element(href, resource, properties, environ, requested):
+async def get_property_from_element(href, resource, properties, environ, requested):
     """Get a single property on a resource.
 
     :param href: Resource href
@@ -945,9 +984,9 @@ def get_property_from_element(href, resource, properties, environ, requested):
             try:
                 get_value_ext = prop.get_value_ext
             except AttributeError:
-                prop.get_value(href, resource, ret, environ)
+                await prop.get_value(href, resource, ret, environ)
             else:
-                get_value_ext(href, resource, ret, environ, requested)
+                await get_value_ext(href, resource, ret, environ, requested)
         except KeyError:
             statuscode = '404 Not Found'
         else:
@@ -955,7 +994,7 @@ def get_property_from_element(href, resource, properties, environ, requested):
     return PropStatus(statuscode, responsedescription, ret)
 
 
-def get_properties(href, resource, properties, environ, requested):
+async def get_properties(href, resource, properties, environ, requested):
     """Get a set of properties.
 
     :param href: Resource Href
@@ -966,11 +1005,11 @@ def get_properties(href, resource, properties, environ, requested):
     :return: Iterator over PropStatus items
     """
     for propreq in list(requested):
-        yield get_property_from_element(
+        yield await get_property_from_element(
             href, resource, properties, environ, propreq)
 
 
-def get_property_names(href, resource, properties, environ, requested):
+async def get_property_names(href, resource, properties, environ, requested):
     """Get a set of property names.
 
     :param href: Resource Href
@@ -981,11 +1020,11 @@ def get_property_names(href, resource, properties, environ, requested):
     :return: Iterator over PropStatus items
     """
     for name, prop in properties.items():
-        if prop.is_set(href, resource, environ):
+        if await prop.is_set(href, resource, environ):
             yield PropStatus('200 OK', None, ET.Element(name))
 
 
-def get_all_properties(href, resource, properties, environ):
+async def get_all_properties(href, resource, properties, environ):
     """Get all properties.
 
     :param href: Resource Href
@@ -996,7 +1035,7 @@ def get_all_properties(href, resource, properties, environ):
     :return: Iterator over PropStatus items
     """
     for name in properties:
-        ps = get_property_from_name(href, resource, properties, name, environ)
+        ps = await get_property_from_name(href, resource, properties, name, environ)
         if ps.statuscode == '200 OK':
             yield ps
 
@@ -1014,7 +1053,7 @@ def ensure_trailing_slash(href):
     return href + '/'
 
 
-def traverse_resource(base_resource, base_href, depth, members=None):
+async def traverse_resource(base_resource, base_href, depth, members=None):
     """Traverse a resource.
 
     :param base_resource: Resource to traverse from
@@ -1071,19 +1110,18 @@ class Reporter(object):
                        for rs in self.resource_type)
         return self.resource_type in resource.resource_types
 
-    def report(self, environ, start_response, request_body, resources_by_hrefs,
+    async def report(self, environ, request_body, resources_by_hrefs,
                properties, href, resource, depth):
         """Send a report.
 
         :param environ: wsgi environ
-        :param start_response: WSGI start_response function
         :param request_body: XML Element for request body
         :param resources_by_hrefs: Function for retrieving resource by HREF
         :param properties: Dictionary mapping names to DAVProperty instances
         :param href: Base resource href
         :param resource: Resource to start from
         :param depth: Depth ("0", "1", ...)
-        :return: chunked body
+        :return: a response
         """
         raise NotImplementedError(self.report)
 
@@ -1114,7 +1152,7 @@ class ExpandPropertyReporter(Reporter):
 
     name = '{DAV:}expand-property'
 
-    def _populate(self, prop_list, resources_by_hrefs, properties, href,
+    async def _populate(self, prop_list, resources_by_hrefs, properties, href,
                   resource, environ):
         """Expand properties for a resource.
 
@@ -1130,7 +1168,7 @@ class ExpandPropertyReporter(Reporter):
         for prop in prop_list:
             prop_name = prop.get('name')
             # FIXME: Resolve prop_name on resource
-            propstat = get_property_from_name(
+            propstat = await get_property_from_name(
                 href, resource, properties, prop_name, environ)
             new_prop = ET.Element(propstat.prop.tag)
             child_hrefs = [
@@ -1156,13 +1194,14 @@ class ExpandPropertyReporter(Reporter):
             propstat = PropStatus(propstat.statuscode,
                                   propstat.responsedescription, prop=new_prop)
             ret.append(propstat)
-        return Status(href, '200 OK', propstat=ret)
+        yield Status(href, '200 OK', propstat=ret)
 
     @multistatus
-    def report(self, environ, request_body, resources_by_hrefs, properties,
+    async def report(self, environ, request_body, resources_by_hrefs, properties,
                href, resource, depth):
-        return self._populate(request_body, resources_by_hrefs, properties,
-                              href, resource, environ)
+        async for resp in self._populate(request_body, resources_by_hrefs, properties,
+                href, resource, environ):
+            yield resp
 
 
 class SupportedLockProperty(Property):
@@ -1175,7 +1214,7 @@ class SupportedLockProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for (lockscope, locktype) in resource.get_supported_locks():
             entry = ET.SubElement(el, '{DAV:}lockentry')
             scope_el = ET.SubElement(entry, '{DAV:}lockscope')
@@ -1194,7 +1233,7 @@ class LockDiscoveryProperty(Property):
     resource_type = None
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for activelock in resource.get_active_locks():
             entry = ET.SubElement(el, '{DAV:}activelock')
             type_el = ET.SubElement(entry, '{DAV:}locktype')
@@ -1223,7 +1262,7 @@ class CommentProperty(Property):
     live = False
     in_allprops = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_comment()
 
     def set_value(self, href, resource, el):
@@ -1258,22 +1297,27 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
         if not href.startswith(script_name):
             resource = None
         else:
-            resource = backend.get_resource(href[len(script_name):])
+            path = href[len(script_name):]
+            if not path.startswith('/'):
+                path = '/' + path
+            resource = backend.get_resource(path)
         yield (href, resource)
 
 
-def _send_xml_response(start_response, status, et, out_encoding):
+def _send_xml_response(status, et, out_encoding):
     body_type = 'text/xml; charset="%s"' % out_encoding
     if os.environ.get('XANDIKOS_DUMP_DAV_XML'):
         print("OUT: " + ET.tostring(et).decode('utf-8'))
     body = ET.tostringlist(et, encoding=out_encoding)
-    start_response(status, [
-        ('Content-Type', body_type),
-        ('Content-Length', str(sum(map(len, body))))])
-    return body
+    return Response(
+        status=status,
+        body=body,
+        headers={
+        'Content-Type': body_type,
+        'Content-Length': str(sum(map(len, body)))})
 
 
-def _send_dav_responses(start_response, responses, out_encoding):
+def _send_dav_responses(responses, out_encoding):
     if isinstance(responses, Status):
         try:
             (body, body_type) = responses.get_single_body(
@@ -1281,34 +1325,32 @@ def _send_dav_responses(start_response, responses, out_encoding):
         except NeedsMultiStatus:
             responses = [responses]
         else:
-            start_response(responses.status, [
-                ('Content-Type', body_type),
-                ('Content-Length', str(sum(map(len, body))))])
-            return body
+            return Response(status=responses.status, headers={
+                'Content-Type': body_type,
+                'Content-Length': str(sum(map(len, body)))},
+                body=body)
     ret = ET.Element('{DAV:}multistatus')
     for response in responses:
         ret.append(response.aselement())
-    return _send_xml_response(start_response, '207 Multi-Status', ret,
-                              out_encoding)
+    return _send_xml_response('207 Multi-Status', ret, out_encoding)
 
 
-def _send_simple_dav_error(environ, start_response, statuscode, error,
+def _send_simple_dav_error(request, statuscode, error,
                            description):
-    status = Status(request_uri(environ), statuscode, error=error,
+    status = Status(request.url, statuscode, error=error,
                     responsedescription=description)
-    return _send_dav_responses(start_response, status, DEFAULT_ENCODING)
+    return _send_dav_responses(status, DEFAULT_ENCODING)
 
 
-def _send_not_found(environ, start_response):
-    path = request_uri(environ)
-    start_response('404 Not Found', [])
-    return [b'Path ' + path.encode(DEFAULT_ENCODING) + b' not found.']
+def _send_not_found(request):
+    body = [b'Path ' + request.path.encode(DEFAULT_ENCODING) + b' not found.']
+    return Response(body=body, status=404, reason='Not Found')
 
 
-def _send_method_not_allowed(environ, start_response, allowed_methods):
-    start_response('405 Method Not Allowed', [
-        ('Allow', ', '.join(allowed_methods))])
-    return []
+def _send_method_not_allowed(allowed_methods):
+    return Response(
+        status=405, reason='Method Not Allowed',
+        headers={'Allow': ', '.join(allowed_methods)})
 
 
 def apply_modify_prop(el, href, resource, properties):
@@ -1359,25 +1401,20 @@ def apply_modify_prop(el, href, resource, properties):
             yield PropStatus(statuscode, None, ET.Element(propel.tag))
 
 
-def _readBody(environ):
-    try:
-        request_body_size = int(environ['CONTENT_LENGTH'])
-    except KeyError:
-        return [environ['wsgi.input'].read()]
+async def _readBody(request):
+    request_body_size = request.content_length
+    if request_body_size is None:
+        return [await request.content.read()]
     else:
-        return [environ['wsgi.input'].read(request_body_size)]
+        return [await request.content.read(request_body_size)]
 
 
-def _readXmlBody(environ, expected_tag=None):
-    try:
-        content_type = environ['CONTENT_TYPE']
-    except KeyError:
-        pass  # Just assume it's okay?
-    else:
-        base_content_type, params = parse_type(content_type)
-        if base_content_type not in ('text/xml', 'application/xml'):
-            raise UnsupportedMediaType(content_type)
-    body = b''.join(_readBody(environ))
+async def _readXmlBody(request, expected_tag=None):
+    content_type = request.content_type
+    base_content_type, params = parse_type(content_type)
+    if base_content_type not in ('text/xml', 'application/xml'):
+        raise UnsupportedMediaType(content_type)
+    body = b''.join(await _readBody(request))
     if os.environ.get('XANDIKOS_DUMP_DAV_XML'):
         print("IN: " + body.decode('utf-8'))
     try:
@@ -1396,145 +1433,135 @@ class Method(object):
     def name(self):
         return type(self).__name__.upper()[:-6]
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, request, environ, app):
         raise NotImplementedError(self.handle)
 
-    def allow(self, environ):
-        """Is this method allowed considering the specified environ?"""
+    def allow(self, request):
+        """Is this method allowed considering the specified request?"""
         return True
 
 
 class DeleteMethod(Method):
 
-    def handle(self, environ, start_response, app):
-        unused_href, path, r = app._get_resource_from_environ(environ)
+    async def handle(self, request, environ, app):
+        unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is None:
-            return _send_not_found(environ, start_response)
-        container_path, item_name = posixpath.split(path)
+            return _send_not_found(request)
+        container_path, item_name = posixpath.split(path.rstrip('/'))
         pr = app.backend.get_resource(container_path)
         if pr is None:
-            return _send_not_found(environ, start_response)
-        current_etag = r.get_etag()
-        if_match = environ.get('HTTP_IF_MATCH', None)
+            return _send_not_found(request)
+        current_etag = await r.get_etag()
+        if_match = request.headers.get('If-Match', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
-            start_response('412 Precondition Failed', [])
-            return []
+            return Response(status=412, reason='Precondition Failed')
         pr.delete_member(item_name, current_etag)
-        start_response('204 No Content', [])
-        return []
+        return Response(status=204, reason='No Content')
 
 
 class PostMethod(Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, request, environ, app):
         # see RFC5995
-        new_contents = _readBody(environ)
-        unused_href, path, r = app._get_resource_from_environ(environ)
+        new_contents = await _readBody(request)
+        unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is None:
-            return _send_not_found(environ, start_response)
+            return _send_not_found(request)
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
-        content_type = environ['CONTENT_TYPE'].split(';')[0]
+                app._get_allowed_methods(request))
+        content_type, params = parse_type(request.content_type)
         try:
             (name, etag) = r.create_member(None, new_contents, content_type)
         except PreconditionFailure as e:
             return _send_simple_dav_error(
-                environ, start_response, '412 Precondition Failed',
+                request, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
         href = (
             environ['SCRIPT_NAME'] +
             urllib.parse.urljoin(ensure_trailing_slash(path), name)
         )
-        start_response('200 OK', [('Location', href)])
-        return []
+        return Response(headers={'Location': href})
 
 
 class PutMethod(Method):
 
-    def handle(self, environ, start_response, app):
-        new_contents = _readBody(environ)
-        unused_href, path, r = app._get_resource_from_environ(environ)
+    async def handle(self, request, environ, app):
+        new_contents = await _readBody(request)
+        unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is not None:
-            current_etag = r.get_etag()
+            current_etag = await r.get_etag()
         else:
             current_etag = None
-        if_match = environ.get('HTTP_IF_MATCH', None)
+        if_match = request.headers.get('If-Match', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
-            start_response('412 Precondition Failed', [])
-            return []
-        if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
+            return Response(status='412 Precondition Failed')
+        if_none_match = request.headers.get('If-None-Match', None)
         if if_none_match and etag_matches(if_none_match, current_etag):
-            start_response('412 Precondition Failed', [])
-            return []
+            return Response(status='412 Precondition Failed')
         if r is not None:
             # Item already exists; update it
             try:
                 new_etag = r.set_body(new_contents, current_etag)
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
-                    environ, start_response, '412 Precondition Failed',
+                    request, '412 Precondition Failed',
                     error=ET.Element(e.precondition),
                     description=e.description)
             except NotImplementedError:
                 return _send_method_not_allowed(
-                    environ, start_response,
-                    app._get_allowed_methods(environ))
+                    app._get_allowed_methods(request))
             else:
-                start_response('204 No Content', [
+                return Response(status='204 No Content', headers=[
                     ('ETag', new_etag)])
-                return []
-        content_type = environ.get('CONTENT_TYPE')
+        content_type = request.content_type
         container_path, name = posixpath.split(path)
         r = app.backend.get_resource(container_path)
         if r is None:
-            return _send_not_found(environ, start_response)
+            return _send_not_found(request)
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
+                app._get_allowed_methods(request))
         try:
             (new_name, new_etag) = r.create_member(
                 name, new_contents, content_type)
         except PreconditionFailure as e:
             return _send_simple_dav_error(
-                environ, start_response, '412 Precondition Failed',
+                request, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
-        start_response('201 Created', [
+        return Response(
+            status=201, reason='Created', headers=[
             ('ETag', new_etag)])
-        return []
 
 
 class ReportMethod(Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, request, environ, app):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
-        base_href, unused_path, r = app._get_resource_from_environ(environ)
+        base_href, unused_path, r = app._get_resource_from_environ(request, environ)
         if r is None:
-            return _send_not_found(environ, start_response)
-        depth = environ.get("HTTP_DEPTH", "0")
-        et = _readXmlBody(environ, None)
+            return _send_not_found(request)
+        depth = request.headers.get("Depth", "0")
+        et = await _readXmlBody(request, None)
         try:
             reporter = app.reporters[et.tag]
         except KeyError:
             logging.warning('Client requested unknown REPORT %s', et.tag)
             return _send_simple_dav_error(
-                environ, start_response,
+                request,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
                 description=('Unknown report %s.' % et.tag)
             )
         if not reporter.supported_on(r):
             return _send_simple_dav_error(
-                environ, start_response,
+                request,
                 '403 Forbidden', error=ET.Element('{DAV:}supported-report'),
                 description=('Report %s not supported on resource.' % et.tag)
             )
-        return reporter.report(
-            environ, start_response, et,
-            functools.partial(
+        return await reporter.report(
+            environ, et, functools.partial(
                 _get_resources_by_hrefs, app.backend, environ),
             app.properties, base_href, r, depth)
 
@@ -1542,27 +1569,25 @@ class ReportMethod(Method):
 class PropfindMethod(Method):
 
     @multistatus
-    def handle(self, environ, app):
+    async def handle(self, request, environ, app):
         base_href, unused_path, base_resource = (
-            app._get_resource_from_environ(environ))
+            app._get_resource_from_environ(request, environ))
         if base_resource is None:
-            return Status(request_uri(environ), '404 Not Found')
+            yield Status(request.url, '404 Not Found')
+            return
         # Default depth is infinity, per RFC2518
-        depth = environ.get("HTTP_DEPTH", "infinity")
-        if (
-            'CONTENT_TYPE' not in environ and
-            environ.get('CONTENT_LENGTH') == '0'
-        ):
+        depth = request.headers.get("Depth", "infinity")
+        if not request.can_read_body:
             requested = None
         else:
-            et = _readXmlBody(environ, '{DAV:}propfind')
+            et = await _readXmlBody(request, '{DAV:}propfind')
             try:
                 [requested] = et
             except ValueError:
                 raise BadRequestError(
                     'Received more than one element in propfind.')
         ret = []
-        for href, resource in traverse_resource(
+        async for href, resource in traverse_resource(
                 base_resource, base_href, depth):
             propstat = []
             if requested is None or requested.tag == '{DAV:}allprop':
@@ -1577,21 +1602,21 @@ class PropfindMethod(Method):
             else:
                 raise BadRequestError(
                     'Expected prop/allprop/propname tag, got ' + requested.tag)
-            ret.append(Status(href, '200 OK', propstat=list(propstat)))
+            yield Status(href, '200 OK', propstat=[s async for s in propstat])
         # By my reading of the WebDAV RFC, it should be legal to return
         # '200 OK' here if Depth=0, but the RFC is not super clear and
-        # some clients don't seem to like it .
-        return ret
+        # some clients don't seem to like it and prefer a 207 instead.
 
 
 class ProppatchMethod(Method):
 
     @multistatus
-    def handle(self, environ, app):
-        href, unused_path, resource = app._get_resource_from_environ(environ)
+    async def handle(self, request, environ, app):
+        href, unused_path, resource = app._get_resource_from_environ(request, environ)
         if resource is None:
-            return Status(request_uri(environ), '404 Not Found')
-        et = _readXmlBody(environ, '{DAV:}propertyupdate')
+            yield Status(request.url, '404 Not Found')
+            return
+        et = await _readXmlBody(request, '{DAV:}propertyupdate')
         propstat = []
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
@@ -1599,35 +1624,30 @@ class ProppatchMethod(Method):
                                       % el.tag)
             propstat.extend(apply_modify_prop(el, href, resource,
                                               app.properties))
-        return [Status(request_uri(environ), propstat=propstat)]
+        yield Status(request.url, propstat=propstat)
 
 
 class MkcolMethod(Method):
 
-    def handle(self, environ, start_response, app):
-        try:
-            content_type = environ['CONTENT_TYPE']
-        except KeyError:
-            base_content_type = None
-        else:
-            base_content_type, params = parse_type(content_type)
+    async def handle(self, request, environ, app):
+        content_type = request.content_type
+        base_content_type, params = parse_type(content_type)
         if base_content_type not in (
-            'text/plain', 'text/xml', 'application/xml', None
+            'text/plain', 'text/xml', 'application/xml', None,
+            'application/octet-stream',
         ):
             raise UnsupportedMediaType(base_content_type)
-        href, path, resource = app._get_resource_from_environ(environ)
+        href, path, resource = app._get_resource_from_environ(request, environ)
         if resource is not None:
             return _send_method_not_allowed(
-                environ, start_response,
-                app._get_allowed_methods(environ))
+                app._get_allowed_methods(request))
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:
-            start_response('409 Conflict', [])
-            return []
+            return Response(status=409, reason='Conflict')
         if base_content_type in ('text/xml', 'application/xml'):
             # Extended MKCOL (RFC5689)
-            et = _readXmlBody(environ, '{DAV:}mkcol')
+            et = await _readXmlBody(request, '{DAV:}mkcol')
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
@@ -1637,56 +1657,54 @@ class MkcolMethod(Method):
             ret = ET.Element('{DAV:}mkcol-response')
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
-            return _send_xml_response(start_response, '201 Created', ret,
-                                      DEFAULT_ENCODING)
+            return _send_xml_response(
+                '201 Created', ret, DEFAULT_ENCODING)
         else:
-            start_response('201 Created', [])
-            return []
+            return Response(status=201, reason='Created')
 
 
 class OptionsMethod(Method):
 
-    def handle(self, environ, start_response, app):
+    async def handle(self, request, environ, app):
         headers = []
-        if environ['PATH_INFO'] != '*':
+        if request.raw_path != '*':
             unused_href, unused_path, r = (
-                app._get_resource_from_environ(environ))
+                app._get_resource_from_environ(request, environ))
             if r is None:
-                return _send_not_found(environ, start_response)
+                return _send_not_found(request)
             dav_features = app._get_dav_features(r)
             headers.append(('DAV', ', '.join(dav_features)))
-            allowed_methods = app._get_allowed_methods(environ)
+            allowed_methods = app._get_allowed_methods(request)
             headers.append(('Allow', ', '.join(allowed_methods)))
 
         # RFC7231 requires that if there is no response body,
         # Content-Length: 0 must be sent. This implies that there is
         # content (albeit empty), and thus a 204 is not a valid reply.
         # Thunderbird also fails if a 204 is sent rather than a 200.
-        start_response('200 OK', headers + [
+        return Response(status=200, reason='OK', headers=headers + [
             ('Content-Length', '0')])
-        return []
 
 
 class HeadMethod(Method):
 
-    def handle(self, environ, start_response, app):
-        return _do_get(environ, start_response, app, send_body=False)
+    async def handle(self, request, environ, app):
+        return await _do_get(request, environ, app, send_body=False)
 
 
 class GetMethod(Method):
 
-    def handle(self, environ, start_response, app):
-        return _do_get(environ, start_response, app, send_body=True)
+    async def handle(self, request, environ, app):
+        return await _do_get(request, environ, app, send_body=True)
 
 
-def _do_get(environ, start_response, app, send_body):
-    unused_href, unused_path, r = app._get_resource_from_environ(environ)
+async def _do_get(request, environ, app, send_body):
+    unused_href, unused_path, r = app._get_resource_from_environ(request, environ)
     if r is None:
-        return _send_not_found(environ, start_response)
+        return _send_not_found(request)
     accept_content_types = parse_accept_header(
-        environ.get('HTTP_ACCEPT', '*/*'))
+        request.headers.get('Accept', '*/*'))
     accept_content_languages = parse_accept_header(
-        environ.get('HTTP_ACCEPT_LANGUAGES', '*'))
+        request.headers.get('Accept-Languages', '*'))
 
     (
         body,
@@ -1694,16 +1712,15 @@ def _do_get(environ, start_response, app, send_body):
         current_etag,
         content_type,
         content_languages
-    ) = r.render(environ['SCRIPT_NAME'] + environ['PATH_INFO'],
-                 accept_content_types, accept_content_languages)
+    ) = await r.render(
+            request.path, accept_content_types, accept_content_languages)
 
-    if_none_match = environ.get('HTTP_IF_NONE_MATCH', None)
+    if_none_match = request.headers.get('If-None-Match', None)
     if (
         if_none_match and current_etag is not None and
         etag_matches(if_none_match, current_etag)
     ):
-        start_response('304 Not Modified', [])
-        return []
+        return Response(status='304 Not Modified')
     headers = [
         ('Content-Length', str(content_length)),
     ]
@@ -1719,11 +1736,49 @@ def _do_get(environ, start_response, app, send_body):
         headers.append(('Last-Modified', last_modified))
     if content_languages is not None:
         headers.append(('Content-Language', ', '.join(content_languages)))
-    start_response('200 OK', headers)
     if send_body:
-        return body
+        return Response(body=body, status=200, reason='OK', headers=headers)
     else:
-        return []
+        return Response(status=200, reason='OK', headers=headers)
+
+
+class WSGIRequest(object):
+    """Request object for wsgi requests (with environ)."""
+
+    def __init__(self, environ):
+        self._environ = environ
+        self.method = environ['REQUEST_METHOD']
+        self.raw_path = environ['SCRIPT_NAME'] + environ['PATH_INFO']
+        self.path = environ['SCRIPT_NAME'] + path_from_environ(environ, 'PATH_INFO')
+        self.content_type = environ.get(
+            'CONTENT_TYPE', 'application/octet-stream')
+        try:
+            self.content_length = int(environ['CONTENT_LENGTH'])
+        except KeyError:
+            self.content_length = None
+        from multidict import CIMultiDict
+        self.headers = CIMultiDict([
+            (k[5:], v) for k, v in environ.items()
+            if k.startswith('HTTP_')])
+        self.url = request_uri(environ)
+        class StreamWrapper(object):
+
+            def __init__(self, stream):
+                self._stream = stream
+
+            async def read(self, size=None):
+                return self._stream.read(size)
+
+        self.content = StreamWrapper(self._environ['wsgi.input'])
+        self.match_info = {'path_info': environ['PATH_INFO']}
+
+    @property
+    def can_read_body(self):
+        return ('CONTENT_TYPE' in self._environ or
+                self._environ.get('CONTENT_LENGTH') != '0')
+
+    async def read(self):
+        return self._environ['wsgi.input'].read()
 
 
 class WebDAVApp(object):
@@ -1752,11 +1807,12 @@ class WebDAVApp(object):
             HeadMethod(),
         ])
 
-    def _get_resource_from_environ(self, environ):
-        path = path_from_environ(environ, 'PATH_INFO')
-        href = (environ['SCRIPT_NAME'] + path)
-        r = self.backend.get_resource(path)
-        return (href, path, r)
+    def _get_resource_from_environ(self, request, environ):
+        path_info = request.match_info['path_info']
+        if not path_info.startswith('/'):
+            path_info = '/' + path_info
+        r = self.backend.get_resource(path_info)
+        return (request.path, path_info, r)
 
     def register_properties(self, properties):
         for p in properties:
@@ -1776,39 +1832,55 @@ class WebDAVApp(object):
                 'addressbook', 'extended-mkcol', 'add-member',
                 'sync-collection', 'quota']
 
-    def _get_allowed_methods(self, environ):
+    def _get_allowed_methods(self, request):
         """List of supported methods on this endpoint."""
         ret = []
         for name in sorted(self.methods.keys()):
-            if self.methods[name].allow(environ):
+            if self.methods[name].allow(request):
                 ret.append(name)
         return ret
 
-    def __call__(self, environ, start_response):
-        if environ.get('HTTP_EXPECT', '') != '':
-            start_response('417 Expectation Failed', [])
-            return []
+    async def _handle_request(self, request, environ):
+        if request.headers.get('Expect', '') != '':
+            return Response(status='417 Expectation Failed')
+        try:
+            do = self.methods[request.method]
+        except KeyError:
+            return _send_method_not_allowed(self._get_allowed_methods(request))
+        try:
+            return await do.handle(request, environ, self)
+        except BadRequestError as e:
+            return Response(
+                status='400 Bad Request',
+                body=[e.message.encode(DEFAULT_ENCODING)])
+        except NotAcceptableError as e:
+            return Response(
+                status='406 Not Acceptable',
+                body=[str(e).encode(DEFAULT_ENCODING)])
+        except UnsupportedMediaType as e:
+            return Response(
+                status='415 Unsupported Media Type',
+                body=[('Unsupported media type %r' % e.content_type)
+                    .encode(DEFAULT_ENCODING)])
+        except UnauthorizedError:
+            return Response(
+                status='401 Unauthorized',
+                body=[('Please login.'.encode(DEFAULT_ENCODING))])
+
+    def handle_wsgi_request(self, environ, start_response):
+        loop = asyncio.get_event_loop()
         if 'SCRIPT_NAME' not in environ:
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ['SCRIPT_NAME'] = ''
-        method = environ['REQUEST_METHOD']
-        try:
-            do = self.methods[method]
-        except KeyError:
-            return _send_method_not_allowed(environ, start_response,
-                                            self._get_allowed_methods(environ))
-        try:
-            return do.handle(environ, start_response, self)
-        except BadRequestError as e:
-            start_response('400 Bad Request', [])
-            return [e.message.encode(DEFAULT_ENCODING)]
-        except NotAcceptableError as e:
-            start_response('406 Not Acceptable', [])
-            return [str(e).encode(DEFAULT_ENCODING)]
-        except UnsupportedMediaType as e:
-            start_response('415 Unsupported Media Type', [])
-            return [('Unsupported media type %r' % e.content_type)
-                    .encode(DEFAULT_ENCODING)]
-        except UnauthorizedError:
-            start_response('401 Unauthorized', [])
-            return [('Please login.'.encode(DEFAULT_ENCODING))]
+        request = WSGIRequest(environ)
+        environ = {'SCRIPT_NAME': environ['SCRIPT_NAME']}
+        response = loop.run_until_complete(self._handle_request(request, environ))
+        return response.for_wsgi(start_response)
+
+    async def aiohttp_handler(self, request, route_prefix='/'):
+        environ = {'SCRIPT_NAME': route_prefix}
+        response = await self._handle_request(request, environ)
+        return response.for_aiohttp()
+
+    # Backwards compatibility
+    __call__ = handle_wsgi_request

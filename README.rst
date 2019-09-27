@@ -98,7 +98,7 @@ Running
 Testing
 -------
 
-To run a standalone (low-performance, no authentication) instance of Xandikos,
+To run a standalone (no authentication) instance of Xandikos,
 with a pre-created calendar and addressbook (storing data in *$HOME/dav*):
 
 .. code:: shell

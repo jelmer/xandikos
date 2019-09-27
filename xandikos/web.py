@@ -24,6 +24,7 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
+import asyncio
 from email.utils import parseaddr
 import functools
 import hashlib
@@ -31,6 +32,7 @@ import jinja2
 import logging
 import os
 import posixpath
+
 import shutil
 import urllib.parse
 
@@ -70,10 +72,12 @@ CALENDAR_HOME_SET = ['calendars']
 ADDRESSBOOK_HOME_SET = ['contacts']
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
-jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
+jinja_env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(TEMPLATES_DIR),
+    enable_async=True)
 
 
-def render_jinja_page(name, accepted_content_languages, **kwargs):
+async def render_jinja_page(name, accepted_content_languages, **kwargs):
     """Render a HTML page from jinja template.
 
     :param name: Name of the page
@@ -83,10 +87,12 @@ def render_jinja_page(name, accepted_content_languages, **kwargs):
     # TODO(jelmer): Support rendering other languages
     encoding = 'utf-8'
     template = jinja_env.get_template(name)
-    body = template.render(
+    body = await template.render_async(
         version=xandikos_version,
-        urljoin=urllib.parse.urljoin, **kwargs).encode(encoding)
-    return ([body], len(body), None, 'text/html; encoding=%s' % encoding,
+        urljoin=urllib.parse.urljoin, **kwargs)
+    body_encoded = body.encode(encoding)
+    return ([body_encoded], len(body_encoded),
+            None, 'text/html; encoding=%s' % encoding,
             ['en-UK'])
 
 
@@ -129,7 +135,7 @@ class ObjectResource(webdav.Resource):
                                              self.etag)
         return self._file
 
-    def get_body(self):
+    async def get_body(self):
         return self.file.content
 
     def set_body(self, data, replace_etag=None):
@@ -154,10 +160,10 @@ class ObjectResource(webdav.Resource):
     def get_content_type(self):
         return self.content_type
 
-    def get_content_length(self):
-        return sum(map(len, self.get_body()))
+    async def get_content_length(self):
+        return sum(map(len, await self.get_body()))
 
-    def get_etag(self):
+    async def get_etag(self):
         return create_strong_etag(self.etag)
 
     def get_supported_locks(self):
@@ -253,7 +259,7 @@ class StoreBasedCollection(object):
     def get_ctag(self):
         return self.store.get_ctag()
 
-    def get_etag(self):
+    async def get_etag(self):
         return create_strong_etag(self.store.get_ctag())
 
     def members(self):
@@ -345,22 +351,22 @@ class StoreBasedCollection(object):
     def get_content_language(self):
         raise KeyError
 
-    def get_content_length(self):
+    async def get_content_length(self):
         raise KeyError
 
     def destroy(self):
         # RFC2518, section 8.6.2 says this should recursively delete.
         self.store.destroy()
 
-    def get_body(self):
+    async def get_body(self):
         raise NotImplementedError(self.get_body)
 
-    def render(self, self_url, accepted_content_types,
+    async def render(self, self_url, accepted_content_types,
                accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        return render_jinja_page(
+        return await render_jinja_page(
             'collection.html', accepted_content_languages, collection=self,
             self_url=self_url)
 
@@ -557,7 +563,7 @@ class CollectionSetResource(webdav.Collection):
     def get_sync_token(self):
         raise KeyError
 
-    def get_etag(self):
+    async def get_etag(self):
         raise KeyError
 
     def get_ctag(self):
@@ -600,7 +606,7 @@ class CollectionSetResource(webdav.Collection):
     def get_content_language(self):
         raise KeyError
 
-    def get_content_length(self):
+    async def get_content_length(self):
         raise KeyError
 
     def get_last_modified(self):
@@ -616,12 +622,12 @@ class CollectionSetResource(webdav.Collection):
         # RFC2518, section 8.6.2 says this should recursively delete.
         shutil.rmtree(p)
 
-    def render(self, self_url, accepted_content_types,
+    async def render(self, self_url, accepted_content_types,
                accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        return render_jinja_page(
+        return await render_jinja_page(
             'root.html', accepted_content_languages, self_url=self_url)
 
     def get_is_executable(self):
@@ -654,10 +660,10 @@ class RootPage(webdav.Resource):
             principals=self.backend.find_principals(),
             self_url=self_url)
 
-    def get_body(self):
+    async def get_body(self):
         raise KeyError
 
-    def get_content_length(self):
+    async def get_content_length(self):
         raise KeyError
 
     def get_content_type(self):
@@ -669,9 +675,9 @@ class RootPage(webdav.Resource):
     def get_active_locks(self):
         return []
 
-    def get_etag(self):
+    async def get_etag(self):
         h = hashlib.md5()
-        for c in self.get_body():
+        for c in await self.get_body():
             h.update(c)
         return h.hexdigest()
 
@@ -682,11 +688,11 @@ class RootPage(webdav.Resource):
         return ['en-UK']
 
     def get_member(self, name):
-        return self.backend.get_resource(name)
+        return self.backend.get_resource('/' + name)
 
     def delete_member(self, name, etag=None):
         # This doesn't have any non-collection members.
-        self.get_member(name).destroy()
+        self.get_member('/' + name).destroy()
 
     def get_is_executable(self):
         return False
@@ -787,12 +793,12 @@ class PrincipalBare(CollectionSetResource, Principal):
                 pass
         return p
 
-    def render(self, self_url, accepted_content_types,
+    async def render(self, self_url, accepted_content_types,
                accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
-        return render_jinja_page(
+        return await render_jinja_page(
             'principal.html', accepted_content_languages, principal=self,
             self_url=self_url)
 
@@ -984,24 +990,6 @@ class XandikosApp(webdav.WebDAVApp):
         ])
 
 
-class WellknownRedirector(object):
-    """Redirect paths under .well-known/ to the appropriate paths."""
-
-    def __init__(self, inner_app, dav_root):
-        self._inner_app = inner_app
-        self._dav_root = dav_root
-
-    def __call__(self, environ, start_response):
-        # See https://tools.ietf.org/html/rfc6764
-        path = posixpath.normpath(
-            environ['SCRIPT_NAME'] + environ['PATH_INFO'])
-        if path in WELLKNOWN_DAV_PATHS:
-            start_response('302 Found', [
-                ('Location', self._dav_root)])
-            return []
-        return self._inner_app(environ, start_response)
-
-
 def create_principal_defaults(backend, principal):
     """Create default calendar and addressbook for a principal.
 
@@ -1037,6 +1025,27 @@ def create_principal_defaults(backend, principal):
     else:
         resource.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
         logging.info('Create inbox in %s.', resource.store.path)
+
+
+async def metrics_handler(request):
+    from prometheus_client import (
+        generate_latest,
+        CONTENT_TYPE_LATEST,
+    )
+    from aiohttp import web
+    resp = web.Response(body=generate_latest())
+    resp.content_type = CONTENT_TYPE_LATEST
+    return resp
+
+
+class RedirectDavHandler(object):
+
+    def __init__(self, dav_root):
+        self._dav_root = dav_root
+
+    async def __call__(self, request):
+        from aiohttp import web
+        return web.HTTPFound(self._dav_root)
 
 
 def main(argv):
@@ -1113,26 +1122,33 @@ def main(argv):
             'Run xandikos with --autocreate?',
             options.current_user_principal)
 
-    app = XandikosApp(
+    main_app = XandikosApp(
         backend,
         current_user_principal=options.current_user_principal)
+    async def xandikos_handler(request):
+        return await main_app.aiohttp_handler(request, options.route_prefix)
 
-    from wsgiref.simple_server import make_server
-    app = WellknownRedirector(app, options.route_prefix)
-    server = make_server(options.listen_address, options.port, app)
     logging.info('Listening on %s:%s', options.listen_address,
                  options.port)
 
-    import signal
-    # Set SIGINT to default handler; this appears to be necessary
-    # when running under coverage.
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+    from aiohttp import web
+
+    app = web.Application()
+    for path in WELLKNOWN_DAV_PATHS:
+        app.router.add_route(
+            "*", path,
+            RedirectDavHandler(options.route_prefix).__call__)
+    app.router.add_route("GET", "/metrics", metrics_handler)
+    if options.route_prefix.strip('/'):
+        xandikos_app = web.Application()
+        xandikos_app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+        async def redirect_to_subprefix(request):
+            return web.HTTPFound(options.route_prefix)
+        app.router.add_route("*", "/", redirect_to_subprefix)
+        r = app.add_subapp(options.route_prefix, xandikos_app)
     else:
-        server.shutdown()
+        app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+    web.run_app(app, port=options.port, host=options.listen_address)
 
 
 if __name__ == '__main__':

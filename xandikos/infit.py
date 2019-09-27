@@ -32,7 +32,7 @@ class SettingsProperty(webdav.Property):
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     live = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_infit_settings()
 
     def set_value(self, href, resource, el):
@@ -49,7 +49,7 @@ class AddressbookColorProperty(webdav.Property):
     resource_type = carddav.ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_addressbook_color()
 
     def set_value(self, href, resource, el):
@@ -67,7 +67,7 @@ class HeaderValueProperty(webdav.Property):
     in_allprops = False
     live = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_headervalue()
 
     def set_value(self, href, resource, el):
