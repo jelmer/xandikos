@@ -1027,17 +1027,6 @@ def create_principal_defaults(backend, principal):
         logging.info('Create inbox in %s.', resource.store.path)
 
 
-async def metrics_handler(request):
-    from prometheus_client import (
-        generate_latest,
-        CONTENT_TYPE_LATEST,
-    )
-    from aiohttp import web
-    resp = web.Response(body=generate_latest())
-    resp.content_type = CONTENT_TYPE_LATEST
-    return resp
-
-
 class RedirectDavHandler(object):
 
     def __init__(self, dav_root):
@@ -1052,6 +1041,7 @@ def main(argv):
     import argparse
     import sys
     from xandikos import __version__
+    from .metrics import setup_metrics
     parser = argparse.ArgumentParser(
         usage="%(prog)s -d ROOT-DIR [OPTIONS]",
         prog=argv[0])
@@ -1125,6 +1115,7 @@ def main(argv):
     main_app = XandikosApp(
         backend,
         current_user_principal=options.current_user_principal)
+
     async def xandikos_handler(request):
         return await main_app.aiohttp_handler(request, options.route_prefix)
 
@@ -1134,11 +1125,13 @@ def main(argv):
     from aiohttp import web
 
     app = web.Application()
+    setup_metrics(app)
+
     for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(
             "*", path,
             RedirectDavHandler(options.route_prefix).__call__)
-    app.router.add_route("GET", "/metrics", metrics_handler)
+
     if options.route_prefix.strip('/'):
         xandikos_app = web.Application()
         xandikos_app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
