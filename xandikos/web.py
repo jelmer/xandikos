@@ -1125,7 +1125,13 @@ def main(argv):
     from aiohttp import web
 
     app = web.Application()
-    setup_metrics(app)
+    try:
+       import prometheus_client
+    except ModuleNotFoundError:
+        logging.warning(
+            'Prometheus client not found; /metrics will not be available.')
+    else:
+        setup_metrics(app)
 
     for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(
