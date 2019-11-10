@@ -8,6 +8,7 @@ xandikos (0.1.0-1) UNRELEASED; urgency=medium
   * Change section to web.
   * Update standards version, no changes needed.
   * Remove obsolete fields Name from debian/upstream/metadata.
+  * Update standards version to 4.4.1, no changes needed.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 07 Apr 2019 13:05:37 +0000
 
