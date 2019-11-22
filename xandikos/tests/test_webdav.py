@@ -213,7 +213,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"foo"'
 
-            def delete_member(unused_self, name, etag=None):
+            def delete_member(unused_self, name, etag=None, author=None):
                 self.assertEqual(name, 'resource')
         app = self.makeApp({'/': TestResource(), '/resource': TestResource()},
                            [])

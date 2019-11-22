@@ -39,6 +39,8 @@ from defusedxml.ElementTree import fromstring as xmlparse
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
 
+from xandikos.author import Author
+
 DEFAULT_ENCODING = 'utf-8'
 COLLECTION_RESOURCE_TYPE = '{DAV:}collection'
 PRINCIPAL_RESOURCE_TYPE = '{DAV:}principal'
@@ -832,7 +834,7 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.get_member)
 
-    def delete_member(self, name, etag=None):
+    def delete_member(self, name, etag=None, author=None):
         """Delete a member with a specific name.
 
         :param name: Member name
@@ -1445,6 +1447,7 @@ class DeleteMethod(Method):
 
     async def handle(self, request, environ, app):
         unused_href, path, r = app._get_resource_from_environ(request, environ)
+        author = Author.from_request(request)
         if r is None:
             return _send_not_found(request)
         container_path, item_name = posixpath.split(path.rstrip('/'))
@@ -1455,7 +1458,7 @@ class DeleteMethod(Method):
         if_match = request.headers.get('If-Match', None)
         if if_match is not None and not etag_matches(if_match, current_etag):
             return Response(status=412, reason='Precondition Failed')
-        pr.delete_member(item_name, current_etag)
+        pr.delete_member(item_name, current_etag, author=author)
         return Response(status=204, reason='No Content')
 
 

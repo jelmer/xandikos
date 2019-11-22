@@ -661,6 +661,11 @@ class TreeGitStore(GitStore):
         return index[name].sha.decode('ascii')
 
     def _commit_tree(self, index, message, author=None):
+        if author is not None:
+            trailer = author.as_git_trailers().encode(DEFAULT_ENCODING)
+            if trailer is not None:
+                message = message + b"\n\n" + trailer
+            author = author.as_git_author()
         tree = index.commit(self.repo.object_store)
         return self.repo.do_commit(message=message, author=author, tree=tree)
 

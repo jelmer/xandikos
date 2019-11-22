@@ -282,10 +282,10 @@ class StoreBasedCollection(object):
             return self._get_subcollection(name)
         raise KeyError(name)
 
-    def delete_member(self, name, etag=None):
+    def delete_member(self, name, etag=None, author=None):
         assert name != ''
         try:
-            self.store.delete_one(name, etag=extract_strong_etag(etag))
+            self.store.delete_one(name, etag=extract_strong_etag(etag), author=author)
         except NoSuchItem:
             # TODO: Properly allow removing subcollections
             # self.get_subcollection(name).destroy()
@@ -613,9 +613,9 @@ class CollectionSetResource(webdav.Collection):
         # TODO(jelmer): Find last modified time using store function
         raise KeyError
 
-    def delete_member(self, name, etag=None):
+    def delete_member(self, name, etag=None, author=None):
         # This doesn't have any non-collection members.
-        self.get_member(name).destroy()
+        self.get_member(name).destroy(author)
 
     def destroy(self):
         p = self.backend._map_to_file_path(self.relpath)
@@ -690,9 +690,9 @@ class RootPage(webdav.Resource):
     def get_member(self, name):
         return self.backend.get_resource('/' + name)
 
-    def delete_member(self, name, etag=None):
+    def delete_member(self, name, etag=None, author=None):
         # This doesn't have any non-collection members.
-        self.get_member('/' + name).destroy()
+        self.get_member('/' + name).destroy(author)
 
     def get_is_executable(self):
         return False
