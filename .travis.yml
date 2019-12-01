@@ -6,7 +6,6 @@ addons:
   apt:
     update: true
 python:
-  - 3.4
   - 3.5
   - 3.6
   - 3.7
@@ -16,6 +15,8 @@ env:
 matrix:
   include:
     - python: 3.7
+      dist: xenial
+    - python: 3.8
       dist: xenial
     # defusedxml appears to be broken on Python 3.8:
     # See https://github.com/tiran/defusedxml/pull/24
