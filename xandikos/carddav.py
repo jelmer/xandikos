@@ -313,8 +313,8 @@ class AddressbookQueryReporter(webdav.Reporter):
     data_property = AddressDataProperty()
 
     @webdav.multistatus
-    async def report(self, environ, body, resources_by_hrefs, properties, base_href,
-               base_resource, depth):
+    async def report(self, environ, body, resources_by_hrefs, properties,
+                     base_href, base_resource, depth):
         requested = None
         filter_el = None
         limit = None
@@ -352,5 +352,6 @@ class AddressbookQueryReporter(webdav.Reporter):
             propstat = davcommon.get_properties_with_data(
                 self.data_property, href, resource, properties, environ,
                 requested)
-            yield webdav.Status(href, '200 OK', propstat=[s async for s in propstat])
+            yield webdav.Status(
+                href, '200 OK', propstat=[s async for s in propstat])
             i += 1

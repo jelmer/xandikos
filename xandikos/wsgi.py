@@ -65,8 +65,8 @@ if __name__ == '__main__':
                 create_defaults=os.environ['AUTOCREATE'] == 'defaults')
         else:
             logging.warning(
-                'default user principal \'%s\' does not exist. Create directory %s'
-                ' or set AUTOCREATE variable?',
+                'default user principal \'%s\' does not exist. '
+                'Create directory %s or set AUTOCREATE variable?',
                 current_user_principal, backend._map_to_file_path(
                     current_user_principal))
 

@@ -55,8 +55,8 @@ class SyncCollectionReporter(webdav.Reporter):
     name = '{DAV:}sync-collection'
 
     @webdav.multistatus
-    async def report(self, environ, request_body, resources_by_hrefs, properties,
-               href, resource, depth):
+    async def report(self, environ, request_body, resources_by_hrefs,
+                     properties, href, resource, depth):
         old_token = None
         sync_level = None
         limit = None

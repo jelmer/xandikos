@@ -40,7 +40,7 @@ class SubbedProperty(webdav.Property):
 
 
 async def get_properties_with_data(data_property, href, resource, properties,
-                             environ, requested):
+                                   environ, requested):
     properties = dict(properties)
     properties[data_property.name] = data_property
     async for ps in webdav.get_properties(
@@ -57,8 +57,8 @@ class MultiGetReporter(webdav.Reporter):
     data_property = None
 
     @webdav.multistatus
-    async def report(self, environ, body, resources_by_hrefs, properties, base_href,
-               resource, depth):
+    async def report(self, environ, body, resources_by_hrefs, properties,
+                     base_href, resource, depth):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an the right resource type
         requested = None
@@ -78,7 +78,8 @@ class MultiGetReporter(webdav.Reporter):
                 propstat = get_properties_with_data(
                     self.data_property, href, resource, properties, environ,
                     requested)
-                yield webdav.Status(href, '200 OK', propstat=[s async for s in propstat])
+                yield webdav.Status(
+                    href, '200 OK', propstat=[s async for s in propstat])
 
 
 # see https://tools.ietf.org/html/rfc4790

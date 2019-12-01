@@ -68,7 +68,7 @@ class WebTests(WebTestCase):
         environ = {
             'PATH_INFO': path,
             'REQUEST_METHOD': 'MKCOL',
-            }
+        }
         setup_testing_defaults(environ)
         _code = []
         _headers = []

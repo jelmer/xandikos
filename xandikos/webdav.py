@@ -120,7 +120,7 @@ class Response(object):
         return web.Response(
             status=self.status, reason=self.reason,
             headers=self.headers, body=body)
-        
+
 
 def pick_content_types(accepted_content_types, available_content_types):
     """Pick best content types for a client.
@@ -308,7 +308,8 @@ class Status(object):
 def multistatus(req_fn):
 
     async def wrapper(self, environ, *args, **kwargs):
-        responses = [resp async for resp in req_fn(self, environ, *args, **kwargs)]
+        responses = [
+            resp async for resp in req_fn(self, environ, *args, **kwargs)]
         return _send_dav_responses(responses, DEFAULT_ENCODING)
 
     return wrapper
@@ -713,7 +714,8 @@ class Resource(object):
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
-    async def render(self, self_url, accepted_content_types, accepted_languages):
+    async def render(self, self_url, accepted_content_types,
+                     accepted_languages):
         """'Render' this resource in the specified content type.
 
         The default implementation just checks that the
@@ -958,7 +960,8 @@ async def get_property_from_name(href, resource, properties, name, environ):
         href, resource, properties, environ, ET.Element(name))
 
 
-async def get_property_from_element(href, resource, properties, environ, requested):
+async def get_property_from_element(href, resource, properties, environ,
+                                    requested):
     """Get a single property on a resource.
 
     :param href: Resource href
@@ -1035,7 +1038,8 @@ async def get_all_properties(href, resource, properties, environ):
     :return: Iterator over PropStatus items
     """
     for name in properties:
-        ps = await get_property_from_name(href, resource, properties, name, environ)
+        ps = await get_property_from_name(
+            href, resource, properties, name, environ)
         if ps.statuscode == '200 OK':
             yield ps
 
@@ -1111,7 +1115,7 @@ class Reporter(object):
         return self.resource_type in resource.resource_types
 
     async def report(self, environ, request_body, resources_by_hrefs,
-               properties, href, resource, depth):
+                     properties, href, resource, depth):
         """Send a report.
 
         :param environ: wsgi environ
@@ -1153,7 +1157,7 @@ class ExpandPropertyReporter(Reporter):
     name = '{DAV:}expand-property'
 
     async def _populate(self, prop_list, resources_by_hrefs, properties, href,
-                  resource, environ):
+                        resource, environ):
         """Expand properties for a resource.
 
         :param prop_list: DAV:property elements to retrieve and expand
@@ -1197,10 +1201,11 @@ class ExpandPropertyReporter(Reporter):
         yield Status(href, '200 OK', propstat=ret)
 
     @multistatus
-    async def report(self, environ, request_body, resources_by_hrefs, properties,
-               href, resource, depth):
-        async for resp in self._populate(request_body, resources_by_hrefs, properties,
-                href, resource, environ):
+    async def report(self, environ, request_body, resources_by_hrefs,
+                     properties, href, resource, depth):
+        async for resp in self._populate(
+                request_body, resources_by_hrefs, properties, href, resource,
+                environ):
             yield resp
 
 
@@ -1313,8 +1318,8 @@ def _send_xml_response(status, et, out_encoding):
         status=status,
         body=body,
         headers={
-        'Content-Type': body_type,
-        'Content-Length': str(sum(map(len, body)))})
+            'Content-Type': body_type,
+            'Content-Length': str(sum(map(len, body)))})
 
 
 def _send_dav_responses(responses, out_encoding):
@@ -1533,14 +1538,15 @@ class PutMethod(Method):
                 description=e.description)
         return Response(
             status=201, reason='Created', headers=[
-            ('ETag', new_etag)])
+                ('ETag', new_etag)])
 
 
 class ReportMethod(Method):
 
     async def handle(self, request, environ, app):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
-        base_href, unused_path, r = app._get_resource_from_environ(request, environ)
+        base_href, unused_path, r = app._get_resource_from_environ(
+            request, environ)
         if r is None:
             return _send_not_found(request)
         depth = request.headers.get("Depth", "0")
@@ -1586,7 +1592,6 @@ class PropfindMethod(Method):
             except ValueError:
                 raise BadRequestError(
                     'Received more than one element in propfind.')
-        ret = []
         async for href, resource in traverse_resource(
                 base_resource, base_href, depth):
             propstat = []
@@ -1612,7 +1617,8 @@ class ProppatchMethod(Method):
 
     @multistatus
     async def handle(self, request, environ, app):
-        href, unused_path, resource = app._get_resource_from_environ(request, environ)
+        href, unused_path, resource = app._get_resource_from_environ(
+            request, environ)
         if resource is None:
             yield Status(request.url, '404 Not Found')
             return
@@ -1698,7 +1704,8 @@ class GetMethod(Method):
 
 
 async def _do_get(request, environ, app, send_body):
-    unused_href, unused_path, r = app._get_resource_from_environ(request, environ)
+    unused_href, unused_path, r = app._get_resource_from_environ(
+        request, environ)
     if r is None:
         return _send_not_found(request)
     accept_content_types = parse_accept_header(
@@ -1713,7 +1720,7 @@ async def _do_get(request, environ, app, send_body):
         content_type,
         content_languages
     ) = await r.render(
-            request.path, accept_content_types, accept_content_languages)
+        request.path, accept_content_types, accept_content_languages)
 
     if_none_match = request.headers.get('If-None-Match', None)
     if (
@@ -1749,7 +1756,8 @@ class WSGIRequest(object):
         self._environ = environ
         self.method = environ['REQUEST_METHOD']
         self.raw_path = environ['SCRIPT_NAME'] + environ['PATH_INFO']
-        self.path = environ['SCRIPT_NAME'] + path_from_environ(environ, 'PATH_INFO')
+        self.path = environ['SCRIPT_NAME'] + path_from_environ(
+            environ, 'PATH_INFO')
         self.content_type = environ.get(
             'CONTENT_TYPE', 'application/octet-stream')
         try:
@@ -1861,7 +1869,7 @@ class WebDAVApp(object):
             return Response(
                 status='415 Unsupported Media Type',
                 body=[('Unsupported media type %r' % e.content_type)
-                    .encode(DEFAULT_ENCODING)])
+                      .encode(DEFAULT_ENCODING)])
         except UnauthorizedError:
             return Response(
                 status='401 Unauthorized',
@@ -1874,7 +1882,8 @@ class WebDAVApp(object):
             environ['SCRIPT_NAME'] = ''
         request = WSGIRequest(environ)
         environ = {'SCRIPT_NAME': environ['SCRIPT_NAME']}
-        response = loop.run_until_complete(self._handle_request(request, environ))
+        response = loop.run_until_complete(self._handle_request(
+            request, environ))
         return response.for_wsgi(start_response)
 
     async def aiohttp_handler(self, request, route_prefix='/'):

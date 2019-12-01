@@ -537,7 +537,8 @@ class CalendarQueryReporter(webdav.Reporter):
                 propstat = davcommon.get_properties_with_data(
                     self.data_property, href, resource, properties, environ,
                     requested)
-                yield webdav.Status(href, '200 OK', propstat=[s async for s in propstat])
+                yield webdav.Status(
+                    href, '200 OK', propstat=[s async for s in propstat])
 
 
 class CalendarColorProperty(webdav.Property):
@@ -882,7 +883,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
     resource_type = CALENDAR_RESOURCE_TYPE
 
     async def report(self, environ, body, resources_by_hrefs,
-               properties, base_href, base_resource, depth):
+                     properties, base_href, base_resource, depth):
         requested = None
         for el in body:
             if el.tag == '{urn:ietf:params:xml:ns:caldav}time-range':

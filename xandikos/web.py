@@ -24,7 +24,6 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
-import asyncio
 from email.utils import parseaddr
 import functools
 import hashlib
@@ -362,7 +361,7 @@ class StoreBasedCollection(object):
         raise NotImplementedError(self.get_body)
 
     async def render(self, self_url, accepted_content_types,
-               accepted_content_languages):
+                     accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
@@ -623,7 +622,7 @@ class CollectionSetResource(webdav.Collection):
         shutil.rmtree(p)
 
     async def render(self, self_url, accepted_content_types,
-               accepted_content_languages):
+                     accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
@@ -794,7 +793,7 @@ class PrincipalBare(CollectionSetResource, Principal):
         return p
 
     async def render(self, self_url, accepted_content_types,
-               accepted_content_languages):
+                     accepted_content_languages):
         content_types = webdav.pick_content_types(
             accepted_content_types, ['text/html'])
         assert content_types == ['text/html']
@@ -1126,7 +1125,7 @@ def main(argv):
 
     app = web.Application()
     try:
-       import prometheus_client
+        import prometheus_client  # noqa: F401
     except ModuleNotFoundError:
         logging.warning(
             'Prometheus client not found; /metrics will not be available.')
@@ -1141,10 +1140,11 @@ def main(argv):
     if options.route_prefix.strip('/'):
         xandikos_app = web.Application()
         xandikos_app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+
         async def redirect_to_subprefix(request):
             return web.HTTPFound(options.route_prefix)
         app.router.add_route("*", "/", redirect_to_subprefix)
-        r = app.add_subapp(options.route_prefix, xandikos_app)
+        app.add_subapp(options.route_prefix, xandikos_app)
     else:
         app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
     web.run_app(app, port=options.port, host=options.listen_address)
