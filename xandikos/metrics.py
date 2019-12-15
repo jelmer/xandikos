@@ -43,7 +43,7 @@ request_latency_hist = Histogram(
     'request_latency_seconds', 'Request latency', ['route'])
 
 requests_in_progress_gauge = Gauge(
-    'requests_in_progress_total', 'Requests currently in progress',
+    'requests_in_progress', 'Requests currently in progress',
     ['method', 'route'])
 
 
