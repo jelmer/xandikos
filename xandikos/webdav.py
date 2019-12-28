@@ -308,8 +308,9 @@ class Status(object):
 def multistatus(req_fn):
 
     async def wrapper(self, environ, *args, **kwargs):
-        responses = [
-            resp async for resp in req_fn(self, environ, *args, **kwargs)]
+        responses = []
+        async for resp in req_fn(self, environ, *args, **kwargs):
+            responses.append(resp)
         return _send_dav_responses(responses, DEFAULT_ENCODING)
 
     return wrapper
