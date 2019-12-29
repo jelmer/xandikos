@@ -1,3 +1,10 @@
+xandikos (0.0.11-3) UNRELEASED; urgency=medium
+
+  * Disable caldav-tester autopkgtest; this package is Python2-only, and
+    only a handful of subtests are run anyway.
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 07 Apr 2019 13:05:37 +0000
+
 xandikos (0.0.11-2) unstable; urgency=medium
 
   * Add CI/CD configuration for Salsa.
