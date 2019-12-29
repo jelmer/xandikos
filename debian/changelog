@@ -3,6 +3,7 @@ xandikos (0.0.11-3) UNRELEASED; urgency=medium
   * Disable caldav-tester autopkgtest; this package is Python2-only, and
     only a handful of subtests are run anyway.
   * Add debian/upstream/metadata.
+  * Bump debhelper from old 9 to 12.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 07 Apr 2019 13:05:37 +0000
 
