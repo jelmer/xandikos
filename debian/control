@@ -3,7 +3,7 @@ Section: python
 Priority: optional
 Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
 Homepage: https://www.xandikos.org/
-Build-Depends: python3-all, debhelper (>= 12~), python3-dulwich (>= 0.19.1), dh-python, python3-icalendar, python3-defusedxml, python3-jinja2, python3-setuptools
+Build-Depends: python3-all, debhelper-compat (= 12), python3-dulwich (>= 0.19.1), dh-python, python3-icalendar, python3-defusedxml, python3-jinja2, python3-setuptools
 Standards-Version: 4.0.0
 Vcs-Browser: https://salsa.debian.org/jelmer/xandikos
 Vcs-Git: https://salsa.debian.org/jelmer/xandikos.git
