@@ -7,6 +7,7 @@ xandikos (0.0.11-3) UNRELEASED; urgency=medium
   * Set debhelper-compat version in Build-Depends.
   * Set Rules-Requires-Root.
   * Move to section 'web'.
+  * Bump standards version to 4.4.1 (no changes).
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 07 Apr 2019 13:05:37 +0000
 
