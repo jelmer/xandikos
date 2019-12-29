@@ -1,12 +1,9 @@
 xandikos (0.1.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
-  * Bump debhelper from old 9 to 10.
+  * Bump debhelper from 9 to 12.
   * Re-export upstream signing key without extra signatures.
-  * Bump debhelper compat to 12.
-  * Bump standards version to 4.3.0 (no changes).
   * Change section to web.
-  * Update standards version, no changes needed.
   * Remove obsolete fields Name from debian/upstream/metadata.
   * Update standards version to 4.4.1, no changes needed.
   * Disable caldav-tester autopkgtest; this package is Python2-only, and
