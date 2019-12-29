@@ -2,6 +2,7 @@ Tests: litmus
 Depends: litmus, curl, @
 Restrictions: allow-stderr
 
-Tests: caldav-tester
-Depends: caldav-tester, git, curl, @
-Restrictions: allow-stderr
+# Disabled because caldav-tester is Python2-only
+# Tests: caldav-tester
+# Depends: caldav-tester, git, curl, @
+# Restrictions: allow-stderr

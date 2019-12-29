@@ -9,6 +9,8 @@ xandikos (0.1.0-1) UNRELEASED; urgency=medium
   * Update standards version, no changes needed.
   * Remove obsolete fields Name from debian/upstream/metadata.
   * Update standards version to 4.4.1, no changes needed.
+  * Disable caldav-tester autopkgtest; this package is Python2-only, and
+    only a handful of subtests are run anyway.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 07 Apr 2019 13:05:37 +0000
 
