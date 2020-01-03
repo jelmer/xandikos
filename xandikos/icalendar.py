@@ -798,7 +798,7 @@ class ICalendarFile(File):
         else:
             for component in subcomponents:
                 try:
-                    return describe_component(component)
+                    return component["SUMMARY"]
                 except KeyError:
                     pass
         return super(ICalendarFile, self).describe(name)
