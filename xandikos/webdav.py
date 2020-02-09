@@ -1770,6 +1770,7 @@ class WSGIRequest(object):
             (k[5:], v) for k, v in environ.items()
             if k.startswith('HTTP_')])
         self.url = request_uri(environ)
+
         class StreamWrapper(object):
 
             def __init__(self, stream):
