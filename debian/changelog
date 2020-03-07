@@ -1,9 +1,9 @@
-xandikos (0.1.0-1) UNRELEASED; urgency=medium
+xandikos (0.1.0-1) unstable; urgency=medium
 
   * New upstream release. Closes: #953011
   * Re-export upstream signing key without extra signatures.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 07 Apr 2019 13:05:37 +0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 07 Mar 2020 12:35:38 +0000
 
 xandikos (0.0.11-3) unstable; urgency=medium
 
