@@ -203,9 +203,16 @@ class locked_index(object):
         return self._index
 
     def __exit__(self, exc_type, exc_value, traceback):
-        f = SHA1Writer(self._file)
-        write_index_dict(f, self._index._byname)
-        f.close()
+        if exc_type is not None:
+            self._file.abort()
+            return
+        try:
+            f = SHA1Writer(self._file)
+            write_index_dict(f, self._index._byname)
+        except BaseException:
+            self._file.abort()
+        else:
+            f.close()
 
 
 class GitStore(Store):
