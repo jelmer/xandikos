@@ -32,7 +32,7 @@ import logging
 import os
 import posixpath
 from typing import (
-    Sequence,
+    List,
     )
 
 import shutil
@@ -647,7 +647,7 @@ class CollectionSetResource(webdav.Collection):
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
 
-    resource_types:Sequence[str] = []
+    resource_types:List[str] = []
 
     def __init__(self, backend):
         self.backend = backend

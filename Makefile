@@ -16,6 +16,9 @@ check:
 style:
 	python3 -m flake8
 
+typing:
+	mypy xandikos
+
 web:
 	$(PYTHON) -m xandikos.web
 

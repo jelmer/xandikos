@@ -17,26 +17,20 @@ matrix:
       dist: xenial
     - python: 3.8
       dist: xenial
-    # defusedxml appears to be broken on Python 3.8:
-    # See https://github.com/tiran/defusedxml/pull/24
-    #- python: 3.8-dev
-    #  dist: xenial
+    - python: 3.9-dev
+      dist: xenial
 install:
-  - sudo apt-get install -qq libneon27-dev curl python2.7
-  - sudo apt-get install -qq cargo make
+  - sudo apt-get install -qq libneon27-dev curl
   - pip install pip --upgrade
-  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs aiohttp aiohttp-wsgi prometheus-client
+  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs aiohttp aiohttp-wsgi prometheus-client mypy
   - python setup.py develop
 script:
   - make style
   - make check
+  - make typing
   # Retrieve litmus from Xandikos server for now, since webdav.org is down.
   - make check-litmus LITMUS_URL=https://www.xandikos.org/litmus-0.13.tar.gz
   - make check-caldavtester
   - make check-pycaldav
-  # Disabled because of https://github.com/pimutils/vdirsyncer/issues/789
-  #- if [ "$TRAVIS_PYTHON_VERSION" = "3.6" ]; then
-  #      make check-vdirsyncer;
-  #  fi
 cache:
   pip: true

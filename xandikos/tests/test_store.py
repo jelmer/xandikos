@@ -27,9 +27,11 @@ import unittest
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
+from typing import Type
+
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
-    DuplicateUidError, File, InvalidETag, NoSuchItem, Filter)
+    DuplicateUidError, File, InvalidETag, NoSuchItem, Filter, Store)
 from xandikos.store.git import (
     GitStore, BareGitStore, TreeGitStore)
 from xandikos.store.vdir import (
@@ -315,7 +317,7 @@ class VdirStoreTest(BaseStoreTest, unittest.TestCase):
 
 class BaseGitStoreTest(BaseStoreTest):
 
-    kls = None
+    kls:Type[Store]
 
     def create_store(self):
         raise NotImplementedError(self.create_store)

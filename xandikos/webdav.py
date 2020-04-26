@@ -34,7 +34,10 @@ import os
 import posixpath
 from typing import (
     Dict,
+    List,
     Optional,
+    Union,
+    Tuple,
     Sequence,
     )
 import urllib.parse
@@ -325,7 +328,7 @@ class Resource(object):
     """A WebDAV resource."""
 
     # A list of resource type names (e.g. '{DAV:}collection')
-    resource_types:Sequence[str] = []
+    resource_types:List[str] = []
 
     # TODO(jelmer): Be consistent in using get/set functions vs properties.
     def set_resource_types(self, resource_types):
@@ -495,7 +498,7 @@ class Property(object):
     """Handler for listing, retrieving and updating DAV Properties."""
 
     # Property name (e.g. '{DAV:}resourcetype')
-    name:str = None
+    name:str
 
     # Whether to include this property in 'allprop' PROPFIND requests.
     # https://tools.ietf.org/html/rfc4918, section 14.2
@@ -506,7 +509,7 @@ class Property(object):
     resource_type:Optional[Sequence[str]] = None
 
     # Whether this property is live (i.e set by the server)
-    live:bool = None
+    live:bool
 
     def supported_on(self, resource: Resource) -> bool:
         if self.resource_type is None:
@@ -770,7 +773,7 @@ class GetCTagProperty(Property):
 
     """
 
-    name = None
+    name:str
     resource_type = COLLECTION_RESOURCE_TYPE
     in_allprops = False
     live = True
@@ -1106,9 +1109,9 @@ async def traverse_resource(base_resource, base_href, depth, members=None):
 class Reporter(object):
     """Implementation for DAV REPORT requests."""
 
-    name:str = None
+    name:str
 
-    resource_type = None
+    resource_type:Optional[Union[str,Tuple]] = None
 
     def supported_on(self, resource: Resource) -> bool:
         """Check if this reporter is available for the specified resource.
@@ -1156,7 +1159,7 @@ def create_href(href:str, base_href:Optional[str]=None) -> ET.Element:
     return et
 
 
-def read_href_element(et: ET.Element) -> str:
+def read_href_element(et: ET.Element) -> Optional[str]:
     if et.text is None:
         return None
     el = urllib.parse.unquote(et.text)

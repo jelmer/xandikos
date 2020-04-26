@@ -45,8 +45,8 @@ VALID_STORE_TYPES = (
     STORE_TYPE_OTHER)
 
 MIMETYPES = mimetypes.MimeTypes()
-MIMETYPES.add_type('text/calendar', '.ics')
-MIMETYPES.add_type('text/vcard', '.vcf')
+MIMETYPES.add_type('text/calendar', '.ics')  # type: ignore
+MIMETYPES.add_type('text/vcard', '.vcf')  # type: ignore
 
 DEFAULT_MIME_TYPE = 'application/octet-stream'
 
@@ -131,7 +131,7 @@ class Filter(object):
     Filters are often resource-type specific.
     """
 
-    content_type = None
+    content_type:str
 
     def check(self, name, resource):
         """Check if this filter applies to a resource.
