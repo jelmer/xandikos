@@ -32,6 +32,11 @@ import functools
 import logging
 import os
 import posixpath
+from typing import (
+    Dict,
+    Optional,
+    Sequence,
+    )
 import urllib.parse
 from wsgiref.util import request_uri
 
@@ -316,24 +321,194 @@ def multistatus(req_fn):
     return wrapper
 
 
+class Resource(object):
+    """A WebDAV resource."""
+
+    # A list of resource type names (e.g. '{DAV:}collection')
+    resource_types:Sequence[str] = []
+
+    # TODO(jelmer): Be consistent in using get/set functions vs properties.
+    def set_resource_types(self, resource_types):
+        """Set the resource types."""
+        raise NotImplementedError(self.set_resource_types)
+
+    def get_displayname(self):
+        """Get the resource display name."""
+        raise KeyError
+
+    def set_displayname(self, displayname):
+        """Set the resource display name."""
+        raise NotImplementedError(self.set_displayname)
+
+    def get_creationdate(self):
+        """Get the resource creation date.
+
+        :return: A datetime object
+        """
+        raise NotImplementedError(self.get_creationdate)
+
+    def get_supported_locks(self):
+        """Get the list of supported locks.
+
+        This should return a list of (lockscope, locktype) tuples.
+        Known lockscopes are LOCK_SCOPE_EXCLUSIVE, LOCK_SCOPE_SHARED
+        Known locktypes are LOCK_TYPE_WRITE
+        """
+        raise NotImplementedError(self.get_supported_locks)
+
+    def get_active_locks(self):
+        """Return the list of active locks.
+
+        :return: A list of ActiveLock tuples
+        """
+        raise NotImplementedError(self.get_active_locks)
+
+    def get_content_type(self):
+        """Get the content type for the resource.
+
+        This is a mime type like text/plain
+        """
+        raise NotImplementedError(self.get_content_type)
+
+    def get_owner(self):
+        """Get an href identifying the owner of the resource.
+
+        Can be None if owner information is not known.
+        """
+        raise NotImplementedError(self.get_owner)
+
+    async def get_etag(self):
+        """Get the etag for this resource.
+
+        Contains the ETag header value (from Section 14.19 of [RFC2616]) as it
+        would be returned by a GET without accept headers.
+        """
+        raise NotImplementedError(self.get_etag)
+
+    async def get_body(self):
+        """Get resource contents.
+
+        :return: Iterable over bytestrings."""
+        raise NotImplementedError(self.get_body)
+
+    async def render(self, self_url, accepted_content_types,
+                     accepted_languages):
+        """'Render' this resource in the specified content type.
+
+        The default implementation just checks that the
+        resource' content type is acceptable and if so returns
+        (get_body(), get_content_type(), get_content_language()).
+
+        :param accepted_content_types: List of accepted content types
+        :param accepted_languages: List of accepted languages
+        :raise NotAcceptableError: if there is no acceptable content type
+        :return: Tuple with (content_body, content_length, etag, content_type,
+                 content_language)
+        """
+        # TODO(jelmer): Check content_language
+        content_types = pick_content_types(
+            accepted_content_types, [self.get_content_type()])
+        assert content_types == [self.get_content_type()]
+        body = await self.get_body()
+        try:
+            content_language = self.get_content_language()
+        except KeyError:
+            content_language = None
+        return (body, sum(map(len, body)), await self.get_etag(),
+                self.get_content_type(), content_language)
+
+    async def get_content_length(self):
+        """Get content length.
+
+        :return: Length of this objects content.
+        """
+        return sum(map(len, await self.get_body()))
+
+    def get_content_language(self):
+        """Get content language.
+
+        :return: Language, as used in HTTP Accept-Language
+        """
+        raise NotImplementedError(self.get_content_language)
+
+    def set_body(self, body, replace_etag=None):
+        """Set resource contents.
+
+        :param body: Iterable over bytestrings
+        :return: New ETag
+        """
+        raise NotImplementedError(self.set_body)
+
+    def set_comment(self, comment):
+        """Set resource comment.
+
+        :param comment: New comment
+        """
+        raise NotImplementedError(self.set_comment)
+
+    def get_comment(self):
+        """Get resource comment.
+
+        :return: comment
+        """
+        raise NotImplementedError(self.get_comment)
+
+    def get_last_modified(self):
+        """Get last modified time.
+
+        :return: Last modified time
+        """
+        raise NotImplementedError(self.get_last_modified)
+
+    def get_is_executable(self):
+        """Get executable bit.
+
+        :return: Boolean indicating executability
+        """
+        raise NotImplementedError(self.get_is_executable)
+
+    def set_is_executable(self, executable):
+        """Set executable bit.
+
+        :param executable: Boolean indicating executability
+        """
+        raise NotImplementedError(self.set_is_executable)
+
+    def get_quota_used_bytes(self):
+        """Return bytes consumed by this resource.
+
+        If unknown, this can raise KeyError.
+
+        :return: an integer
+        """
+        raise NotImplementedError(self.get_quota_used_bytes)
+
+    def get_quota_available_bytes(self):
+        """Return quota available as bytes.
+
+        This can raise KeyError if there is infinite quota available.
+        """
+        raise NotImplementedError(self.get_quota_available_bytes)
+
+
 class Property(object):
     """Handler for listing, retrieving and updating DAV Properties."""
 
     # Property name (e.g. '{DAV:}resourcetype')
-    name = None
+    name:str = None
 
     # Whether to include this property in 'allprop' PROPFIND requests.
     # https://tools.ietf.org/html/rfc4918, section 14.2
-    in_allprops = True
+    in_allprops:bool = True
 
     # Resource type this property belongs to. If None, get_value()
     # will always be called.
-    resource_type = None
+    resource_type:Optional[Sequence[str]] = None
 
     # Whether this property is live (i.e set by the server)
-    live = None
+    live:bool = None
 
-    def supported_on(self, resource):
+    def supported_on(self, resource: Resource) -> bool:
         if self.resource_type is None:
             return True
         if isinstance(self.resource_type, tuple):
@@ -343,7 +518,10 @@ class Property(object):
             return True
         return False
 
-    async def is_set(self, href, resource, environ):
+    async def is_set(self,
+                     href: str,
+                     resource: Resource,
+                     environ: Dict[str, str]) -> bool:
         """Check if this property is set on a resource."""
         if not self.supported_on(resource):
             return False
@@ -354,7 +532,7 @@ class Property(object):
         else:
             return True
 
-    async def get_value(self, href, resource, el, environ):
+    async def get_value(self, href:str, resource: Resource, el: ET.Element, environ: Dict[str, str]) -> None:
         """Get property with specified name.
 
         :param href: Resource href
@@ -365,7 +543,7 @@ class Property(object):
         """
         raise KeyError(self.name)
 
-    def set_value(self, href, resource, el):
+    def set_value(self, href: str, resource: Resource, el: ET.Element) -> None:
         """Set property.
 
         :param href: Resource href
@@ -643,176 +821,6 @@ ActiveLock = collections.namedtuple(
     'ActiveLock',
     ['lockscope', 'locktype', 'depth', 'owner', 'timeout', 'locktoken',
         'lockroot'])
-
-
-class Resource(object):
-    """A WebDAV resource."""
-
-    # A list of resource type names (e.g. '{DAV:}collection')
-    resource_types = []
-
-    # TODO(jelmer): Be consistent in using get/set functions vs properties.
-    def set_resource_types(self, resource_types):
-        """Set the resource types."""
-        raise NotImplementedError(self.set_resource_types)
-
-    def get_displayname(self):
-        """Get the resource display name."""
-        raise KeyError
-
-    def set_displayname(self, displayname):
-        """Set the resource display name."""
-        raise NotImplementedError(self.set_displayname)
-
-    def get_creationdate(self):
-        """Get the resource creation date.
-
-        :return: A datetime object
-        """
-        raise NotImplementedError(self.get_creationdate)
-
-    def get_supported_locks(self):
-        """Get the list of supported locks.
-
-        This should return a list of (lockscope, locktype) tuples.
-        Known lockscopes are LOCK_SCOPE_EXCLUSIVE, LOCK_SCOPE_SHARED
-        Known locktypes are LOCK_TYPE_WRITE
-        """
-        raise NotImplementedError(self.get_supported_locks)
-
-    def get_active_locks(self):
-        """Return the list of active locks.
-
-        :return: A list of ActiveLock tuples
-        """
-        raise NotImplementedError(self.get_active_locks)
-
-    def get_content_type(self):
-        """Get the content type for the resource.
-
-        This is a mime type like text/plain
-        """
-        raise NotImplementedError(self.get_content_type)
-
-    def get_owner(self):
-        """Get an href identifying the owner of the resource.
-
-        Can be None if owner information is not known.
-        """
-        raise NotImplementedError(self.get_owner)
-
-    async def get_etag(self):
-        """Get the etag for this resource.
-
-        Contains the ETag header value (from Section 14.19 of [RFC2616]) as it
-        would be returned by a GET without accept headers.
-        """
-        raise NotImplementedError(self.get_etag)
-
-    async def get_body(self):
-        """Get resource contents.
-
-        :return: Iterable over bytestrings."""
-        raise NotImplementedError(self.get_body)
-
-    async def render(self, self_url, accepted_content_types,
-                     accepted_languages):
-        """'Render' this resource in the specified content type.
-
-        The default implementation just checks that the
-        resource' content type is acceptable and if so returns
-        (get_body(), get_content_type(), get_content_language()).
-
-        :param accepted_content_types: List of accepted content types
-        :param accepted_languages: List of accepted languages
-        :raise NotAcceptableError: if there is no acceptable content type
-        :return: Tuple with (content_body, content_length, etag, content_type,
-                 content_language)
-        """
-        # TODO(jelmer): Check content_language
-        content_types = pick_content_types(
-            accepted_content_types, [self.get_content_type()])
-        assert content_types == [self.get_content_type()]
-        body = await self.get_body()
-        try:
-            content_language = self.get_content_language()
-        except KeyError:
-            content_language = None
-        return (body, sum(map(len, body)), await self.get_etag(),
-                self.get_content_type(), content_language)
-
-    async def get_content_length(self):
-        """Get content length.
-
-        :return: Length of this objects content.
-        """
-        return sum(map(len, await self.get_body()))
-
-    def get_content_language(self):
-        """Get content language.
-
-        :return: Language, as used in HTTP Accept-Language
-        """
-        raise NotImplementedError(self.get_content_language)
-
-    def set_body(self, body, replace_etag=None):
-        """Set resource contents.
-
-        :param body: Iterable over bytestrings
-        :return: New ETag
-        """
-        raise NotImplementedError(self.set_body)
-
-    def set_comment(self, comment):
-        """Set resource comment.
-
-        :param comment: New comment
-        """
-        raise NotImplementedError(self.set_comment)
-
-    def get_comment(self):
-        """Get resource comment.
-
-        :return: comment
-        """
-        raise NotImplementedError(self.get_comment)
-
-    def get_last_modified(self):
-        """Get last modified time.
-
-        :return: Last modified time
-        """
-        raise NotImplementedError(self.get_last_modified)
-
-    def get_is_executable(self):
-        """Get executable bit.
-
-        :return: Boolean indicating executability
-        """
-        raise NotImplementedError(self.get_is_executable)
-
-    def set_is_executable(self, executable):
-        """Set executable bit.
-
-        :param executable: Boolean indicating executability
-        """
-        raise NotImplementedError(self.set_is_executable)
-
-    def get_quota_used_bytes(self):
-        """Return bytes consumed by this resource.
-
-        If unknown, this can raise KeyError.
-
-        :return: an integer
-        """
-        raise NotImplementedError(self.get_quota_used_bytes)
-
-    def get_quota_available_bytes(self):
-        """Return quota available as bytes.
-
-        This can raise KeyError if there is infinite quota available.
-        """
-        raise NotImplementedError(self.get_quota_available_bytes)
 
 
 class Collection(Resource):
@@ -1098,11 +1106,11 @@ async def traverse_resource(base_resource, base_href, depth, members=None):
 class Reporter(object):
     """Implementation for DAV REPORT requests."""
 
-    name = None
+    name:str = None
 
     resource_type = None
 
-    def supported_on(self, resource):
+    def supported_on(self, resource: Resource) -> bool:
         """Check if this reporter is available for the specified resource.
 
         :param resource: Resource to check for
@@ -1115,8 +1123,14 @@ class Reporter(object):
                        for rs in self.resource_type)
         return self.resource_type in resource.resource_types
 
-    async def report(self, environ, request_body, resources_by_hrefs,
-                     properties, href, resource, depth):
+    async def report(self,
+                     environ: Dict[str, str],
+                     request_body: ET.Element,
+                     resources_by_hrefs,
+                     properties: Dict[str, Property],
+                     href: str,
+                     resource: Resource,
+                     depth: str):
         """Send a report.
 
         :param environ: wsgi environ
@@ -1131,7 +1145,7 @@ class Reporter(object):
         raise NotImplementedError(self.report)
 
 
-def create_href(href, base_href=None):
+def create_href(href:str, base_href:Optional[str]=None) -> ET.Element:
     parsed_url = urllib.parse.urlparse(href)
     if '//' in parsed_url.path:
         logging.warning('invalidly formatted href: %s', href)
@@ -1142,11 +1156,13 @@ def create_href(href, base_href=None):
     return et
 
 
-def read_href_element(et):
+def read_href_element(et: ET.Element) -> str:
+    if et.text is None:
+        return None
     el = urllib.parse.unquote(et.text)
-    el = urllib.parse.urlsplit(el)
+    parsed_url = urllib.parse.urlsplit(el)
     # TODO(jelmer): Check that the hostname matches the local hostname?
-    return el.path
+    return parsed_url.path
 
 
 class ExpandPropertyReporter(Reporter):

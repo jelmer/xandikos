@@ -24,6 +24,7 @@ are always strong, and should be returned without wrapping quotes.
 """
 
 import mimetypes
+from typing import Optional, Iterable, Tuple
 
 from .index import IndexManager
 
@@ -326,8 +327,11 @@ class Store(object):
         """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
 
-    def import_one(self, name, data, message=None, author=None,
-                   replace_etag=None):
+    def import_one(self, name:str,
+                   data:Iterable[bytes],
+                   message:Optional[str]=None,
+                   author:Optional[str]=None,
+                   replace_etag:Optional[str]=None) -> Tuple[str, str]:
         """Import a single object.
 
         :param name: Name of the object

@@ -35,7 +35,7 @@ collations = {
 }
 
 
-def get_collation(name):
+def get_collation(name: str):
     """Get a collation by name.
 
     :param name: Collation name

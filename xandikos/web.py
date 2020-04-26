@@ -31,6 +31,9 @@ import jinja2
 import logging
 import os
 import posixpath
+from typing import (
+    Sequence,
+    )
 
 import shutil
 import urllib.parse
@@ -644,7 +647,7 @@ class CollectionSetResource(webdav.Collection):
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
 
-    resource_types = []
+    resource_types:Sequence[str] = []
 
     def __init__(self, backend):
         self.backend = backend
@@ -1028,7 +1031,7 @@ def create_principal_defaults(backend, principal):
 
 class RedirectDavHandler(object):
 
-    def __init__(self, dav_root):
+    def __init__(self, dav_root: str):
         self._dav_root = dav_root
 
     async def __call__(self, request):
