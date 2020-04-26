@@ -12,3 +12,4 @@ dist
 *.egg*
 child.log
 debug.log
+.mypy_cache
