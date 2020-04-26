@@ -51,10 +51,10 @@ async def get_properties_with_data(data_property, href, resource, properties,
 class MultiGetReporter(webdav.Reporter):
     """Abstract base class for multi-get reporters."""
 
-    name:str
+    name: str
 
     # A SubbedProperty subclass
-    data_property:SubbedProperty
+    data_property: SubbedProperty
 
     @webdav.multistatus
     async def report(self, environ, body, resources_by_hrefs, properties,

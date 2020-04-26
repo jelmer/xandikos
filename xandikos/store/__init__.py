@@ -131,7 +131,7 @@ class Filter(object):
     Filters are often resource-type specific.
     """
 
-    content_type:str
+    content_type: str
 
     def check(self, name, resource):
         """Check if this filter applies to a resource.
@@ -327,11 +327,11 @@ class Store(object):
         """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
 
-    def import_one(self, name:str,
-                   data:Iterable[bytes],
-                   message:Optional[str]=None,
-                   author:Optional[str]=None,
-                   replace_etag:Optional[str]=None) -> Tuple[str, str]:
+    def import_one(self, name: str,
+                   data: Iterable[bytes],
+                   message: Optional[str] = None,
+                   author: Optional[str] = None,
+                   replace_etag: Optional[str] = None) -> Tuple[str, str]:
         """Import a single object.
 
         :param name: Name of the object

@@ -39,7 +39,7 @@ from typing import (
     Union,
     Tuple,
     Sequence,
-    )
+)
 import urllib.parse
 from wsgiref.util import request_uri
 
@@ -328,7 +328,7 @@ class Resource(object):
     """A WebDAV resource."""
 
     # A list of resource type names (e.g. '{DAV:}collection')
-    resource_types:List[str] = []
+    resource_types: List[str] = []
 
     # TODO(jelmer): Be consistent in using get/set functions vs properties.
     def set_resource_types(self, resource_types):
@@ -498,18 +498,18 @@ class Property(object):
     """Handler for listing, retrieving and updating DAV Properties."""
 
     # Property name (e.g. '{DAV:}resourcetype')
-    name:str
+    name: str
 
     # Whether to include this property in 'allprop' PROPFIND requests.
     # https://tools.ietf.org/html/rfc4918, section 14.2
-    in_allprops:bool = True
+    in_allprops: bool = True
 
     # Resource type this property belongs to. If None, get_value()
     # will always be called.
-    resource_type:Optional[Sequence[str]] = None
+    resource_type: Optional[Sequence[str]] = None
 
     # Whether this property is live (i.e set by the server)
-    live:bool
+    live: bool
 
     def supported_on(self, resource: Resource) -> bool:
         if self.resource_type is None:
@@ -535,7 +535,8 @@ class Property(object):
         else:
             return True
 
-    async def get_value(self, href:str, resource: Resource, el: ET.Element, environ: Dict[str, str]) -> None:
+    async def get_value(self, href: str, resource: Resource, el: ET.Element,
+                        environ: Dict[str, str]) -> None:
         """Get property with specified name.
 
         :param href: Resource href
@@ -773,7 +774,7 @@ class GetCTagProperty(Property):
 
     """
 
-    name:str
+    name: str
     resource_type = COLLECTION_RESOURCE_TYPE
     in_allprops = False
     live = True
@@ -1109,9 +1110,9 @@ async def traverse_resource(base_resource, base_href, depth, members=None):
 class Reporter(object):
     """Implementation for DAV REPORT requests."""
 
-    name:str
+    name: str
 
-    resource_type:Optional[Union[str,Tuple]] = None
+    resource_type: Optional[Union[str, Tuple]] = None
 
     def supported_on(self, resource: Resource) -> bool:
         """Check if this reporter is available for the specified resource.
@@ -1148,7 +1149,7 @@ class Reporter(object):
         raise NotImplementedError(self.report)
 
 
-def create_href(href:str, base_href:Optional[str]=None) -> ET.Element:
+def create_href(href: str, base_href: Optional[str] = None) -> ET.Element:
     parsed_url = urllib.parse.urlparse(href)
     if '//' in parsed_url.path:
         logging.warning('invalidly formatted href: %s', href)

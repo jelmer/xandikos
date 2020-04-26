@@ -317,7 +317,7 @@ class VdirStoreTest(BaseStoreTest, unittest.TestCase):
 
 class BaseGitStoreTest(BaseStoreTest):
 
-    kls:Type[Store]
+    kls: Type[Store]
 
     def create_store(self):
         raise NotImplementedError(self.create_store)
