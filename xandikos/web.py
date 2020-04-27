@@ -1055,8 +1055,9 @@ def main(argv):
 
     access_group = parser.add_argument_group(title="Access Options")
     access_group.add_argument(
-        "-l", "--listen_address", dest="listen_address", default="localhost",
-        help="Binding IP address. [%(default)s]")
+        "-l", "--listen-address", dest="listen_address", default="localhost",
+        help=("Bind to this address. "
+              "Pass in path for unix domain socket. [%(default)s]"))
     access_group.add_argument(
         "-p", "--port", dest="port", type=int, default=8080,
         help="Port to listen on. [%(default)s]")
@@ -1121,8 +1122,14 @@ def main(argv):
     async def xandikos_handler(request):
         return await main_app.aiohttp_handler(request, options.route_prefix)
 
-    logging.info('Listening on %s:%s', options.listen_address,
-                 options.port)
+    if '/' in options.listen_address:
+        socket_path = options.listen_address
+        listen_address = None
+        logging.info('Listening on unix domain socket %s', socket_path)
+    else:
+        listen_address = options.listen_address
+        socket_path = None
+        logging.info('Listening on %s:%s', listen_address, options.port)
 
     from aiohttp import web
 
@@ -1150,7 +1157,7 @@ def main(argv):
         app.add_subapp(options.route_prefix, xandikos_app)
     else:
         app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
-    web.run_app(app, port=options.port, host=options.listen_address)
+    web.run_app(app, port=options.port, host=listen_address, path=socket_path)
 
 
 if __name__ == '__main__':
