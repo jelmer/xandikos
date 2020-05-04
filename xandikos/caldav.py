@@ -63,27 +63,27 @@ class Calendar(webdav.Collection):
     resource_types = (webdav.Collection.resource_types +
                       [CALENDAR_RESOURCE_TYPE])
 
-    def get_calendar_description(self):
+    def get_calendar_description(self) -> str:
         """Return the calendar description."""
         raise NotImplementedError(self.get_calendar_description)
 
-    def get_calendar_color(self):
+    def get_calendar_color(self) -> str:
         """Return the calendar color."""
         raise NotImplementedError(self.get_calendar_color)
 
-    def set_calendar_color(self, color):
+    def set_calendar_color(self, color: str) -> None:
         """Set the calendar color."""
         raise NotImplementedError(self.set_calendar_color)
 
-    def get_calendar_order(self):
+    def get_calendar_order(self) -> str:
         """Return the calendar order."""
         raise NotImplementedError(self.get_calendar_order)
 
-    def set_calendar_order(self, order):
+    def set_calendar_order(self, order: str) -> None:
         """Set the calendar order."""
         raise NotImplementedError(self.set_calendar_order)
 
-    def get_calendar_timezone(self):
+    def get_calendar_timezone(self) -> str:
         """Return calendar timezone.
 
         This should be an iCalendar object with exactly one
@@ -91,7 +91,7 @@ class Calendar(webdav.Collection):
         """
         raise NotImplementedError(self.get_calendar_timezone)
 
-    def set_calendar_timezone(self, content):
+    def set_calendar_timezone(self, content: str) -> None:
         """Set calendar timezone.
 
         This should be an iCalendar object with exactly one
@@ -99,14 +99,14 @@ class Calendar(webdav.Collection):
         """
         raise NotImplementedError(self.set_calendar_timezone)
 
-    def get_supported_calendar_components(self):
+    def get_supported_calendar_components(self) -> str:
         """Return set of supported calendar components in this calendar.
 
         :return: iterable over component names
         """
         raise NotImplementedError(self.get_supported_calendar_components)
 
-    def get_supported_calendar_data_types(self):
+    def get_supported_calendar_data_types(self) -> str:
         """Return supported calendar data types.
 
         :return: iterable over (content_type, version) tuples

@@ -19,10 +19,12 @@
 
 """Collations."""
 
+from typing import Callable
+
 
 class UnknownCollation(Exception):
 
-    def __init__(self, collation):
+    def __init__(self, collation: str):
         super(UnknownCollation, self).__init__(
             "Collation %r is not supported" % collation)
         self.collation = collation
@@ -35,7 +37,7 @@ collations = {
 }
 
 
-def get_collation(name: str):
+def get_collation(name: str) -> Callable[[str, str], bool]:
     """Get a collation by name.
 
     :param name: Collation name

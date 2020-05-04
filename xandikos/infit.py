@@ -32,10 +32,11 @@ class SettingsProperty(webdav.Property):
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     live = False
 
-    async def get_value(self, href, resource, el, environ):
+    async def get_value(
+            self, href: str, resource, el, environ):
         el.text = resource.get_infit_settings()
 
-    def set_value(self, href, resource, el):
+    def set_value(self, href: str, resource, el):
         resource.set_infit_settings(el.text)
 
 

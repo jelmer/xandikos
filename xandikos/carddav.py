@@ -21,6 +21,9 @@
 
 https://tools.ietf.org/html/rfc6352
 """
+
+from typing import Set
+
 from xandikos import (
     collation as _mod_collation,
     davcommon,
@@ -103,16 +106,16 @@ class Addressbook(webdav.Collection):
     resource_types = (
         webdav.Collection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE])
 
-    def get_addressbook_description(self):
+    def get_addressbook_description(self) -> str:
         raise NotImplementedError(self.get_addressbook_description)
 
-    def set_addressbook_description(self, description):
+    def set_addressbook_description(self, description: str) -> None:
         raise NotImplementedError(self.set_addressbook_description)
 
-    def get_addressbook_color(self):
+    def get_addressbook_color(self) -> str:
         raise NotImplementedError(self.get_addressbook_color)
 
-    def set_addressbook_color(self, color):
+    def set_addressbook_color(self, color: str) -> None:
         raise NotImplementedError(self.set_addressbook_color)
 
     def get_supported_address_data_types(self):
@@ -122,14 +125,14 @@ class Addressbook(webdav.Collection):
         """
         raise NotImplementedError(self.get_supported_address_data_types)
 
-    def get_max_resource_size(self):
+    def get_max_resource_size(self) -> int:
         """Get maximum object size this address book will store (in bytes)
 
         Absence indicates no maximum.
         """
         raise NotImplementedError(self.get_max_resource_size)
 
-    def get_max_image_size(self):
+    def get_max_image_size(self) -> int:
         """Get maximum image size this address book will store (in bytes)
 
         Absence indicates no maximum.
@@ -140,14 +143,14 @@ class Addressbook(webdav.Collection):
 class PrincipalExtensions:
     """Extensions to webdav.Principal."""
 
-    def get_addressbook_home_set(self):
+    def get_addressbook_home_set(self) -> Set[str]:
         """Return set of addressbook home URLs.
 
         :return: set of URLs
         """
         raise NotImplementedError(self.get_addressbook_home_set)
 
-    def get_principal_address(self):
+    def get_principal_address(self) -> str:
         """Return URL to principal address vCard."""
         raise NotImplementedError(self.get_principal_address)
 
