@@ -1,0 +1,8 @@
+[Unit]
+Description=Xandikos socket
+
+[Socket]
+ListenStream=/run/xandikos.sock
+
+[Install]
+WantedBy=sockets.target
