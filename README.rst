@@ -95,6 +95,9 @@ configuration instructions.
 Running
 =======
 
+Xandikos can either directly listen on a plain HTTP socket, or it can sit
+behind a reverse HTTP proxy.
+
 Testing
 -------
 
@@ -115,27 +118,13 @@ it has created.
 Production
 ----------
 
-The easiest way to run Xandikos in production is using
-`uWSGI <https://uwsgi-docs.readthedocs.io/en/latest/>`_.
+The easiest way to run Xandikos in production is by running a reverse HTTP proxy
+like Apache or nginx in front of it.
+The xandikos script can either listen on the local host on a particular port, or
+it can listen on a unix domain socket.
 
-One option is to setup uWSGI with a server like
-`Apache <http://uwsgi-docs.readthedocs.io/en/latest/Apache.html>`_,
-`Nginx <http://uwsgi-docs.readthedocs.io/en/latest/Nginx.html>`_ or another web
-server that can authenticate users and forward authorized requests to
-Xandikos in uWSGI. See `examples/uwsgi.ini <examples/uwsgi.ini>`_ for an
-example uWSGI configuration.
 
-Alternatively, you can run uWSGI standalone and have it authenticate and
-directly serve HTTP traffic. An example configuration for this can be found in
-`examples/uwsgi-standalone.ini <examples/uwsgi-standalone.ini>`_.
-
-This will start a server on `localhost:8080 <http://localhost:8080/>`_ with username *user1* and password
-*password1*.
-
-.. code:: shell
-
-  mkdir -p $HOME/dav
-  uwsgi examples/uwsgi-standalone.ini
+For example init system configurations, see examples/.
 
 Client instructions
 ===================
