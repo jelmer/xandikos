@@ -1,9 +1,20 @@
-0.2.0	UNRELEASED
+0.2.0	2020-05-04
 
  * Fix <calendar-data> subelement filtering. (Jelmer Vernooĳ)
 
  * Skip non-calendar files for calendar-query operations.
    (Jelmer Vernooĳ, #108)
+
+ * Switch to using aiohttp rather than uWSGI.
+   (Jelmer Vernooĳ)
+
+ * Query component's SUMMARY in ICalendarFile.describe().
+   (Denis Laxalde)
+
+ * Add /metrics support. (Jelmer Vernooĳ)
+
+ * Drop support for Python 3.4, add support for 3.8.
+   (Jelmer Vernooĳ)
 
 0.1.0	2019-04-07
 
