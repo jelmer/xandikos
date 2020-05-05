@@ -21,6 +21,9 @@
 
 https://tools.ietf.org/html/rfc6352
 """
+
+from typing import Set
+
 from xandikos import (
     collation as _mod_collation,
     davcommon,
@@ -49,7 +52,7 @@ class AddressbookHomeSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, base_href, resource, el, environ):
+    async def get_value(self, base_href, resource, el, environ):
         for href in resource.get_addressbook_home_set():
             href = webdav.ensure_trailing_slash(href)
             el.append(webdav.create_href(href, base_href))
@@ -69,10 +72,10 @@ class AddressDataProperty(davcommon.SubbedProperty):
     def supported_on(self, resource):
         return (resource.get_content_type() == 'text/vcard')
 
-    def get_value_ext(self, href, resource, el, environ, requested):
+    async def get_value_ext(self, href, resource, el, environ, requested):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
-        el.text = b''.join(resource.get_body()).decode('utf-8')
+        el.text = b''.join(await resource.get_body()).decode('utf-8')
 
 
 class AddressbookDescriptionProperty(webdav.Property):
@@ -84,7 +87,7 @@ class AddressbookDescriptionProperty(webdav.Property):
     name = '{%s}addressbook-description' % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = resource.get_addressbook_description()
 
     def set_value(self, href, resource, el):
@@ -103,16 +106,16 @@ class Addressbook(webdav.Collection):
     resource_types = (
         webdav.Collection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE])
 
-    def get_addressbook_description(self):
+    def get_addressbook_description(self) -> str:
         raise NotImplementedError(self.get_addressbook_description)
 
-    def set_addressbook_description(self, description):
+    def set_addressbook_description(self, description: str) -> None:
         raise NotImplementedError(self.set_addressbook_description)
 
-    def get_addressbook_color(self):
+    def get_addressbook_color(self) -> str:
         raise NotImplementedError(self.get_addressbook_color)
 
-    def set_addressbook_color(self, color):
+    def set_addressbook_color(self, color: str) -> None:
         raise NotImplementedError(self.set_addressbook_color)
 
     def get_supported_address_data_types(self):
@@ -122,14 +125,14 @@ class Addressbook(webdav.Collection):
         """
         raise NotImplementedError(self.get_supported_address_data_types)
 
-    def get_max_resource_size(self):
+    def get_max_resource_size(self) -> int:
         """Get maximum object size this address book will store (in bytes)
 
         Absence indicates no maximum.
         """
         raise NotImplementedError(self.get_max_resource_size)
 
-    def get_max_image_size(self):
+    def get_max_image_size(self) -> int:
         """Get maximum image size this address book will store (in bytes)
 
         Absence indicates no maximum.
@@ -140,14 +143,14 @@ class Addressbook(webdav.Collection):
 class PrincipalExtensions:
     """Extensions to webdav.Principal."""
 
-    def get_addressbook_home_set(self):
+    def get_addressbook_home_set(self) -> Set[str]:
         """Return set of addressbook home URLs.
 
         :return: set of URLs
         """
         raise NotImplementedError(self.get_addressbook_home_set)
 
-    def get_principal_address(self):
+    def get_principal_address(self) -> str:
         """Return URL to principal address vCard."""
         raise NotImplementedError(self.get_principal_address)
 
@@ -162,7 +165,7 @@ class PrincipalAddressProperty(webdav.Property):
     resource_type = '{DAV:}principal'
     in_allprops = False
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.append(webdav.create_href(
             resource.get_principal_address(), href))
 
@@ -178,7 +181,7 @@ class SupportedAddressDataProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         for (content_type,
              version) in resource.get_supported_address_data_types():
             subel = ET.SubElement(el, '{%s}content-type' % NAMESPACE)
@@ -197,7 +200,7 @@ class MaxResourceSizeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_resource_size())
 
 
@@ -212,7 +215,7 @@ class MaxImageSizeProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def get_value(self, href, resource, el, environ):
+    async def get_value(self, href, resource, el, environ):
         el.text = str(resource.get_max_image_size())
 
 
@@ -313,8 +316,8 @@ class AddressbookQueryReporter(webdav.Reporter):
     data_property = AddressDataProperty()
 
     @webdav.multistatus
-    def report(self, environ, body, resources_by_hrefs, properties, base_href,
-               base_resource, depth):
+    async def report(self, environ, body, resources_by_hrefs, properties,
+                     base_href, base_resource, depth):
         requested = None
         filter_el = None
         limit = None
@@ -343,7 +346,7 @@ class AddressbookQueryReporter(webdav.Reporter):
             nresults = None
 
         i = 0
-        for (href, resource) in webdav.traverse_resource(
+        async for (href, resource) in webdav.traverse_resource(
                 base_resource, base_href, depth):
             if not apply_filter(filter_el, resource):
                 continue
@@ -352,5 +355,6 @@ class AddressbookQueryReporter(webdav.Reporter):
             propstat = davcommon.get_properties_with_data(
                 self.data_property, href, resource, properties, environ,
                 requested)
-            yield webdav.Status(href, '200 OK', propstat=list(propstat))
+            yield webdav.Status(
+                href, '200 OK', propstat=[s async for s in propstat])
             i += 1

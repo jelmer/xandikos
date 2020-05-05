@@ -219,7 +219,7 @@ class VdirStore(Store):
             yield (name, content_type, self._get_etag(name))
 
     @classmethod
-    def create(cls, path):
+    def create(cls, path: str) -> VdirStore:
         """Create a new store backed by a Vdir on disk.
 
         :return: A `VdirStore`
@@ -228,7 +228,7 @@ class VdirStore(Store):
         return cls(path)
 
     @classmethod
-    def open_from_path(cls, path):
+    def open_from_path(cls, path: str) -> VdirStore:
         """Open a VdirStore from a path.
 
         :param path: Path
@@ -293,6 +293,14 @@ class VdirStore(Store):
         """Set the color code for this store."""
         assert color.startswith('#')
         self._write_metadata('color', color)
+
+    def get_source_url(self):
+        """Get source URL."""
+        return self._read_metadata('source')
+
+    def set_source_url(self, url):
+        """Set source URL."""
+        self._write_metadata('source', url)
 
     def get_displayname(self):
         """Get display name.

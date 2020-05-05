@@ -1,3 +1,9 @@
+xandikos (0.2.0-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Tue, 05 May 2020 19:58:35 +0000
+
 xandikos (0.1.0-1) unstable; urgency=medium
 
   * New upstream release. Closes: #953011

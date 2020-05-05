@@ -1,0 +1,16 @@
+[Unit]
+Description=Xandikos CalDAV/CardDAV server
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/xandikos \
+  -d /var/lib/xandikos \
+  --route-prefix=/dav \
+  --current-user-principal=/jelmer \
+  -l /run/sock
+User=xandikos
+Group=www-data
+Restart=on-failure
+KillSignal=SIGQUIT
+Type=simple
+NotifyAccess=all

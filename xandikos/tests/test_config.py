@@ -23,7 +23,9 @@ from io import StringIO
 
 from unittest import TestCase
 
+import dulwich.repo
 from ..store.config import FileBasedCollectionMetadata
+from ..store.git import RepoCollectionMetadata
 
 
 class FileBasedCollectionMetadataTests(TestCase):
@@ -131,7 +133,5 @@ class RepoMetadataTests(TestCase, MetadataTests):
 
     def setUp(self):
         super(RepoMetadataTests, self).setUp()
-        import dulwich.repo
-        from ..store.git import RepoCollectionMetadata
         self._repo = dulwich.repo.MemoryRepo()
         self._config = RepoCollectionMetadata(self._repo)
