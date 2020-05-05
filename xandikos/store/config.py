@@ -28,28 +28,38 @@ FILENAME = '.xandikos'
 class CollectionMetadata(object):
     """Metadata for a configuration."""
 
-    def get_color(self):
+    def get_color(self) -> str:
         """Get the color for this collection.
         """
         raise NotImplementedError(self.get_color)
 
-    def set_color(self, color):
+    def set_color(self, color: str) -> None:
         """Change the color of this collection."""
         raise NotImplementedError(self.set_color)
 
-    def get_comment(self):
+    def get_source_url(self) -> str:
+        """Get the source URL for this collection.
+        """
+        raise NotImplementedError(self.get_source_url)
+
+    def set_source_url(self, url: str) -> None:
+        """Set the source URL for this collection.
+        """
+        raise NotImplementedError(self.set_source_url)
+
+    def get_comment(self) -> str:
         raise NotImplementedError(self.get_comment)
 
-    def get_displayname(self):
+    def get_displayname(self) -> str:
         raise NotImplementedError(self.get_displayname)
 
-    def get_description(self):
+    def get_description(self) -> str:
         raise NotImplementedError(self.get_description)
 
-    def get_order(self):
+    def get_order(self) -> str:
         raise NotImplementedError(self.get_order)
 
-    def set_order(self, order):
+    def set_order(self, order: str) -> None:
         raise NotImplementedError(self.set_order)
 
 
@@ -72,6 +82,16 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         cp = configparser.ConfigParser()
         cp.read_file(f)
         return cls(cp)
+
+    def get_source_url(self):
+        return self._configparser['DEFAULT']['source']
+
+    def set_source_url(self, url):
+        if url is not None:
+            self._configparser['DEFAULT']['source'] = url
+        else:
+            del self._configparser['DEFAULT']['source']
+        self._save("Set source URL.")
 
     def get_color(self):
         return self._configparser['DEFAULT']['color']

@@ -253,6 +253,7 @@ Apple-specific Properties
 - calendar-order [supported]
 - getctag [supported]
 - refreshrate [supported]
+- source
 
 inf-it properties
 ^^^^^^^^^^^^^^^^^

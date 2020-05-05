@@ -19,8 +19,10 @@
 
 """Xandikos command-line handling."""
 
+from typing import List
 
-def main(argv):
+
+def main(argv: List[str]):
     from .web import main
     return main(argv)
 

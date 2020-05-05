@@ -5,9 +5,9 @@ COVERAGE_RUN ?= $(COVERAGE) run $(COVERAGE_RUN_OPTIONS)
 TESTSUITE = xandikos.tests.test_suite
 LITMUS_TESTS ?= basic http
 CALDAVTESTER_TESTS ?= CalDAV/delete.xml \
-		      CalDAV/schedulenomore.xml \
 		      CalDAV/options.xml \
-		      CalDAV/vtodos.xml
+		      CalDAV/vtodos.xml \
+		      CalDAV/schedulenomore.xml
 XANDIKOS_COVERAGE ?= $(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web
 
 check:
@@ -15,6 +15,9 @@ check:
 
 style:
 	python3 -m flake8
+
+typing:
+	mypy xandikos
 
 web:
 	$(PYTHON) -m xandikos.web

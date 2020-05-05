@@ -2,10 +2,12 @@
 # This docker image starts a Xandikos server on port 8000. It supports two
 # environment variables:
 #
-# - autocreate: "principal" / "defaults"
+# - autocreate: "yes"
 #     If set to "yes", this will create the user principal, but not any
 #     calendars or address books.
-#     If set to "defaults", it will create a default calendar
+
+# - defaults: "yes"
+#     If set to "yes", it will create a default calendar
 #     (under $current_user_principal/calendars/calendar) and a default
 #     addressbook (under $current_user_principal/contacts/addressbook)
 #
@@ -27,24 +29,20 @@
 FROM debian:sid
 LABEL maintainer="jelmer@jelmer.uk"
 RUN apt-get update && \
-    apt-get -y install uwsgi uwsgi-plugin-python3 python3-icalendar python3-dulwich python3-jinja2 python3-defusedxml && \
+    apt-get -y install python3-icalendar python3-dulwich python3-jinja2 python3-defusedxml python3-aiohttp python3-prometheus-client && \
     apt-get clean
 ADD . /code
 WORKDIR /code
 VOLUME /data
 EXPOSE 8000
-ENV autocreate="defaults"
+ENV autocreate="yes"
+ENV defaults="yes"
 ENV current_user_principal="/user1"
 
 # TODO(jelmer): Add support for authentication
 # --plugin=router_basicauth,python3  --route="^/ basicauth:myrealm,user1:password1"
-CMD uwsgi --http-socket=:8000 \
-          --umask=022 \
-          --master \
-          --cheaper=2 \
-          --processes=4 \
-          --plugin=python3 \
-          --module=xandikos.wsgi:app \
-          --env=XANDIKOSPATH=/data \
-          --env=CURRENT_USER_PRINCIPAL=$current_user_principal \
-          --env=AUTOCREATE=$autocreate
+CMD python3 -m xandikos.web --port=8000 --listen_address 127.0.0.1 \
+          -d /data \
+          --current-user-principal=$current_user_principal \
+          $(if test "$autocreate" = "yes"; then echo "--autocreate"; fi) \
+          $(if test "$defaults" = "yes"; then echo "--defaults"; fi) \

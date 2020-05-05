@@ -65,7 +65,10 @@ class WebTests(WebTestCase):
         return self._method(app, 'LOCK', path)
 
     def mkcol(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCOL'}
+        environ = {
+            'PATH_INFO': path,
+            'REQUEST_METHOD': 'MKCOL',
+        }
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -120,6 +123,7 @@ class WebTests(WebTestCase):
         environ = {
             'PATH_INFO': path,
             'REQUEST_METHOD': 'PROPFIND',
+            'CONTENT_TYPE': 'text/xml',
             'wsgi.input': BytesIO(body),
         }
         setup_testing_defaults(environ)
@@ -139,7 +143,7 @@ class WebTests(WebTestCase):
 
     def test_get_body(self):
         class TestResource(Resource):
-            def get_body(self):
+            async def get_body(self):
                 return [b'this is content']
 
             def get_last_modified(self):
@@ -148,7 +152,7 @@ class WebTests(WebTestCase):
             def get_content_language(self):
                 raise KeyError
 
-            def get_etag(self):
+            async def get_etag(self):
                 return "myetag"
 
             def get_content_type(self):
@@ -165,7 +169,7 @@ class WebTests(WebTestCase):
             def set_body(self, body, replace_etag=None):
                 new_body.extend(body)
 
-            def get_etag(self):
+            async def get_etag(self):
                 return '"blala"'
         app = self.makeApp({'/.well-known/carddav': TestResource()}, [])
         code, headers = self.put(
@@ -206,7 +210,7 @@ class WebTests(WebTestCase):
     def test_delete(self):
         class TestResource(Collection):
 
-            def get_etag(self):
+            async def get_etag(self):
                 return '"foo"'
 
             def delete_member(unused_self, name, etag=None):
@@ -243,7 +247,7 @@ class WebTests(WebTestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, ret, environ):
+            async def get_value(self, href, resource, ret, environ):
                 raise KeyError
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -261,7 +265,7 @@ class WebTests(WebTestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, ret, environ):
+            async def get_value(self, href, resource, ret, environ):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\
@@ -281,13 +285,13 @@ class WebTests(WebTestCase):
         class TestProperty1(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, el, environ):
+            async def get_value(self, href, resource, el, environ):
                 ET.SubElement(el, '{DAV:}href').text = '/user/'
 
         class TestProperty2(Property):
             name = '{DAV:}somethingelse'
 
-            def get_value(self, href, resource, el, environ):
+            async def get_value(self, href, resource, el, environ):
                 pass
         app = self.makeApp(
             {'/resource': Resource()},
@@ -311,7 +315,7 @@ class WebTests(WebTestCase):
         class TestProperty(Property):
             name = '{DAV:}current-user-principal'
 
-            def get_value(self, href, resource, ret, environ):
+            async def get_value(self, href, resource, ret, environ):
                 ET.SubElement(ret, '{DAV:}href').text = '/user/'
         app = self.makeApp({'/resource': Resource()}, [TestProperty()])
         code, headers, contents = self.propfind(app, '/resource', b"""\

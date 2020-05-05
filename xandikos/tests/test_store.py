@@ -27,9 +27,11 @@ import unittest
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
+from typing import Type
+
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
-    DuplicateUidError, File, InvalidETag, NoSuchItem, Filter)
+    DuplicateUidError, File, InvalidETag, NoSuchItem, Filter, Store)
 from xandikos.store.git import (
     GitStore, BareGitStore, TreeGitStore)
 from xandikos.store.vdir import (
@@ -129,12 +131,12 @@ class BaseStoreTest(object):
 
         class DummyFilter(Filter):
 
+            content_type = 'text/calendar'
+
             def __init__(self, text):
                 self.text = text
 
             def check(self, name, resource):
-                if resource.content_type != 'text/calendar':
-                    return False
                 return self.text in b''.join(resource.content)
 
         self.assertEqual(
@@ -156,11 +158,15 @@ class BaseStoreTest(object):
                                        [EXAMPLE_VCALENDAR1])
         (name2, etag2) = gc.import_one('bar.ics', 'text/calendar',
                                        [EXAMPLE_VCALENDAR2])
+        (name3, etag3) = gc.import_one('bar.txt', 'text/plain',
+                                       [b'Not a calendar file.'])
         self.assertEqual({}, dict(gc.index_manager.desired))
 
         filtertext = 'C=VCALENDAR/C=VTODO/P=SUMMARY'
 
         class DummyFilter(Filter):
+
+            content_type = 'text/calendar'
 
             def __init__(self, text):
                 self.text = text
@@ -173,8 +179,6 @@ class BaseStoreTest(object):
                            for v in index_values[filtertext])
 
             def check(self, name, resource):
-                if resource.content_type != 'text/calendar':
-                    return False
                 return self.text in b''.join(resource.content)
 
         self.assertEqual(
@@ -313,7 +317,7 @@ class VdirStoreTest(BaseStoreTest, unittest.TestCase):
 
 class BaseGitStoreTest(BaseStoreTest):
 
-    kls = None
+    kls: Type[Store]
 
     def create_store(self):
         raise NotImplementedError(self.create_store)
@@ -371,6 +375,15 @@ class BaseGitStoreTest(BaseStoreTest):
         if getattr(c, 'path', None):
             c.write_to_path()
         self.assertEqual('334433', gc.get_color())
+
+    def test_get_source_url(self):
+        gc = self.create_store()
+        self.assertIs(None, gc.get_source_url())
+        c = gc.repo.get_config()
+        c.set(b'xandikos', b'source', b'www.google.com')
+        if getattr(c, 'path', None):
+            c.write_to_path()
+        self.assertEqual('www.google.com', gc.get_source_url())
 
     def test_default_no_subdirectories(self):
         gc = self.create_store()
