@@ -1,2 +1,4 @@
 examples/uwsgi-standalone.ini
 examples/uwsgi.ini
+examples/xandikos.service
+examples/xandikos.socket
