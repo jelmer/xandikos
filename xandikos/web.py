@@ -33,6 +33,10 @@ import os
 import posixpath
 from typing import (
     List,
+    Tuple,
+    Iterable,
+    Iterator,
+    Optional,
 )
 
 import shutil
@@ -46,6 +50,8 @@ from xandikos.icalendar import (
     CalendarFilter,
 )
 from xandikos.store import (
+    Store,
+    File,
     DuplicateUidError,
     InvalidFileContents,
     NoSuchItem,
@@ -79,12 +85,14 @@ jinja_env = jinja2.Environment(
     enable_async=True)
 
 
-async def render_jinja_page(name, accepted_content_languages, **kwargs):
+async def render_jinja_page(
+        name: str, accepted_content_languages: List[str], **kwargs
+        ) -> Tuple[Iterable[bytes], int, Optional[str], str, List[str]]:
     """Render a HTML page from jinja template.
 
     :param name: Name of the page
     :param accepted_content_languages: List of accepted content languages
-    :return: TUple of (body, content_length, etag, content_type, languages)
+    :return: Tuple of (body, content_length, etag, content_type, languages)
     """
     # TODO(jelmer): Support rendering other languages
     encoding = 'utf-8'
@@ -98,7 +106,7 @@ async def render_jinja_page(name, accepted_content_languages, **kwargs):
             ['en-UK'])
 
 
-def create_strong_etag(etag):
+def create_strong_etag(etag: str) -> str:
     """Create strong etags.
 
     :param etag: basic etag
@@ -107,7 +115,7 @@ def create_strong_etag(etag):
     return '"' + etag + '"'
 
 
-def extract_strong_etag(etag):
+def extract_strong_etag(etag: Optional[str]) -> Optional[str]:
     """Extract a strong etag from a string."""
     if etag is None:
         return etag
@@ -117,27 +125,28 @@ def extract_strong_etag(etag):
 class ObjectResource(webdav.Resource):
     """Object resource."""
 
-    def __init__(self, store, name, content_type, etag, file=None):
+    def __init__(self, store: Store, name: str, content_type: str, etag: str,
+                 file: Optional[File] = None):
         self.store = store
         self.name = name
         self.etag = etag
         self.content_type = content_type
         self._file = file
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "%s(%r, %r, %r, %r)" % (
             type(self).__name__, self.store, self.name, self.etag,
             self.get_content_type()
         )
 
     @property
-    def file(self):
+    def file(self) -> File:
         if self._file is None:
             self._file = self.store.get_file(self.name, self.content_type,
                                              self.etag)
         return self._file
 
-    async def get_body(self):
+    async def get_body(self) -> Iterable[bytes]:
         return self.file.content
 
     def set_body(self, data, replace_etag=None):
@@ -156,16 +165,16 @@ class ObjectResource(webdav.Resource):
                 'UID already in use.')
         return create_strong_etag(etag)
 
-    def get_content_language(self):
+    def get_content_language(self) -> str:
         raise KeyError
 
-    def get_content_type(self):
+    def get_content_type(self) -> str:
         return self.content_type
 
-    async def get_content_length(self):
+    async def get_content_length(self) -> int:
         return sum(map(len, await self.get_body()))
 
-    async def get_etag(self):
+    async def get_etag(self) -> str:
         return create_strong_etag(self.etag)
 
     def get_supported_locks(self):
@@ -240,31 +249,33 @@ class StoreBasedCollection(object):
         else:
             raise NotImplementedError(self.set_resource_types)
 
-    def _get_resource(self, name, content_type, etag, file=None):
+    def _get_resource(self, name: str,
+                      content_type: str,
+                      etag: str, file: Optional[File] = None) -> webdav.Resource:
         return ObjectResource(self.store, name, content_type, etag, file=file)
 
-    def _get_subcollection(self, name):
+    def _get_subcollection(self, name: str) -> webdav.Collection:
         return self.backend.get_resource(posixpath.join(self.relpath, name))
 
-    def get_displayname(self):
+    def get_displayname(self) -> str:
         displayname = self.store.get_displayname()
         if displayname is None:
             return os.path.basename(self.store.repo.path)
         return displayname
 
-    def set_displayname(self, displayname):
+    def set_displayname(self, displayname: str) -> None:
         self.store.set_displayname(displayname)
 
-    def get_sync_token(self):
+    def get_sync_token(self) -> str:
         return self.store.get_ctag()
 
-    def get_ctag(self):
+    def get_ctag(self) -> str:
         return self.store.get_ctag()
 
-    async def get_etag(self):
+    async def get_etag(self) -> str:
         return create_strong_etag(self.store.get_ctag())
 
-    def members(self):
+    def members(self) -> Iterator[Tuple[str, webdav.Resource]]:
         for (name, content_type, etag) in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
             yield (name, resource)
@@ -293,7 +304,8 @@ class StoreBasedCollection(object):
             # self.get_subcollection(name).destroy()
             shutil.rmtree(os.path.join(self.store.path, name))
 
-    def create_member(self, name, contents, content_type):
+    def create_member(self, name: str, contents: Iterable[bytes],
+                      content_type: str) -> Tuple[str, str]:
         try:
             (name, etag) = self.store.import_one(name, content_type, contents)
         except InvalidFileContents as e:
@@ -307,7 +319,12 @@ class StoreBasedCollection(object):
                 'UID already in use.')
         return (name, create_strong_etag(etag))
 
-    def iter_differences_since(self, old_token, new_token):
+    def iter_differences_since(
+            self, old_token: str, new_token: str
+            ) -> Iterator[Tuple[
+                str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
+        old_resource: Optional[webdav.Resource]
+        new_resource: Optional[webdav.Resource]
         for (name, content_type,
              old_etag, new_etag) in self.store.iter_changes(
                  old_token, new_token):
@@ -356,7 +373,7 @@ class StoreBasedCollection(object):
     async def get_content_length(self):
         raise KeyError
 
-    def destroy(self):
+    def destroy(self) -> None:
         # RFC2518, section 8.6.2 says this should recursively delete.
         self.store.destroy()
 
@@ -372,7 +389,7 @@ class StoreBasedCollection(object):
             'collection.html', accepted_content_languages, collection=self,
             self_url=self_url)
 
-    def get_is_executable(self):
+    def get_is_executable(self) -> bool:
         return False
 
     def get_quota_used_bytes(self):

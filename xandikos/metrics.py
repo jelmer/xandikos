@@ -22,6 +22,7 @@
 
 import asyncio
 import time
+from typing import Callable
 
 
 from aiohttp import web
@@ -64,12 +65,12 @@ def metrics_middleware(app, handler):
     return wrapper
 
 
-def setup_metrics(app):
+def setup_metrics(app: web.Application) -> None:
     app.middlewares.insert(0, metrics_middleware)
     app.router.add_get("/metrics", metrics_handler, name='metrics')
 
 
-async def metrics_handler(request):
+async def metrics_handler(request: web.Request) -> web.Response:
     response = web.Response(body=generate_latest())
     response.content_type = CONTENT_TYPE_LATEST
     return response
