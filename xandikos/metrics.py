@@ -22,7 +22,6 @@
 
 import asyncio
 import time
-from typing import Callable
 
 
 from aiohttp import web

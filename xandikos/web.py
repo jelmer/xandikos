@@ -86,8 +86,9 @@ jinja_env = jinja2.Environment(
 
 
 async def render_jinja_page(
-        name: str, accepted_content_languages: List[str], **kwargs
-        ) -> Tuple[Iterable[bytes], int, Optional[str], str, List[str]]:
+        name: str, accepted_content_languages: List[str],
+        **kwargs) -> Tuple[
+            Iterable[bytes], int, Optional[str], str, List[str]]:
     """Render a HTML page from jinja template.
 
     :param name: Name of the page
@@ -251,7 +252,8 @@ class StoreBasedCollection(object):
 
     def _get_resource(self, name: str,
                       content_type: str,
-                      etag: str, file: Optional[File] = None) -> webdav.Resource:
+                      etag: str,
+                      file: Optional[File] = None) -> webdav.Resource:
         return ObjectResource(self.store, name, content_type, etag, file=file)
 
     def _get_subcollection(self, name: str) -> webdav.Collection:
@@ -320,8 +322,7 @@ class StoreBasedCollection(object):
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(
-            self, old_token: str, new_token: str
-            ) -> Iterator[Tuple[
+            self, old_token: str, new_token: str) -> Iterator[Tuple[
                 str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
         old_resource: Optional[webdav.Resource]
         new_resource: Optional[webdav.Resource]
