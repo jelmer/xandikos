@@ -311,10 +311,8 @@ class Store(object):
                     file = self.get_file(name, content_type, etag)
                     yield (name, file, etag)
 
-    def get_file(self,
-            name: str,
-            content_type: Optional[str] = None,
-            etag: Optional[str] = None) -> File:
+    def get_file(self, name: str, content_type: Optional[str] = None,
+                 etag: Optional[str] = None) -> File:
         """Get the contents of an object.
 
         :return: A File object
