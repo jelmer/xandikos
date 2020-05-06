@@ -1903,7 +1903,11 @@ class WebDAVApp(object):
             environ['SCRIPT_NAME'] = ''
         request = WSGIRequest(environ)
         environ = {'SCRIPT_NAME': environ['SCRIPT_NAME']}
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         response = loop.run_until_complete(self._handle_request(
             request, environ))
         return response.for_wsgi(start_response)
