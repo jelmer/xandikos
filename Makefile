@@ -13,10 +13,10 @@ check:
 	$(PYTHON) -m unittest $(TESTSUITE)
 
 style:
-	python3 -m flake8
+	$(PYTHON) -m flake8
 
 typing:
-	mypy xandikos
+	$(PYTHON) -m mypy xandikos
 
 web:
 	$(PYTHON) -m xandikos.web
