@@ -1898,13 +1898,12 @@ class WebDAVApp(object):
                 body=[('Please login.'.encode(DEFAULT_ENCODING))])
 
     def handle_wsgi_request(self, environ, start_response):
-        loop = asyncio.get_event_loop()
         if 'SCRIPT_NAME' not in environ:
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ['SCRIPT_NAME'] = ''
         request = WSGIRequest(environ)
         environ = {'SCRIPT_NAME': environ['SCRIPT_NAME']}
-        response = loop.run_until_complete(self._handle_request(
+        response = asyncio.run(self._handle_request(
             request, environ))
         return response.for_wsgi(start_response)
 
