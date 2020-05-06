@@ -16,8 +16,6 @@ matrix:
       dist: xenial
     - python: 3.8
       dist: xenial
-    - python: 3.9-dev
-      dist: xenial
 install:
   - sudo apt-get install -qq libneon27-dev curl
   - pip install pip --upgrade
