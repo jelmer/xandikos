@@ -1783,7 +1783,7 @@ class WSGIRequest(object):
             'CONTENT_TYPE', 'application/octet-stream')
         try:
             self.content_length = int(environ['CONTENT_LENGTH'])
-        except KeyError:
+        except (KeyError, ValueError):
             self.content_length = None
         from multidict import CIMultiDict
         self.headers = CIMultiDict([
