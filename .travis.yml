@@ -22,7 +22,7 @@ matrix:
 install:
   - sudo apt-get install -qq libneon27-dev curl
   - pip install pip --upgrade
-  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs aiohttp aiohttp-wsgi prometheus-client mypy
+  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs aiohttp aiohttp-wsgi prometheus-client mypy multidict
   - python setup.py develop
 script:
   - make style
