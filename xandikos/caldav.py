@@ -427,7 +427,7 @@ def parse_time_range(el, cls):
     return cls(start, end)
 
 
-def parse_comp_filter(el, cls):
+def parse_comp_filter(el: ET.Element, cls):
     """Compile a comp-filter element into a Python function.
     """
     name = el.get('name')
@@ -456,7 +456,7 @@ def parse_comp_filter(el, cls):
     return comp_filter
 
 
-def parse_filter(filter_el, cls):
+def parse_filter(filter_el: ET.Element, cls):
     for subel in filter_el:
         if subel.tag == '{urn:ietf:params:xml:ns:caldav}comp-filter':
             parse_comp_filter(subel, cls.filter_subcomponent)

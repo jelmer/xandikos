@@ -1783,7 +1783,7 @@ class WSGIRequest(object):
             'CONTENT_TYPE', 'application/octet-stream')
         try:
             self.content_length = int(environ['CONTENT_LENGTH'])
-        except KeyError:
+        except (KeyError, ValueError):
             self.content_length = None
         from multidict import CIMultiDict
         self.headers = CIMultiDict([
@@ -1898,12 +1898,16 @@ class WebDAVApp(object):
                 body=[('Please login.'.encode(DEFAULT_ENCODING))])
 
     def handle_wsgi_request(self, environ, start_response):
-        loop = asyncio.get_event_loop()
         if 'SCRIPT_NAME' not in environ:
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ['SCRIPT_NAME'] = ''
         request = WSGIRequest(environ)
         environ = {'SCRIPT_NAME': environ['SCRIPT_NAME']}
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         response = loop.run_until_complete(self._handle_request(
             request, environ))
         return response.for_wsgi(start_response)

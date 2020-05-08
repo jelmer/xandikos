@@ -6,18 +6,17 @@ TESTSUITE = xandikos.tests.test_suite
 LITMUS_TESTS ?= basic http
 CALDAVTESTER_TESTS ?= CalDAV/delete.xml \
 		      CalDAV/options.xml \
-		      CalDAV/vtodos.xml \
-		      CalDAV/schedulenomore.xml
+		      CalDAV/vtodos.xml
 XANDIKOS_COVERAGE ?= $(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web
 
 check:
 	$(PYTHON) -m unittest $(TESTSUITE)
 
 style:
-	python3 -m flake8
+	$(PYTHON) -m flake8
 
 typing:
-	mypy xandikos
+	$(PYTHON) -m mypy xandikos
 
 web:
 	$(PYTHON) -m xandikos.web
