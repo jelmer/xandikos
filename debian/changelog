@@ -1,6 +1,8 @@
 xandikos (0.2.1-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * Drop python3-prometheus-client dependency to Recommends, since it
+    isn't strictly necessary.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 08 May 2020 12:40:54 +0000
 
