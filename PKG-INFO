@@ -1,6 +1,6 @@
-Metadata-Version: 1.1
+Metadata-Version: 2.1
 Name: xandikos
-Version: 0.2.0
+Version: 0.2.1
 Summary: Lightweight CalDAV/CardDAV server
 Home-page: https://www.xandikos.org/
 Author: Jelmer Vernooij
@@ -179,3 +179,4 @@ Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Operating System :: POSIX
+Provides-Extra: prometheus

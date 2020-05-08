@@ -23,7 +23,7 @@
 from setuptools import find_packages, setup
 import sys
 
-version = "0.2.0"
+version = "0.2.1"
 
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
@@ -41,11 +41,16 @@ setup(name="xandikos",
       license="GNU GPLv3 or later",
       url="https://www.xandikos.org/",
       install_requires=[
+          'aiohttp',
           'icalendar',
           'dulwich>=0.19.1',
           'defusedxml',
           'jinja2',
+          'multidict',
       ],
+      extras_require={
+          'prometheus': ['prometheus_client'],
+      },
       packages=find_packages(),
       package_data={'xandikos': ['templates/*.html']},
       scripts=['bin/xandikos'],

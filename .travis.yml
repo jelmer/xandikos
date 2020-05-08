@@ -8,7 +8,6 @@ addons:
 python:
   - 3.6
   - 3.7
-  - pypy3.5
 env:
   global: PYTHONHASHSEED=random
 matrix:
@@ -17,12 +16,10 @@ matrix:
       dist: xenial
     - python: 3.8
       dist: xenial
-    - python: 3.9-dev
-      dist: xenial
 install:
   - sudo apt-get install -qq libneon27-dev curl
   - pip install pip --upgrade
-  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs aiohttp aiohttp-wsgi prometheus-client mypy
+  - pip install flake8 pycalendar vobject lxml requests six tzlocal pytz attrs aiohttp aiohttp-wsgi prometheus-client mypy multidict
   - python setup.py develop
 script:
   - make style
