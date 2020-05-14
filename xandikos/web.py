@@ -1061,7 +1061,6 @@ def main(argv):
     import argparse
     import sys
     from xandikos import __version__
-    from .metrics import setup_metrics
     parser = argparse.ArgumentParser(
         usage="%(prog)s -d ROOT-DIR [OPTIONS]",
         prog=argv[0])
@@ -1158,6 +1157,7 @@ def main(argv):
         logging.warning(
             'Prometheus client not found; /metrics will not be available.')
     else:
+        from .metrics import setup_metrics
         setup_metrics(app)
 
     for path in WELLKNOWN_DAV_PATHS:

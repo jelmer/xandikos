@@ -19,7 +19,7 @@
 
 import unittest
 
-from xandikos.wsgi import (
+from xandikos.wsgi_helpers import (
     WellknownRedirector,
 )
 
