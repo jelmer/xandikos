@@ -3,7 +3,7 @@ Section: web
 Priority: optional
 Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
 Homepage: https://www.xandikos.org/
-Build-Depends: python3-all, debhelper-compat (= 12), python3-dulwich (>= 0.19.1), dh-python, python3-icalendar, python3-defusedxml, python3-jinja2, python3-setuptools, python3-aiohttp, python3-prometheus-client
+Build-Depends: python3-all, debhelper-compat (= 13), python3-dulwich (>= 0.19.1), dh-python, python3-icalendar, python3-defusedxml, python3-jinja2, python3-setuptools, python3-aiohttp, python3-prometheus-client
 Rules-Requires-Root: no
 Standards-Version: 4.5.0
 Vcs-Browser: https://salsa.debian.org/jelmer/xandikos
