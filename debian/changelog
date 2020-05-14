@@ -1,9 +1,9 @@
-xandikos (0.2.2-1) UNRELEASED; urgency=medium
+xandikos (0.2.2-1) unstable; urgency=medium
 
   * New upstream release.
   * Bump debhelper from old 12 to 13.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Thu, 14 May 2020 02:30:23 +0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Thu, 14 May 2020 02:31:10 +0000
 
 xandikos (0.2.1-1) unstable; urgency=medium
 
