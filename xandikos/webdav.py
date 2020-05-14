@@ -116,7 +116,7 @@ class Response(object):
     def for_wsgi(self, start_response):
         start_response(
             '%d %s' % (self.status, self.reason),
-            headers=self.headers)
+            self.headers)
         return self.body
 
     def for_aiohttp(self):
