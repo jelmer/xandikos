@@ -21,6 +21,7 @@
 """
 
 import configparser
+import errno
 from io import BytesIO, StringIO
 import logging
 import os
@@ -37,6 +38,7 @@ from . import (
     InvalidFileContents,
     NoSuchItem,
     NotStoreError,
+    OutOfSpaceError,
     VALID_STORE_TYPES,
     open_by_content_type,
     open_by_extension,
@@ -680,21 +682,27 @@ class TreeGitStore(GitStore):
         :param author: Optional author
         :return: etag
         """
-        with locked_index(self.repo.index_path()) as index:
-            p = os.path.join(self.repo.path, name)
-            with open(p, 'wb') as f:
-                f.writelines(data)
-            st = os.lstat(p)
-            blob = Blob.from_string(b''.join(data))
-            encoded_name = name.encode(DEFAULT_ENCODING)
-            if encoded_name not in index or blob.id != index[encoded_name].sha:
-                self.repo.object_store.add_object(blob)
-                index[encoded_name] = IndexEntry(
-                    *index_entry_from_stat(st, blob.id, 0))
-                self._commit_tree(
-                    index, message.encode(DEFAULT_ENCODING),
-                    author=author)
-            return blob.id
+        try:
+            with locked_index(self.repo.index_path()) as index:
+                p = os.path.join(self.repo.path, name)
+                with open(p, 'wb') as f:
+                    f.writelines(data)
+                st = os.lstat(p)
+                blob = Blob.from_string(b''.join(data))
+                encoded_name = name.encode(DEFAULT_ENCODING)
+                if (encoded_name not in index or
+                        blob.id != index[encoded_name].sha):
+                    self.repo.object_store.add_object(blob)
+                    index[encoded_name] = IndexEntry(
+                        *index_entry_from_stat(st, blob.id, 0))
+                    self._commit_tree(
+                        index, message.encode(DEFAULT_ENCODING),
+                        author=author)
+                return blob.id
+        except OSError as e:
+            if e.errno == errno.ENOSPC:
+                raise OutOfSpaceError()
+            raise
 
     def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
