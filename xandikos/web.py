@@ -664,6 +664,10 @@ class CollectionSetResource(webdav.Collection):
         # TODO(jelmer): Ask the store?
         raise KeyError
 
+    def get_creationdate(self):
+        # TODO(jelmer): Find creation date using store function
+        raise KeyError
+
 
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
