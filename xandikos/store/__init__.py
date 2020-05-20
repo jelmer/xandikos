@@ -231,6 +231,13 @@ class InvalidFileContents(Exception):
         self.error = error
 
 
+class OutOfSpaceError(Exception):
+    """Out of disk space."""
+
+    def __init__(self):
+        pass
+
+
 class Store(object):
     """A object store."""
 

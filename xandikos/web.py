@@ -56,6 +56,7 @@ from xandikos.store import (
     InvalidFileContents,
     NoSuchItem,
     NotStoreError,
+    OutOfSpaceError,
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
     STORE_TYPE_PRINCIPAL,
@@ -319,6 +320,8 @@ class StoreBasedCollection(object):
             raise webdav.PreconditionFailure(
                 '{%s}no-uid-conflict' % caldav.NAMESPACE,
                 'UID already in use.')
+        except OutOfSpaceError:
+            raise webdav.InsufficientStorage()
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(
@@ -1160,7 +1163,7 @@ def main(argv):
         from .metrics import setup_metrics
         setup_metrics(app)
 
-    for path in WELLKNOWN_DAV_PATHS:
+    for path in WELKNOWN_DAV_PATHS:
         app.router.add_route(
             "*", path,
             RedirectDavHandler(options.route_prefix).__call__)

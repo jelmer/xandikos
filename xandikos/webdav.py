@@ -197,6 +197,10 @@ class PreconditionFailure(Exception):
         self.description = description
 
 
+class InsufficientStorage(Exception):
+    """Insufficient storage."""
+
+
 def etag_matches(condition, actual_etag):
     """Check if an etag matches an If-Matches condition.
 
@@ -1504,6 +1508,8 @@ class PostMethod(Method):
                 request, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
+        except InsufficientStorage as e:
+            return Response(status=507, reason='Insufficient Storage')
         href = (
             environ['SCRIPT_NAME'] +
             urllib.parse.urljoin(ensure_trailing_slash(path), name)
@@ -1557,6 +1563,8 @@ class PutMethod(Method):
                 request, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
+        except InsufficientStorage as e:
+            return Response(status=507, reason='Insufficient Storage')
         return Response(
             status=201, reason='Created', headers=[
                 ('ETag', new_etag)])
