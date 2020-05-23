@@ -42,6 +42,7 @@ jobs:
     - name: Run caldavtester tests
       run: |
         make check-caldavtester
+      if: "matrix.os == 'ubuntu-latest'"
     - name: Run pycaldav tests
       run: |
         sudo apt install libxml2-dev libxslt1-dev
