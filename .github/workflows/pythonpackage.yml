@@ -43,4 +43,5 @@ jobs:
         make check-caldavtester
     - name: Run pycaldav tests
       run: |
+        pip install -U nose
         make check-pycaldav
