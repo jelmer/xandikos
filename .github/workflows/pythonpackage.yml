@@ -43,5 +43,7 @@ jobs:
         make check-caldavtester
     - name: Run pycaldav tests
       run: |
-        pip install -U nose
+        sudo apt install libxml2-dev libxslt1-dev
+        pip install -U nose lxml
         make check-pycaldav
+      if: "matrix.os == 'ubuntu-latest'"
