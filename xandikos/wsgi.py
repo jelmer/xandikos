@@ -22,15 +22,11 @@
 
 import logging
 import os
-import posixpath
 
 from .web import (
     XandikosBackend,
     XandikosApp,
-    WELLKNOWN_DAV_PATHS,
 )
-
-from .wsgi_helpers import WellknownRedirector
 
 
 backend = XandikosBackend(path=os.environ['XANDIKOSPATH'])

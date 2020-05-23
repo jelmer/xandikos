@@ -1508,7 +1508,7 @@ class PostMethod(Method):
                 request, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
-        except InsufficientStorage as e:
+        except InsufficientStorage:
             return Response(status=507, reason='Insufficient Storage')
         href = (
             environ['SCRIPT_NAME'] +
@@ -1563,7 +1563,7 @@ class PutMethod(Method):
                 request, '412 Precondition Failed',
                 error=ET.Element(e.precondition),
                 description=e.description)
-        except InsufficientStorage as e:
+        except InsufficientStorage:
             return Response(status=507, reason='Insufficient Storage')
         return Response(
             status=201, reason='Created', headers=[

@@ -20,8 +20,9 @@
 """WSGI wrapper for xandikos.
 """
 
-import os
 import posixpath
+
+from .web import WELLKNOWN_DAV_PATHS
 
 
 class WellknownRedirector(object):
