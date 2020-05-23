@@ -38,6 +38,7 @@ jobs:
       run: |
         # Retrieve litmus from Xandikos server for now, since webdav.org is down.
         make check-litmus LITMUS_URL=https://www.xandikos.org/litmus-0.13.tar.gz
+      if: "matrix.os == 'ubuntu-latest'"
     - name: Run caldavtester tests
       run: |
         make check-caldavtester
