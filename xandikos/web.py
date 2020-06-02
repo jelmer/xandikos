@@ -1064,6 +1064,36 @@ class RedirectDavHandler(object):
         return web.HTTPFound(self._dav_root)
 
 
+MDNS_NAME = 'Xandikos CalDAV/CardDAV service'
+
+
+def avahi_register(port: int, path: str):
+    import avahi
+    import dbus
+    bus = dbus.SystemBus()
+    server = dbus.Interface(bus.get_object(avahi.DBUS_NAME, avahi.DBUS_PATH_SERVER), avahi.DBUS_INTERFACE_SERVER)
+    group = dbus.Interface(bus.get_object(avahi.DBUS_NAME, server.EntryGroupNew()),
+                           avahi.DBUS_INTERFACE_ENTRY_GROUP)
+
+    for service in ['_carddav._tcp', '_caldav._tcp']:
+        try:
+            group.AddService(
+                avahi.IF_UNSPEC, avahi.PROTO_INET, 0, MDNS_NAME, service,
+                '', '', port,
+                avahi.string_array_to_txt_array(['path=%s' % path]))
+        except dbus.DBusException as e:
+            logging.error('Error registering %s: %s', service, e)
+
+    group.Commit()
+
+
+if __name__ == '__main__':
+    announcer = ServiceAnnouncer('Xandikos CalDAV/CardDAV service', '_carddavs._tcp', port, ['path=%s' % path])
+    print(announcer.get_service_name())
+
+    sleep(42)
+
+
 def main(argv):
     import argparse
     import sys
@@ -1106,6 +1136,9 @@ def main(argv):
     parser.add_argument(
         "--dump-dav-xml", action="store_true", dest="dump_dav_xml",
         help="Print DAV XML request/responses.")
+    parser.add_argument(
+        '--avahi', action='store_true',
+        help='Announce services with avahi.')
     options = parser.parse_args(argv[1:])
 
     if options.directory is None:
@@ -1182,6 +1215,19 @@ def main(argv):
         app.add_subapp(options.route_prefix, xandikos_app)
     else:
         app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+
+
+    if options.avahi:
+        try:
+            import avahi
+            import dbus
+        except ImportError:
+            logging.error(
+                'Please install python-avahi and python-dbus for '
+                'avahi support.')
+        else:
+            avahi_register(options.port, options.route_prefix)
+
     web.run_app(app, port=options.port, host=listen_address, path=socket_path)
 
 
