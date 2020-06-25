@@ -939,7 +939,8 @@ class MkcalendarMethod(webdav.Method):
         app.properties['{DAV:}resourcetype'].set_value(href, resource, el)
         if base_content_type in ('text/xml', 'application/xml'):
             et = await webdav._readXmlBody(
-                request, '{urn:ietf:params:xml:ns:caldav}mkcalendar')
+                request, '{urn:ietf:params:xml:ns:caldav}mkcalendar',
+                strict=app.strict)
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':

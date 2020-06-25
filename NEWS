@@ -1,3 +1,8 @@
+0.2.3	UNRELEASED
+
+ * Add --no-strict option for clients that don't follow
+   the spec. (Jelmer Vernooĳ)
+
 0.2.2	2020-05-14
 
  * Fix use of xandikos.wsgi module in uwsgi. (Jelmer Vernooĳ)

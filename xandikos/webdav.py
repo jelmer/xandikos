@@ -1439,10 +1439,11 @@ async def _readBody(request):
         return [await request.content.read(request_body_size)]
 
 
-async def _readXmlBody(request, expected_tag=None):
+async def _readXmlBody(
+        request, expected_tag: Optional[str] = None, strict: bool = True):
     content_type = request.content_type
     base_content_type, params = parse_type(content_type)
-    if base_content_type not in ('text/xml', 'application/xml'):
+    if strict and base_content_type not in ('text/xml', 'application/xml'):
         raise UnsupportedMediaType(content_type)
     body = b''.join(await _readBody(request))
     if os.environ.get('XANDIKOS_DUMP_DAV_XML'):
@@ -1579,7 +1580,7 @@ class ReportMethod(Method):
         if r is None:
             return _send_not_found(request)
         depth = request.headers.get("Depth", "0")
-        et = await _readXmlBody(request, None)
+        et = await _readXmlBody(request, None, strict=app.strict)
         try:
             reporter = app.reporters[et.tag]
         except KeyError:
@@ -1615,7 +1616,8 @@ class PropfindMethod(Method):
         if not request.can_read_body:
             requested = None
         else:
-            et = await _readXmlBody(request, '{DAV:}propfind')
+            et = await _readXmlBody(
+                request, '{DAV:}propfind', strict=app.strict)
             try:
                 [requested] = et
             except ValueError:
@@ -1651,7 +1653,8 @@ class ProppatchMethod(Method):
         if resource is None:
             yield Status(request.url, '404 Not Found')
             return
-        et = await _readXmlBody(request, '{DAV:}propertyupdate')
+        et = await _readXmlBody(
+            request, '{DAV:}propertyupdate', strict=app.strict)
         propstat = []
         for el in et:
             if el.tag not in ('{DAV:}set', '{DAV:}remove'):
@@ -1682,7 +1685,7 @@ class MkcolMethod(Method):
             return Response(status=409, reason='Conflict')
         if base_content_type in ('text/xml', 'application/xml'):
             # Extended MKCOL (RFC5689)
-            et = await _readXmlBody(request, '{DAV:}mkcol')
+            et = await _readXmlBody(request, '{DAV:}mkcol', strict=app.strict)
             propstat = []
             for el in et:
                 if el.tag != '{DAV:}set':
@@ -1827,11 +1830,12 @@ class WebDAVApp(object):
     (returning None for nonexistant objects).
     """
 
-    def __init__(self, backend):
+    def __init__(self, backend, strict=True):
         self.backend = backend
         self.properties = {}
         self.reporters = {}
         self.methods = {}
+        self.strict = strict
         self.register_methods([
             DeleteMethod(),
             PostMethod(),

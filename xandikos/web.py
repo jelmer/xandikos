@@ -933,8 +933,8 @@ class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server.
     """
 
-    def __init__(self, backend, current_user_principal):
-        super(XandikosApp, self).__init__(backend)
+    def __init__(self, backend, current_user_principal, strict=True):
+        super(XandikosApp, self).__init__(backend, strict=strict)
 
         def get_current_user_principal(env):
             try:
@@ -1139,6 +1139,10 @@ def main(argv):
     parser.add_argument(
         '--avahi', action='store_true',
         help='Announce services with avahi.')
+    parser.add_argument(
+        '--no-strict', action='store_false', dest='strict',
+        help="Enable workarounds for buggy CalDAV/CardDAV client "
+        "implementations.", default=True)
     options = parser.parse_args(argv[1:])
 
     if options.directory is None:
@@ -1174,7 +1178,8 @@ def main(argv):
 
     main_app = XandikosApp(
         backend,
-        current_user_principal=options.current_user_principal)
+        current_user_principal=options.current_user_principal,
+        strict=options.strict)
 
     async def xandikos_handler(request):
         return await main_app.aiohttp_handler(request, options.route_prefix)
