@@ -1071,9 +1071,12 @@ def avahi_register(port: int, path: str):
     import avahi
     import dbus
     bus = dbus.SystemBus()
-    server = dbus.Interface(bus.get_object(avahi.DBUS_NAME, avahi.DBUS_PATH_SERVER), avahi.DBUS_INTERFACE_SERVER)
-    group = dbus.Interface(bus.get_object(avahi.DBUS_NAME, server.EntryGroupNew()),
-                           avahi.DBUS_INTERFACE_ENTRY_GROUP)
+    server = dbus.Interface(
+        bus.get_object(avahi.DBUS_NAME, avahi.DBUS_PATH_SERVER),
+        avahi.DBUS_INTERFACE_SERVER)
+    group = dbus.Interface(
+        bus.get_object(avahi.DBUS_NAME, server.EntryGroupNew()),
+        avahi.DBUS_INTERFACE_ENTRY_GROUP)
 
     for service in ['_carddav._tcp', '_caldav._tcp']:
         try:
@@ -1085,13 +1088,6 @@ def avahi_register(port: int, path: str):
             logging.error('Error registering %s: %s', service, e)
 
     group.Commit()
-
-
-if __name__ == '__main__':
-    announcer = ServiceAnnouncer('Xandikos CalDAV/CardDAV service', '_carddavs._tcp', port, ['path=%s' % path])
-    print(announcer.get_service_name())
-
-    sleep(42)
 
 
 def main(argv):
@@ -1221,11 +1217,10 @@ def main(argv):
     else:
         app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
 
-
     if options.avahi:
         try:
-            import avahi
-            import dbus
+            import avahi  # noqa: F401
+            import dbus   # noqa: F401
         except ImportError:
             logging.error(
                 'Please install python-avahi and python-dbus for '
