@@ -201,6 +201,10 @@ class InsufficientStorage(Exception):
     """Insufficient storage."""
 
 
+class ResourceLocked(Exception):
+    """Resource locked."""
+
+
 def etag_matches(condition, actual_etag):
     """Check if an etag matches an If-Matches condition.
 
@@ -1511,6 +1515,8 @@ class PostMethod(Method):
                 description=e.description)
         except InsufficientStorage:
             return Response(status=507, reason='Insufficient Storage')
+        except ResourceLocked:
+            return Response(status=423, reason='Resource Locked')
         href = (
             environ['SCRIPT_NAME'] +
             urllib.parse.urljoin(ensure_trailing_slash(path), name)
@@ -1566,6 +1572,8 @@ class PutMethod(Method):
                 description=e.description)
         except InsufficientStorage:
             return Response(status=507, reason='Insufficient Storage')
+        except ResourceLocked:
+            return Response(status=423, reason='Resource Locked')
         return Response(
             status=201, reason='Created', headers=[
                 ('ETag', new_etag)])

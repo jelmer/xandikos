@@ -56,6 +56,7 @@ from xandikos.store import (
     InvalidFileContents,
     NoSuchItem,
     NotStoreError,
+    LockedError,
     OutOfSpaceError,
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
@@ -322,6 +323,8 @@ class StoreBasedCollection(object):
                 'UID already in use.')
         except OutOfSpaceError:
             raise webdav.InsufficientStorage()
+        except LockedError:
+            raise webdav.ResourceLocked()
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(

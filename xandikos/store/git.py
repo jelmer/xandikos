@@ -39,6 +39,7 @@ from . import (
     NoSuchItem,
     NotStoreError,
     OutOfSpaceError,
+    LockedError,
     VALID_STORE_TYPES,
     open_by_content_type,
     open_by_extension,
@@ -51,7 +52,7 @@ from .config import (
 from .index import MemoryIndex
 
 
-from dulwich.file import GitFile
+from dulwich.file import GitFile, FileLocked
 from dulwich.index import (
     Index,
     IndexEntry,
@@ -198,8 +199,6 @@ class locked_index(object):
         self._path = path
 
     def __enter__(self):
-        # TODO(jelmer): This can raise dulwich.file.FileLocked;
-        # https://github.com/jelmer/xandikos/issues/66
         self._file = GitFile(self._path, 'wb')
         self._index = Index(self._path)
         return self._index
@@ -729,11 +728,14 @@ class TreeGitStore(GitStore):
                 current_etag = current_blob.id
             if etag.encode('ascii') != current_etag:
                 raise InvalidETag(name, etag, current_etag.decode('ascii'))
-        with locked_index(self.repo.index_path()) as index:
-            os.unlink(p)
-            del index[name.encode(DEFAULT_ENCODING)]
-            self._commit_tree(index, message.encode(DEFAULT_ENCODING),
-                              author=author)
+        try:
+            with locked_index(self.repo.index_path()) as index:
+                os.unlink(p)
+                del index[name.encode(DEFAULT_ENCODING)]
+                self._commit_tree(index, message.encode(DEFAULT_ENCODING),
+                                  author=author)
+        except FileLocked:
+            raise ResourceLocked(name)
 
     def get_ctag(self):
         """Return the ctag for this store."""

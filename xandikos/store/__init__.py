@@ -238,6 +238,13 @@ class OutOfSpaceError(Exception):
         pass
 
 
+class LockedError(Exception):
+    """File or store being accessed is locked."""
+
+    def __init__(self, path: str):
+        self.path = path
+
+
 class Store(object):
     """A object store."""
 
