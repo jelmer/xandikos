@@ -1013,6 +1013,8 @@ async def get_property_from_element(href, resource, properties, environ,
                 await get_value_ext(href, resource, ret, environ, requested)
         except KeyError:
             statuscode = '404 Not Found'
+        except NotImplementedError:
+            statuscode = '501 Not Implemented'
         else:
             statuscode = '200 OK'
     return PropStatus(statuscode, responsedescription, ret)
