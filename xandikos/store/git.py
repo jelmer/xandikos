@@ -175,7 +175,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if store_type not in VALID_STORE_TYPES:
             logging.warning(
                 'Invalid store type %s set for %r.',
-                store_type, self.repo)
+                store_type, self._repo)
         return store_type
 
     def get_order(self):
