@@ -23,6 +23,7 @@ ETags (https://en.wikipedia.org/wiki/HTTP_ETag) used in this file
 are always strong, and should be returned without wrapping quotes.
 """
 
+import logging
 import mimetypes
 from typing import Optional, Iterable, Tuple, Iterator, Dict, Type
 
@@ -292,8 +293,12 @@ class Store(object):
             if not filter.content_type == content_type:
                 continue
             file = self.get_file(name, content_type, etag)
-            if filter.check(name, file):
-                yield (name, file, etag)
+            try:
+                if filter.check(name, file):
+                    yield (name, file, etag)
+            except InvalidFileContents:
+                logging.warning(
+                    'Unable to parse file %s, skipping.', name)
 
     def _iter_with_filter_indexes(
             self, filter: Filter, keys) -> Iterator[Tuple[str, File, str]]:
@@ -305,7 +310,12 @@ class Store(object):
             except KeyError:
                 # Index values not yet present for this file.
                 file = self.get_file(name, content_type, etag)
-                file_values = file.get_indexes(self.index.available_keys())
+                try:
+                    file_values = file.get_indexes(self.index.available_keys())
+                except InvalidFileContents:
+                    logging.warning(
+                        'Unable to parse file %s for indexing, skipping.', name)
+                    files_values = {}
                 self.index.add_values(name, etag, file_values)
                 if filter.check_from_indexes(name, file_values):
                     yield (name, file, etag)
