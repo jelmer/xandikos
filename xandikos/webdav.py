@@ -1014,6 +1014,9 @@ async def get_property_from_element(href, resource, properties, environ,
         except KeyError:
             statuscode = '404 Not Found'
         except NotImplementedError:
+            logging.exception(
+                'Not implemented while getting %s for %r',
+                requested.tag, resource)
             statuscode = '501 Not Implemented'
         else:
             statuscode = '200 OK'
