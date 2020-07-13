@@ -33,7 +33,10 @@ import logging
 import os
 import posixpath
 from typing import (
+    Callable,
     Dict,
+    Iterable,
+    AsyncIterable,
     List,
     Optional,
     Union,
@@ -967,7 +970,9 @@ class Principal(Resource):
         raise NotImplementedError(self.get_schedule_outbox_url)
 
 
-async def get_property_from_name(href, resource, properties, name, environ):
+async def get_property_from_name(
+        href: str, resource: Resource,
+        properties, name: str, environ):
     """Get a single property on a resource.
 
     :param href: Resource href
@@ -981,8 +986,10 @@ async def get_property_from_name(href, resource, properties, name, environ):
         href, resource, properties, environ, ET.Element(name))
 
 
-async def get_property_from_element(href, resource, properties, environ,
-                                    requested):
+async def get_property_from_element(
+        href: str, resource: Resource,
+        properties: Dict[str, Property],
+        environ, requested: ET.Element) -> PropStatus:
     """Get a single property on a resource.
 
     :param href: Resource href
@@ -1006,7 +1013,7 @@ async def get_property_from_element(href, resource, properties, environ,
             if not prop.supported_on(resource):
                 raise KeyError
             try:
-                get_value_ext = prop.get_value_ext
+                get_value_ext = prop.get_value_ext  # type: ignore
             except AttributeError:
                 await prop.get_value(href, resource, ret, environ)
             else:
@@ -1023,7 +1030,10 @@ async def get_property_from_element(href, resource, properties, environ,
     return PropStatus(statuscode, responsedescription, ret)
 
 
-async def get_properties(href, resource, properties, environ, requested):
+async def get_properties(
+        href: str, resource: Resource,
+        properties: Dict[str, Property], environ,
+        requested: ET.Element) -> AsyncIterable[PropStatus]:
     """Get a set of properties.
 
     :param href: Resource Href
@@ -1038,7 +1048,10 @@ async def get_properties(href, resource, properties, environ, requested):
             href, resource, properties, environ, propreq)
 
 
-async def get_property_names(href, resource, properties, environ, requested):
+async def get_property_names(
+        href: str, resource: Resource,
+        properties: Dict[str, Property], environ,
+        requested: ET.Element) -> AsyncIterable[PropStatus]:
     """Get a set of property names.
 
     :param href: Resource Href
@@ -1053,7 +1066,9 @@ async def get_property_names(href, resource, properties, environ, requested):
             yield PropStatus('200 OK', None, ET.Element(name))
 
 
-async def get_all_properties(href, resource, properties, environ):
+async def get_all_properties(
+        href: str, resource: Resource,
+        properties: Dict[str, Property], environ) -> AsyncIterable[PropStatus]:
     """Get all properties.
 
     :param href: Resource Href
@@ -1070,7 +1085,7 @@ async def get_all_properties(href, resource, properties, environ):
             yield ps
 
 
-def ensure_trailing_slash(href):
+def ensure_trailing_slash(href: str) -> str:
     """Ensure that a href has a trailing slash.
 
     Useful for collection hrefs, e.g. when used with urljoin.
@@ -1083,7 +1098,11 @@ def ensure_trailing_slash(href):
     return href + '/'
 
 
-async def traverse_resource(base_resource, base_href, depth, members=None):
+async def traverse_resource(
+        base_resource: Resource, base_href: str, depth: str,
+        members: Optional[
+            Callable[[Collection], Iterable[Tuple[str, Resource]]]] = None
+        ) -> AsyncIterable[Tuple[str, Resource]]:
     """Traverse a resource.
 
     :param base_resource: Resource to traverse from
@@ -1094,8 +1113,10 @@ async def traverse_resource(base_resource, base_href, depth, members=None):
     :return: Iterator over (URL, Resource) tuples
     """
     if members is None:
-        def members(c):
+        def members_fn(c):
             return c.members()
+    else:
+        members_fn = members
     todo = collections.deque([(base_href, base_resource, depth)])
     while todo:
         (href, resource, depth) = todo.popleft()
@@ -1115,7 +1136,7 @@ async def traverse_resource(base_resource, base_href, depth, members=None):
         else:
             raise AssertionError("invalid depth %r" % depth)
         if COLLECTION_RESOURCE_TYPE in resource.resource_types:
-            for (child_name, child_resource) in members(resource):
+            for (child_name, child_resource) in members_fn(resource):
                 child_href = urllib.parse.urljoin(href, child_name)
                 todo.append((child_href, child_resource, nextdepth))
 
@@ -1140,14 +1161,15 @@ class Reporter(object):
                        for rs in self.resource_type)
         return self.resource_type in resource.resource_types
 
-    async def report(self,
-                     environ: Dict[str, str],
-                     request_body: ET.Element,
-                     resources_by_hrefs,
-                     properties: Dict[str, Property],
-                     href: str,
-                     resource: Resource,
-                     depth: str):
+    async def report(
+            self, environ: Dict[str, str],
+            request_body: ET.Element,
+            resources_by_hrefs: Callable[
+                [Iterable[str]], Iterable[Tuple[str, Resource]]],
+            properties: Dict[str, Property],
+            href: str,
+            resource: Resource,
+            depth: str) -> Status:
         """Send a report.
 
         :param environ: wsgi environ
@@ -1190,8 +1212,12 @@ class ExpandPropertyReporter(Reporter):
 
     name = '{DAV:}expand-property'
 
-    async def _populate(self, prop_list, resources_by_hrefs, properties, href,
-                        resource, environ):
+    async def _populate(
+            self, prop_list: ET.Element,
+            resources_by_hrefs: Callable[
+                [Iterable[str]], List[Tuple[str, Resource]]],
+            properties: Dict[str, Property], href: str,
+            resource: Resource, environ) -> AsyncIterable[Status]:
         """Expand properties for a resource.
 
         :param prop_list: DAV:property elements to retrieve and expand
@@ -1205,30 +1231,37 @@ class ExpandPropertyReporter(Reporter):
         ret = []
         for prop in prop_list:
             prop_name = prop.get('name')
+            if prop_name is None:
+                logging.warning('Tag %s without name attribute', prop.tag)
+                continue
             # FIXME: Resolve prop_name on resource
             propstat = await get_property_from_name(
                 href, resource, properties, prop_name, environ)
             new_prop = ET.Element(propstat.prop.tag)
-            child_hrefs = [
+            child_hrefs = filter(None, [
                 read_href_element(prop_child)
                 for prop_child in propstat.prop
-                if prop_child.tag == '{DAV:}href']
+                if prop_child.tag == '{DAV:}href'])
             child_resources = resources_by_hrefs(child_hrefs)
             for prop_child in propstat.prop:
                 if prop_child.tag != '{DAV:}href':
                     new_prop.append(prop_child)
                 else:
                     child_href = read_href_element(prop_child)
-                    child_resource = child_resources[child_href]
+                    if child_href is None:
+                        logging.warning(
+                            'Tag %s without valid href', prop_child.tag)
+                        continue
+                    child_resource = dict(child_resources).get(child_href)
                     if child_resource is None:
                         # FIXME: What to do if the referenced href is invalid?
                         # For now, let's just keep the unresolved href around
                         new_prop.append(prop_child)
                     else:
-                        response = self._populate(
-                            prop, properties, child_href, child_resource,
-                            environ)
-                        new_prop.append(response.aselement())
+                        async for response in self._populate(
+                                prop, resources_by_hrefs, properties,
+                                child_href, child_resource, environ):
+                            new_prop.append(response.aselement())
             propstat = PropStatus(propstat.statuscode,
                                   propstat.responsedescription, prop=new_prop)
             ret.append(propstat)
@@ -1318,7 +1351,7 @@ class Backend(object):
         """
         raise NotImplementedError(self.create_collection)
 
-    def get_resoure(self, relpath):
+    def get_resource(self, relpath):
         raise NotImplementedError(self.get_resource)
 
 
