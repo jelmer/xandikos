@@ -1,5 +1,8 @@
 0.2.3	UNRELEASED
 
+ * Fix handling of WSGI - not all versions of start_response take
+   keyword arguments. (Jelmer Vernooĳ, #124)
+
  * Add --no-strict option for clients that don't follow
    the spec. (Jelmer Vernooĳ)
 
