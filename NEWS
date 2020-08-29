@@ -8,6 +8,9 @@
 
  * Add basic support for expanding RRULE. (Jelmer Vernooĳ, #8)
 
+ * Add parsing support for CALDAV:schedule-tag property.
+   (Jelmer Vernooĳ)
+
 0.2.2	2020-05-14
 
  * Fix use of xandikos.wsgi module in uwsgi. (Jelmer Vernooĳ)

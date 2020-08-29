@@ -1102,7 +1102,7 @@ async def traverse_resource(
         base_resource: Resource, base_href: str, depth: str,
         members: Optional[
             Callable[[Collection], Iterable[Tuple[str, Resource]]]] = None
-        ) -> AsyncIterable[Tuple[str, Resource]]:
+) -> AsyncIterable[Tuple[str, Resource]]:
     """Traverse a resource.
 
     :param base_resource: Resource to traverse from

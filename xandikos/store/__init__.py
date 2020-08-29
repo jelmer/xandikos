@@ -314,7 +314,8 @@ class Store(object):
                     file_values = file.get_indexes(self.index.available_keys())
                 except InvalidFileContents:
                     logging.warning(
-                        'Unable to parse file %s for indexing, skipping.', name)
+                        'Unable to parse file %s for indexing, skipping.',
+                        name)
                     file_values = {}
                 self.index.add_values(name, etag, file_values)
                 if filter.check_from_indexes(name, file_values):

@@ -735,7 +735,7 @@ class TreeGitStore(GitStore):
                 self._commit_tree(index, message.encode(DEFAULT_ENCODING),
                                   author=author)
         except FileLocked:
-            raise LockeError(name)
+            raise LockedError(name)
 
     def get_ctag(self):
         """Return the ctag for this store."""
