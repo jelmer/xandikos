@@ -205,8 +205,10 @@ class ScheduleTagProperty(webdav.Property):
     """
 
     name = '{%s}schedule-tag' % caldav.NAMESPACE
-    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
+
+    def supported_on(self, resource):
+        return (resource.get_content_type() == 'text/calendar')
 
     async def get_value(self, base_href, resource, el, environ):
         el.text = resource.get_schedule_tag()
