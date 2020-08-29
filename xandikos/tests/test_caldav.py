@@ -84,8 +84,9 @@ class ExtractfromCalendarTests(unittest.TestCase):
         incal = ICalendar.from_ical(incal_str)
         expected_outcal = ICalendar.from_ical(outcal_str)
         outcal = ICalendar()
-        caldav.extract_from_calendar(incal, outcal, self.requested)
-        self.assertEqual(
+        outcal = caldav.extract_from_calendar(incal, self.requested)
+        self.maxDiff = None
+        self.assertMultiLineEqual(
             expected_outcal.to_ical().decode(),
             outcal.to_ical().decode(),
             ET.tostring(self.requested))
@@ -218,8 +219,7 @@ END:VCALENDAR
         expand = ET.SubElement(self.requested, '{%s}expand' % caldav.NAMESPACE)
         expand.set('start', '20060103T000000Z')
         expand.set('end', '20060105T000000Z')
-        with self.assertRaises(NotImplementedError):
-            self.extractEqual("""\
+        self.extractEqual("""\
 BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN

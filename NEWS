@@ -6,6 +6,8 @@
  * Add --no-strict option for clients that don't follow
    the spec. (Jelmer Vernooĳ)
 
+ * Add basic support for expanding RRULE. (Jelmer Vernooĳ, #8)
+
 0.2.2	2020-05-14
 
  * Fix use of xandikos.wsgi module in uwsgi. (Jelmer Vernooĳ)

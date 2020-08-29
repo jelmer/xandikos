@@ -23,7 +23,9 @@
 
 import datetime
 import logging
+import pytz
 
+import dateutil.rrule
 from icalendar.cal import Calendar, component_factory
 from icalendar.prop import (
     vDatetime,
@@ -849,3 +851,73 @@ def as_tz_aware_ts(dt, default_timezone):
         dt = dt.replace(tzinfo=default_timezone)
     assert dt.tzinfo
     return dt
+
+
+def rruleset_from_comp(comp):
+    if 'RRULE' not in comp:
+        return None
+    dtstart = comp['DTSTART'].dt
+    rrulestr = comp['RRULE'].to_ical().decode('utf-8')
+    rrule = dateutil.rrule.rrulestr(rrulestr, dtstart=dtstart)
+    rs = dateutil.rrule.rruleset()
+    rs.rrule(rrule)
+    if 'EXDATE' in comp:
+        for exdate in comp['EXDATE']:
+            rs.exdate(exdate)
+        del comp['EXDATE']
+    if 'RDATE' in comp:
+        for rdate in comp['RDATE']:
+            rs.rdate(rdate)
+        del comp['RDATE']
+    # TODO(jelmer): Support EXRULE
+    if 'EXRULE' in comp:
+        raise NotImplementedError('EXRULE not yet supported')
+    return rs
+
+
+def _expand_rrule_component(incomp, start, end, existing):
+    rs = rruleset_from_comp(incomp)
+    for field in ['RRULE', 'EXRULE', 'UNTIL', 'RDATE', 'EXDATE']:
+        if field in incomp:
+            del incomp[field]
+    # Work our magic
+    for ts in rs.between(start, end):
+        utcts = asutc(ts)
+        try:
+            outcomp = existing.pop(utcts)
+            outcomp['DTSTART'] = vDatetime(asutc(outcomp['DTSTART'].dt))
+        except KeyError:
+            outcomp = incomp.copy()
+            outcomp['DTSTART'] = vDatetime(utcts)
+        outcomp['RECURRENCE-ID'] = vDatetime(utcts)
+        yield outcomp
+
+
+def expand_calendar_rrule(incal, start, end):
+    outcal = Calendar()
+    if incal.name != 'VCALENDAR':
+        raise AssertionError(
+            'called on file with root component %s' % incal.name)
+    for field in incal:
+        outcal[field] = incal[field]
+    known = {}
+    for insub in incal.subcomponents:
+        if 'RECURRENCE-ID' in insub:
+            ts = insub['RECURRENCE-ID'].dt
+            utcts = asutc(ts)
+            known[utcts] = insub
+    for insub in incal.subcomponents:
+        if insub.name == 'VTIMEZONE':
+            continue
+        if 'RECURRENCE-ID' in insub:
+            continue
+        if 'RRULE' in insub:
+            for outsub in _expand_rrule_component(insub, start, end, known):
+                outcal.add_component(outsub)
+        else:
+            outcal.add_component(insub)
+    return outcal
+
+
+def asutc(dt):
+    return dt.astimezone(pytz.utc).replace(tzinfo=None)

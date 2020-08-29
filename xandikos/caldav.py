@@ -28,8 +28,14 @@ import pytz
 from .icalendar import (
     apply_time_range_vevent,
     as_tz_aware_ts,
+    expand_calendar_rrule,
 )
-from icalendar.cal import component_factory, Calendar as ICalendar, FreeBusy
+from icalendar.cal import (
+    component_factory,
+    Calendar as ICalendar,
+    FreeBusy,
+    Component,
+)
 from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
 
 from xandikos import davcommon, webdav
@@ -257,7 +263,15 @@ class CalendarDescriptionProperty(webdav.Property):
         raise NotImplementedError
 
 
-def _extract_from_component(incomp, outcomp, requested):
+def _extract_from_component(
+        incomp: Component, outcomp: Component, requested) -> None:
+    """Extract specific properties from a calendar event.
+
+    Args:
+      incomp: Incoming component
+      outcomp: Outcoming component
+      requested: Which components should be included
+    """
     for tag in requested:
         if tag.tag == ('{%s}comp' % NAMESPACE):
             for insub in incomp.subcomponents:
@@ -279,21 +293,22 @@ def _extract_from_component(incomp, outcomp, requested):
             raise AssertionError('invalid element %r' % tag)
 
 
-def extract_from_calendar(incal, outcal, requested):
+def extract_from_calendar(incal, requested):
     """Extract requested components/properties from calendar.
 
     :param incal: Calendar to filter
-    :param outcal: Calendar to write to
     :param requested: <calendar-data> element with requested
         components/properties
     """
     for tag in requested:
         if tag.tag == ('{%s}comp' % NAMESPACE):
             if incal.name == tag.get('name'):
-                _extract_from_component(incal, outcal, tag)
+                c = ICalendar()
+                _extract_from_component(incal, c, tag)
+                incal = c
         elif tag.tag == ('{%s}expand' % NAMESPACE):
-            # TODO(jelmer): https://github.com/jelmer/xandikos/issues/102
-            raise NotImplementedError('expand is not yet implemented')
+            (start, end) = _parse_time_range(tag)
+            incal = expand_calendar_rrule(incal, start, end)
         elif tag.tag == ('{%s}limit-recurrence-set' % NAMESPACE):
             # TODO(jelmer): https://github.com/jelmer/xandikos/issues/103
             raise NotImplementedError(
@@ -304,6 +319,7 @@ def extract_from_calendar(incal, outcal, requested):
                 'limit-freebusy-set is not yet implemented')
         else:
             raise AssertionError('invalid element %r' % tag)
+    return incal
 
 
 class CalendarDataProperty(davcommon.SubbedProperty):
@@ -324,11 +340,10 @@ class CalendarDataProperty(davcommon.SubbedProperty):
         if len(requested) == 0:
             serialized_cal = b''.join(await resource.get_body())
         else:
-            c = ICalendar()
             calendar = calendar_from_resource(resource)
             if calendar is None:
                 raise KeyError
-            extract_from_calendar(calendar, c, requested)
+            c = extract_from_calendar(calendar, requested)
             serialized_cal = c.to_ical()
         # TODO(jelmer): Don't hardcode encoding
         # TODO(jelmer): Strip invalid characters or raise an exception
