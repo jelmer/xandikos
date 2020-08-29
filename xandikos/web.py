@@ -215,6 +215,10 @@ class ObjectResource(webdav.Resource):
         # TODO(jelmer): Ask the store?
         raise KeyError
 
+    def get_schedule_tag(self):
+        # TODO(jelmer): Ask the store?
+        raise KeyError
+
 
 class StoreBasedCollection(object):
 
@@ -988,6 +992,7 @@ class XandikosApp(webdav.WebDAVApp):
             scheduling.ScheduleInboxURLProperty(),
             scheduling.ScheduleOutboxURLProperty(),
             scheduling.CalendarUserTypeProperty(),
+            scheduling.ScheduleTagProperty(),
             webdav.GetLastModifiedProperty(),
             timezones.TimezoneServiceSetProperty([]),
             webdav.AddMemberProperty(),

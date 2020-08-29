@@ -198,6 +198,20 @@ class CalendarUserAddressSetProperty(webdav.Property):
             el.append(webdav.create_href(href, base_href))
 
 
+class ScheduleTagProperty(webdav.Property):
+    """schedule-tag property
+
+    See https://tools.ietf.org/html/rfc6638, section 3.2.10
+    """
+
+    name = '{%s}schedule-tag' % caldav.NAMESPACE
+    resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
+    in_allprops = False
+
+    async def get_value(self, base_href, resource, el, environ):
+        el.text = resource.get_schedule_tag()
+
+
 class CalendarUserTypeProperty(webdav.Property):
     """calendar-user-type property
 
