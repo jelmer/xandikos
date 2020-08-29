@@ -864,14 +864,13 @@ def rruleset_from_comp(comp):
     if 'EXDATE' in comp:
         for exdate in comp['EXDATE']:
             rs.exdate(exdate)
-        del comp['EXDATE']
     if 'RDATE' in comp:
         for rdate in comp['RDATE']:
             rs.rdate(rdate)
-        del comp['RDATE']
-    # TODO(jelmer): Support EXRULE
     if 'EXRULE' in comp:
-        raise NotImplementedError('EXRULE not yet supported')
+        exrulestr = comp['EXRULE'].to_ical().decode('utf-8')
+        exrule = dateutil.rrule.rrulestr(exrulestr, dtstart=dtstart)
+        rs.exrule(exrule)
     return rs
 
 
