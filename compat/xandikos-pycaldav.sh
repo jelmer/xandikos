@@ -23,6 +23,7 @@ caldav_servers = [
      # Until recurring support is added in xandikos.
      # See https://github.com/jelmer/xandikos/issues/102
      'norecurring': True,
+     'noexpand': True,
     }
 ]
 EOF
