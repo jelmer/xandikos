@@ -1929,8 +1929,6 @@ class WebDAVApp(object):
         return ret
 
     async def _handle_request(self, request, environ):
-        if request.headers.get('Expect', '') != '':
-            return Response(status='417 Expectation Failed')
         try:
             do = self.methods[request.method]
         except KeyError:
