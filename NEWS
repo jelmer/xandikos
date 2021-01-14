@@ -1,3 +1,7 @@
+0.2.4	UNRELEASED
+
+ * Wait for entire body to arrive. (Michael Alyn Miller, #129)
+
 0.2.3	2020-07-25
 
  * Fix handling of WSGI - not all versions of start_response take
