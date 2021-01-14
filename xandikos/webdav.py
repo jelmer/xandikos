@@ -1474,11 +1474,7 @@ def apply_modify_prop(el, href, resource, properties):
 
 
 async def _readBody(request):
-    request_body_size = request.content_length
-    if request_body_size is None:
-        return [await request.content.read()]
-    else:
-        return [await request.content.read(request_body_size)]
+    return [await request.content.read()]
 
 
 async def _readXmlBody(
