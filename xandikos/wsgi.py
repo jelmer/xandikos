@@ -29,25 +29,27 @@ from .web import (
 )
 
 
-backend = XandikosBackend(path=os.environ['XANDIKOSPATH'])
+backend = XandikosBackend(path=os.environ["XANDIKOSPATH"])
 if not os.path.isdir(backend.path):
-    if os.getenv('AUTOCREATE'):
-        os.makedirs(os.environ['XANDIKOSPATH'])
+    if os.getenv("AUTOCREATE"):
+        os.makedirs(os.environ["XANDIKOSPATH"])
     else:
-        logging.warning('%r does not exist.', backend.path)
+        logging.warning("%r does not exist.", backend.path)
 
-current_user_principal = os.environ.get('CURRENT_USER_PRINCIPAL', '/user/')
+current_user_principal = os.environ.get("CURRENT_USER_PRINCIPAL", "/user/")
 if not backend.get_resource(current_user_principal):
-    if os.getenv('AUTOCREATE'):
+    if os.getenv("AUTOCREATE"):
         backend.create_principal(
             current_user_principal,
-            create_defaults=os.environ['AUTOCREATE'] == 'defaults')
+            create_defaults=os.environ["AUTOCREATE"] == "defaults",
+        )
     else:
         logging.warning(
-            'default user principal \'%s\' does not exist. '
-            'Create directory %s or set AUTOCREATE variable?',
-            current_user_principal, backend._map_to_file_path(
-                current_user_principal))
+            "default user principal '%s' does not exist. "
+            "Create directory %s or set AUTOCREATE variable?",
+            current_user_principal,
+            backend._map_to_file_path(current_user_principal),
+        )
 
 backend._mark_as_principal(current_user_principal)
 app = XandikosApp(backend, current_user_principal)

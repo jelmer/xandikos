@@ -39,12 +39,14 @@ class SubbedProperty(webdav.Property):
         raise NotImplementedError(self.get_value_ext)
 
 
-async def get_properties_with_data(data_property, href, resource, properties,
-                                   environ, requested):
+async def get_properties_with_data(
+    data_property, href, resource, properties, environ, requested
+):
     properties = dict(properties)
     properties[data_property.name] = data_property
     async for ps in webdav.get_properties(
-            href, resource, properties, environ, requested):
+        href, resource, properties, environ, requested
+    ):
         yield ps
 
 
@@ -57,29 +59,32 @@ class MultiGetReporter(webdav.Reporter):
     data_property: SubbedProperty
 
     @webdav.multistatus
-    async def report(self, environ, body, resources_by_hrefs, properties,
-                     base_href, resource, depth):
+    async def report(
+        self, environ, body, resources_by_hrefs, properties, base_href, resource, depth
+    ):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an the right resource type
         requested = None
         hrefs = []
         for el in body:
-            if el.tag in ('{DAV:}prop', '{DAV:}allprop', '{DAV:}propname'):
+            if el.tag in ("{DAV:}prop", "{DAV:}allprop", "{DAV:}propname"):
                 requested = el
-            elif el.tag == '{DAV:}href':
+            elif el.tag == "{DAV:}href":
                 hrefs.append(webdav.read_href_element(el))
             else:
                 raise webdav.BadRequestError(
-                    'Unknown tag %s in report %s' % (el.tag, self.name))
+                    "Unknown tag %s in report %s" % (el.tag, self.name)
+                )
         for (href, resource) in resources_by_hrefs(hrefs):
             if resource is None:
-                yield webdav.Status(href, '404 Not Found', propstat=[])
+                yield webdav.Status(href, "404 Not Found", propstat=[])
             else:
                 propstat = get_properties_with_data(
-                    self.data_property, href, resource, properties, environ,
-                    requested)
+                    self.data_property, href, resource, properties, environ, requested
+                )
                 yield webdav.Status(
-                    href, '200 OK', propstat=[s async for s in propstat])
+                    href, "200 OK", propstat=[s async for s in propstat]
+                )
 
 
 # see https://tools.ietf.org/html/rfc4790

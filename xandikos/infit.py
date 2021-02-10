@@ -28,12 +28,11 @@ class SettingsProperty(webdav.Property):
     JSON settings.
     """
 
-    name = '{http://inf-it.com/ns/dav/}settings'
+    name = "{http://inf-it.com/ns/dav/}settings"
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     live = False
 
-    async def get_value(
-            self, href: str, resource, el, environ):
+    async def get_value(self, href: str, resource, el, environ):
         el.text = resource.get_infit_settings()
 
     def set_value(self, href: str, resource, el):
@@ -46,7 +45,7 @@ class AddressbookColorProperty(webdav.Property):
     Contains a RRGGBB code, similar to calendar-color.
     """
 
-    name = '{http://inf-it.com/ns/ab/}addressbook-color'
+    name = "{http://inf-it.com/ns/ab/}addressbook-color"
     resource_type = carddav.ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
 
@@ -63,7 +62,7 @@ class HeaderValueProperty(webdav.Property):
     This behaves similar to the hrefLabel setting in caldavzap/carddavmate.
     """
 
-    name = '{http://inf-it.com/ns/dav/}headervalue'
+    name = "{http://inf-it.com/ns/dav/}headervalue"
     resource_type = webdav.COLLECTION_RESOURCE_TYPE
     in_allprops = False
     live = False

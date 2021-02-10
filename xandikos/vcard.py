@@ -25,13 +25,14 @@ from .store import File, InvalidFileContents
 
 
 class VCardFile(File):
-    content_type = 'text/vcard'
+    content_type = "text/vcard"
 
     def validate(self):
-        c = b''.join(self.content).strip()
+        c = b"".join(self.content).strip()
         # TODO(jelmer): Do more extensive checking of VCards
-        if not c.startswith((b'BEGIN:VCARD\r\n', b'BEGIN:VCARD\n')) or \
-           not c.endswith(b'\nEND:VCARD'):
+        if not c.startswith((b"BEGIN:VCARD\r\n", b"BEGIN:VCARD\n")) or not c.endswith(
+            b"\nEND:VCARD"
+        ):
             raise InvalidFileContents(
-                self.content_type, self.content,
-                "Missing header and trailer lines")
+                self.content_type, self.content, "Missing header and trailer lines"
+            )

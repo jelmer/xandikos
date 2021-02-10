@@ -31,7 +31,7 @@ class TimezoneServiceSetProperty(webdav.Property):
     See http://www.webdav.org/specs/rfc7809.html, section 5.1
     """
 
-    name = '{DAV:}timezone-service-set'
+    name = "{DAV:}timezone-service-set"
     # Should be set on CalDAV calendar home collection resources,
     # but Xandikos doesn't have a separate resource type for those.
     resource_type = webdav.COLLECTION_RESOURCE_TYPE

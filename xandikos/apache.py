@@ -30,18 +30,17 @@ class ExecutableProperty(webdav.Property):
     Equivalent of the 'x' bit on POSIX.
     """
 
-    name = '{http://apache.org/dav/props/}executable'
+    name = "{http://apache.org/dav/props/}executable"
     resource_type = None
     live = False
 
     async def get_value(self, href, resource, el, environ):
-        el.text = ('T' if resource.get_is_executable() else 'F')
+        el.text = "T" if resource.get_is_executable() else "F"
 
     async def set_value(self, href, resource, el):
-        if el.text == 'T':
+        if el.text == "T":
             resource.set_is_executable(True)
-        elif el.text == 'F':
+        elif el.text == "F":
             resource.set_is_executable(False)
         else:
-            raise ValueError(
-                'invalid executable setting %r' % el.text)
+            raise ValueError("invalid executable setting %r" % el.text)

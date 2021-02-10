@@ -44,7 +44,6 @@ class Index(object):
 
 
 class MemoryIndex(Index):
-
     def __init__(self):
         self._indexes = {}
         self._in_index = set()
@@ -83,7 +82,6 @@ class MemoryIndex(Index):
 
 
 class IndexManager(object):
-
     def __init__(self, index, threshold=INDEXING_THRESHOLD):
         self.index = index
         self.desired = collections.defaultdict(lambda: 0)
@@ -110,9 +108,8 @@ class IndexManager(object):
             return needed_keys
 
         if new_index_keys:
-            logging.debug('Adding new index keys: %r', new_index_keys)
-            self.index.reset(
-                set(self.index.available_keys()) | new_index_keys)
+            logging.debug("Adding new index keys: %r", new_index_keys)
+            self.index.reset(set(self.index.available_keys()) | new_index_keys)
 
         # TODO(jelmer): Maybe best to check if missing_keys are satisfiable
         # now?

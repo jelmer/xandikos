@@ -31,7 +31,7 @@ from xandikos import webdav
 ET = webdav.ET
 
 
-FEATURE = 'sync-collection'
+FEATURE = "sync-collection"
 
 
 class SyncToken(object):
@@ -41,7 +41,7 @@ class SyncToken(object):
         self.token = token
 
     def aselement(self):
-        ret = ET.Element('{DAV:}sync-token')
+        ret = ET.Element("{DAV:}sync-token")
         ret.text = self.token
         return ret
 
@@ -52,68 +52,76 @@ class SyncCollectionReporter(webdav.Reporter):
     See https://tools.ietf.org/html/rfc6578, section 3.2.
     """
 
-    name = '{DAV:}sync-collection'
+    name = "{DAV:}sync-collection"
 
     @webdav.multistatus
-    async def report(self, environ, request_body, resources_by_hrefs,
-                     properties, href, resource, depth):
+    async def report(
+        self,
+        environ,
+        request_body,
+        resources_by_hrefs,
+        properties,
+        href,
+        resource,
+        depth,
+    ):
         old_token = None
         sync_level = None
         limit = None
         requested = None
         for el in request_body:
-            if el.tag == '{DAV:}sync-token':
+            if el.tag == "{DAV:}sync-token":
                 old_token = el.text
-            elif el.tag == '{DAV:}sync-level':
+            elif el.tag == "{DAV:}sync-level":
                 sync_level = el.text
-            elif el.tag == '{DAV:}limit':
+            elif el.tag == "{DAV:}limit":
                 limit = el.text
-            elif el.tag == '{DAV:}prop':
+            elif el.tag == "{DAV:}prop":
                 requested = list(el)
             else:
-                raise webdav.BadRequestError('unknown tag %s' % el.tag)
+                raise webdav.BadRequestError("unknown tag %s" % el.tag)
         # TODO(jelmer): Implement sync_level infinite
-        if sync_level not in ("1", ):
-            raise webdav.BadRequestError(
-                "sync level %r unsupported" % sync_level)
+        if sync_level not in ("1",):
+            raise webdav.BadRequestError("sync level %r unsupported" % sync_level)
 
         new_token = resource.get_sync_token()
         try:
             diff_iter = resource.iter_differences_since(old_token, new_token)
         except NotImplementedError:
             yield webdav.Status(
-                href, '403 Forbidden',
-                error=ET.Element('{DAV:}sync-traversal-supported'))
+                href,
+                "403 Forbidden",
+                error=ET.Element("{DAV:}sync-traversal-supported"),
+            )
             return
 
         if limit is not None:
             try:
                 [nresults_el] = list(limit)
             except ValueError:
-                raise webdav.BadRequestError(
-                    'Invalid number of subelements in limit')
+                raise webdav.BadRequestError("Invalid number of subelements in limit")
             try:
                 nresults = int(nresults_el.text)
             except ValueError:
-                raise webdav.BadRequestError(
-                    'nresults not a number')
+                raise webdav.BadRequestError("nresults not a number")
             diff_iter = itertools.islice(diff_iter, nresults)
 
         for (name, old_resource, new_resource) in diff_iter:
-            subhref = urllib.parse.urljoin(
-                webdav.ensure_trailing_slash(href), name)
+            subhref = urllib.parse.urljoin(webdav.ensure_trailing_slash(href), name)
             if new_resource is None:
-                yield webdav.Status(subhref, status='404 Not Found')
+                yield webdav.Status(subhref, status="404 Not Found")
             else:
                 propstat = []
                 for prop in requested:
                     if old_resource is not None:
                         old_propstat = await webdav.get_property_from_element(
-                            href, old_resource, properties, environ, prop)
+                            href, old_resource, properties, environ, prop
+                        )
                     else:
                         old_propstat = None
                     new_propstat = await webdav.get_property_from_element(
-                        href, new_resource, properties, environ, prop)
+                        href, new_resource, properties, environ, prop
+                    )
                     if old_propstat != new_propstat:
                         propstat.append(new_propstat)
                 yield webdav.Status(subhref, propstat=propstat)
@@ -126,7 +134,7 @@ class SyncTokenProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6578, section 4
     """
 
-    name = '{DAV:}sync-token'
+    name = "{DAV:}sync-token"
     resource_type = webdav.COLLECTION_RESOURCE_TYPE
     in_allprops = False
     live = True

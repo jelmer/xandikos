@@ -25,11 +25,11 @@ See https://tools.ietf.org/html/rfc6638
 from xandikos import caldav, webdav
 
 
-SCHEDULE_INBOX_RESOURCE_TYPE = '{%s}schedule-inbox' % caldav.NAMESPACE
-SCHEDULE_OUTBOX_RESOURCE_TYPE = '{%s}schedule-outbox' % caldav.NAMESPACE
+SCHEDULE_INBOX_RESOURCE_TYPE = "{%s}schedule-inbox" % caldav.NAMESPACE
+SCHEDULE_OUTBOX_RESOURCE_TYPE = "{%s}schedule-outbox" % caldav.NAMESPACE
 
 # Feature to advertise to indicate scheduling support.
-FEATURE = 'calendar-auto-schedule'
+FEATURE = "calendar-auto-schedule"
 
 CALENDAR_USER_TYPE_INDIVIDUAL = "INDIVIDUAL"  # An individual
 CALENDAR_USER_TYPE_GROUP = "GROUP"  # A group of individuals
@@ -42,13 +42,13 @@ CALENDAR_USER_TYPES = (
     CALENDAR_USER_TYPE_GROUP,
     CALENDAR_USER_TYPE_RESOURCE,
     CALENDAR_USER_TYPE_ROOM,
-    CALENDAR_USER_TYPE_UNKNOWN)
+    CALENDAR_USER_TYPE_UNKNOWN,
+)
 
 
 class ScheduleInbox(webdav.Collection):
 
-    resource_types = (webdav.Collection.resource_types +
-                      [SCHEDULE_INBOX_RESOURCE_TYPE])
+    resource_types = webdav.Collection.resource_types + [SCHEDULE_INBOX_RESOURCE_TYPE]
 
     def get_calendar_user_type(self):
         # Default, per section 2.4.2
@@ -85,23 +85,19 @@ class ScheduleInbox(webdav.Collection):
         raise NotImplementedError(self.get_supported_calendar_data_types)
 
     def get_min_date_time(self):
-        """Return minimum datetime property.
-        """
+        """Return minimum datetime property."""
         raise NotImplementedError(self.get_min_date_time)
 
     def get_max_date_time(self):
-        """Return maximum datetime property.
-        """
+        """Return maximum datetime property."""
         raise NotImplementedError(self.get_max_date_time)
 
     def get_max_instances(self):
-        """Return maximum number of instances.
-        """
+        """Return maximum number of instances."""
         raise NotImplementedError(self.get_max_instances)
 
     def get_max_attendees_per_instance(self):
-        """Return maximum number of attendees per instance.
-        """
+        """Return maximum number of attendees per instance."""
         raise NotImplementedError(self.get_max_attendees_per_instance)
 
     def get_max_resource_size(self):
@@ -118,8 +114,7 @@ class ScheduleInbox(webdav.Collection):
 
 class ScheduleOutbox(webdav.Collection):
 
-    resource_types = (webdav.Collection.resource_types +
-                      [SCHEDULE_OUTBOX_RESOURCE_TYPE])
+    resource_types = webdav.Collection.resource_types + [SCHEDULE_OUTBOX_RESOURCE_TYPE]
 
     def get_supported_calendar_components(self):
         """Return set of supported calendar components in this calendar.
@@ -140,18 +135,15 @@ class ScheduleOutbox(webdav.Collection):
         raise NotImplementedError(self.get_max_resource_size)
 
     def get_min_date_time(self):
-        """Return minimum datetime property.
-        """
+        """Return minimum datetime property."""
         raise NotImplementedError(self.get_min_date_time)
 
     def get_max_date_time(self):
-        """Return maximum datetime property.
-        """
+        """Return maximum datetime property."""
         raise NotImplementedError(self.get_max_date_time)
 
     def get_max_attendees_per_instance(self):
-        """Return maximum number of attendees per instance.
-        """
+        """Return maximum number of attendees per instance."""
         raise NotImplementedError(self.get_max_attendees_per_instance)
 
 
@@ -161,7 +153,7 @@ class ScheduleInboxURLProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6638, section 2.2
     """
 
-    name = '{%s}schedule-inbox-URL' % caldav.NAMESPACE
+    name = "{%s}schedule-inbox-URL" % caldav.NAMESPACE
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = True
 
@@ -175,7 +167,7 @@ class ScheduleOutboxURLProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6638, section 2.1
     """
 
-    name = '{%s}schedule-outbox-URL' % caldav.NAMESPACE
+    name = "{%s}schedule-outbox-URL" % caldav.NAMESPACE
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = True
 
@@ -189,7 +181,7 @@ class CalendarUserAddressSetProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6638, section 2.4.1
     """
 
-    name = '{%s}calendar-user-address-set' % caldav.NAMESPACE
+    name = "{%s}calendar-user-address-set" % caldav.NAMESPACE
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
@@ -204,11 +196,11 @@ class ScheduleTagProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6638, section 3.2.10
     """
 
-    name = '{%s}schedule-tag' % caldav.NAMESPACE
+    name = "{%s}schedule-tag" % caldav.NAMESPACE
     in_allprops = False
 
     def supported_on(self, resource):
-        return (resource.get_content_type() == 'text/calendar')
+        return resource.get_content_type() == "text/calendar"
 
     async def get_value(self, base_href, resource, el, environ):
         el.text = resource.get_schedule_tag()
@@ -220,7 +212,7 @@ class CalendarUserTypeProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6638, section 2.4.2
     """
 
-    name = '{%s}calendar-user-type' % caldav.NAMESPACE
+    name = "{%s}calendar-user-type" % caldav.NAMESPACE
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
 
@@ -234,7 +226,7 @@ class ScheduleDefaultCalendarURLProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6638, section-9.2
     """
 
-    name = '{%s}schedule-default-calendar-URL' % caldav.NAMESPACE
+    name = "{%s}schedule-default-calendar-URL" % caldav.NAMESPACE
     resource_type = SCHEDULE_INBOX_RESOURCE_TYPE
     in_allprops = True
 

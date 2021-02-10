@@ -37,14 +37,16 @@ from prometheus_client import (
 
 
 request_counter = Counter(
-    'requests_total', 'Total Request Count', ['method', 'route', 'status'])
+    "requests_total", "Total Request Count", ["method", "route", "status"]
+)
 
 request_latency_hist = Histogram(
-    'request_latency_seconds', 'Request latency', ['route'])
+    "request_latency_seconds", "Request latency", ["route"]
+)
 
 requests_in_progress_gauge = Gauge(
-    'requests_in_progress', 'Requests currently in progress',
-    ['method', 'route'])
+    "requests_in_progress", "Requests currently in progress", ["method", "route"]
+)
 
 
 @asyncio.coroutine
@@ -58,15 +60,15 @@ def metrics_middleware(app, handler):
         resp_time = time.time() - start_time
         request_latency_hist.labels(route).observe(resp_time)
         requests_in_progress_gauge.labels(request.method, route).dec()
-        request_counter.labels(
-            request.method, route, response.status).inc()
+        request_counter.labels(request.method, route, response.status).inc()
         return response
+
     return wrapper
 
 
 def setup_metrics(app: web.Application) -> None:
     app.middlewares.insert(0, metrics_middleware)
-    app.router.add_get("/metrics", metrics_handler, name='metrics')
+    app.router.add_get("/metrics", metrics_handler, name="metrics")
 
 
 async def metrics_handler(request: web.Request) -> web.Response:

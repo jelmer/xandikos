@@ -29,14 +29,15 @@ from ..store.git import RepoCollectionMetadata
 
 
 class FileBasedCollectionMetadataTests(TestCase):
-
     def test_get_color(self):
-        f = StringIO("""\
+        f = StringIO(
+            """\
 [DEFAULT]
 color = #ffffff
-""")
+"""
+        )
         cc = FileBasedCollectionMetadata.from_file(f)
-        self.assertEqual('#ffffff', cc.get_color())
+        self.assertEqual("#ffffff", cc.get_color())
 
     def test_get_color_missing(self):
         f = StringIO("")
@@ -44,12 +45,14 @@ color = #ffffff
         self.assertRaises(KeyError, cc.get_color)
 
     def test_get_comment(self):
-        f = StringIO("""\
+        f = StringIO(
+            """\
 [DEFAULT]
 comment = this is a comment
-""")
+"""
+        )
         cc = FileBasedCollectionMetadata.from_file(f)
-        self.assertEqual('this is a comment', cc.get_comment())
+        self.assertEqual("this is a comment", cc.get_comment())
 
     def test_get_comment_missing(self):
         f = StringIO("")
@@ -57,12 +60,14 @@ comment = this is a comment
         self.assertRaises(KeyError, cc.get_comment)
 
     def test_get_description(self):
-        f = StringIO("""\
+        f = StringIO(
+            """\
 [DEFAULT]
 description = this is a description
-""")
+"""
+        )
         cc = FileBasedCollectionMetadata.from_file(f)
-        self.assertEqual('this is a description', cc.get_description())
+        self.assertEqual("this is a description", cc.get_description())
 
     def test_get_description_missing(self):
         f = StringIO("")
@@ -70,12 +75,14 @@ description = this is a description
         self.assertRaises(KeyError, cc.get_description)
 
     def test_get_displayname(self):
-        f = StringIO("""\
+        f = StringIO(
+            """\
 [DEFAULT]
 displayname = DISPLAY-NAME
-""")
+"""
+        )
         cc = FileBasedCollectionMetadata.from_file(f)
-        self.assertEqual('DISPLAY-NAME', cc.get_displayname())
+        self.assertEqual("DISPLAY-NAME", cc.get_displayname())
 
     def test_get_displayname_missing(self):
         f = StringIO("")
@@ -84,53 +91,49 @@ displayname = DISPLAY-NAME
 
 
 class MetadataTests(object):
-
     def test_color(self):
         self.assertRaises(KeyError, self._config.get_color)
-        self._config.set_color('#ffffff')
-        self.assertEqual('#ffffff', self._config.get_color())
+        self._config.set_color("#ffffff")
+        self.assertEqual("#ffffff", self._config.get_color())
         self._config.set_color(None)
         self.assertRaises(KeyError, self._config.get_color)
 
     def test_comment(self):
         self.assertRaises(KeyError, self._config.get_comment)
-        self._config.set_comment('this is a comment')
-        self.assertEqual('this is a comment', self._config.get_comment())
+        self._config.set_comment("this is a comment")
+        self.assertEqual("this is a comment", self._config.get_comment())
         self._config.set_comment(None)
         self.assertRaises(KeyError, self._config.get_comment)
 
     def test_displayname(self):
         self.assertRaises(KeyError, self._config.get_displayname)
-        self._config.set_displayname('DiSpLaYName')
-        self.assertEqual('DiSpLaYName', self._config.get_displayname())
+        self._config.set_displayname("DiSpLaYName")
+        self.assertEqual("DiSpLaYName", self._config.get_displayname())
         self._config.set_displayname(None)
         self.assertRaises(KeyError, self._config.get_displayname)
 
     def test_description(self):
         self.assertRaises(KeyError, self._config.get_description)
-        self._config.set_description('this is a description')
-        self.assertEqual(
-            'this is a description', self._config.get_description())
+        self._config.set_description("this is a description")
+        self.assertEqual("this is a description", self._config.get_description())
         self._config.set_description(None)
         self.assertRaises(KeyError, self._config.get_description)
 
     def test_order(self):
         self.assertRaises(KeyError, self._config.get_order)
-        self._config.set_order('this is a order')
-        self.assertEqual('this is a order', self._config.get_order())
+        self._config.set_order("this is a order")
+        self.assertEqual("this is a order", self._config.get_order())
         self._config.set_order(None)
         self.assertRaises(KeyError, self._config.get_order)
 
 
 class FileMetadataTests(TestCase, MetadataTests):
-
     def setUp(self):
         super(FileMetadataTests, self).setUp()
         self._config = FileBasedCollectionMetadata()
 
 
 class RepoMetadataTests(TestCase, MetadataTests):
-
     def setUp(self):
         super(RepoMetadataTests, self).setUp()
         self._repo = dulwich.repo.MemoryRepo()

@@ -42,32 +42,31 @@ from xandikos import davcommon, webdav
 
 ET = webdav.ET
 
-PRODID = '-//Jelmer Vernooĳ//Xandikos//EN'
+PRODID = "-//Jelmer Vernooĳ//Xandikos//EN"
 WELLKNOWN_CALDAV_PATH = "/.well-known/caldav"
-EXTENDED_MKCOL_FEATURE = 'extended-mkcol'
+EXTENDED_MKCOL_FEATURE = "extended-mkcol"
 
-NAMESPACE = 'urn:ietf:params:xml:ns:caldav'
+NAMESPACE = "urn:ietf:params:xml:ns:caldav"
 
 # https://tools.ietf.org/html/rfc4791, section 4.2
-CALENDAR_RESOURCE_TYPE = '{%s}calendar' % NAMESPACE
+CALENDAR_RESOURCE_TYPE = "{%s}calendar" % NAMESPACE
 
-SUBSCRIPTION_RESOURCE_TYPE = '{http://calendarserver.org/ns/}subscribed'
+SUBSCRIPTION_RESOURCE_TYPE = "{http://calendarserver.org/ns/}subscribed"
 
 # TODO(jelmer): These resource types belong in scheduling.py
-SCHEDULE_INBOX_RESOURCE_TYPE = '{%s}schedule-inbox' % NAMESPACE
-SCHEDULE_OUTBOX_RESOURCE_TYPE = '{%s}schedule-outbox' % NAMESPACE
+SCHEDULE_INBOX_RESOURCE_TYPE = "{%s}schedule-inbox" % NAMESPACE
+SCHEDULE_OUTBOX_RESOURCE_TYPE = "{%s}schedule-outbox" % NAMESPACE
 
 # Feature to advertise to indicate CalDAV support.
-FEATURE = 'calendar-access'
+FEATURE = "calendar-access"
 
-TRANSPARENCY_TRANSPARENT = 'transparent'
-TRANSPARENCY_OPAQUE = 'opaque'
+TRANSPARENCY_TRANSPARENT = "transparent"
+TRANSPARENCY_OPAQUE = "opaque"
 
 
 class Calendar(webdav.Collection):
 
-    resource_types = (webdav.Collection.resource_types +
-                      [CALENDAR_RESOURCE_TYPE])
+    resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self) -> str:
         """Return the calendar description."""
@@ -120,23 +119,19 @@ class Calendar(webdav.Collection):
         raise NotImplementedError(self.get_supported_calendar_data_types)
 
     def get_min_date_time(self):
-        """Return minimum datetime property.
-        """
+        """Return minimum datetime property."""
         raise NotImplementedError(self.get_min_date_time)
 
     def get_max_date_time(self):
-        """Return maximum datetime property.
-        """
+        """Return maximum datetime property."""
         raise NotImplementedError(self.get_max_date_time)
 
     def get_max_instances(self):
-        """Return maximum number of instances.
-        """
+        """Return maximum number of instances."""
         raise NotImplementedError(self.get_max_instances)
 
     def get_max_attendees_per_instance(self):
-        """Return maximum number of attendees per instance.
-        """
+        """Return maximum number of attendees per instance."""
         raise NotImplementedError(self.get_max_attendees_per_instance)
 
     def get_max_resource_size(self):
@@ -173,8 +168,7 @@ class Calendar(webdav.Collection):
 
 class Subscription(object):
 
-    resource_types = (webdav.Collection.resource_types +
-                      [SUBSCRIPTION_RESOURCE_TYPE])
+    resource_types = webdav.Collection.resource_types + [SUBSCRIPTION_RESOURCE_TYPE]
 
     def get_source_url(self):
         """Get the source URL for this calendar."""
@@ -205,7 +199,6 @@ class Subscription(object):
 
 
 class CalendarHomeSet(object):
-
     def get_managed_attachments_server_url(self):
         """Return the attachments server URL."""
         raise NotImplementedError(self.get_managed_attachments_server_url)
@@ -235,8 +228,8 @@ class CalendarHomeSetProperty(webdav.Property):
     See https://www.ietf.org/rfc/rfc4791.txt, section 6.2.1.
     """
 
-    name = '{%s}calendar-home-set' % NAMESPACE
-    resource_type = '{DAV:}principal'
+    name = "{%s}calendar-home-set" % NAMESPACE
+    resource_type = "{DAV:}principal"
     in_allprops = False
     live = True
 
@@ -252,7 +245,7 @@ class CalendarDescriptionProperty(webdav.Property):
     https://tools.ietf.org/html/rfc4791, section 5.2.1
     """
 
-    name = '{%s}calendar-description' % NAMESPACE
+    name = "{%s}calendar-description" % NAMESPACE
     resource_type = (CALENDAR_RESOURCE_TYPE, SUBSCRIPTION_RESOURCE_TYPE)
 
     async def get_value(self, base_href, resource, el, environ):
@@ -263,8 +256,7 @@ class CalendarDescriptionProperty(webdav.Property):
         raise NotImplementedError
 
 
-def _extract_from_component(
-        incomp: Component, outcomp: Component, requested) -> None:
+def _extract_from_component(incomp: Component, outcomp: Component, requested) -> None:
     """Extract specific properties from a calendar event.
 
     Args:
@@ -273,24 +265,24 @@ def _extract_from_component(
       requested: Which components should be included
     """
     for tag in requested:
-        if tag.tag == ('{%s}comp' % NAMESPACE):
+        if tag.tag == ("{%s}comp" % NAMESPACE):
             for insub in incomp.subcomponents:
-                if insub.name == tag.get('name'):
+                if insub.name == tag.get("name"):
                     outsub = component_factory[insub.name]()
                     outcomp.add_component(outsub)
                     _extract_from_component(insub, outsub, tag)
-        elif tag.tag == ('{%s}prop' % NAMESPACE):
-            outcomp[tag.get('name')] = incomp[tag.get('name')]
-        elif tag.tag == ('{%s}allprop' % NAMESPACE):
+        elif tag.tag == ("{%s}prop" % NAMESPACE):
+            outcomp[tag.get("name")] = incomp[tag.get("name")]
+        elif tag.tag == ("{%s}allprop" % NAMESPACE):
             for propname in incomp:
                 outcomp[propname] = incomp[propname]
-        elif tag.tag == ('{%s}allcomp' % NAMESPACE):
+        elif tag.tag == ("{%s}allcomp" % NAMESPACE):
             for insub in incomp.subcomponents:
                 outsub = component_factory[insub.name]()
                 outcomp.add_component(outsub)
                 _extract_from_component(insub, outsub, tag)
         else:
-            raise AssertionError('invalid element %r' % tag)
+            raise AssertionError("invalid element %r" % tag)
 
 
 def extract_from_calendar(incal, requested):
@@ -301,24 +293,22 @@ def extract_from_calendar(incal, requested):
         components/properties
     """
     for tag in requested:
-        if tag.tag == ('{%s}comp' % NAMESPACE):
-            if incal.name == tag.get('name'):
+        if tag.tag == ("{%s}comp" % NAMESPACE):
+            if incal.name == tag.get("name"):
                 c = ICalendar()
                 _extract_from_component(incal, c, tag)
                 incal = c
-        elif tag.tag == ('{%s}expand' % NAMESPACE):
+        elif tag.tag == ("{%s}expand" % NAMESPACE):
             (start, end) = _parse_time_range(tag)
             incal = expand_calendar_rrule(incal, start, end)
-        elif tag.tag == ('{%s}limit-recurrence-set' % NAMESPACE):
+        elif tag.tag == ("{%s}limit-recurrence-set" % NAMESPACE):
             # TODO(jelmer): https://github.com/jelmer/xandikos/issues/103
-            raise NotImplementedError(
-                'limit-recurrence-set is not yet implemented')
-        elif tag.tag == ('{%s}limit-freebusy-set' % NAMESPACE):
+            raise NotImplementedError("limit-recurrence-set is not yet implemented")
+        elif tag.tag == ("{%s}limit-freebusy-set" % NAMESPACE):
             # TODO(jelmer): https://github.com/jelmer/xandikos/issues/104
-            raise NotImplementedError(
-                'limit-freebusy-set is not yet implemented')
+            raise NotImplementedError("limit-freebusy-set is not yet implemented")
         else:
-            raise AssertionError('invalid element %r' % tag)
+            raise AssertionError("invalid element %r" % tag)
     return incal
 
 
@@ -331,14 +321,14 @@ class CalendarDataProperty(davcommon.SubbedProperty):
     it is thus not registered in the regular webdav server.
     """
 
-    name = '{%s}calendar-data' % NAMESPACE
+    name = "{%s}calendar-data" % NAMESPACE
 
     def supported_on(self, resource):
-        return (resource.get_content_type() == 'text/calendar')
+        return resource.get_content_type() == "text/calendar"
 
     async def get_value_ext(self, base_href, resource, el, environ, requested):
         if len(requested) == 0:
-            serialized_cal = b''.join(await resource.get_body())
+            serialized_cal = b"".join(await resource.get_body())
         else:
             calendar = calendar_from_resource(resource)
             if calendar is None:
@@ -347,14 +337,13 @@ class CalendarDataProperty(davcommon.SubbedProperty):
             serialized_cal = c.to_ical()
         # TODO(jelmer): Don't hardcode encoding
         # TODO(jelmer): Strip invalid characters or raise an exception
-        el.text = serialized_cal.decode('utf-8')
+        el.text = serialized_cal.decode("utf-8")
 
 
 class CalendarOrderProperty(webdav.Property):
-    """Provides calendar-order property.
-    """
+    """Provides calendar-order property."""
 
-    name = '{http://apple.com/ns/ical/}calendar-order'
+    name = "{http://apple.com/ns/ical/}calendar-order"
     resource_type = CALENDAR_RESOURCE_TYPE
 
     async def get_value(self, base_href, resource, el, environ):
@@ -366,13 +355,13 @@ class CalendarOrderProperty(webdav.Property):
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
 
-    name = '{%s}calendar-multiget' % NAMESPACE
+    name = "{%s}calendar-multiget" % NAMESPACE
     resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     data_property = CalendarDataProperty()
 
 
 def parse_prop_filter(el, cls):
-    name = el.get('name')
+    name = el.get("name")
 
     # From https://tools.ietf.org/html/rfc4791, 9.7.2:
     # A CALDAV:comp-filter is said to match if:
@@ -380,15 +369,15 @@ def parse_prop_filter(el, cls):
     prop_filter = cls(name=name)
 
     for subel in el:
-        if subel.tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+        if subel.tag == "{urn:ietf:params:xml:ns:caldav}is-not-defined":
             prop_filter.is_not_defined = True
-        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
+        elif subel.tag == "{urn:ietf:params:xml:ns:caldav}time-range":
             parse_time_range(subel, prop_filter.filter_time_range)
-        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
+        elif subel.tag == "{urn:ietf:params:xml:ns:caldav}text-match":
             parse_text_match(subel, prop_filter.filter_text_match)
-        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}param-filter':
+        elif subel.tag == "{urn:ietf:params:xml:ns:caldav}param-filter":
             parse_param_filter(subel, prop_filter.filter_parameter)
-        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+        elif subel.tag == "{urn:ietf:params:xml:ns:caldav}is-not-defined":
             pass
         else:
             raise AssertionError("unknown subelement %r" % subel.tag)
@@ -396,32 +385,32 @@ def parse_prop_filter(el, cls):
 
 
 def parse_text_match(el, cls):
-    collation = el.get('collation', 'i;ascii-casemap')
-    negate_condition = el.get('negate-condition', 'no')
+    collation = el.get("collation", "i;ascii-casemap")
+    negate_condition = el.get("negate-condition", "no")
 
     return cls(
-        el.text, collation=collation,
-        negate_condition=(negate_condition == 'yes'))
+        el.text, collation=collation, negate_condition=(negate_condition == "yes")
+    )
 
 
 def parse_param_filter(el, cls):
-    name = el.get('name')
+    name = el.get("name")
 
     param_filter = cls(name=name)
 
     for subel in el:
-        if subel.tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+        if subel.tag == "{urn:ietf:params:xml:ns:caldav}is-not-defined":
             param_filter.is_not_defined = True
-        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}text-match':
+        elif subel.tag == "{urn:ietf:params:xml:ns:caldav}text-match":
             parse_text_match(subel, param_filter.filter_time_range)
         else:
-            raise AssertionError('unknown tag %r in param-filter', subel.tag)
+            raise AssertionError("unknown tag %r in param-filter", subel.tag)
     return param_filter
 
 
 def _parse_time_range(el):
-    start = el.get('start')
-    end = el.get('end')
+    start = el.get("start")
+    end = el.get("end")
     # Either start OR end OR both need to be specified.
     # https://tools.ietf.org/html/rfc4791, section 9.9
     assert start is not None or end is not None
@@ -443,9 +432,8 @@ def parse_time_range(el, cls):
 
 
 def parse_comp_filter(el: ET.Element, cls):
-    """Compile a comp-filter element into a Python function.
-    """
-    name = el.get('name')
+    """Compile a comp-filter element into a Python function."""
+    name = el.get("name")
 
     # From https://tools.ietf.org/html/rfc4791, 9.7.1:
     # A CALDAV:comp-filter is said to match if:
@@ -458,31 +446,31 @@ def parse_comp_filter(el: ET.Element, cls):
     # specified CALDAV:prop-filter and CALDAV:comp-filter child XML elements
     # also match the targeted calendar component;
     for subel in el:
-        if subel.tag == '{urn:ietf:params:xml:ns:caldav}is-not-defined':
+        if subel.tag == "{urn:ietf:params:xml:ns:caldav}is-not-defined":
             comp_filter.is_not_defined = True
-        if subel.tag == '{urn:ietf:params:xml:ns:caldav}comp-filter':
+        if subel.tag == "{urn:ietf:params:xml:ns:caldav}comp-filter":
             parse_comp_filter(subel, comp_filter.filter_subcomponent)
-        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}prop-filter':
+        elif subel.tag == "{urn:ietf:params:xml:ns:caldav}prop-filter":
             parse_prop_filter(subel, comp_filter.filter_property)
-        elif subel.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
+        elif subel.tag == "{urn:ietf:params:xml:ns:caldav}time-range":
             parse_time_range(subel, comp_filter.filter_time_range)
         else:
-            raise AssertionError('unknown filter tag %r' % subel.tag)
+            raise AssertionError("unknown filter tag %r" % subel.tag)
     return comp_filter
 
 
 def parse_filter(filter_el: ET.Element, cls):
     for subel in filter_el:
-        if subel.tag == '{urn:ietf:params:xml:ns:caldav}comp-filter':
+        if subel.tag == "{urn:ietf:params:xml:ns:caldav}comp-filter":
             parse_comp_filter(subel, cls.filter_subcomponent)
         else:
-            raise AssertionError('unknown filter tag %r' % subel.tag)
+            raise AssertionError("unknown filter tag %r" % subel.tag)
     return cls
 
 
 def calendar_from_resource(resource):
     try:
-        if resource.get_content_type() != 'text/calendar':
+        if resource.get_content_type() != "text/calendar":
             return None
     except KeyError:
         return None
@@ -490,7 +478,7 @@ def calendar_from_resource(resource):
 
 
 def extract_tzid(cal):
-    return cal.subcomponents[0]['TZID']
+    return cal.subcomponents[0]["TZID"]
 
 
 def get_pytz_from_text(tztext):
@@ -509,28 +497,36 @@ def get_calendar_timezone(resource):
 
 class CalendarQueryReporter(webdav.Reporter):
 
-    name = '{%s}calendar-query' % NAMESPACE
+    name = "{%s}calendar-query" % NAMESPACE
     resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     data_property = CalendarDataProperty()
 
     @webdav.multistatus
     async def report(
-            self, environ, body, resources_by_hrefs, properties, base_href,
-            base_resource, depth):
+        self,
+        environ,
+        body,
+        resources_by_hrefs,
+        properties,
+        base_href,
+        base_resource,
+        depth,
+    ):
         # TODO(jelmer): Verify that resource is a calendar
         requested = None
         filter_el = None
         tztext = None
         for el in body:
-            if el.tag in ('{DAV:}prop', '{DAV:}propname', '{DAV:}allprop'):
+            if el.tag in ("{DAV:}prop", "{DAV:}propname", "{DAV:}allprop"):
                 requested = el
-            elif el.tag == '{urn:ietf:params:xml:ns:caldav}filter':
+            elif el.tag == "{urn:ietf:params:xml:ns:caldav}filter":
                 filter_el = el
-            elif el.tag == '{urn:ietf:params:xml:ns:caldav}timezone':
+            elif el.tag == "{urn:ietf:params:xml:ns:caldav}timezone":
                 tztext = el.text
             else:
                 raise webdav.BadRequestError(
-                    'Unknown tag %s in report %s' % (el.tag, self.name))
+                    "Unknown tag %s in report %s" % (el.tag, self.name)
+                )
         if tztext is not None:
             tz = get_pytz_from_text(tztext)
         else:
@@ -541,19 +537,20 @@ class CalendarQueryReporter(webdav.Reporter):
 
         def members(collection):
             return itertools.chain(
-                collection.calendar_query(filter_fn),
-                collection.subcollections())
+                collection.calendar_query(filter_fn), collection.subcollections()
+            )
 
         async for (href, resource) in webdav.traverse_resource(
-                base_resource, base_href, depth,
-                members=members):
+            base_resource, base_href, depth, members=members
+        ):
             # Ideally traverse_resource would only return the right things.
-            if getattr(resource, 'content_type', None) == 'text/calendar':
+            if getattr(resource, "content_type", None) == "text/calendar":
                 propstat = davcommon.get_properties_with_data(
-                    self.data_property, href, resource, properties, environ,
-                    requested)
+                    self.data_property, href, resource, properties, environ, requested
+                )
                 yield webdav.Status(
-                    href, '200 OK', propstat=[s async for s in propstat])
+                    href, "200 OK", propstat=[s async for s in propstat]
+                )
 
 
 class CalendarColorProperty(webdav.Property):
@@ -562,7 +559,7 @@ class CalendarColorProperty(webdav.Property):
     This contains a HTML #RRGGBB color code, as CDATA.
     """
 
-    name = '{http://apple.com/ns/ical/}calendar-color'
+    name = "{http://apple.com/ns/ical/}calendar-color"
     resource_type = (CALENDAR_RESOURCE_TYPE, SUBSCRIPTION_RESOURCE_TYPE)
 
     async def get_value(self, href, resource, el, environ):
@@ -580,18 +577,20 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
     See https://www.ietf.org/rfc/rfc4791.txt, section 5.2.3
     """
 
-    name = '{%s}supported-calendar-component-set' % NAMESPACE
-    resource_type = (CALENDAR_RESOURCE_TYPE,
-                     SCHEDULE_INBOX_RESOURCE_TYPE,
-                     SCHEDULE_OUTBOX_RESOURCE_TYPE,
-                     SUBSCRIPTION_RESOURCE_TYPE)
+    name = "{%s}supported-calendar-component-set" % NAMESPACE
+    resource_type = (
+        CALENDAR_RESOURCE_TYPE,
+        SCHEDULE_INBOX_RESOURCE_TYPE,
+        SCHEDULE_OUTBOX_RESOURCE_TYPE,
+        SUBSCRIPTION_RESOURCE_TYPE,
+    )
     in_allprops = False
     live = True
 
     async def get_value(self, href, resource, el, environ):
         for component in resource.get_supported_calendar_components():
-            subel = ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}comp')
-            subel.set('name', component)
+            subel = ET.SubElement(el, "{urn:ietf:params:xml:ns:caldav}comp")
+            subel.set("name", component)
 
 
 class SupportedCalendarDataProperty(webdav.Property):
@@ -600,19 +599,19 @@ class SupportedCalendarDataProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc4791, section 5.2.4
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}supported-calendar-data'
-    resource_type = (CALENDAR_RESOURCE_TYPE,
-                     SCHEDULE_INBOX_RESOURCE_TYPE,
-                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
+    name = "{urn:ietf:params:xml:ns:caldav}supported-calendar-data"
+    resource_type = (
+        CALENDAR_RESOURCE_TYPE,
+        SCHEDULE_INBOX_RESOURCE_TYPE,
+        SCHEDULE_OUTBOX_RESOURCE_TYPE,
+    )
     in_allprops = False
 
     async def get_value(self, href, resource, el, environ):
-        for (content_type, version) in (
-                resource.get_supported_calendar_data_types()):
-            subel = ET.SubElement(
-                el, '{urn:ietf:params:xml:ns:caldav}calendar-data')
-            subel.set('content-type', content_type)
-            subel.set('version', version)
+        for (content_type, version) in resource.get_supported_calendar_data_types():
+            subel = ET.SubElement(el, "{urn:ietf:params:xml:ns:caldav}calendar-data")
+            subel.set("content-type", content_type)
+            subel.set("version", version)
 
 
 class CalendarTimezoneProperty(webdav.Property):
@@ -621,9 +620,8 @@ class CalendarTimezoneProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc4791, section 5.2.2
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}calendar-timezone'
-    resource_type = (CALENDAR_RESOURCE_TYPE,
-                     SCHEDULE_INBOX_RESOURCE_TYPE)
+    name = "{urn:ietf:params:xml:ns:caldav}calendar-timezone"
+    resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     in_allprops = False
 
     async def get_value(self, href, resource, el, environ):
@@ -642,10 +640,12 @@ class MinDateTimeProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc4791, section 5.2.6
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}min-date-time'
-    resource_type = (CALENDAR_RESOURCE_TYPE,
-                     SCHEDULE_INBOX_RESOURCE_TYPE,
-                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
+    name = "{urn:ietf:params:xml:ns:caldav}min-date-time"
+    resource_type = (
+        CALENDAR_RESOURCE_TYPE,
+        SCHEDULE_INBOX_RESOURCE_TYPE,
+        SCHEDULE_OUTBOX_RESOURCE_TYPE,
+    )
     in_allprops = False
     live = True
 
@@ -659,10 +659,12 @@ class MaxDateTimeProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc4791, section 5.2.7
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}max-date-time'
-    resource_type = (CALENDAR_RESOURCE_TYPE,
-                     SCHEDULE_INBOX_RESOURCE_TYPE,
-                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
+    name = "{urn:ietf:params:xml:ns:caldav}max-date-time"
+    resource_type = (
+        CALENDAR_RESOURCE_TYPE,
+        SCHEDULE_INBOX_RESOURCE_TYPE,
+        SCHEDULE_OUTBOX_RESOURCE_TYPE,
+    )
     in_allprops = False
     live = True
 
@@ -676,9 +678,8 @@ class MaxInstancesProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc4791, section 5.2.8
     """
 
-    name = '{%s}max-instances' % NAMESPACE
-    resource_type = (CALENDAR_RESOURCE_TYPE,
-                     SCHEDULE_INBOX_RESOURCE_TYPE)
+    name = "{%s}max-instances" % NAMESPACE
+    resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     in_allprops = False
     live = True
 
@@ -692,10 +693,12 @@ class MaxAttendeesPerInstanceProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc4791, section 5.2.9
     """
 
-    name = '{%s}max-attendees-per-instance' % NAMESPACE
-    resource_type = (CALENDAR_RESOURCE_TYPE,
-                     SCHEDULE_INBOX_RESOURCE_TYPE,
-                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
+    name = "{%s}max-attendees-per-instance" % NAMESPACE
+    resource_type = (
+        CALENDAR_RESOURCE_TYPE,
+        SCHEDULE_INBOX_RESOURCE_TYPE,
+        SCHEDULE_OUTBOX_RESOURCE_TYPE,
+    )
     in_allprops = False
     live = True
 
@@ -709,10 +712,12 @@ class MaxResourceSizeProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc4791, section 5.2.5
     """
 
-    name = '{%s}max-resource-size' % NAMESPACE
-    resource_type = (CALENDAR_RESOURCE_TYPE,
-                     SCHEDULE_INBOX_RESOURCE_TYPE,
-                     SCHEDULE_OUTBOX_RESOURCE_TYPE)
+    name = "{%s}max-resource-size" % NAMESPACE
+    resource_type = (
+        CALENDAR_RESOURCE_TYPE,
+        SCHEDULE_INBOX_RESOURCE_TYPE,
+        SCHEDULE_OUTBOX_RESOURCE_TYPE,
+    )
     in_allprops = False
     live = True
 
@@ -726,7 +731,7 @@ class MaxAttachmentsPerResourceProperty(webdav.Property):
     https://tools.ietf.org/id/draft-ietf-calext-caldav-attachments-03.html#rfc.section.6.3
     """
 
-    name = '{%s}max-attachments-per-resource' % NAMESPACE
+    name = "{%s}max-attachments-per-resource" % NAMESPACE
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
     live = True
@@ -741,7 +746,7 @@ class MaxAttachmentSizeProperty(webdav.Property):
     https://tools.ietf.org/id/draft-ietf-calext-caldav-attachments-03.html#rfc.section.6.2
     """
 
-    name = '{%s}max-attachment-size' % NAMESPACE
+    name = "{%s}max-attachment-size" % NAMESPACE
     resource_type = CALENDAR_RESOURCE_TYPE
     in_allprops = False
     live = True
@@ -756,7 +761,7 @@ class ManagedAttachmentsServerURLProperty(webdav.Property):
     https://tools.ietf.org/id/draft-ietf-calext-caldav-attachments-03.html#rfc.section.6.1
     """
 
-    name = '{%s}managed-attachments-server-URL' % NAMESPACE
+    name = "{%s}managed-attachments-server-URL" % NAMESPACE
     in_allprops = False
 
     async def get_value(self, base_href, resource, el, environ):
@@ -765,7 +770,7 @@ class ManagedAttachmentsServerURLProperty(webdav.Property):
         # However, there is no matching resource type and we don't want to
         # force all resources to implement it. So we just check whether the
         # attribute is present.
-        fn = getattr(resource, 'get_managed_attachments_server_url', None)
+        fn = getattr(resource, "get_managed_attachments_server_url", None)
         if fn is None:
             raise KeyError
         href = fn()
@@ -774,9 +779,9 @@ class ManagedAttachmentsServerURLProperty(webdav.Property):
 
 
 class SourceProperty(webdav.Property):
-    """source property.
-    """
-    name = '{http://calendarserver.org/ns/}source'
+    """source property."""
+
+    name = "{http://calendarserver.org/ns/}source"
     resource_type = SUBSCRIPTION_RESOURCE_TYPE
     in_allprops = True
     live = False
@@ -795,7 +800,8 @@ class CalendarProxyReadForProperty(webdav.Property):
         doc/Extensions/caldav-proxy.txt, section 5.3.1.
 
     """
-    name = '{http://calendarserver.org/ns/}calendar-proxy-read-for'
+
+    name = "{http://calendarserver.org/ns/}calendar-proxy-read-for"
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
     live = True
@@ -812,7 +818,8 @@ class CalendarProxyWriteForProperty(webdav.Property):
         doc/Extensions/caldav-proxy.txt, section 5.3.2.
 
     """
-    name = '{http://calendarserver.org/ns/}calendar-proxy-write-for'
+
+    name = "{http://calendarserver.org/ns/}calendar-proxy-write-for"
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE
     in_allprops = False
     live = True
@@ -827,7 +834,8 @@ class ScheduleCalendarTransparencyProperty(webdav.Property):
 
     See https://tools.ietf.org/html/rfc6638#section-9.1
     """
-    name = '{%s}schedule-calendar-transp' % NAMESPACE
+
+    name = "{%s}schedule-calendar-transp" % NAMESPACE
     in_allprops = False
     live = False
     resource_type = CALENDAR_RESOURCE_TYPE
@@ -835,41 +843,41 @@ class ScheduleCalendarTransparencyProperty(webdav.Property):
     async def get_value(self, base_href, resource, el, environ):
         transp = resource.get_schedule_calendar_transparency()
         if transp == TRANSPARENCY_TRANSPARENT:
-            ET.SubElement(el, '{%s}transparent' % NAMESPACE)
+            ET.SubElement(el, "{%s}transparent" % NAMESPACE)
         elif transp == TRANSPARENCY_OPAQUE:
-            ET.SubElement(el, '{%s}opaque' % NAMESPACE)
+            ET.SubElement(el, "{%s}opaque" % NAMESPACE)
         else:
-            raise ValueError('Invalid transparency %s' % transp)
+            raise ValueError("Invalid transparency %s" % transp)
 
 
 def map_freebusy(comp):
-    transp = comp.get('TRANSP', 'OPAQUE')
-    if transp == 'TRANSPARENT':
-        return 'FREE'
-    assert transp == 'OPAQUE', 'unknown transp %r' % transp
-    status = comp.get('STATUS', 'CONFIRMED')
-    if status == 'CONFIRMED':
-        return 'BUSY'
-    elif status == 'CANCELLED':
-        return 'FREE'
-    elif status == 'TENTATIVE':
-        return 'BUSY-TENTATIVE'
-    elif status.startswith('X-'):
+    transp = comp.get("TRANSP", "OPAQUE")
+    if transp == "TRANSPARENT":
+        return "FREE"
+    assert transp == "OPAQUE", "unknown transp %r" % transp
+    status = comp.get("STATUS", "CONFIRMED")
+    if status == "CONFIRMED":
+        return "BUSY"
+    elif status == "CANCELLED":
+        return "FREE"
+    elif status == "TENTATIVE":
+        return "BUSY-TENTATIVE"
+    elif status.startswith("X-"):
         return status
     else:
-        raise AssertionError('unknown status %r' % status)
+        raise AssertionError("unknown status %r" % status)
 
 
 def extract_freebusy(comp, tzify):
     kind = map_freebusy(comp)
-    if kind == 'FREE':
+    if kind == "FREE":
         return None
-    if 'DTEND' in comp:
-        ret = vPeriod((tzify(comp['DTSTART'].dt), tzify(comp['DTEND'].dt)))
-    if 'DURATION' in comp:
-        ret = vPeriod((tzify(comp['DTSTART'].dt), comp['DURATION'].dt))
-    if kind != 'BUSY':
-        ret.params['FBTYPE'] = kind
+    if "DTEND" in comp:
+        ret = vPeriod((tzify(comp["DTSTART"].dt), tzify(comp["DTEND"].dt)))
+    if "DURATION" in comp:
+        ret = vPeriod((tzify(comp["DTSTART"].dt), comp["DURATION"].dt))
+    if kind != "BUSY":
+        ret.params["FBTYPE"] = kind
     return ret
 
 
@@ -878,10 +886,10 @@ async def iter_freebusy(resources, start, end, tzify):
         c = calendar_from_resource(resource)
         if c is None:
             continue
-        if c.name != 'VCALENDAR':
+        if c.name != "VCALENDAR":
             continue
         for comp in c.subcomponents:
-            if comp.name == 'VEVENT':
+            if comp.name == "VEVENT":
                 if apply_time_range_vevent(start, end, comp, tzify):
                     vp = extract_freebusy(comp, tzify)
                     if vp is not None:
@@ -894,14 +902,22 @@ class FreeBusyQueryReporter(webdav.Reporter):
     See https://tools.ietf.org/html/rfc4791, section 7.10
     """
 
-    name = '{urn:ietf:params:xml:ns:caldav}free-busy-query'
+    name = "{urn:ietf:params:xml:ns:caldav}free-busy-query"
     resource_type = CALENDAR_RESOURCE_TYPE
 
-    async def report(self, environ, body, resources_by_hrefs,
-                     properties, base_href, base_resource, depth):
+    async def report(
+        self,
+        environ,
+        body,
+        resources_by_hrefs,
+        properties,
+        base_href,
+        base_resource,
+        depth,
+    ):
         requested = None
         for el in body:
-            if el.tag == '{urn:ietf:params:xml:ns:caldav}time-range':
+            if el.tag == "{urn:ietf:params:xml:ns:caldav}time-range":
                 requested = el
             else:
                 raise AssertionError("unexpected XML element")
@@ -909,65 +925,78 @@ class FreeBusyQueryReporter(webdav.Reporter):
 
         def tzify(dt):
             return as_tz_aware_ts(dt, tz).astimezone(pytz.utc)
+
         (start, end) = _parse_time_range(requested)
         assert start.tzinfo
         assert end.tzinfo
         ret = ICalendar()
-        ret['VERSION'] = '2.0'
-        ret['PRODID'] = PRODID
+        ret["VERSION"] = "2.0"
+        ret["PRODID"] = PRODID
         fb = FreeBusy()
-        fb['DTSTAMP'] = vDDDTypes(tzify(datetime.datetime.now()))
-        fb['DTSTART'] = vDDDTypes(start)
-        fb['DTEND'] = vDDDTypes(end)
-        fb['FREEBUSY'] = [item async for item in iter_freebusy(
-            webdav.traverse_resource(base_resource, base_href, depth),
-            start, end, tzify)]
+        fb["DTSTAMP"] = vDDDTypes(tzify(datetime.datetime.now()))
+        fb["DTSTART"] = vDDDTypes(start)
+        fb["DTEND"] = vDDDTypes(end)
+        fb["FREEBUSY"] = [
+            item
+            async for item in iter_freebusy(
+                webdav.traverse_resource(base_resource, base_href, depth),
+                start,
+                end,
+                tzify,
+            )
+        ]
         ret.add_component(fb)
-        return webdav.Response(status='200 OK', body=[ret.to_ical()])
+        return webdav.Response(status="200 OK", body=[ret.to_ical()])
 
 
 class MkcalendarMethod(webdav.Method):
-
     async def handle(self, request, environ, app):
         content_type = request.content_type
         base_content_type, params = webdav.parse_type(content_type)
         if base_content_type not in (
-            'text/xml', 'application/xml', None, 'text/plain',
-            'application/octet-stream',
+            "text/xml",
+            "application/xml",
+            None,
+            "text/plain",
+            "application/octet-stream",
         ):
             raise webdav.UnsupportedMediaType(content_type)
         href, path, resource = app._get_resource_from_environ(request, environ)
         if resource is not None:
             return webdav._send_simple_dav_error(
                 request,
-                '403 Forbidden',
-                error=ET.Element('{DAV:}resource-must-be-null'),
-                description=('Something already exists at %r' % path))
+                "403 Forbidden",
+                error=ET.Element("{DAV:}resource-must-be-null"),
+                description=("Something already exists at %r" % path),
+            )
         try:
             resource = app.backend.create_collection(path)
         except FileNotFoundError:
-            return webdav.Response(status='409 Conflict')
-        el = ET.Element('{DAV:}resourcetype')
-        await app.properties['{DAV:}resourcetype'].get_value(
-            href, resource, el, environ)
-        ET.SubElement(el, '{urn:ietf:params:xml:ns:caldav}calendar')
-        app.properties['{DAV:}resourcetype'].set_value(href, resource, el)
-        if base_content_type in ('text/xml', 'application/xml'):
+            return webdav.Response(status="409 Conflict")
+        el = ET.Element("{DAV:}resourcetype")
+        await app.properties["{DAV:}resourcetype"].get_value(
+            href, resource, el, environ
+        )
+        ET.SubElement(el, "{urn:ietf:params:xml:ns:caldav}calendar")
+        app.properties["{DAV:}resourcetype"].set_value(href, resource, el)
+        if base_content_type in ("text/xml", "application/xml"):
             et = await webdav._readXmlBody(
-                request, '{urn:ietf:params:xml:ns:caldav}mkcalendar',
-                strict=app.strict)
+                request, "{urn:ietf:params:xml:ns:caldav}mkcalendar", strict=app.strict
+            )
             propstat = []
             for el in et:
-                if el.tag != '{DAV:}set':
+                if el.tag != "{DAV:}set":
                     raise webdav.BadRequestError(
-                        'Unknown tag %s in mkcalendar' % el.tag)
-                propstat.extend(webdav.apply_modify_prop(
-                    el, href, resource, app.properties))
-                ret = ET.Element(
-                    '{urn:ietf:params:xml:ns:carldav:}mkcalendar-response')
+                        "Unknown tag %s in mkcalendar" % el.tag
+                    )
+                propstat.extend(
+                    webdav.apply_modify_prop(el, href, resource, app.properties)
+                )
+                ret = ET.Element("{urn:ietf:params:xml:ns:carldav:}mkcalendar-response")
             for propstat_el in webdav.propstat_as_xml(propstat):
                 ret.append(propstat_el)
             return webdav._send_xml_response(
-                '201 Created', ret, webdav.DEFAULT_ENCODING)
+                "201 Created", ret, webdav.DEFAULT_ENCODING
+            )
         else:
-            return webdav.Response(status='201 Created')
+            return webdav.Response(status="201 Created")
