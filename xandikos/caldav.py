@@ -66,9 +66,7 @@ TRANSPARENCY_OPAQUE = "opaque"
 
 class Calendar(webdav.Collection):
 
-    resource_types = webdav.Collection.resource_types + [
-        CALENDAR_RESOURCE_TYPE
-    ]
+    resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self) -> str:
         """Return the calendar description."""
@@ -170,9 +168,7 @@ class Calendar(webdav.Collection):
 
 class Subscription(object):
 
-    resource_types = webdav.Collection.resource_types + [
-        SUBSCRIPTION_RESOURCE_TYPE
-    ]
+    resource_types = webdav.Collection.resource_types + [SUBSCRIPTION_RESOURCE_TYPE]
 
     def get_source_url(self):
         """Get the source URL for this calendar."""
@@ -260,9 +256,7 @@ class CalendarDescriptionProperty(webdav.Property):
         raise NotImplementedError
 
 
-def _extract_from_component(
-    incomp: Component, outcomp: Component, requested
-) -> None:
+def _extract_from_component(incomp: Component, outcomp: Component, requested) -> None:
     """Extract specific properties from a calendar event.
 
     Args:
@@ -309,14 +303,10 @@ def extract_from_calendar(incal, requested):
             incal = expand_calendar_rrule(incal, start, end)
         elif tag.tag == ("{%s}limit-recurrence-set" % NAMESPACE):
             # TODO(jelmer): https://github.com/jelmer/xandikos/issues/103
-            raise NotImplementedError(
-                "limit-recurrence-set is not yet implemented"
-            )
+            raise NotImplementedError("limit-recurrence-set is not yet implemented")
         elif tag.tag == ("{%s}limit-freebusy-set" % NAMESPACE):
             # TODO(jelmer): https://github.com/jelmer/xandikos/issues/104
-            raise NotImplementedError(
-                "limit-freebusy-set is not yet implemented"
-            )
+            raise NotImplementedError("limit-freebusy-set is not yet implemented")
         else:
             raise AssertionError("invalid element %r" % tag)
     return incal
@@ -630,9 +620,7 @@ class SupportedCalendarDataProperty(webdav.Property):
             content_type,
             version,
         ) in resource.get_supported_calendar_data_types():
-            subel = ET.SubElement(
-                el, "{urn:ietf:params:xml:ns:caldav}calendar-data"
-            )
+            subel = ET.SubElement(el, "{urn:ietf:params:xml:ns:caldav}calendar-data")
             subel.set("content-type", content_type)
             subel.set("version", version)
 
@@ -1015,13 +1003,9 @@ class MkcalendarMethod(webdav.Method):
                         "Unknown tag %s in mkcalendar" % el.tag
                     )
                 propstat.extend(
-                    webdav.apply_modify_prop(
-                        el, href, resource, app.properties
-                    )
+                    webdav.apply_modify_prop(el, href, resource, app.properties)
                 )
-                ret = ET.Element(
-                    "{urn:ietf:params:xml:ns:carldav:}mkcalendar-response"
-                )
+                ret = ET.Element("{urn:ietf:params:xml:ns:carldav:}mkcalendar-response")
             for propstat_el in webdav.propstat_as_xml(propstat):
                 ret.append(propstat_el)
             return webdav._send_xml_response(

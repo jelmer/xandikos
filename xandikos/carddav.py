@@ -103,9 +103,7 @@ class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
 
 class Addressbook(webdav.Collection):
 
-    resource_types = webdav.Collection.resource_types + [
-        ADDRESSBOOK_RESOURCE_TYPE
-    ]
+    resource_types = webdav.Collection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE]
 
     def get_addressbook_description(self) -> str:
         raise NotImplementedError(self.get_addressbook_description)
@@ -248,10 +246,7 @@ def apply_text_match(el, value):
 
 def apply_param_filter(el, prop):
     name = el.get("name")
-    if (
-        len(el) == 1
-        and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined"
-    ):
+    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
         return name not in prop.params
 
     try:
@@ -276,10 +271,7 @@ def apply_prop_filter(el, ab):
     # The CARDDAV:prop-filter XML element contains a CARDDAV:is-not-defined XML
     # element and no property of the type specified by the "name" attribute
     # exists in the enclosing calendar component;
-    if (
-        len(el) == 1
-        and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined"
-    ):
+    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
         return name not in ab
 
     try:
@@ -345,9 +337,7 @@ class AddressbookQueryReporter(webdav.Reporter):
             try:
                 [nresults_el] = list(limit)
             except ValueError:
-                raise webdav.BadRequestError(
-                    "Invalid number of subelements in limit"
-                )
+                raise webdav.BadRequestError("Invalid number of subelements in limit")
             try:
                 nresults = int(nresults_el.text)
             except ValueError:
@@ -371,7 +361,5 @@ class AddressbookQueryReporter(webdav.Reporter):
                 environ,
                 requested,
             )
-            yield webdav.Status(
-                href, "200 OK", propstat=[s async for s in propstat]
-            )
+            yield webdav.Status(href, "200 OK", propstat=[s async for s in propstat])
             i += 1
