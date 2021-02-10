@@ -149,5 +149,6 @@ class CalendarCollectionTests(unittest.TestCase):
 
     def test_get_schedule_calendar_transparency(self):
         self.assertEqual(
-            caldav.TRANSPARENCY_OPAQUE, self.cal.get_schedule_calendar_transparency()
+            caldav.TRANSPARENCY_OPAQUE,
+            self.cal.get_schedule_calendar_transparency(),
         )

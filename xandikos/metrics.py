@@ -45,7 +45,9 @@ request_latency_hist = Histogram(
 )
 
 requests_in_progress_gauge = Gauge(
-    "requests_in_progress", "Requests currently in progress", ["method", "route"]
+    "requests_in_progress",
+    "Requests currently in progress",
+    ["method", "route"],
 )
 
 

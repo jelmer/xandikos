@@ -82,7 +82,9 @@ class SyncCollectionReporter(webdav.Reporter):
                 raise webdav.BadRequestError("unknown tag %s" % el.tag)
         # TODO(jelmer): Implement sync_level infinite
         if sync_level not in ("1",):
-            raise webdav.BadRequestError("sync level %r unsupported" % sync_level)
+            raise webdav.BadRequestError(
+                "sync level %r unsupported" % sync_level
+            )
 
         new_token = resource.get_sync_token()
         try:
@@ -99,7 +101,9 @@ class SyncCollectionReporter(webdav.Reporter):
             try:
                 [nresults_el] = list(limit)
             except ValueError:
-                raise webdav.BadRequestError("Invalid number of subelements in limit")
+                raise webdav.BadRequestError(
+                    "Invalid number of subelements in limit"
+                )
             try:
                 nresults = int(nresults_el.text)
             except ValueError:
@@ -107,7 +111,9 @@ class SyncCollectionReporter(webdav.Reporter):
             diff_iter = itertools.islice(diff_iter, nresults)
 
         for (name, old_resource, new_resource) in diff_iter:
-            subhref = urllib.parse.urljoin(webdav.ensure_trailing_slash(href), name)
+            subhref = urllib.parse.urljoin(
+                webdav.ensure_trailing_slash(href), name
+            )
             if new_resource is None:
                 yield webdav.Status(subhref, status="404 Not Found")
             else:

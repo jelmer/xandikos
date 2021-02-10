@@ -49,7 +49,9 @@ _INVALID_CONTROL_CHARACTERS = ["\x0c", "\x01"]
 
 class MissingProperty(Exception):
     def __init__(self, property_name):
-        super(MissingProperty, self).__init__("Property %r missing" % property_name)
+        super(MissingProperty, self).__init__(
+            "Property %r missing" % property_name
+        )
         self.property_name = property_name
 
 
@@ -123,7 +125,10 @@ def calendar_component_delta(old_cal, new_cal):
         except KeyError:
             if not by_content.pop(component.to_ical(), None):
                 # Not previously present
-                yield (by_idx.get(idx, component_factory[component.name]()), component)
+                yield (
+                    by_idx.get(idx, component_factory[component.name]()),
+                    component,
+                )
             by_idx.pop(idx, None)
         else:
             yield (old_component, component)
@@ -183,7 +188,9 @@ def describe_calendar_delta(old_cal, new_cal):
     :yield: Lines describing changes
     """
     # TODO(jelmer): Extend
-    for old_component, new_component in calendar_component_delta(old_cal, new_cal):
+    for old_component, new_component in calendar_component_delta(
+        old_cal, new_cal
+    ):
         if not new_component:
             yield "Deleted %s" % describe_component(old_component)
             continue
@@ -196,7 +203,10 @@ def describe_calendar_delta(old_cal, new_cal):
         ):
             if field.upper() in DELTA_IGNORE_FIELDS:
                 continue
-            if old_component.name.upper() == "VTODO" and field.upper() == "STATUS":
+            if (
+                old_component.name.upper() == "VTODO"
+                and field.upper() == "STATUS"
+            ):
                 if new_value is None:
                     yield "status of %s deleted" % description
                 else:
@@ -304,7 +314,8 @@ def apply_time_range_vtodo(start, end, comp, tzify):
         duration = comp.get("DURATION")
         if duration and not due:
             return start <= tzify(dtstart.dt) + duration.dt and (
-                end > tzify(dtstart.dt) or end >= tzify(dtstart.dt) + duration.dt
+                end > tzify(dtstart.dt)
+                or end >= tzify(dtstart.dt) + duration.dt
             )
         elif due and not duration:
             return (start <= tzify(dtstart.dt) or start < tzify(due.dt)) and (
@@ -320,9 +331,9 @@ def apply_time_range_vtodo(start, end, comp, tzify):
     created = comp.get("CREATED")
     if completed:
         if created:
-            return (start <= tzify(created.dt) or start <= tzify(completed.dt)) and (
-                end >= tzify(created.dt) or end >= tzify(completed.dt)
-            )
+            return (
+                start <= tzify(created.dt) or start <= tzify(completed.dt)
+            ) and (end >= tzify(created.dt) or end >= tzify(completed.dt))
         else:
             return start <= tzify(completed.dt) and end >= tzify(completed.dt)
     elif created:
@@ -362,7 +373,8 @@ class PropertyTimeRangeMatcher(object):
 
     def match_indexes(self, prop, tzify):
         return any(
-            self.match(vDDDTypes(vDatetime.from_ical(p)), tzify) for p in prop[None]
+            self.match(vDDDTypes(vDatetime.from_ical(p)), tzify)
+            for p in prop[None]
         )
 
 
@@ -402,13 +414,19 @@ class ComponentTimeRangeMatcher(object):
                 self.comp,
             )
         else:
-            return "%s(%r, %r)" % (self.__class__.__name__, self.start, self.end)
+            return "%s(%r, %r)" % (
+                self.__class__.__name__,
+                self.start,
+                self.end,
+            )
 
     def match(self, comp, tzify):
         try:
             component_handler = self.component_handlers[comp.name]
         except KeyError:
-            logging.warning("unknown component %r in time-range filter", comp.name)
+            logging.warning(
+                "unknown component %r in time-range filter", comp.name
+            )
             return False
         return component_handler(self.start, self.end, comp, tzify)
 
@@ -425,7 +443,9 @@ class ComponentTimeRangeMatcher(object):
         try:
             component_handler = self.component_handlers[self.comp]
         except KeyError:
-            logging.warning("unknown component %r in time-range filter", self.comp)
+            logging.warning(
+                "unknown component %r in time-range filter", self.comp
+            )
             return False
         return component_handler(self.start, self.end, vs, tzify)
 
@@ -477,7 +497,9 @@ class TextMatcher(object):
 
 
 class ComponentFilter(object):
-    def __init__(self, name, children=None, is_not_defined=False, time_range=None):
+    def __init__(
+        self, name, children=None, is_not_defined=False, time_range=None
+    ):
         self.name = name
         self.children = children
         self.is_not_defined = is_not_defined
@@ -531,7 +553,9 @@ class ComponentFilter(object):
         # 3. The CALDAV:comp-filter XML element contains a CALDAV:time-range
         # XML element and at least one recurrence instance in the targeted
         # calendar component is scheduled to overlap the specified time range
-        if self.time_range is not None and not self.time_range.match(comp, tzify):
+        if self.time_range is not None and not self.time_range.match(
+            comp, tzify
+        ):
             return False
 
         # ... and all specified CALDAV:prop-filter and CALDAV:comp-filter child
@@ -550,7 +574,8 @@ class ComponentFilter(object):
 
     def _implicitly_defined(self):
         return any(
-            not getattr(child, "is_not_defined", False) for child in self.children
+            not getattr(child, "is_not_defined", False)
+            for child in self.children
         )
 
     def match_indexes(self, indexes, tzify):
@@ -576,7 +601,9 @@ class ComponentFilter(object):
 
     def index_keys(self):
         mine = "C=" + self.name
-        for child in self.children + ([self.time_range] if self.time_range else []):
+        for child in self.children + (
+            [self.time_range] if self.time_range else []
+        ):
             for tl in child.index_keys():
                 yield [(mine + "/" + child_index) for child_index in tl]
         if not self._implicitly_defined():
@@ -584,7 +611,9 @@ class ComponentFilter(object):
 
 
 class PropertyFilter(object):
-    def __init__(self, name, children=None, is_not_defined=False, time_range=None):
+    def __init__(
+        self, name, children=None, is_not_defined=False, time_range=None
+    ):
         self.name = name
         self.is_not_defined = is_not_defined
         self.children = children or []
@@ -609,7 +638,9 @@ class PropertyFilter(object):
         return self.time_range
 
     def filter_text_match(self, text, collation=None, negate_condition=False):
-        ret = TextMatcher(text, collation=collation, negate_condition=negate_condition)
+        ret = TextMatcher(
+            text, collation=collation, negate_condition=negate_condition
+        )
         self.children.append(ret)
         return ret
 
@@ -674,7 +705,9 @@ class ParameterFilter(object):
         self.children = children or []
 
     def filter_text_match(self, text, collation=None, negate_condition=False):
-        ret = TextMatcher(text, collation=collation, negate_condition=negate_condition)
+        ret = TextMatcher(
+            text, collation=collation, negate_condition=negate_condition
+        )
         self.children.append(ret)
         return ret
 
@@ -804,7 +837,9 @@ class ICalendarFile(File):
             try:
                 self._calendar = Calendar.from_ical(b"".join(self.content))
             except ValueError as e:
-                raise InvalidFileContents(self.content_type, self.content, str(e))
+                raise InvalidFileContents(
+                    self.content_type, self.content, str(e)
+                )
         return self._calendar
 
     def describe_delta(self, name, previous):
@@ -854,7 +889,9 @@ class ICalendarFile(File):
             if segments and segments[0].startswith("C="):
                 if c.name == segments[0][2:]:
                     if len(segments) > 1 and segments[1].startswith("C="):
-                        todo.extend((comp, segments[1:]) for comp in c.subcomponents)
+                        todo.extend(
+                            (comp, segments[1:]) for comp in c.subcomponents
+                        )
                     else:
                         rest.append((c, segments[1:]))
 
@@ -922,7 +959,9 @@ def _expand_rrule_component(incomp, start, end, existing):
 def expand_calendar_rrule(incal, start, end):
     outcal = Calendar()
     if incal.name != "VCALENDAR":
-        raise AssertionError("called on file with root component %s" % incal.name)
+        raise AssertionError(
+            "called on file with root component %s" % incal.name
+        )
     for field in incal:
         outcal[field] = incal[field]
     known = {}

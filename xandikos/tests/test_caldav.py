@@ -34,7 +34,11 @@ class WebTests(test_webdav.WebTestCase):
         return app
 
     def mkcalendar(self, app, path):
-        environ = {"PATH_INFO": path, "REQUEST_METHOD": "MKCALENDAR", "SCRIPT_NAME": ""}
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": "MKCALENDAR",
+            "SCRIPT_NAME": "",
+        }
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -62,7 +66,10 @@ class WebTests(test_webdav.WebTestCase):
 
             def set_value(unused_self, href, resource, ret):
                 self.assertEqual(
-                    ["{DAV:}collection", "{urn:ietf:params:xml:ns:caldav}calendar"],
+                    [
+                        "{DAV:}collection",
+                        "{urn:ietf:params:xml:ns:caldav}calendar",
+                    ],
                     [x.tag for x in ret],
                 )
 
@@ -110,7 +117,9 @@ END:VCALENDAR
         )
 
     def test_comp_nested(self):
-        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp = ET.SubElement(
+            self.requested, "{%s}comp" % caldav.NAMESPACE
+        )
         vcal_comp.set("name", "VCALENDAR")
         vtodo_comp = ET.SubElement(vcal_comp, "{%s}comp" % caldav.NAMESPACE)
         vtodo_comp.set("name", "VTODO")
@@ -146,11 +155,15 @@ END:VCALENDAR
         )
 
     def test_prop(self):
-        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp = ET.SubElement(
+            self.requested, "{%s}comp" % caldav.NAMESPACE
+        )
         vcal_comp.set("name", "VCALENDAR")
         vtodo_comp = ET.SubElement(vcal_comp, "{%s}comp" % caldav.NAMESPACE)
         vtodo_comp.set("name", "VTODO")
-        completed_prop = ET.SubElement(vtodo_comp, "{%s}prop" % caldav.NAMESPACE)
+        completed_prop = ET.SubElement(
+            vtodo_comp, "{%s}prop" % caldav.NAMESPACE
+        )
         completed_prop.set("name", "COMPLETED")
         self.extractEqual(
             """\
@@ -184,7 +197,9 @@ END:VCALENDAR
         )
 
     def test_allprop(self):
-        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp = ET.SubElement(
+            self.requested, "{%s}comp" % caldav.NAMESPACE
+        )
         vcal_comp.set("name", "VCALENDAR")
         vtodo_comp = ET.SubElement(vcal_comp, "{%s}comp" % caldav.NAMESPACE)
         vtodo_comp.set("name", "VTODO")
@@ -209,7 +224,9 @@ END:VCALENDAR
         )
 
     def test_allcomp(self):
-        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp = ET.SubElement(
+            self.requested, "{%s}comp" % caldav.NAMESPACE
+        )
         vcal_comp.set("name", "VCALENDAR")
         ET.SubElement(vcal_comp, "{%s}allcomp" % caldav.NAMESPACE)
         self.extractEqual(

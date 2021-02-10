@@ -83,7 +83,10 @@ from xandikos.store.git import (
 from xandikos.vcard import VCardFile
 
 
-WELLKNOWN_DAV_PATHS = {caldav.WELLKNOWN_CALDAV_PATH, carddav.WELLKNOWN_CARDDAV_PATH}
+WELLKNOWN_DAV_PATHS = {
+    caldav.WELLKNOWN_CALDAV_PATH,
+    carddav.WELLKNOWN_CARDDAV_PATH,
+}
 
 STORE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
@@ -166,7 +169,9 @@ class ObjectResource(webdav.Resource):
     @property
     def file(self) -> File:
         if self._file is None:
-            self._file = self.store.get_file(self.name, self.content_type, self.etag)
+            self._file = self.store.get_file(
+                self.name, self.content_type, self.etag
+            )
         return self._file
 
     async def get_body(self) -> Iterable[bytes]:
@@ -290,7 +295,11 @@ class StoreBasedCollection(object):
             raise NotImplementedError(self.set_resource_types)
 
     def _get_resource(
-        self, name: str, content_type: str, etag: str, file: Optional[File] = None
+        self,
+        name: str,
+        content_type: str,
+        etag: str,
+        file: Optional[File] = None,
     ) -> webdav.Resource:
         return ObjectResource(self.store, name, content_type, etag, file=file)
 
@@ -367,12 +376,17 @@ class StoreBasedCollection(object):
 
     def iter_differences_since(
         self, old_token: str, new_token: str
-    ) -> Iterator[Tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
+    ) -> Iterator[
+        Tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]
+    ]:
         old_resource: Optional[webdav.Resource]
         new_resource: Optional[webdav.Resource]
-        for (name, content_type, old_etag, new_etag) in self.store.iter_changes(
-            old_token, new_token
-        ):
+        for (
+            name,
+            content_type,
+            old_etag,
+            new_etag,
+        ) in self.store.iter_changes(old_token, new_token):
             if old_etag is not None:
                 old_resource = self._get_resource(name, content_type, old_etag)
             else:
@@ -428,7 +442,9 @@ class StoreBasedCollection(object):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"]
+        )
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "collection.html",
@@ -569,7 +585,9 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def calendar_query(self, create_filter_fn):
         filter = create_filter_fn(CalendarFilter)
         for (name, file, etag) in self.store.iter_with_filter(filter=filter):
-            resource = self._get_resource(name, file.content_type, etag, file=file)
+            resource = self._get_resource(
+                name, file.content_type, etag, file=file
+            )
             yield (name, resource)
 
 
@@ -686,7 +704,9 @@ class CollectionSetResource(webdav.Collection):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"]
+        )
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "root.html", accepted_content_languages, self_url=self_url
@@ -716,8 +736,12 @@ class RootPage(webdav.Resource):
     def __init__(self, backend):
         self.backend = backend
 
-    def render(self, self_url, accepted_content_types, accepted_content_languages):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+    def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"]
+        )
         assert content_types == ["text/html"]
         return render_jinja_page(
             "root.html",
@@ -861,7 +885,9 @@ class PrincipalBare(CollectionSetResource, Principal):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"]
+        )
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "principal.html",
@@ -878,7 +904,9 @@ class PrincipalBare(CollectionSetResource, Principal):
 class PrincipalCollection(Collection, Principal):
     """Principal user resource."""
 
-    resource_types = webdav.Collection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [
+        webdav.PRINCIPAL_RESOURCE_TYPE
+    ]
 
     @classmethod
     def create(cls, backend, relpath):
@@ -983,7 +1011,9 @@ class XandikosApp(webdav.WebDAVApp):
         self.register_properties(
             [
                 webdav.ResourceTypeProperty(),
-                webdav.CurrentUserPrincipalProperty(get_current_user_principal),
+                webdav.CurrentUserPrincipalProperty(
+                    get_current_user_principal
+                ),
                 webdav.PrincipalURLProperty(),
                 webdav.DisplayNameProperty(),
                 webdav.GetETagProperty(),
@@ -1079,7 +1109,9 @@ def create_principal_defaults(backend, principal):
         resource.store.set_type(STORE_TYPE_CALENDAR)
         logging.info("Create calendar in %s.", resource.store.path)
     addressbook_path = posixpath.join(
-        principal.relpath, principal.get_addressbook_home_set()[0], "addressbook"
+        principal.relpath,
+        principal.get_addressbook_home_set()[0],
+        "addressbook",
     )
     try:
         resource = backend.create_collection(addressbook_path)
@@ -1211,7 +1243,10 @@ def main(argv):
         "--defaults",
         action="store_true",
         dest="defaults",
-        help=("Create initial calendar and address book. " "Implies --autocreate."),
+        help=(
+            "Create initial calendar and address book. "
+            "Implies --autocreate."
+        ),
     )
     parser.add_argument(
         "--dump-dav-xml",
@@ -1226,7 +1261,8 @@ def main(argv):
         "--no-strict",
         action="store_false",
         dest="strict",
-        help="Enable workarounds for buggy CalDAV/CardDAV client " "implementations.",
+        help="Enable workarounds for buggy CalDAV/CardDAV client "
+        "implementations.",
         default=True,
     )
     options = parser.parse_args(argv[1:])
@@ -1254,7 +1290,8 @@ def main(argv):
 
     if not os.path.isdir(options.directory):
         logging.warning(
-            "%r does not exist. Run xandikos with --autocreate?", options.directory
+            "%r does not exist. Run xandikos with --autocreate?",
+            options.directory,
         )
     if not backend.get_resource(options.current_user_principal):
         logging.warning(
@@ -1287,7 +1324,9 @@ def main(argv):
     try:
         import prometheus_client  # noqa: F401
     except ModuleNotFoundError:
-        logging.warning("Prometheus client not found; /metrics will not be available.")
+        logging.warning(
+            "Prometheus client not found; /metrics will not be available."
+        )
     else:
         from .metrics import setup_metrics
 
@@ -1316,7 +1355,8 @@ def main(argv):
             import dbus  # noqa: F401
         except ImportError:
             logging.error(
-                "Please install python-avahi and python-dbus for " "avahi support."
+                "Please install python-avahi and python-dbus for "
+                "avahi support."
             )
         else:
             avahi_register(options.port, options.route_prefix)

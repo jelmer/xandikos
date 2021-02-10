@@ -92,7 +92,9 @@ class File(object):
         """
         raise NotImplementedError(self.get_uid)
 
-    def describe_delta(self, name: str, previous: Optional["File"]) -> Iterator[str]:
+    def describe_delta(
+        self, name: str, previous: Optional["File"]
+    ) -> Iterator[str]:
         """Describe the important difference between this and previous one.
 
         :param name: File name
@@ -177,7 +179,9 @@ def open_by_content_type(
 
 
 def open_by_extension(
-    content: Iterable[bytes], name: str, extra_file_handlers: Dict[str, Type[File]]
+    content: Iterable[bytes],
+    name: str,
+    extra_file_handlers: Dict[str, Type[File]],
 ) -> File:
     """Open a file based on the filename extension.
 
@@ -261,7 +265,9 @@ class Store(object):
     def load_extra_file_handler(self, file_handler: Type[File]) -> None:
         self.extra_file_handlers[file_handler.content_type] = file_handler
 
-    def iter_with_etag(self, ctag: str = None) -> Iterator[Tuple[str, str, str]]:
+    def iter_with_etag(
+        self, ctag: str = None
+    ) -> Iterator[Tuple[str, str, str]]:
         """Iterate over all items in the store with etag.
 
         :param ctag: Possible ctag to iterate for
@@ -269,7 +275,9 @@ class Store(object):
         """
         raise NotImplementedError(self.iter_with_etag)
 
-    def iter_with_filter(self, filter: Filter) -> Iterator[Tuple[str, File, str]]:
+    def iter_with_filter(
+        self, filter: Filter
+    ) -> Iterator[Tuple[str, File, str]]:
         """Iterate over all items in the store that match a particular filter.
 
         :param filter: Filter to apply
@@ -281,7 +289,9 @@ class Store(object):
             except NotImplementedError:
                 pass
             else:
-                present_keys = self.index_manager.find_present_keys(necessary_keys)
+                present_keys = self.index_manager.find_present_keys(
+                    necessary_keys
+                )
                 if present_keys is not None:
                     return self._iter_with_filter_indexes(filter, present_keys)
         return self._iter_with_filter_naive(filter)
@@ -329,9 +339,9 @@ class Store(object):
                         raise AssertionError(
                             "%r != %r" % (file_values, file.get_indexes(keys))
                         )
-                    if filter.check_from_indexes(name, file_values) != filter.check(
-                        name, file
-                    ):
+                    if filter.check_from_indexes(
+                        name, file_values
+                    ) != filter.check(name, file):
                         raise AssertionError(
                             "index based filter not matching real file filter"
                         )
@@ -340,7 +350,10 @@ class Store(object):
                     yield (name, file, etag)
 
     def get_file(
-        self, name: str, content_type: Optional[str] = None, etag: Optional[str] = None
+        self,
+        name: str,
+        content_type: Optional[str] = None,
+        etag: Optional[str] = None,
     ) -> File:
         """Get the contents of an object.
 
@@ -359,7 +372,9 @@ class Store(object):
                 extra_file_handlers=self.extra_file_handlers,
             )
 
-    def _get_raw(self, name: str, etag: Optional[str] = None) -> Iterable[bytes]:
+    def _get_raw(
+        self, name: str, etag: Optional[str] = None
+    ) -> Iterable[bytes]:
         """Get the raw contents of an object.
 
         :param name: Filename

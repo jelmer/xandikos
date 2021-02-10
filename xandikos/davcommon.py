@@ -60,7 +60,14 @@ class MultiGetReporter(webdav.Reporter):
 
     @webdav.multistatus
     async def report(
-        self, environ, body, resources_by_hrefs, properties, base_href, resource, depth
+        self,
+        environ,
+        body,
+        resources_by_hrefs,
+        properties,
+        base_href,
+        resource,
+        depth,
     ):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an the right resource type
@@ -80,7 +87,12 @@ class MultiGetReporter(webdav.Reporter):
                 yield webdav.Status(href, "404 Not Found", propstat=[])
             else:
                 propstat = get_properties_with_data(
-                    self.data_property, href, resource, properties, environ, requested
+                    self.data_property,
+                    href,
+                    resource,
+                    properties,
+                    environ,
+                    requested,
                 )
                 yield webdav.Status(
                     href, "200 OK", propstat=[s async for s in propstat]

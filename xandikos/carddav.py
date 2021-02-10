@@ -103,7 +103,9 @@ class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
 
 class Addressbook(webdav.Collection):
 
-    resource_types = webdav.Collection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [
+        ADDRESSBOOK_RESOURCE_TYPE
+    ]
 
     def get_addressbook_description(self) -> str:
         raise NotImplementedError(self.get_addressbook_description)
@@ -180,7 +182,10 @@ class SupportedAddressDataProperty(webdav.Property):
     live = True
 
     async def get_value(self, href, resource, el, environ):
-        for (content_type, version) in resource.get_supported_address_data_types():
+        for (
+            content_type,
+            version,
+        ) in resource.get_supported_address_data_types():
             subel = ET.SubElement(el, "{%s}content-type" % NAMESPACE)
             subel.set("content-type", content_type)
             subel.set("version", version)
@@ -243,7 +248,10 @@ def apply_text_match(el, value):
 
 def apply_param_filter(el, prop):
     name = el.get("name")
-    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
+    if (
+        len(el) == 1
+        and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined"
+    ):
         return name not in prop.params
 
     try:
@@ -268,7 +276,10 @@ def apply_prop_filter(el, ab):
     # The CARDDAV:prop-filter XML element contains a CARDDAV:is-not-defined XML
     # element and no property of the type specified by the "name" attribute
     # exists in the enclosing calendar component;
-    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
+    if (
+        len(el) == 1
+        and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined"
+    ):
         return name not in ab
 
     try:
@@ -334,7 +345,9 @@ class AddressbookQueryReporter(webdav.Reporter):
             try:
                 [nresults_el] = list(limit)
             except ValueError:
-                raise webdav.BadRequestError("Invalid number of subelements in limit")
+                raise webdav.BadRequestError(
+                    "Invalid number of subelements in limit"
+                )
             try:
                 nresults = int(nresults_el.text)
             except ValueError:
@@ -351,7 +364,14 @@ class AddressbookQueryReporter(webdav.Reporter):
             if nresults is not None and i >= nresults:
                 break
             propstat = davcommon.get_properties_with_data(
-                self.data_property, href, resource, properties, environ, requested
+                self.data_property,
+                href,
+                resource,
+                properties,
+                environ,
+                requested,
             )
-            yield webdav.Status(href, "200 OK", propstat=[s async for s in propstat])
+            yield webdav.Status(
+                href, "200 OK", propstat=[s async for s in propstat]
+            )
             i += 1

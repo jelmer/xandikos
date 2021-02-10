@@ -207,7 +207,9 @@ class WebTests(WebTestCase):
         self.assertEqual(b"", contents)
 
     def test_mkcol_exists(self):
-        app = self.makeApp({"/resource": Resource(), "/resource/bla": Resource()}, [])
+        app = self.makeApp(
+            {"/resource": Resource(), "/resource/bla": Resource()}, []
+        )
         code, headers, contents = self.mkcol(app, "/resource/bla")
         self.assertEqual("405 Method Not Allowed", code)
         self.assertEqual(b"", contents)
@@ -220,7 +222,9 @@ class WebTests(WebTestCase):
             def delete_member(unused_self, name, etag=None):
                 self.assertEqual(name, "resource")
 
-        app = self.makeApp({"/": TestResource(), "/resource": TestResource()}, [])
+        app = self.makeApp(
+            {"/": TestResource(), "/resource": TestResource()}, []
+        )
         code, headers, contents = self.delete(app, "/resource")
         self.assertEqual("204 No Content", code)
         self.assertEqual(b"", contents)
@@ -403,7 +407,8 @@ class PickContentTypesTests(unittest.TestCase):
         self.assertEqual(
             ["text/html", "text/plain"],
             webdav.pick_content_types(
-                [("text/html", {}), ("text/plain", {})], ["text/plain", "text/html"]
+                [("text/html", {}), ("text/plain", {})],
+                ["text/plain", "text/html"],
             ),
         )
 
@@ -427,7 +432,10 @@ class PickContentTypesTests(unittest.TestCase):
         self.assertEqual(
             ["application/html"],
             webdav.pick_content_types(
-                [("application/*", {"q": "0.4"}), ("text/plain", {"q": "0.3"})],
+                [
+                    ("application/*", {"q": "0.4"}),
+                    ("text/plain", {"q": "0.3"}),
+                ],
                 ["text/plain", "application/html"],
             ),
         )
@@ -464,12 +472,17 @@ class PropstatByStatusTests(unittest.TestCase):
     def test_one(self):
         self.assertEqual(
             {("200 OK", None): ["foo"]},
-            webdav.propstat_by_status([webdav.PropStatus("200 OK", None, "foo")]),
+            webdav.propstat_by_status(
+                [webdav.PropStatus("200 OK", None, "foo")]
+            ),
         )
 
     def test_multiple(self):
         self.assertEqual(
-            {("200 OK", None): ["foo"], ("404 Not Found", "Cannot find"): ["bar"]},
+            {
+                ("200 OK", None): ["foo"],
+                ("404 Not Found", "Cannot find"): ["bar"],
+            },
             webdav.propstat_by_status(
                 [
                     webdav.PropStatus("200 OK", None, "foo"),
@@ -501,10 +514,14 @@ class PropstatAsXmlTests(unittest.TestCase):
 class PathFromEnvironTests(unittest.TestCase):
     def test_ascii(self):
         self.assertEqual(
-            "/bla", webdav.path_from_environ({"PATH_INFO": "/bla"}, "PATH_INFO")
+            "/bla",
+            webdav.path_from_environ({"PATH_INFO": "/bla"}, "PATH_INFO"),
         )
 
     def test_recode(self):
         self.assertEqual(
-            "/blü", webdav.path_from_environ({"PATH_INFO": "/bl\xc3\xbc"}, "PATH_INFO")
+            "/blü",
+            webdav.path_from_environ(
+                {"PATH_INFO": "/bl\xc3\xbc"}, "PATH_INFO"
+            ),
         )
