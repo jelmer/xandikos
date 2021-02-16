@@ -1,4 +1,4 @@
-0.2.4	UNRELEASED
+0.2.4	2021-02-16
 
  * Wait for entire body to arrive. (Michael Alyn Miller, #129)
 
