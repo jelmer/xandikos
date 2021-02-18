@@ -1,4 +1,4 @@
-0.2.5	UNRELEASED
+0.2.5	2021-02-18
 
  * Fix support for uwsgi when environ['wsgi.input'].read() does not
    accept a size=None. (Jelmer Vernooĳ)
