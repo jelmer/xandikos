@@ -1915,7 +1915,10 @@ class WSGIRequest(object):
                 self._stream = stream
 
             async def read(self, size=None):
-                return self._stream.read(size)
+                if size is None:
+                    return self._stream.read()
+                else:
+                    return self._stream.read(size)
 
         self.content = StreamWrapper(self._environ["wsgi.input"])
         self.match_info = {"path_info": environ["PATH_INFO"]}
