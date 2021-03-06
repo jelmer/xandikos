@@ -1,0 +1,49 @@
+.TH XANDIKOS "8" "March 2021" "xandikos 0.2.5" "System Administration Utilities"
+.SH NAME
+xandikos \- git-backed CalDAV/CardDAV server
+.SH DESCRIPTION
+usage: ./bin/xandikos \fB\-d\fR ROOT\-DIR [OPTIONS]
+.SS "optional arguments:"
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+show this help message and exit
+.TP
+\fB\-\-version\fR
+show program's version number and exit
+.TP
+\fB\-d\fR DIRECTORY, \fB\-\-directory\fR DIRECTORY
+Directory to serve from.
+.TP
+\fB\-\-current\-user\-principal\fR CURRENT_USER_PRINCIPAL
+Path to current user principal. [/user/]
+.TP
+\fB\-\-autocreate\fR
+Automatically create necessary directories.
+.TP
+\fB\-\-defaults\fR
+Create initial calendar and address book. Implies
+\fB\-\-autocreate\fR.
+.TP
+\fB\-\-dump\-dav\-xml\fR
+Print DAV XML request/responses.
+.TP
+\fB\-\-avahi\fR
+Announce services with avahi.
+.TP
+\fB\-\-no\-strict\fR
+Enable workarounds for buggy CalDAV/CardDAV client
+implementations.
+.SS "Access Options:"
+.TP
+\fB\-l\fR LISTEN_ADDRESS, \fB\-\-listen\-address\fR LISTEN_ADDRESS
+Bind to this address. Pass in path for unix domain
+socket. [localhost]
+.TP
+\fB\-p\fR PORT, \fB\-\-port\fR PORT
+Port to listen on. [8080]
+.TP
+\fB\-\-route\-prefix\fR ROUTE_PREFIX
+Path to Xandikos. (useful when Xandikos is behind a
+reverse proxy) [/]
+.SH AUTHORS
+Jelmer Vernooij <jelmer@debian.org>

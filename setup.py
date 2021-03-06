@@ -53,6 +53,7 @@ setup(name="xandikos",
       },
       packages=find_packages(),
       package_data={'xandikos': ['templates/*.html']},
+      data_files=[('share/man/man8', ['man/xandikos.8'])],
       scripts=['bin/xandikos'],
       test_suite='xandikos.tests.test_suite',
       classifiers=[
