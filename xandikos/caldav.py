@@ -1003,7 +1003,12 @@ class MkcalendarMethod(webdav.Method):
                         "Unknown tag %s in mkcalendar" % el.tag
                     )
                 propstat.extend(
-                    await webdav.apply_modify_prop(el, href, resource, app.properties)
+                    [
+                        ps
+                        async for ps in webdav.apply_modify_prop(
+                            el, href, resource, app.properties
+                        )
+                    ]
                 )
                 ret = ET.Element("{urn:ietf:params:xml:ns:carldav:}mkcalendar-response")
             for propstat_el in webdav.propstat_as_xml(propstat):

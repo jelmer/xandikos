@@ -1771,7 +1771,14 @@ class ProppatchMethod(Method):
         for el in et:
             if el.tag not in ("{DAV:}set", "{DAV:}remove"):
                 raise BadRequestError("Unknown tag %s in propertyupdate" % el.tag)
-            propstat.extend(await apply_modify_prop(el, href, resource, app.properties))
+            propstat.extend(
+                [
+                    ps
+                    async for ps in apply_modify_prop(
+                        el, href, resource, app.properties
+                    )
+                ]
+            )
         yield Status(request.url, propstat=propstat)
 
 
@@ -1801,7 +1808,14 @@ class MkcolMethod(Method):
             for el in et:
                 if el.tag != "{DAV:}set":
                     raise BadRequestError("Unknown tag %s in mkcol" % el.tag)
-                propstat.extend(await apply_modify_prop(el, href, resource, app.properties))
+                propstat.extend(
+                    [
+                        ps
+                        async for ps in apply_modify_prop(
+                            el, href, resource, app.properties
+                        )
+                    ]
+                )
             ret = ET.Element("{DAV:}mkcol-response")
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
