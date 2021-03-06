@@ -35,7 +35,7 @@ class SettingsProperty(webdav.Property):
     async def get_value(self, href: str, resource, el, environ):
         el.text = resource.get_infit_settings()
 
-    def set_value(self, href: str, resource, el):
+    async def set_value(self, href: str, resource, el):
         resource.set_infit_settings(el.text)
 
 
@@ -52,7 +52,7 @@ class AddressbookColorProperty(webdav.Property):
     async def get_value(self, href, resource, el, environ):
         el.text = resource.get_addressbook_color()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         resource.set_addressbook_color(el.text)
 
 
@@ -70,6 +70,6 @@ class HeaderValueProperty(webdav.Property):
     async def get_value(self, href, resource, el, environ):
         el.text = resource.get_headervalue()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         # TODO
         raise NotImplementedError

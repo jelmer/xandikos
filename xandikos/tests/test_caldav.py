@@ -64,7 +64,7 @@ class WebTests(test_webdav.WebTestCase):
             async def get_value(unused_self, href, resource, ret, environ):
                 ET.SubElement(ret, "{DAV:}collection")
 
-            def set_value(unused_self, href, resource, ret):
+            async def set_value(unused_self, href, resource, ret):
                 self.assertEqual(
                     [
                         "{DAV:}collection",

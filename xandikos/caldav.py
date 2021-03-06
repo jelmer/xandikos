@@ -989,7 +989,7 @@ class MkcalendarMethod(webdav.Method):
             href, resource, el, environ
         )
         ET.SubElement(el, "{urn:ietf:params:xml:ns:caldav}calendar")
-        app.properties["{DAV:}resourcetype"].set_value(href, resource, el)
+        await app.properties["{DAV:}resourcetype"].set_value(href, resource, el)
         if base_content_type in ("text/xml", "application/xml"):
             et = await webdav._readXmlBody(
                 request,
@@ -1003,7 +1003,7 @@ class MkcalendarMethod(webdav.Method):
                         "Unknown tag %s in mkcalendar" % el.tag
                     )
                 propstat.extend(
-                    webdav.apply_modify_prop(el, href, resource, app.properties)
+                    await webdav.apply_modify_prop(el, href, resource, app.properties)
                 )
                 ret = ET.Element("{urn:ietf:params:xml:ns:carldav:}mkcalendar-response")
             for propstat_el in webdav.propstat_as_xml(propstat):

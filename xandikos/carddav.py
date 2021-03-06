@@ -90,7 +90,7 @@ class AddressbookDescriptionProperty(webdav.Property):
     async def get_value(self, href, resource, el, environ):
         el.text = resource.get_addressbook_description()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         resource.set_addressbook_description(el.text)
 
 

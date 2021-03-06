@@ -579,7 +579,7 @@ class Property(object):
         """
         raise KeyError(self.name)
 
-    def set_value(self, href: str, resource: Resource, el: ET.Element) -> None:
+    async def set_value(self, href: str, resource: Resource, el: ET.Element) -> None:
         """Set property.
 
         :param href: Resource href
@@ -604,7 +604,7 @@ class ResourceTypeProperty(Property):
         for rt in resource.resource_types:
             ET.SubElement(el, rt)
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         resource.set_resource_types([e.tag for e in el])
 
 
@@ -620,7 +620,7 @@ class DisplayNameProperty(Property):
     async def get_value(self, href, resource, el, environ):
         el.text = resource.get_displayname()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         resource.set_displayname(el.text)
 
 
@@ -838,7 +838,7 @@ class RefreshRateProperty(Property):
     async def get_value(self, href, resource, el, environ):
         el.text = resource.get_refreshrate()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         resource.set_refreshrate(el.text)
 
 
@@ -1404,7 +1404,7 @@ class CommentProperty(Property):
     async def get_value(self, href, resource, el, environ):
         el.text = resource.get_comment()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         resource.set_comment(el.text)
 
 
@@ -1499,7 +1499,7 @@ def _send_method_not_allowed(allowed_methods):
     )
 
 
-def apply_modify_prop(el, href, resource, properties):
+async def apply_modify_prop(el, href, resource, properties):
     """Apply property set/remove operations.
 
     :param el: set element to apply.
@@ -1538,7 +1538,7 @@ def apply_modify_prop(el, href, resource, properties):
                 statuscode = "404 Not Found"
             else:
                 try:
-                    handler.set_value(href, resource, newval)
+                    await handler.set_value(href, resource, newval)
                 except NotImplementedError:
                     # TODO(jelmer): Signal
                     # {DAV:}cannot-modify-protected-property error
@@ -1771,7 +1771,7 @@ class ProppatchMethod(Method):
         for el in et:
             if el.tag not in ("{DAV:}set", "{DAV:}remove"):
                 raise BadRequestError("Unknown tag %s in propertyupdate" % el.tag)
-            propstat.extend(apply_modify_prop(el, href, resource, app.properties))
+            propstat.extend(await apply_modify_prop(el, href, resource, app.properties))
         yield Status(request.url, propstat=propstat)
 
 
@@ -1801,7 +1801,7 @@ class MkcolMethod(Method):
             for el in et:
                 if el.tag != "{DAV:}set":
                     raise BadRequestError("Unknown tag %s in mkcol" % el.tag)
-                propstat.extend(apply_modify_prop(el, href, resource, app.properties))
+                propstat.extend(await apply_modify_prop(el, href, resource, app.properties))
             ret = ET.Element("{DAV:}mkcol-response")
             for propstat_el in propstat_as_xml(propstat):
                 ret.append(propstat_el)
