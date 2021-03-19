@@ -1288,9 +1288,11 @@ def main(argv):
     if "/" in options.listen_address:
         socket_path = options.listen_address
         listen_address = None
+        listen_port = None # otherwise aiohttp also listens on its default host
         logging.info("Listening on unix domain socket %s", socket_path)
     else:
         listen_address = options.listen_address
+        listen_port = options.port
         socket_path = None
         logging.info("Listening on %s:%s", listen_address, options.port)
 
@@ -1334,7 +1336,7 @@ def main(argv):
         else:
             avahi_register(options.port, options.route_prefix)
 
-    web.run_app(app, port=options.port, host=listen_address, path=socket_path)
+    web.run_app(app, port=listen_port, host=listen_address, path=socket_path)
 
 
 if __name__ == "__main__":
