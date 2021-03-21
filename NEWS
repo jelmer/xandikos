@@ -1,6 +1,4 @@
-%(version)s	%(date)s
-
-%(version)s	%(date)s
+0.2.6	UNRELEASED
 
  * Don't listen on TCP port (defautlting to 0.0.0.0) when a UNIX domain socket
    is specified. (schnusch, #134)
