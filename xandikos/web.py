@@ -54,6 +54,7 @@ from xandikos import (
     infit,
     scheduling,
     timezones,
+    xmpp,
 )
 from xandikos.icalendar import (
     ICalendarFile,
@@ -1052,6 +1053,9 @@ class XandikosApp(webdav.WebDAVApp):
                 quota.QuotaAvailableBytesProperty(),
                 quota.QuotaUsedBytesProperty(),
                 webdav.RefreshRateProperty(),
+                xmpp.XmppUriProperty(),
+                xmpp.XmppServerProperty(),
+                xmpp.XmppHeartbeatProperty()
             ]
         )
         self.register_reporters(
