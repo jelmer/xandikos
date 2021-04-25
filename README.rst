@@ -143,7 +143,7 @@ Contributions to Xandikos are very welcome. If you run into bugs or have
 feature requests, please file issues `on GitHub
 <https://github.com/jelmer/xandikos/issues/new>`_. If you're interested in
 contributing code or documentation, please read `CONTRIBUTING
-<CONTRIBUTING.rst>`_. Issues that are good for new contributors are tagged
+<CONTRIBUTING.md>`_. Issues that are good for new contributors are tagged
 `new-contributor <https://github.com/jelmer/xandikos/labels/new-contributor>`_
 on GitHub.
 
