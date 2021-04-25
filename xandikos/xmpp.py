@@ -28,7 +28,7 @@ from .caldav import CALENDAR_RESOURCE_TYPE
 ET = webdav.ET
 
 
-class XmpUriProperty(webdav.Property):
+class XmppUriProperty(webdav.Property):
     """xmpp-uri property."""
 
     name = "{http://calendarserver.org/ns/}xmpp-uri"
@@ -43,7 +43,7 @@ class XmpUriProperty(webdav.Property):
         raise NotImplementedError(self.set_value)
 
 
-class XmpHeartbeatProperty(webdav.Property):
+class XmppHeartbeatProperty(webdav.Property):
     """xmpp-heartbeat property."""
 
     name = "{http://calendarserver.org/ns/}xmpp-heartbeat"
@@ -64,7 +64,7 @@ class XmpHeartbeatProperty(webdav.Property):
         raise NotImplementedError(self.set_value)
 
 
-class XmpServerProperty(webdav.Property):
+class XmppServerProperty(webdav.Property):
     """xmpp-server property."""
 
     name = "{http://calendarserver.org/ns/}xmpp-server"
