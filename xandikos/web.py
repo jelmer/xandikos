@@ -40,7 +40,35 @@ from typing import (
 )
 
 import shutil
+import socket
 import urllib.parse
+
+try:
+    import systemd.daemon
+except ImportError:
+    systemd_imported = False
+
+    def get_systemd_listen_sockets() -> List[socket.socket]:
+        raise NotImplementedError
+else:
+    systemd_imported = True
+
+    def get_systemd_listen_sockets() -> List[socket.socket]:
+        socks = []
+        for fd in systemd.daemon.listen_fds():
+            for family in (socket.AF_UNIX, socket.AF_INET, socket.AF_INET6):
+                if systemd.daemon.is_socket(fd, family=family,
+                                            type=socket.SOCK_STREAM,
+                                            listening=True):
+                    sock = socket.fromfd(fd, family, socket.SOCK_STREAM)
+                    socks.append(sock)
+                    break
+            else:
+                raise RuntimeError(
+                    "socket family must be AF_INET, AF_INET6, or AF_UNIX; "
+                    "socket type must be SOCK_STREAM; and it must be listening"
+                )
+        return socks
 
 from xandikos import __version__ as xandikos_version
 from xandikos import (
@@ -1178,6 +1206,13 @@ def main(argv):
     )
 
     access_group = parser.add_argument_group(title="Access Options")
+    if systemd_imported:
+        access_group.add_argument(
+            "--no-detect-systemd",
+            action="store_false",
+            dest="detect_systemd",
+            help="Disable systemd detection and socket activation.",
+        )
     access_group.add_argument(
         "-l",
         "--listen-address",
@@ -1289,15 +1324,23 @@ def main(argv):
     async def xandikos_handler(request):
         return await main_app.aiohttp_handler(request, options.route_prefix)
 
-    if "/" in options.listen_address:
+    if getattr(options, "detect_systemd", False) and systemd.daemon.booted():
+        listen_socks = get_systemd_listen_sockets()
+        socket_path = None
+        listen_address = None
+        listen_port = None
+        logging.info("Receiving file descriptors from systemd socket activation")
+    elif "/" in options.listen_address:
         socket_path = options.listen_address
         listen_address = None
         listen_port = None  # otherwise aiohttp also listens on its default host
+        listen_socks = []
         logging.info("Listening on unix domain socket %s", socket_path)
     else:
         listen_address = options.listen_address
         listen_port = options.port
         socket_path = None
+        listen_socks = []
         logging.info("Listening on %s:%s", listen_address, options.port)
 
     from aiohttp import web
@@ -1340,7 +1383,8 @@ def main(argv):
         else:
             avahi_register(options.port, options.route_prefix)
 
-    web.run_app(app, port=listen_port, host=listen_address, path=socket_path)
+    web.run_app(app, port=listen_port, host=listen_address, path=socket_path,
+                sock=listen_socks)
 
 
 if __name__ == "__main__":
