@@ -63,3 +63,7 @@ coverage:
 
 coverage-html: coverage
 	$(COVERAGE) html
+
+docker:
+	docker build -t jvernooij/xandikos .
+	docker push jvernooij/xandikos

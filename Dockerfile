@@ -41,8 +41,9 @@ ENV current_user_principal="/user1"
 
 # TODO(jelmer): Add support for authentication
 # --plugin=router_basicauth,python3  --route="^/ basicauth:myrealm,user1:password1"
-CMD python3 -m xandikos.web --port=8000 --listen-address=0.0.0.0 \
-          -d=/data \
-          --current-user-principal=$current_user_principal \
-          $(if test "$autocreate" = "yes"; then echo "--autocreate"; fi) \
-          $(if test "$defaults" = "yes"; then echo "--defaults"; fi) \
+ENTRYPOINT python3 -m xandikos.web
+CMD -- --port=8000 --listen-address=0.0.0.0 \
+    -d=/data \
+    --current-user-principal=$current_user_principal \
+    $(if test "$autocreate" = "yes"; then echo "--autocreate"; fi) \
+    $(if test "$defaults" = "yes"; then echo "--defaults"; fi) \
