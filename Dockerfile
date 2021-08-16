@@ -3,7 +3,7 @@
 # Note that this dockerfile starts Xandikos without any authentication;
 # for authenticated access we recommend you run it behind a reverse proxy.
 
-FROM debian:sid
+FROM debian:sid-slim
 LABEL maintainer="jelmer@jelmer.uk"
 RUN apt-get update && \
     apt-get -y install python3-icalendar python3-dulwich python3-jinja2 python3-defusedxml python3-aiohttp python3-prometheus-client && \
