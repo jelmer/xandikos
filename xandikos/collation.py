@@ -23,17 +23,18 @@ from typing import Callable
 
 
 class UnknownCollation(Exception):
-
     def __init__(self, collation: str):
         super(UnknownCollation, self).__init__(
-            "Collation %r is not supported" % collation)
+            "Collation %r is not supported" % collation
+        )
         self.collation = collation
 
 
 collations = {
-    'i;ascii-casemap': lambda a, b: (a.decode('ascii').upper() ==
-                                     b.decode('ascii').upper()),
-    'i;octet': lambda a, b: a == b,
+    "i;ascii-casemap": lambda a, b: (
+        a.decode("ascii").upper() == b.decode("ascii").upper()
+    ),
+    "i;octet": lambda a, b: a == b,
 }
 
 

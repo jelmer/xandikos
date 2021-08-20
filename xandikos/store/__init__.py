@@ -23,18 +23,19 @@ ETags (https://en.wikipedia.org/wiki/HTTP_ETag) used in this file
 are always strong, and should be returned without wrapping quotes.
 """
 
+import logging
 import mimetypes
 from typing import Optional, Iterable, Tuple, Iterator, Dict, Type
 
 from .index import IndexManager
 
-STORE_TYPE_ADDRESSBOOK = 'addressbook'
-STORE_TYPE_CALENDAR = 'calendar'
-STORE_TYPE_PRINCIPAL = 'principal'
-STORE_TYPE_SCHEDULE_INBOX = 'schedule-inbox'
-STORE_TYPE_SCHEDULE_OUTBOX = 'schedule-outbox'
-STORE_TYPE_SUBSCRIPTION = 'subscription'
-STORE_TYPE_OTHER = 'other'
+STORE_TYPE_ADDRESSBOOK = "addressbook"
+STORE_TYPE_CALENDAR = "calendar"
+STORE_TYPE_PRINCIPAL = "principal"
+STORE_TYPE_SCHEDULE_INBOX = "schedule-inbox"
+STORE_TYPE_SCHEDULE_OUTBOX = "schedule-outbox"
+STORE_TYPE_SUBSCRIPTION = "subscription"
+STORE_TYPE_OTHER = "other"
 VALID_STORE_TYPES = (
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
@@ -42,13 +43,14 @@ VALID_STORE_TYPES = (
     STORE_TYPE_SCHEDULE_INBOX,
     STORE_TYPE_SCHEDULE_OUTBOX,
     STORE_TYPE_SUBSCRIPTION,
-    STORE_TYPE_OTHER)
+    STORE_TYPE_OTHER,
+)
 
 MIMETYPES = mimetypes.MimeTypes()
-MIMETYPES.add_type('text/calendar', '.ics')  # type: ignore
-MIMETYPES.add_type('text/vcard', '.vcf')  # type: ignore
+MIMETYPES.add_type("text/calendar", ".ics")  # type: ignore
+MIMETYPES.add_type("text/vcard", ".vcf")  # type: ignore
 
-DEFAULT_MIME_TYPE = 'application/octet-stream'
+DEFAULT_MIME_TYPE = "application/octet-stream"
 
 PARANOID = False
 
@@ -70,8 +72,7 @@ class File(object):
         """
 
     def normalized(self) -> Iterable[bytes]:
-        """Return a normalized version of the file.
-        """
+        """Return a normalized version of the file."""
         return self.content
 
     def describe(self, name: str) -> str:
@@ -91,8 +92,7 @@ class File(object):
         """
         raise NotImplementedError(self.get_uid)
 
-    def describe_delta(self, name: str,
-                       previous: Optional['File']) -> Iterator[str]:
+    def describe_delta(self, name: str, previous: Optional["File"]) -> Iterator[str]:
         """Describe the important difference between this and previous one.
 
         :param name: File name
@@ -162,21 +162,25 @@ class Filter(object):
         raise NotImplementedError(self.check_from_indexes)
 
 
-def open_by_content_type(content: Iterable[bytes], content_type: str,
-                         extra_file_handlers) -> File:
+def open_by_content_type(
+    content: Iterable[bytes], content_type: str, extra_file_handlers
+) -> File:
     """Open a file based on content type.
 
     :param content: list of bytestrings with content
     :param content_type: MIME type
     :return: File instance
     """
-    return extra_file_handlers.get(content_type.split(';')[0], File)(
-        content, content_type)
+    return extra_file_handlers.get(content_type.split(";")[0], File)(
+        content, content_type
+    )
 
 
 def open_by_extension(
-        content: Iterable[bytes], name: str,
-        extra_file_handlers: Dict[str, Type[File]]) -> File:
+    content: Iterable[bytes],
+    name: str,
+    extra_file_handlers: Dict[str, Type[File]],
+) -> File:
     """Open a file based on the filename extension.
 
     :param content: list of bytestrings with content
@@ -186,8 +190,9 @@ def open_by_extension(
     (mime_type, _) = MIMETYPES.guess_type(name)
     if mime_type is None:
         mime_type = DEFAULT_MIME_TYPE
-    return open_by_content_type(content, mime_type,
-                                extra_file_handlers=extra_file_handlers)
+    return open_by_content_type(
+        content, mime_type, extra_file_handlers=extra_file_handlers
+    )
 
 
 class DuplicateUidError(Exception):
@@ -231,6 +236,20 @@ class InvalidFileContents(Exception):
         self.error = error
 
 
+class OutOfSpaceError(Exception):
+    """Out of disk space."""
+
+    def __init__(self):
+        pass
+
+
+class LockedError(Exception):
+    """File or store being accessed is locked."""
+
+    def __init__(self, path: str):
+        self.path = path
+
+
 class Store(object):
     """A object store."""
 
@@ -244,8 +263,7 @@ class Store(object):
     def load_extra_file_handler(self, file_handler: Type[File]) -> None:
         self.extra_file_handlers[file_handler.content_type] = file_handler
 
-    def iter_with_etag(
-            self, ctag: str = None) -> Iterator[Tuple[str, str, str]]:
+    def iter_with_etag(self, ctag: str = None) -> Iterator[Tuple[str, str, str]]:
         """Iterate over all items in the store with etag.
 
         :param ctag: Possible ctag to iterate for
@@ -253,8 +271,7 @@ class Store(object):
         """
         raise NotImplementedError(self.iter_with_etag)
 
-    def iter_with_filter(
-            self, filter: Filter) -> Iterator[Tuple[str, File, str]]:
+    def iter_with_filter(self, filter: Filter) -> Iterator[Tuple[str, File, str]]:
         """Iterate over all items in the store that match a particular filter.
 
         :param filter: Filter to apply
@@ -266,23 +283,27 @@ class Store(object):
             except NotImplementedError:
                 pass
             else:
-                present_keys = self.index_manager.find_present_keys(
-                    necessary_keys)
+                present_keys = self.index_manager.find_present_keys(necessary_keys)
                 if present_keys is not None:
                     return self._iter_with_filter_indexes(filter, present_keys)
         return self._iter_with_filter_naive(filter)
 
     def _iter_with_filter_naive(
-            self, filter: Filter) -> Iterator[Tuple[str, File, str]]:
+        self, filter: Filter
+    ) -> Iterator[Tuple[str, File, str]]:
         for (name, content_type, etag) in self.iter_with_etag():
             if not filter.content_type == content_type:
                 continue
             file = self.get_file(name, content_type, etag)
-            if filter.check(name, file):
-                yield (name, file, etag)
+            try:
+                if filter.check(name, file):
+                    yield (name, file, etag)
+            except InvalidFileContents:
+                logging.warning("Unable to parse file %s, skipping.", name)
 
     def _iter_with_filter_indexes(
-            self, filter: Filter, keys) -> Iterator[Tuple[str, File, str]]:
+        self, filter: Filter, keys
+    ) -> Iterator[Tuple[str, File, str]]:
         for (name, content_type, etag) in self.iter_with_etag():
             if not filter.content_type == content_type:
                 continue
@@ -291,7 +312,13 @@ class Store(object):
             except KeyError:
                 # Index values not yet present for this file.
                 file = self.get_file(name, content_type, etag)
-                file_values = file.get_indexes(self.index.available_keys())
+                try:
+                    file_values = file.get_indexes(self.index.available_keys())
+                except InvalidFileContents:
+                    logging.warning(
+                        "Unable to parse file %s for indexing, skipping.", name
+                    )
+                    file_values = {}
                 self.index.add_values(name, etag, file_values)
                 if filter.check_from_indexes(name, file_values):
                     yield (name, file, etag)
@@ -301,33 +328,43 @@ class Store(object):
                 file = self.get_file(name, content_type, etag)
                 if PARANOID:
                     if file_values != file.get_indexes(keys):
-                        raise AssertionError('%r != %r' % (
-                            file_values, file.get_indexes(keys)))
-                    if (filter.check_from_indexes(name, file_values) !=
-                            filter.check(name, file)):
                         raise AssertionError(
-                            'index based filter not matching real file filter')
+                            "%r != %r" % (file_values, file.get_indexes(keys))
+                        )
+                    if filter.check_from_indexes(name, file_values) != filter.check(
+                        name, file
+                    ):
+                        raise AssertionError(
+                            "index based filter not matching real file filter"
+                        )
                 if filter.check_from_indexes(name, file_values):
                     file = self.get_file(name, content_type, etag)
                     yield (name, file, etag)
 
-    def get_file(self, name: str, content_type: Optional[str] = None,
-                 etag: Optional[str] = None) -> File:
+    def get_file(
+        self,
+        name: str,
+        content_type: Optional[str] = None,
+        etag: Optional[str] = None,
+    ) -> File:
         """Get the contents of an object.
 
         :return: A File object
         """
         if content_type is None:
             return open_by_extension(
-                self._get_raw(name, etag), name,
-                extra_file_handlers=self.extra_file_handlers)
+                self._get_raw(name, etag),
+                name,
+                extra_file_handlers=self.extra_file_handlers,
+            )
         else:
             return open_by_content_type(
-                self._get_raw(name, etag), content_type,
-                extra_file_handlers=self.extra_file_handlers)
+                self._get_raw(name, etag),
+                content_type,
+                extra_file_handlers=self.extra_file_handlers,
+            )
 
-    def _get_raw(
-            self, name: str, etag: Optional[str] = None) -> Iterable[bytes]:
+    def _get_raw(self, name: str, etag: Optional[str] = None) -> Iterable[bytes]:
         """Get the raw contents of an object.
 
         :param name: Filename
@@ -340,11 +377,14 @@ class Store(object):
         """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
 
-    def import_one(self, name: str,
-                   data: Iterable[bytes],
-                   message: Optional[str] = None,
-                   author: Optional[str] = None,
-                   replace_etag: Optional[str] = None) -> Tuple[str, str]:
+    def import_one(
+        self,
+        name: str,
+        data: Iterable[bytes],
+        message: Optional[str] = None,
+        author: Optional[str] = None,
+        replace_etag: Optional[str] = None,
+    ) -> Tuple[str, str]:
         """Import a single object.
 
         :param name: Name of the object
@@ -359,9 +399,12 @@ class Store(object):
         raise NotImplementedError(self.import_one)
 
     def delete_one(
-            self, name: str, message: Optional[str] = None,
-            author: Optional[str] = None,
-            etag: Optional[str] = None) -> None:
+        self,
+        name: str,
+        message: Optional[str] = None,
+        author: Optional[str] = None,
+        etag: Optional[str] = None,
+    ) -> None:
         """Delete an item.
 
         :param name: Filename to delete
@@ -387,9 +430,9 @@ class Store(object):
         """
         ret = STORE_TYPE_OTHER
         for (name, content_type, etag) in self.iter_with_etag():
-            if content_type == 'text/calendar':
+            if content_type == "text/calendar":
                 ret = STORE_TYPE_CALENDAR
-            elif content_type == 'text/vcard':
+            elif content_type == "text/vcard":
                 ret = STORE_TYPE_ADDRESSBOOK
         return ret
 
@@ -401,18 +444,15 @@ class Store(object):
         raise NotImplementedError(self.set_description)
 
     def get_description(self) -> str:
-        """Get the extended description of this store.
-        """
+        """Get the extended description of this store."""
         raise NotImplementedError(self.get_description)
 
     def get_displayname(self) -> str:
-        """Get the display name of this store.
-        """
+        """Get the display name of this store."""
         raise NotImplementedError(self.get_displayname)
 
     def set_displayname(self, displayname: str) -> None:
-        """Set the display name of this store.
-        """
+        """Set the display name of this store."""
         raise NotImplementedError(self.set_displayname)
 
     def get_color(self) -> str:
@@ -424,8 +464,8 @@ class Store(object):
         raise NotImplementedError(self.set_color)
 
     def iter_changes(
-            self, old_ctag: str,
-            new_ctag: str) -> Iterator[Tuple[str, str, str, str]]:
+        self, old_ctag: str, new_ctag: str
+    ) -> Iterator[Tuple[str, str, str, str]]:
         """Get changes between two versions of this store.
 
         :param old_ctag: Old ctag (None for empty Store)
@@ -476,4 +516,5 @@ def open_store(location: str) -> Store:
     """
     # For now, just support opening git stores
     from .git import GitStore
+
     return GitStore.open_from_path(location)

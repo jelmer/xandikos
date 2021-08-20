@@ -34,11 +34,11 @@ ET = webdav.ET
 
 WELLKNOWN_CARDDAV_PATH = "/.well-known/carddav"
 
-NAMESPACE = 'urn:ietf:params:xml:ns:carddav'
-ADDRESSBOOK_RESOURCE_TYPE = '{%s}addressbook' % NAMESPACE
+NAMESPACE = "urn:ietf:params:xml:ns:carddav"
+ADDRESSBOOK_RESOURCE_TYPE = "{%s}addressbook" % NAMESPACE
 
 # Feature to advertise presence of CardDAV support
-FEATURE = 'addressbook'
+FEATURE = "addressbook"
 
 
 class AddressbookHomeSetProperty(webdav.Property):
@@ -47,8 +47,8 @@ class AddressbookHomeSetProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6352, section 7.1.1
     """
 
-    name = '{%s}addressbook-home-set' % NAMESPACE
-    resource_type = '{DAV:}principal'
+    name = "{%s}addressbook-home-set" % NAMESPACE
+    resource_type = "{DAV:}principal"
     in_allprops = False
     live = True
 
@@ -67,15 +67,15 @@ class AddressDataProperty(davcommon.SubbedProperty):
     it is thus not registered in the regular webdav server.
     """
 
-    name = '{%s}address-data' % NAMESPACE
+    name = "{%s}address-data" % NAMESPACE
 
     def supported_on(self, resource):
-        return (resource.get_content_type() == 'text/vcard')
+        return resource.get_content_type() == "text/vcard"
 
     async def get_value_ext(self, href, resource, el, environ, requested):
         # TODO(jelmer): Support subproperties
         # TODO(jelmer): Don't hardcode encoding
-        el.text = b''.join(await resource.get_body()).decode('utf-8')
+        el.text = b"".join(await resource.get_body()).decode("utf-8")
 
 
 class AddressbookDescriptionProperty(webdav.Property):
@@ -84,27 +84,26 @@ class AddressbookDescriptionProperty(webdav.Property):
     https://tools.ietf.org/html/rfc6352, section 6.2.1
     """
 
-    name = '{%s}addressbook-description' % NAMESPACE
+    name = "{%s}addressbook-description" % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
 
     async def get_value(self, href, resource, el, environ):
         el.text = resource.get_addressbook_description()
 
-    def set_value(self, href, resource, el):
+    async def set_value(self, href, resource, el):
         resource.set_addressbook_description(el.text)
 
 
 class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
 
-    name = '{%s}addressbook-multiget' % NAMESPACE
+    name = "{%s}addressbook-multiget" % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     data_property = AddressDataProperty()
 
 
 class Addressbook(webdav.Collection):
 
-    resource_types = (
-        webdav.Collection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE])
+    resource_types = webdav.Collection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE]
 
     def get_addressbook_description(self) -> str:
         raise NotImplementedError(self.get_addressbook_description)
@@ -161,13 +160,12 @@ class PrincipalAddressProperty(webdav.Property):
     https://tools.ietf.org/html/rfc6352, section 7.1.2
     """
 
-    name = '{%s}principal-address' % NAMESPACE
-    resource_type = '{DAV:}principal'
+    name = "{%s}principal-address" % NAMESPACE
+    resource_type = "{DAV:}principal"
     in_allprops = False
 
     async def get_value(self, href, resource, el, environ):
-        el.append(webdav.create_href(
-            resource.get_principal_address(), href))
+        el.append(webdav.create_href(resource.get_principal_address(), href))
 
 
 class SupportedAddressDataProperty(webdav.Property):
@@ -176,17 +174,19 @@ class SupportedAddressDataProperty(webdav.Property):
     https://tools.ietf.org/html/rfc6352, section 6.2.2
     """
 
-    name = '{%s}supported-address-data' % NAMESPACE
+    name = "{%s}supported-address-data" % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
     live = True
 
     async def get_value(self, href, resource, el, environ):
-        for (content_type,
-             version) in resource.get_supported_address_data_types():
-            subel = ET.SubElement(el, '{%s}content-type' % NAMESPACE)
-            subel.set('content-type', content_type)
-            subel.set('version', version)
+        for (
+            content_type,
+            version,
+        ) in resource.get_supported_address_data_types():
+            subel = ET.SubElement(el, "{%s}content-type" % NAMESPACE)
+            subel.set("content-type", content_type)
+            subel.set("version", version)
 
 
 class MaxResourceSizeProperty(webdav.Property):
@@ -195,7 +195,7 @@ class MaxResourceSizeProperty(webdav.Property):
     See https://tools.ietf.org/html/rfc6352, section 6.2.3.
     """
 
-    name = '{%s}max-resource-size' % NAMESPACE
+    name = "{%s}max-resource-size" % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
     live = True
@@ -210,7 +210,7 @@ class MaxImageSizeProperty(webdav.Property):
     This seems to be a carddav extension used by iOS and caldavzap.
     """
 
-    name = '{%s}max-image-size' % NAMESPACE
+    name = "{%s}max-image-size" % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     in_allprops = False
     live = True
@@ -221,7 +221,7 @@ class MaxImageSizeProperty(webdav.Property):
 
 def addressbook_from_resource(resource):
     try:
-        if resource.get_content_type() != 'text/vcard':
+        if resource.get_content_type() != "text/vcard":
             return None
     except KeyError:
         return None
@@ -229,27 +229,24 @@ def addressbook_from_resource(resource):
 
 
 def apply_text_match(el, value):
-    collation = el.get('collation', 'i;ascii-casemap')
-    negate_condition = el.get('negate-condition', 'no')
+    collation = el.get("collation", "i;ascii-casemap")
+    negate_condition = el.get("negate-condition", "no")
     # TODO(jelmer): Handle match-type: 'contains', 'equals', 'starts-with',
     # 'ends-with'
-    match_type = el.get('match-type', 'contains')
-    if match_type != 'contains':
-        raise NotImplementedError('match_type != contains: %r' % match_type)
+    match_type = el.get("match-type", "contains")
+    if match_type != "contains":
+        raise NotImplementedError("match_type != contains: %r" % match_type)
     matches = _mod_collation.collations[collation](el.text, value)
 
-    if negate_condition == 'yes':
-        return (not matches)
+    if negate_condition == "yes":
+        return not matches
     else:
         return matches
 
 
 def apply_param_filter(el, prop):
-    name = el.get('name')
-    if (
-        len(el) == 1 and
-        el[0].tag == '{urn:ietf:params:xml:ns:carddav}is-not-defined'
-    ):
+    name = el.get("name")
+    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
         return name not in prop.params
 
     try:
@@ -258,26 +255,23 @@ def apply_param_filter(el, prop):
         return False
 
     for subel in el:
-        if subel.tag == '{urn:ietf:params:xml:ns:carddav}text-match':
+        if subel.tag == "{urn:ietf:params:xml:ns:carddav}text-match":
             if not apply_text_match(subel, value):
                 return False
         else:
-            raise AssertionError('unknown tag %r in param-filter', subel.tag)
+            raise AssertionError("unknown tag %r in param-filter", subel.tag)
     return True
 
 
 def apply_prop_filter(el, ab):
-    name = el.get('name')
+    name = el.get("name")
     # From https://tools.ietf.org/html/rfc6352
     # A CARDDAV:prop-filter is said to match if:
 
     # The CARDDAV:prop-filter XML element contains a CARDDAV:is-not-defined XML
     # element and no property of the type specified by the "name" attribute
     # exists in the enclosing calendar component;
-    if (
-        len(el) == 1 and
-        el[0].tag == '{urn:ietf:params:xml:ns:carddav}is-not-defined'
-    ):
+    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
         return name not in ab
 
     try:
@@ -286,75 +280,86 @@ def apply_prop_filter(el, ab):
         return False
 
     for subel in el:
-        if subel.tag == '{urn:ietf:params:xml:ns:carddav}text-match':
+        if subel.tag == "{urn:ietf:params:xml:ns:carddav}text-match":
             if not apply_text_match(subel, prop):
                 return False
-        elif subel.tag == '{urn:ietf:params:xml:ns:carddav}param-filter':
+        elif subel.tag == "{urn:ietf:params:xml:ns:carddav}param-filter":
             if not apply_param_filter(subel, prop):
                 return False
     return True
 
 
 def apply_filter(el, resource):
-    """Compile a filter element into a Python function.
-    """
+    """Compile a filter element into a Python function."""
     if el is None or not list(el):
         # Empty filter, let's not bother parsing
         return lambda x: True
     ab = addressbook_from_resource(resource)
     if ab is None:
         return False
-    test_name = el.get('test', 'anyof')
-    test = {'allof': all, 'anyof': any}[test_name]
+    test_name = el.get("test", "anyof")
+    test = {"allof": all, "anyof": any}[test_name]
     return test(apply_prop_filter(subel, ab) for subel in el)
 
 
 class AddressbookQueryReporter(webdav.Reporter):
 
-    name = '{%s}addressbook-query' % NAMESPACE
+    name = "{%s}addressbook-query" % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     data_property = AddressDataProperty()
 
     @webdav.multistatus
-    async def report(self, environ, body, resources_by_hrefs, properties,
-                     base_href, base_resource, depth):
+    async def report(
+        self,
+        environ,
+        body,
+        resources_by_hrefs,
+        properties,
+        base_href,
+        base_resource,
+        depth,
+    ):
         requested = None
         filter_el = None
         limit = None
         for el in body:
-            if el.tag in ('{DAV:}prop', '{DAV:}allprop', '{DAV:}propname'):
+            if el.tag in ("{DAV:}prop", "{DAV:}allprop", "{DAV:}propname"):
                 requested = el
-            elif el.tag == ('{%s}filter' % NAMESPACE):
+            elif el.tag == ("{%s}filter" % NAMESPACE):
                 filter_el = el
-            elif el.tag == ('{%s}limit' % NAMESPACE):
+            elif el.tag == ("{%s}limit" % NAMESPACE):
                 limit = el
             else:
                 raise webdav.BadRequestError(
-                    'Unknown tag %s in report %s' % (el.tag, self.name))
+                    "Unknown tag %s in report %s" % (el.tag, self.name)
+                )
         if limit is not None:
             try:
                 [nresults_el] = list(limit)
             except ValueError:
-                raise webdav.BadRequestError(
-                    'Invalid number of subelements in limit')
+                raise webdav.BadRequestError("Invalid number of subelements in limit")
             try:
                 nresults = int(nresults_el.text)
             except ValueError:
-                raise webdav.BadRequestError(
-                    'nresults not a number')
+                raise webdav.BadRequestError("nresults not a number")
         else:
             nresults = None
 
         i = 0
         async for (href, resource) in webdav.traverse_resource(
-                base_resource, base_href, depth):
+            base_resource, base_href, depth
+        ):
             if not apply_filter(filter_el, resource):
                 continue
             if nresults is not None and i >= nresults:
                 break
             propstat = davcommon.get_properties_with_data(
-                self.data_property, href, resource, properties, environ,
-                requested)
-            yield webdav.Status(
-                href, '200 OK', propstat=[s async for s in propstat])
+                self.data_property,
+                href,
+                resource,
+                properties,
+                environ,
+                requested,
+            )
+            yield webdav.Status(href, "200 OK", propstat=[s async for s in propstat])
             i += 1

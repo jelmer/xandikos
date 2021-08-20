@@ -24,9 +24,11 @@ from typing import List
 
 def main(argv: List[str]):
     from .web import main
+
     return main(argv)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
+
     main(sys.argv)

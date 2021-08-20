@@ -28,15 +28,17 @@ from xandikos.tests import test_webdav
 
 
 class WebTests(test_webdav.WebTestCase):
-
     def makeApp(self, backend):
         app = WebDAVApp(backend)
         app.register_methods([caldav.MkcalendarMethod()])
         return app
 
     def mkcalendar(self, app, path):
-        environ = {'PATH_INFO': path, 'REQUEST_METHOD': 'MKCALENDAR',
-                   'SCRIPT_NAME': ''}
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": "MKCALENDAR",
+            "SCRIPT_NAME": "",
+        }
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -44,7 +46,8 @@ class WebTests(test_webdav.WebTestCase):
         def start_response(code, headers):
             _code.append(code)
             _headers.extend(headers)
-        contents = b''.join(app(environ, start_response))
+
+        contents = b"".join(app(environ, start_response))
         return _code[0], _headers, contents
 
     def test_mkcalendar_ok(self):
@@ -56,44 +59,49 @@ class WebTests(test_webdav.WebTestCase):
                 return None
 
         class ResourceTypeProperty(Property):
-            name = '{DAV:}resourcetype'
+            name = "{DAV:}resourcetype"
 
             async def get_value(unused_self, href, resource, ret, environ):
-                ET.SubElement(ret, '{DAV:}collection')
+                ET.SubElement(ret, "{DAV:}collection")
 
-            def set_value(unused_self, href, resource, ret):
+            async def set_value(unused_self, href, resource, ret):
                 self.assertEqual(
-                    ['{DAV:}collection',
-                     '{urn:ietf:params:xml:ns:caldav}calendar'],
-                    [x.tag for x in ret])
+                    [
+                        "{DAV:}collection",
+                        "{urn:ietf:params:xml:ns:caldav}calendar",
+                    ],
+                    [x.tag for x in ret],
+                )
 
         app = self.makeApp(Backend())
         app.register_properties([ResourceTypeProperty()])
-        code, headers, contents = self.mkcalendar(app, '/resource/bla')
-        self.assertEqual('201 Created', code)
-        self.assertEqual(b'', contents)
+        code, headers, contents = self.mkcalendar(app, "/resource/bla")
+        self.assertEqual("201 Created", code)
+        self.assertEqual(b"", contents)
 
 
 class ExtractfromCalendarTests(unittest.TestCase):
-
     def setUp(self):
         super(ExtractfromCalendarTests, self).setUp()
-        self.requested = ET.Element('{%s}calendar-data' % caldav.NAMESPACE)
+        self.requested = ET.Element("{%s}calendar-data" % caldav.NAMESPACE)
 
     def extractEqual(self, incal_str, outcal_str):
         incal = ICalendar.from_ical(incal_str)
         expected_outcal = ICalendar.from_ical(outcal_str)
         outcal = ICalendar()
-        caldav.extract_from_calendar(incal, outcal, self.requested)
-        self.assertEqual(
+        outcal = caldav.extract_from_calendar(incal, self.requested)
+        self.maxDiff = None
+        self.assertMultiLineEqual(
             expected_outcal.to_ical().decode(),
             outcal.to_ical().decode(),
-            ET.tostring(self.requested))
+            ET.tostring(self.requested),
+        )
 
     def test_comp(self):
-        comp = ET.SubElement(self.requested, '{%s}comp' % caldav.NAMESPACE)
-        comp.set('name', 'VCALENDAR')
-        self.extractEqual("""\
+        comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
+        comp.set("name", "VCALENDAR")
+        self.extractEqual(
+            """\
 BEGIN:VCALENDAR
 BEGIN:VTODO
 CLASS:PUBLIC
@@ -101,125 +109,139 @@ COMPLETED:20100829T234417Z
 CREATED:20090606T042958Z
 END:VTODO
 END:VCALENDAR
-""", """\
+""",
+            """\
 BEGIN:VCALENDAR
 END:VCALENDAR
-""")
+""",
+        )
 
     def test_comp_nested(self):
-        vcal_comp = ET.SubElement(
-            self.requested, '{%s}comp' % caldav.NAMESPACE)
-        vcal_comp.set('name', 'VCALENDAR')
-        vtodo_comp = ET.SubElement(vcal_comp, '{%s}comp' % caldav.NAMESPACE)
-        vtodo_comp.set('name', 'VTODO')
-        self.extractEqual("""\
+        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp.set("name", "VCALENDAR")
+        vtodo_comp = ET.SubElement(vcal_comp, "{%s}comp" % caldav.NAMESPACE)
+        vtodo_comp.set("name", "VTODO")
+        self.extractEqual(
+            """\
 BEGIN:VCALENDAR
 BEGIN:VTODO
 COMPLETED:20100829T234417Z
 CREATED:20090606T042958Z
 END:VTODO
 END:VCALENDAR
-""", """\
+""",
+            """\
 BEGIN:VCALENDAR
 BEGIN:VTODO
 END:VTODO
 END:VCALENDAR
-""")
-        self.extractEqual("""\
+""",
+        )
+        self.extractEqual(
+            """\
 BEGIN:VCALENDAR
 BEGIN:VEVENT
 COMPLETED:20100829T234417Z
 CREATED:20090606T042958Z
 END:VEVENT
 END:VCALENDAR
-""", """\
+""",
+            """\
 BEGIN:VCALENDAR
 END:VCALENDAR
-""")
+""",
+        )
 
     def test_prop(self):
-        vcal_comp = ET.SubElement(
-            self.requested, '{%s}comp' % caldav.NAMESPACE)
-        vcal_comp.set('name', 'VCALENDAR')
-        vtodo_comp = ET.SubElement(vcal_comp, '{%s}comp' % caldav.NAMESPACE)
-        vtodo_comp.set('name', 'VTODO')
-        completed_prop = ET.SubElement(
-            vtodo_comp, '{%s}prop' % caldav.NAMESPACE)
-        completed_prop.set('name', 'COMPLETED')
-        self.extractEqual("""\
+        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp.set("name", "VCALENDAR")
+        vtodo_comp = ET.SubElement(vcal_comp, "{%s}comp" % caldav.NAMESPACE)
+        vtodo_comp.set("name", "VTODO")
+        completed_prop = ET.SubElement(vtodo_comp, "{%s}prop" % caldav.NAMESPACE)
+        completed_prop.set("name", "COMPLETED")
+        self.extractEqual(
+            """\
 BEGIN:VCALENDAR
 BEGIN:VTODO
 COMPLETED:20100829T234417Z
 CREATED:20090606T042958Z
 END:VTODO
 END:VCALENDAR
-""", """\
+""",
+            """\
 BEGIN:VCALENDAR
 BEGIN:VTODO
 COMPLETED:20100829T234417Z
 END:VTODO
 END:VCALENDAR
-""")
-        self.extractEqual("""\
+""",
+        )
+        self.extractEqual(
+            """\
 BEGIN:VCALENDAR
 BEGIN:VEVENT
 CREATED:20090606T042958Z
 END:VEVENT
 END:VCALENDAR
-""", """\
+""",
+            """\
 BEGIN:VCALENDAR
 END:VCALENDAR
-""")
+""",
+        )
 
     def test_allprop(self):
-        vcal_comp = ET.SubElement(
-            self.requested, '{%s}comp' % caldav.NAMESPACE)
-        vcal_comp.set('name', 'VCALENDAR')
-        vtodo_comp = ET.SubElement(vcal_comp, '{%s}comp' % caldav.NAMESPACE)
-        vtodo_comp.set('name', 'VTODO')
-        ET.SubElement(vtodo_comp, '{%s}allprop' % caldav.NAMESPACE)
-        self.extractEqual("""\
+        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp.set("name", "VCALENDAR")
+        vtodo_comp = ET.SubElement(vcal_comp, "{%s}comp" % caldav.NAMESPACE)
+        vtodo_comp.set("name", "VTODO")
+        ET.SubElement(vtodo_comp, "{%s}allprop" % caldav.NAMESPACE)
+        self.extractEqual(
+            """\
 BEGIN:VCALENDAR
 BEGIN:VTODO
 COMPLETED:20100829T234417Z
 CREATED:20090606T042958Z
 END:VTODO
 END:VCALENDAR
-""", """\
+""",
+            """\
 BEGIN:VCALENDAR
 BEGIN:VTODO
 COMPLETED:20100829T234417Z
 CREATED:20090606T042958Z
 END:VTODO
 END:VCALENDAR
-""")
+""",
+        )
 
     def test_allcomp(self):
-        vcal_comp = ET.SubElement(
-            self.requested,
-            '{%s}comp' % caldav.NAMESPACE)
-        vcal_comp.set('name', 'VCALENDAR')
-        ET.SubElement(vcal_comp, '{%s}allcomp' % caldav.NAMESPACE)
-        self.extractEqual("""\
+        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp.set("name", "VCALENDAR")
+        ET.SubElement(vcal_comp, "{%s}allcomp" % caldav.NAMESPACE)
+        self.extractEqual(
+            """\
 BEGIN:VCALENDAR
 BEGIN:VTODO
 COMPLETED:20100829T234417Z
 CREATED:20090606T042958Z
 END:VTODO
 END:VCALENDAR
-""", """\
+""",
+            """\
 BEGIN:VCALENDAR
 BEGIN:VTODO
 END:VTODO
 END:VCALENDAR
-""")
+""",
+        )
 
     def test_expand(self):
-        expand = ET.SubElement(self.requested, '{%s}expand' % caldav.NAMESPACE)
-        expand.set('start', '20060103T000000Z')
-        expand.set('end', '20060105T000000Z')
-        with self.assertRaises(NotImplementedError):
-            self.extractEqual("""\
+        expand = ET.SubElement(self.requested, "{%s}expand" % caldav.NAMESPACE)
+        expand.set("start", "20060103T000000Z")
+        expand.set("end", "20060105T000000Z")
+        self.extractEqual(
+            """\
 BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -258,7 +280,8 @@ SUMMARY:Event #2 bis
 UID:00959BC664CA650E933C892C@example.com
 END:VEVENT
 END:VCALENDAR
-""", """\
+""",
+            """\
 BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -279,4 +302,5 @@ SUMMARY:Event #2 bis
 UID:00959BC664CA650E933C892C@example.com
 END:VEVENT
 END:VCALENDAR
-""")
+""",
+        )

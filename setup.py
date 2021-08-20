@@ -23,7 +23,7 @@
 from setuptools import find_packages, setup
 import sys
 
-version = "0.2.2"
+version = "0.2.6"
 
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
@@ -53,6 +53,7 @@ setup(name="xandikos",
       },
       packages=find_packages(),
       package_data={'xandikos': ['templates/*.html']},
+      data_files=[('share/man/man8', ['man/xandikos.8'])],
       scripts=['bin/xandikos'],
       test_suite='xandikos.tests.test_suite',
       classifiers=[
