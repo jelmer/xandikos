@@ -1,4 +1,4 @@
-xandikos (0.2.6-1) UNRELEASED; urgency=medium
+xandikos (0.2.6-1) unstable; urgency=medium
 
   * New upstream release.
     + Fixes uwsgi support. Closes: #992190
@@ -7,7 +7,7 @@ xandikos (0.2.6-1) UNRELEASED; urgency=medium
   * Update standards version to 4.5.1, no changes needed.
   * Update watch file format version to 4.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 20 Aug 2021 13:24:38 +0100
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 20 Aug 2021 13:28:10 +0100
 
 xandikos (0.2.2-1) unstable; urgency=medium
 
