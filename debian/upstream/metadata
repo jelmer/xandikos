@@ -2,3 +2,4 @@ Repository: https://github.com/jelmer/xandikos.git
 Repository-Browse: https://github.com/jelmer/xandikos
 Bug-Database: https://github.com/jelmer/xandikos/issues/
 Bug-Submit: https://github.com/jelmer/xandikos/issues/new
+Security-Contact: https://github.com/jelmer/xandikos/tree/HEAD/SECURITY.md

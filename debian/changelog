@@ -3,6 +3,7 @@ xandikos (0.2.6-1) UNRELEASED; urgency=medium
   * New upstream release.
     + Fixes uwsgi support. Closes: #992190
   * Re-export upstream signing key without extra signatures.
+  * Set upstream metadata fields: Security-Contact.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 20 Aug 2021 13:24:38 +0100
 
