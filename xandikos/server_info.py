@@ -30,8 +30,8 @@ from xandikos import webdav
 ET = webdav.ET
 
 # Feature to advertise server-info support.
-FEATURE = 'server-info'
-SERVER_INFO_MIME_TYPE = 'application/server-info+xml'
+FEATURE = "server-info"
+SERVER_INFO_MIME_TYPE = "application/server-info+xml"
 
 
 class ServerInfo(object):
@@ -50,22 +50,22 @@ class ServerInfo(object):
     def token(self):
         if self._token is None:
             h = hashlib.sha1sum()
-            h.update(version_string.encode('utf-8'))
-            for z in (self._features + self._applications):
-                h.update(z.encode('utf-8'))
+            h.update(version_string.encode("utf-8"))
+            for z in self._features + self._applications:
+                h.update(z.encode("utf-8"))
             self._token = h.hexdigest()
         return self._token
 
     async def get_body(self):
-        el = ET.Element('{DAV:}server-info')
-        el.set('token', self.token)
-        server_el = ET.SubElement(el, 'server-instance-info')
-        ET.SubElement(server_el, 'name').text = 'Xandikos'
-        ET.SubElement(server_el, 'version').text = version_string
-        features_el = ET.SubElement(el, 'features')
+        el = ET.Element("{DAV:}server-info")
+        el.set("token", self.token)
+        server_el = ET.SubElement(el, "server-instance-info")
+        ET.SubElement(server_el, "name").text = "Xandikos"
+        ET.SubElement(server_el, "version").text = version_string
+        features_el = ET.SubElement(el, "features")
         for feature in self._features:
             features_el.append(feature)
-        applications_el = ET.SubElement(el, 'applications')
+        applications_el = ET.SubElement(el, "applications")
         for application in self.applications:
             applications_el.append(application)
         return el

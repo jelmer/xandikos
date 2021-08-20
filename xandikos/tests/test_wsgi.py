@@ -25,8 +25,8 @@ from xandikos.wsgi_helpers import (
 
 
 class WebTests(unittest.TestCase):
-
     def test_wellknownredirector(self):
         def app(environ, start_response):
             pass
-        WellknownRedirector(app, '/path')
+
+        WellknownRedirector(app, "/path")

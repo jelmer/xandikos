@@ -1,0 +1,17 @@
+<?xml version="1.0" standalone='no'?>
+<!-- Place this file in /etc/avahi/services and modify as necessary.
+
+See https://tools.ietf.org/html/draft-daboo-srv-caldav-01 for details.
+-->
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+ <name replace-wildcards="yes">Xandikos CalDAV/CardDAV server on %h</name>
+ <service>
+  <type>_caldavs._tcp</type>
+  <port>443</port>
+ </service>
+ <service>
+  <type>_carddavs._tcp</type>
+  <port>443</port>
+ </service>
+</service-group>

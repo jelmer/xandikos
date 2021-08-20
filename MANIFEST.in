@@ -1,6 +1,7 @@
 include *.rst
 include AUTHORS
 include COPYING
+include README.rst
 include Makefile
 include compat/*.sh
 include compat/*.rst

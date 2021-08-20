@@ -47,15 +47,14 @@ from .config import (
 from .index import MemoryIndex
 
 
-DEFAULT_ENCODING = 'utf-8'
+DEFAULT_ENCODING = "utf-8"
 
 
 logger = logging.getLogger(__name__)
 
 
 class VdirStore(Store):
-    """A Store backed by a Vdir directory.
-    """
+    """A Store backed by a Vdir directory."""
 
     def __init__(self, path, check_for_duplicate_uids=True):
         super(VdirStore, self).__init__(MemoryIndex())
@@ -69,8 +68,9 @@ class VdirStore(Store):
         cp.read([os.path.join(self.path, CONFIG_FILENAME)])
 
         def save_config(cp, message):
-            with open(os.path.join(self.path, CONFIG_FILENAME), 'w') as f:
+            with open(os.path.join(self.path, CONFIG_FILENAME), "w") as f:
                 cp.write(f)
+
         self.config = FileBasedCollectionMetadata(cp, save=save_config)
 
     def __repr__(self):
@@ -80,7 +80,7 @@ class VdirStore(Store):
         path = os.path.join(self.path, name)
         md5 = hashlib.md5()
         try:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 for chunk in f:
                     md5.update(chunk)
         except IOError as e:
@@ -98,7 +98,7 @@ class VdirStore(Store):
         """
         path = os.path.join(self.path, name)
         try:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 return [f.read()]
         except IOError as e:
             if e.errno == errno.ENOENT:
@@ -110,18 +110,18 @@ class VdirStore(Store):
         for (name, content_type, etag) in self.iter_with_etag():
             if name in removed:
                 removed.remove(name)
-            if (name in self._fname_to_uid and
-                    self._fname_to_uid[name][0] == etag):
+            if name in self._fname_to_uid and self._fname_to_uid[name][0] == etag:
                 continue
-            fi = open_by_extension(self._get_raw(name, etag), name,
-                                   self.extra_file_handlers)
+            fi = open_by_extension(
+                self._get_raw(name, etag), name, self.extra_file_handlers
+            )
             try:
                 uid = fi.get_uid()
             except KeyError:
-                logger.warning('No UID found in file %s', name)
+                logger.warning("No UID found in file %s", name)
                 uid = None
             except InvalidFileContents:
-                logging.warning('Unable to parse file %s', name)
+                logging.warning("Unable to parse file %s", name)
                 uid = None
             except NotImplementedError:
                 # This file type doesn't support UIDs
@@ -154,8 +154,15 @@ class VdirStore(Store):
             raise InvalidETag(name, etag, replace_etag)
         return etag
 
-    def import_one(self, name, content_type, data, message=None, author=None,
-                   replace_etag=None):
+    def import_one(
+        self,
+        name,
+        content_type,
+        data,
+        message=None,
+        author=None,
+        replace_etag=None,
+    ):
         """Import a single object.
 
         :param name: name of the object
@@ -172,8 +179,7 @@ class VdirStore(Store):
         if content_type is None:
             fi = open_by_extension(data, name, self.extra_file_handlers)
         else:
-            fi = open_by_content_type(
-                data, content_type, self.extra_file_handlers)
+            fi = open_by_content_type(data, content_type, self.extra_file_handlers)
         if name is None:
             name = str(uuid.uuid4())
             extension = MIMETYPES.guess_extension(content_type)
@@ -192,8 +198,8 @@ class VdirStore(Store):
         # TODO(jelmer): check that a UID is present and that all UIDs are the
         # same
         path = os.path.join(self.path, name)
-        tmppath = os.path.join(self.path, name + '.tmp')
-        with open(tmppath, 'wb') as f:
+        tmppath = os.path.join(self.path, name + ".tmp")
+        with open(tmppath, "wb") as f:
             for chunk in fi.normalized():
                 f.write(chunk)
         os.replace(tmppath, path)
@@ -206,20 +212,20 @@ class VdirStore(Store):
         :yield: (name, content_type, etag) tuples
         """
         for name in os.listdir(self.path):
-            if name.endswith('.tmp'):
+            if name.endswith(".tmp"):
                 continue
             if name == CONFIG_FILENAME:
                 continue
-            if name.endswith('.ics'):
-                content_type = 'text/calendar'
-            elif name.endswith('.vcf'):
-                content_type = 'text/vcard'
+            if name.endswith(".ics"):
+                content_type = "text/calendar"
+            elif name.endswith(".vcf"):
+                content_type = "text/vcard"
             else:
                 continue
             yield (name, content_type, self._get_etag(name))
 
     @classmethod
-    def create(cls, path: str) -> 'VdirStore':
+    def create(cls, path: str) -> "VdirStore":
         """Create a new store backed by a Vdir on disk.
 
         :return: A `VdirStore`
@@ -228,7 +234,7 @@ class VdirStore(Store):
         return cls(path)
 
     @classmethod
-    def open_from_path(cls, path: str) -> 'VdirStore':
+    def open_from_path(cls, path: str) -> "VdirStore":
         """Open a VdirStore from a path.
 
         :param path: Path
@@ -266,7 +272,7 @@ class VdirStore(Store):
 
     def _read_metadata(self, name):
         try:
-            with open(os.path.join(self.path, name), 'r') as f:
+            with open(os.path.join(self.path, name), "r") as f:
                 return f.read().strip()
         except EnvironmentError:
             return None
@@ -274,7 +280,7 @@ class VdirStore(Store):
     def _write_metadata(self, name, data):
         path = os.path.join(self.path, name)
         if data is not None:
-            with open(path, 'w') as f:
+            with open(path, "w") as f:
                 f.write(data)
         else:
             os.unlink(path)
@@ -284,37 +290,37 @@ class VdirStore(Store):
 
         :return: A Color code, or None
         """
-        color = self._read_metadata('color')
+        color = self._read_metadata("color")
         if color is not None:
-            assert color.startswith('#')
+            assert color.startswith("#")
         return color
 
     def set_color(self, color):
         """Set the color code for this store."""
-        assert color.startswith('#')
-        self._write_metadata('color', color)
+        assert color.startswith("#")
+        self._write_metadata("color", color)
 
     def get_source_url(self):
         """Get source URL."""
-        return self._read_metadata('source')
+        return self._read_metadata("source")
 
     def set_source_url(self, url):
         """Set source URL."""
-        self._write_metadata('source', url)
+        self._write_metadata("source", url)
 
     def get_displayname(self):
         """Get display name.
 
         :return: The display name, or None if not set
         """
-        return self._read_metadata('displayname')
+        return self._read_metadata("displayname")
 
     def set_displayname(self, displayname):
         """Set the display name.
 
         :param displayname: New display name
         """
-        self._write_metadata('displayname', displayname)
+        self._write_metadata("displayname", displayname)
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.

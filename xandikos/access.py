@@ -27,7 +27,7 @@ from xandikos import webdav
 ET = webdav.ET
 
 # Feature to advertise access control support.
-FEATURE = 'access-control'
+FEATURE = "access-control"
 
 
 class CurrentUserPrivilegeSetProperty(webdav.Property):
@@ -36,14 +36,14 @@ class CurrentUserPrivilegeSetProperty(webdav.Property):
     See http://www.webdav.org/specs/rfc3744.html, section 3.7
     """
 
-    name = '{DAV:}current-user-privilege-set'
+    name = "{DAV:}current-user-privilege-set"
     in_allprops = False
     live = True
 
     async def get_value(self, href, resource, el, environ):
-        privilege = ET.SubElement(el, '{DAV:}privilege')
+        privilege = ET.SubElement(el, "{DAV:}privilege")
         # TODO(jelmer): Use something other than all
-        ET.SubElement(privilege, '{DAV:}all')
+        ET.SubElement(privilege, "{DAV:}all")
 
 
 class OwnerProperty(webdav.Property):
@@ -52,7 +52,7 @@ class OwnerProperty(webdav.Property):
     See http://www.webdav.org/specs/rfc3744.html, section 5.1
     """
 
-    name = '{DAV:}owner'
+    name = "{DAV:}owner"
     in_allprops = False
     live = True
 
@@ -68,7 +68,7 @@ class GroupMembershipProperty(webdav.Property):
     See https://www.ietf.org/rfc/rfc3744.txt, section 4.4
     """
 
-    name = '{DAV:}group-membership'
+    name = "{DAV:}group-membership"
     in_allprops = False
     live = True
     resource_type = webdav.PRINCIPAL_RESOURCE_TYPE

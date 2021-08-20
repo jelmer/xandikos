@@ -36,7 +36,7 @@ class WebTests(unittest.TestCase):
         path = tempfile.mkdtemp()
         try:
             backend = XandikosBackend(path)
-            backend.create_principal('foo', create_defaults=True)
-            XandikosApp(backend, 'foo')
+            backend.create_principal("foo", create_defaults=True)
+            XandikosApp(backend, "foo")
         finally:
             shutil.rmtree(path)

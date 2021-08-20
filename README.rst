@@ -1,12 +1,3 @@
-.. image:: https://travis-ci.org/jelmer/xandikos.png?branch=master
-   :target: https://travis-ci.org/jelmer/xandikos
-   :alt: Build Status
-
-.. image:: https://ci.appveyor.com/api/projects/status/fjqtsk8agwmwavqk/branch/master?svg=true
-   :target: https://ci.appveyor.com/project/jelmer/xandikos/branch/master
-   :alt: Windows Build Status
-
-
 Xandikos is a lightweight yet complete CardDAV/CalDAV server that backs onto a Git repository.
 
 Xandikos (Ξανδικός or Ξανθικός) takes its name from the name of the March month
@@ -64,6 +55,7 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `AgendaV <http://agendav.org/>`_
 - `CardBook <https://gitlab.com/cardbook/cardbook/>`_
 - Apple's iOS
+- `homeassistant's CalDAV integration <https://www.home-assistant.io/integrations/caldav/>`_
 
 Dependencies
 ============

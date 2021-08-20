@@ -22,15 +22,15 @@ import unittest
 
 def test_suite():
     names = [
-        'api',
-        'caldav',
-        'config',
-        'icalendar',
-        'store',
-        'webdav',
-        'web',
-        'wsgi',
+        "api",
+        "caldav",
+        "config",
+        "icalendar",
+        "store",
+        "webdav",
+        "web",
+        "wsgi",
     ]
-    module_names = ['xandikos.tests.test_' + name for name in names]
+    module_names = ["xandikos.tests.test_" + name for name in names]
     loader = unittest.TestLoader()
     return loader.loadTestsFromNames(module_names)
