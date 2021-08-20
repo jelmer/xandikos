@@ -1,3 +1,2 @@
-version=3
-opts=uversionmangle=s/(rc|a|b|c)/~$1/,pgpsigurlmangle=s/$/.asc/ \
-https://pypi.debian.net/xandikos/xandikos-(.+)\.(?:zip|tgz|tbz|txz|(?:tar\.(?:gz|bz2|xz)))
+version=4
+opts=uversionmangle=s/(rc|a|b|c)/~$1/,pgpsigurlmangle=s/$/.asc/ https://pypi.debian.net/xandikos xandikos-(.+)\.(?:zip|tgz|tbz|txz|(?:tar\.(?:gz|bz2|xz)))

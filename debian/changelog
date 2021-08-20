@@ -5,6 +5,7 @@ xandikos (0.2.6-1) UNRELEASED; urgency=medium
   * Re-export upstream signing key without extra signatures.
   * Set upstream metadata fields: Security-Contact.
   * Update standards version to 4.5.1, no changes needed.
+  * Update watch file format version to 4.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 20 Aug 2021 13:24:38 +0100
 
