@@ -1,0 +1,50 @@
+.TH XANDIKOS "1" "February 2017" "xandikos 0.0.1" "User Commands"
+.SH NAME
+xandikos \- CalDAV/CardDAV server
+.SH DESCRIPTION
+.PP
+Xandikos is a CalDAV/CardDAV application that stores its data in a Git
+repository.
+.PP
+The xandidos command-line tool starts a simple server instance, without
+authentication.
+.SH SYNOPSIS
+.B xandikos
+\fI\,-d ROOT-DIR \/\fR[\fI\,OPTIONS\/\fR]
+.SH OPTIONS
+.TP
+\fB\-\-version\fR
+show program's version number and exit
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+show this help message and exit
+.TP
+\fB\-l\fR LISTEN_ADDRESS, \fB\-\-listen_address\fR=\fI\,LISTEN_ADDRESS\/\fR
+Binding IP address.
+.TP
+\fB\-d\fR DIRECTORY, \fB\-\-directory\fR=\fI\,DIRECTORY\/\fR
+Default path to serve from.
+.TP
+\fB\-p\fR PORT, \fB\-\-port\fR=\fI\,PORT\/\fR
+Port to listen on.
+.TP
+\fB\-\-current\-user\-principal\fR=\fI\,CURRENT_USER_PRINCIPAL\/\fR
+Path to current user principal.
+.TP
+\fB\-\-route\-prefix\fR=\fI\,ROUTE_PREFIX\/\fR
+Path to Xandikos. This is useful when Xandikos is behind a reverse proxy, and not being served from the root of the host.
+.PP
+E.g. if Xandikos is served from http://example.com/dav/, specify --route-prefix=/dav/.
+.TP
+\fB\-\-autocreate\fR
+Automatically create necessary directories for Xandikos to run.
+.TP
+\fB\-\-defaults\fR
+Automatically create a calendar and an addressbook; implies \-\-autocreate.
+.SH SEE ALSO
+.BR calypso(1),
+.BR vdirsyncer(1)
+.SH AUTHOR
+Xandikos was written by Jelmer Vernooĳ <jelmer@jelmer.uk>
+.SH LICENSE
+GNU General Public License, version 3 or later.
