@@ -1308,7 +1308,7 @@ def main(argv):
 
         setup_metrics(app)
 
-    for path in WELKNOWN_DAV_PATHS:
+    for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(
             "*", path, RedirectDavHandler(options.route_prefix).__call__
         )
