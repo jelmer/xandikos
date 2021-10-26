@@ -583,6 +583,18 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             resource = self._get_resource(name, file.content_type, etag, file=file)
             yield (name, resource)
 
+    def get_xmpp_heartbeat(self):
+        # TODO
+        raise KeyError
+
+    def get_xmpp_server(self):
+        # TODO
+        raise KeyError
+
+    def get_xmpp_url(self):
+        # TODO
+        raise KeyError
+
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
     def get_addressbook_description(self):
