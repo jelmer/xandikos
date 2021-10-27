@@ -591,7 +591,7 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         # TODO
         raise KeyError
 
-    def get_xmpp_url(self):
+    def get_xmpp_uri(self):
         # TODO
         raise KeyError
 
