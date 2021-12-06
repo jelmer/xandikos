@@ -659,6 +659,9 @@ class CollectionSetResource(webdav.Collection):
     def get_active_locks(self):
         return []
 
+    def get_owner(self):
+        return None
+
     def members(self):
         p = self.backend._map_to_file_path(self.relpath)
         for name in os.listdir(p):
