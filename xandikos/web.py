@@ -1324,6 +1324,9 @@ def main(argv):
 
         setup_metrics(app)
 
+    # For now, just always claim everything is okay.
+    app.router.add_get("/health", lambda r: web.Response(text='ok'))
+
     for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(
             "*", path, RedirectDavHandler(options.route_prefix).__call__
