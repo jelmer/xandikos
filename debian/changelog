@@ -1,6 +1,7 @@
 xandikos (0.2.6-2) UNRELEASED; urgency=medium
 
   * Add debian/watch file, using github.
+  * Update standards version to 4.6.0, no changes needed.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 27 Dec 2021 13:35:54 -0000
 
