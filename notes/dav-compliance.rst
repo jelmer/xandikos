@@ -255,6 +255,13 @@ Apple-specific Properties
 - refreshrate [supported]
 - source
 
+XMPP Subscriptions
+^^^^^^^^^^^^^^^^^^
+
+- xmpp-server
+- xmpp-heartbeat
+- xmpp-uri
+
 inf-it properties
 ^^^^^^^^^^^^^^^^^
 

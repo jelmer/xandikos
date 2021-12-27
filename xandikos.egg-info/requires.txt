@@ -1,9 +1,0 @@
-aiohttp
-defusedxml
-dulwich>=0.19.1
-icalendar
-jinja2
-multidict
-
-[prometheus]
-prometheus_client
