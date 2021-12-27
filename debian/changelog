@@ -1,10 +1,10 @@
-xandikos (0.2.7-1) UNRELEASED; urgency=medium
+xandikos (0.2.7-1) unstable; urgency=medium
 
   * Add debian/watch file, using github.
   * Update standards version to 4.6.0, no changes needed.
   * New upstream release.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 27 Dec 2021 13:38:03 -0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 27 Dec 2021 13:38:18 +0000
 
 xandikos (0.2.6-1) unstable; urgency=medium
 
