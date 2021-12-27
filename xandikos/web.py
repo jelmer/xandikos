@@ -54,6 +54,7 @@ from xandikos import (
     infit,
     scheduling,
     timezones,
+    xmpp,
 )
 from xandikos.icalendar import (
     ICalendarFile,
@@ -582,6 +583,18 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             resource = self._get_resource(name, file.content_type, etag, file=file)
             yield (name, resource)
 
+    def get_xmpp_heartbeat(self):
+        # TODO
+        raise KeyError
+
+    def get_xmpp_server(self):
+        # TODO
+        raise KeyError
+
+    def get_xmpp_uri(self):
+        # TODO
+        raise KeyError
+
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
     def get_addressbook_description(self):
@@ -645,6 +658,9 @@ class CollectionSetResource(webdav.Collection):
 
     def get_active_locks(self):
         return []
+
+    def get_owner(self):
+        return None
 
     def members(self):
         p = self.backend._map_to_file_path(self.relpath)
@@ -1052,6 +1068,9 @@ class XandikosApp(webdav.WebDAVApp):
                 quota.QuotaAvailableBytesProperty(),
                 quota.QuotaUsedBytesProperty(),
                 webdav.RefreshRateProperty(),
+                xmpp.XmppUriProperty(),
+                xmpp.XmppServerProperty(),
+                xmpp.XmppHeartbeatProperty()
             ]
         )
         self.register_reporters(
@@ -1307,6 +1326,9 @@ def main(argv):
         from .metrics import setup_metrics
 
         setup_metrics(app)
+
+    # For now, just always claim everything is okay.
+    app.router.add_get("/health", lambda r: web.Response(text='ok'))
 
     for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(

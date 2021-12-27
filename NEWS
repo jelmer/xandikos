@@ -1,4 +1,10 @@
-%(version)s	%(date)s
+0.2.7	2021-12-27
+
+ * Add basic XMP property support. (Jelmer Vernooĳ)
+
+ * Add a /health target. (Jelmer Vernooĳ)
+
+0.2.6	2021-03-20
 
  * Don't listen on TCP port (defautlting to 0.0.0.0) when a UNIX domain socket
    is specified. (schnusch, #134)

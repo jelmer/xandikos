@@ -16,6 +16,7 @@ The following standards are implemented:
 - :RFC:`3744` (Access Control) - *partially implemented*
 - :RFC:`5995` (POST to create members) - *fully implemented*
 - :RFC:`5689` (Extended MKCOL) - *fully implemented*
+- :RFC:`6578` (Collection Synchronization for WebDAV) - *fully implemented*
 
 The following standards are not implemented:
 
@@ -82,7 +83,8 @@ Docker
 ------
 
 A Dockerfile is also provided; see the comments on the top of the file for
-configuration instructions.
+configuration instructions. The docker image is regularly built and
+published at ``ghcr.io/jelmer/xandikos``.
 
 Running
 =======
@@ -143,13 +145,13 @@ Contributions to Xandikos are very welcome. If you run into bugs or have
 feature requests, please file issues `on GitHub
 <https://github.com/jelmer/xandikos/issues/new>`_. If you're interested in
 contributing code or documentation, please read `CONTRIBUTING
-<CONTRIBUTING.rst>`_. Issues that are good for new contributors are tagged
+<CONTRIBUTING.md>`_. Issues that are good for new contributors are tagged
 `new-contributor <https://github.com/jelmer/xandikos/labels/new-contributor>`_
 on GitHub.
 
 Help
 ====
 
-There is a *#xandikos* IRC channel on the `Freenode <https://www.freenode.net/>`_
+There is a *#xandikos* IRC channel on the `OFTC <https://www.oftc.net/>`_
 IRC network, and a `Xandikos <https://groups.google.com/forum/#!forum/xandikos>`_
 mailing list.

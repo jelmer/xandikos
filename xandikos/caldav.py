@@ -165,6 +165,15 @@ class Calendar(webdav.Collection):
         """
         raise NotImplementedError(self.calendar_query)
 
+    def get_xmpp_server(self):
+        raise NotImplementedError(self.get_xmpp_server)
+
+    def get_xmpp_heartbeat(self):
+        raise NotImplementedError(self.get_xmpp_heartbeat)
+
+    def get_xmpp_uri(self):
+        raise NotImplementedError(self.get_xmpp_uri)
+
 
 class Subscription(object):
 

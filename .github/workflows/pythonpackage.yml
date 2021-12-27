@@ -28,7 +28,7 @@ jobs:
         python -m flake8
     - name: Typing checks
       run: |
-        pip install -U mypy
+        pip install -U mypy types-python-dateutil types-pytz
         python -m mypy xandikos
       if: "matrix.python-version != 'pypy3'"
     - name: Test suite run
@@ -38,8 +38,7 @@ jobs:
         PYTHONHASHSEED: random
     - name: Run litmus tests
       run: |
-        # Retrieve litmus from Xandikos server for now, since webdav.org is down.
-        make check-litmus LITMUS_URL=https://www.xandikos.org/litmus-0.13.tar.gz
+        make check-litmus
       if: "matrix.os == 'ubuntu-latest'"
     - name: Run caldavtester tests
       run: |

@@ -1,4 +1,4 @@
-Xandikos uses the :PEP:`8` style guide.
+Xandikos uses the PEP8 style guide.
 You can verify whether you've introduced any style violations by running
 "make style".
 
