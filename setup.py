@@ -49,7 +49,7 @@ setup(name="xandikos",
           'multidict',
       ],
       extras_require={
-          'prometheus': ['prometheus_client'],
+          'prometheus': ['aiohttp_openmetrics'],
       },
       packages=find_packages(),
       package_data={'xandikos': ['templates/*.html']},

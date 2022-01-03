@@ -6,7 +6,8 @@
 FROM debian:sid-slim
 LABEL maintainer="jelmer@jelmer.uk"
 RUN apt-get update && \
-    apt-get -y install python3-icalendar python3-dulwich python3-jinja2 python3-defusedxml python3-aiohttp python3-prometheus-client && \
+    apt-get -y install python3-icalendar python3-dulwich python3-jinja2 python3-defusedxml python3-aiohttp python3-pip && \
+    python3 -m pip install aiohttp-openmetrics && \
     apt-get clean
 ADD . /code
 WORKDIR /code
