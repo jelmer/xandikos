@@ -1,8 +1,8 @@
-xandikos (0.2.8-1) UNRELEASED; urgency=low
+xandikos (0.2.8-1) unstable; urgency=low
 
   * New upstream release.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 09 Jan 2022 12:07:52 -0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 09 Jan 2022 12:08:32 +0000
 
 xandikos (0.2.7-1) unstable; urgency=medium
 
