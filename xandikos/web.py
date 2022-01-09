@@ -1319,12 +1319,10 @@ def main(argv):
 
     app = web.Application()
     try:
-        import prometheus_client  # noqa: F401
+        from aiohttp_openmetrics import setup_metrics
     except ModuleNotFoundError:
-        logging.warning("Prometheus client not found; /metrics will not be available.")
+        logging.warning("aiohttp-openmetrics not found; /metrics will not be available.")
     else:
-        from .metrics import setup_metrics
-
         setup_metrics(app)
 
     # For now, just always claim everything is okay.
