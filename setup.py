@@ -47,6 +47,7 @@ setup(name="xandikos",
           'defusedxml',
           'jinja2',
           'multidict',
+          'vobject',
       ],
       extras_require={
           'prometheus': ['aiohttp_openmetrics'],

@@ -1,5 +1,5 @@
 # Xandikos
-# Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
+# Copyright (C) 2022 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -17,21 +17,35 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+"""Tests for xandikos.vcard."""
+
+from datetime import datetime
+
+import pytz
 import unittest
 
+from xandikos import (
+    collation as _mod_collation,
+)
+from xandikos.vcard import (
+    VCardFile,
+)
+from xandikos.store import InvalidFileContents
 
-def test_suite():
-    names = [
-        "api",
-        "caldav",
-        "config",
-        "icalendar",
-        "store",
-        "vcard",
-        "webdav",
-        "web",
-        "wsgi",
-    ]
-    module_names = ["xandikos.tests.test_" + name for name in names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+EXAMPLE_VCARD1 = b"""\
+BEGIN:VCARD
+VERSION:3.0
+EMAIL;TYPE=INTERNET:jeffrey@osafoundation.org
+EMAIL;TYPE=INTERNET:jeffery@example.org
+ORG:Open Source Applications Foundation
+FN:Jeffrey Harris
+N:Harris;Jeffrey;;;
+END:VCARD
+"""
+
+
+class ParseVcardTests(unittest.TestCase):
+
+    def test_validate(self):
+        fi = VCardFile([EXAMPLE_VCARD1], "text/calendar")
+        fi.validate()

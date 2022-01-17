@@ -25,7 +25,12 @@ from .store import File, InvalidFileContents
 
 
 class VCardFile(File):
+
     content_type = "text/vcard"
+
+    def __init__(self, content, content_type):
+        super(VCardFile, self).__init__(content, content_type)
+        self._addressbook = None
 
     def validate(self):
         c = b"".join(self.content).strip()
@@ -38,3 +43,20 @@ class VCardFile(File):
                 self.content,
                 "Missing header and trailer lines",
             )
+        if not self.addressbook.validate():
+            # TODO(jelmer): Get data about what is invalid
+            raise InvalidFileContents(
+                self.content_type,
+                self.content,
+                "Invalid VCard file")
+
+    @property
+    def addressbook(self):
+        if self._addressbook is None:
+            import vobject
+            text = b"".join(self.content).decode('utf-8', 'surrogateescape')
+            try:
+                self._addressbook = vobject.readOne(text)
+            except vobject.base.ParseError as e:
+                raise InvalidFileContents(self.content_type, self.content, str(e))
+        return self._addressbook
