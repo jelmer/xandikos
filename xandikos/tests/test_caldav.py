@@ -17,9 +17,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from icalendar.cal import Calendar as ICalendar
 import unittest
 from wsgiref.util import setup_testing_defaults
+
+from icalendar.cal import Calendar as ICalendar
 
 from xandikos import caldav
 from xandikos.webdav import Property, WebDAVApp, ET
