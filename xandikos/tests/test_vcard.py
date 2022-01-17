@@ -19,18 +19,11 @@
 
 """Tests for xandikos.vcard."""
 
-from datetime import datetime
-
-import pytz
 import unittest
 
-from xandikos import (
-    collation as _mod_collation,
-)
 from xandikos.vcard import (
     VCardFile,
 )
-from xandikos.store import InvalidFileContents
 
 EXAMPLE_VCARD1 = b"""\
 BEGIN:VCARD
