@@ -17,35 +17,29 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Tests for xandikos.vcard."""
-
-from datetime import datetime
-
-import pytz
 import unittest
 
-from xandikos import (
-    collation as _mod_collation,
-)
-from xandikos.vcard import (
-    VCardFile,
-)
-from xandikos.store import InvalidFileContents
-
-EXAMPLE_VCARD1 = b"""\
-BEGIN:VCARD
-VERSION:3.0
-EMAIL;TYPE=INTERNET:jeffrey@osafoundation.org
-EMAIL;TYPE=INTERNET:jeffery@example.org
-ORG:Open Source Applications Foundation
-FN:Jeffrey Harris
-N:Harris;Jeffrey;;;
-END:VCARD
-"""
+from ..carddav import apply_filter, NAMESPACE
+from ..vcard import VCardFile
+from ..webdav import ET
+from .test_vcard import EXAMPLE_VCARD1
 
 
-class ParseVcardTests(unittest.TestCase):
+class TestApplyFilter(unittest.TestCase):
 
-    def test_validate(self):
-        fi = VCardFile([EXAMPLE_VCARD1], "text/vcard")
-        fi.validate()
+    def setUp(self):
+        self.file = VCardFile([EXAMPLE_VCARD1], "text/vcard")
+
+    def get_content_type(self):
+        return "text/vcard"
+
+    def test_apply_filter(self):
+        el = ET.Element("{%s}filter" % NAMESPACE)
+        el.set("test", "anyof")
+        pf = ET.SubElement(el, "{%s}prop-filter" % NAMESPACE)
+        pf.set("name", "FN")
+        tm = ET.SubElement(pf, "{%s}text-match" % NAMESPACE)
+        tm.set("collation", "i;unicode-casemap")
+        tm.set("match-type", "contains")
+        tm.text = "Jeffrey"
+        self.assertTrue(apply_filter(el, self))

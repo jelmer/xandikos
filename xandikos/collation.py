@@ -30,11 +30,29 @@ class UnknownCollation(Exception):
         self.collation = collation
 
 
+def _match(a, b, k):
+    if k == "equals":
+        return a == b
+    elif k == "contains":
+        return b in a
+    elif k == "starts-with":
+        return a.startswith(b)
+    elif k == "ends-with":
+        return b.endswith(b)
+    else:
+        raise NotImplementedError
+
+
 collations = {
-    "i;ascii-casemap": lambda a, b: (
-        a.decode("ascii").upper() == b.decode("ascii").upper()
+    "i;ascii-casemap": lambda a, b, k: _match(
+        a.decode("ascii").upper(), b.decode("ascii").upper(), k
     ),
-    "i;octet": lambda a, b: a == b,
+    "i;octet": lambda a, b, k: _match(a, b, k),
+    # TODO(jelmer): Follow all rules as specified in https://datatracker.ietf.org/doc/html/rfc5051
+    "i;unicode-casemap": lambda a, b, k: _match(
+        a.encode('utf-8', 'surrogateescape').upper(),
+        b.encode('utf-8', 'surrogateescape').upper(),
+        k),
 }
 
 

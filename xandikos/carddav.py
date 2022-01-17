@@ -225,18 +225,14 @@ def addressbook_from_resource(resource):
             return None
     except KeyError:
         return None
-    return resource.file.addressbook
+    return resource.file.addressbook.contents
 
 
 def apply_text_match(el, value):
     collation = el.get("collation", "i;ascii-casemap")
     negate_condition = el.get("negate-condition", "no")
-    # TODO(jelmer): Handle match-type: 'contains', 'equals', 'starts-with',
-    # 'ends-with'
     match_type = el.get("match-type", "contains")
-    if match_type != "contains":
-        raise NotImplementedError("match_type != contains: %r" % match_type)
-    matches = _mod_collation.collations[collation](el.text, value)
+    matches = _mod_collation.collations[collation](value, el.text, match_type)
 
     if negate_condition == "yes":
         return not matches
@@ -264,7 +260,7 @@ def apply_param_filter(el, prop):
 
 
 def apply_prop_filter(el, ab):
-    name = el.get("name")
+    name = el.get("name").lower()
     # From https://tools.ietf.org/html/rfc6352
     # A CARDDAV:prop-filter is said to match if:
 
@@ -279,14 +275,20 @@ def apply_prop_filter(el, ab):
     except KeyError:
         return False
 
-    for subel in el:
-        if subel.tag == "{urn:ietf:params:xml:ns:carddav}text-match":
-            if not apply_text_match(subel, prop):
-                return False
-        elif subel.tag == "{urn:ietf:params:xml:ns:carddav}param-filter":
-            if not apply_param_filter(subel, prop):
-                return False
-    return True
+    for prop_el in prop:
+        matched = True
+        for subel in el:
+            if subel.tag == "{urn:ietf:params:xml:ns:carddav}text-match":
+                if not apply_text_match(subel, str(prop_el)):
+                    matched = False
+                    break
+            elif subel.tag == "{urn:ietf:params:xml:ns:carddav}param-filter":
+                if not apply_param_filter(subel, prop_el):
+                    matched = False
+                    break
+        if matched:
+            return True
+    return False
 
 
 def apply_filter(el, resource):

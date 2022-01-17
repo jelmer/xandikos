@@ -476,7 +476,7 @@ class TextMatcher(object):
     def match(self, prop):
         if isinstance(prop, vText):
             prop = prop.encode()
-        matches = self.collation(self.text, prop)
+        matches = self.collation(self.text, prop, 'equals')
         if self.negate_condition:
             return not matches
         else:
