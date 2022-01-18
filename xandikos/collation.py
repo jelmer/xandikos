@@ -56,7 +56,7 @@ collations = {
 }
 
 
-def get_collation(name: str) -> Callable[[str, str], bool]:
+def get_collation(name: str) -> Callable[[str, str, str], bool]:
     """Get a collation by name.
 
     :param name: Collation name
