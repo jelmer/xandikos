@@ -432,8 +432,6 @@ def _parse_time_range(el):
     start = vDDDTypes.from_ical(start)
     end = vDDDTypes.from_ical(end)
     assert end > start
-    assert end.tzinfo
-    assert start.tzinfo
     return (start, end)
 
 
@@ -947,8 +945,6 @@ class FreeBusyQueryReporter(webdav.Reporter):
             return as_tz_aware_ts(dt, tz).astimezone(pytz.utc)
 
         (start, end) = _parse_time_range(requested)
-        assert start.tzinfo
-        assert end.tzinfo
         ret = ICalendar()
         ret["VERSION"] = "2.0"
         ret["PRODID"] = PRODID
