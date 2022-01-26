@@ -84,7 +84,8 @@ Docker
 
 A Dockerfile is also provided; see the comments on the top of the file for
 configuration instructions. The docker image is regularly built and
-published at ``ghcr.io/jelmer/xandikos``.
+published at ``ghcr.io/jelmer/xandikos``. See 
+``examples/docker-compose.yml`` for more info.
 
 Running
 =======
