@@ -93,6 +93,8 @@ Running
 Xandikos can either directly listen on a plain HTTP socket, or it can sit
 behind a reverse HTTP proxy.
 
+See the man page, ``--help``, or ``man/man.md`` for the manual.
+
 Testing
 -------
 
