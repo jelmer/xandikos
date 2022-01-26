@@ -1,0 +1,10 @@
+version: "3.4"
+
+services:
+  xandikos:
+    image: ghcr.io/jelmer/xandikos
+    ports:
+      - 8000:8000
+    volumes:
+      - /path/to/xandikos/data:/data
+    restart: unless-stopped
