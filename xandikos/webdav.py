@@ -798,7 +798,7 @@ class SupportedReportSetProperty(Property):
         for name, reporter in self._reporters.items():
             if reporter.supported_on(resource):
                 bel = ET.SubElement(el, "{DAV:}supported-report")
-                rel = ET.SubElement(rel, "{DAV:}report")
+                rel = ET.SubElement(bel, "{DAV:}report")
                 ET.SubElement(rel, name)
 
 
