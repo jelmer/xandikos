@@ -23,7 +23,7 @@
 from setuptools import find_packages, setup
 import sys
 
-version = "0.2.5"
+version = "0.2.7"
 
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
@@ -49,7 +49,7 @@ setup(name="xandikos",
           'multidict',
       ],
       extras_require={
-          'prometheus': ['prometheus_client'],
+          'prometheus': ['aiohttp_openmetrics'],
           'systemd': ['systemd_python'],
       },
       packages=find_packages(),

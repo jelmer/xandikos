@@ -611,6 +611,18 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             resource = self._get_resource(name, file.content_type, etag, file=file)
             yield (name, resource)
 
+    def get_xmpp_heartbeat(self):
+        # TODO
+        raise KeyError
+
+    def get_xmpp_server(self):
+        # TODO
+        raise KeyError
+
+    def get_xmpp_uri(self):
+        # TODO
+        raise KeyError
+
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
     def get_addressbook_description(self):
@@ -674,6 +686,9 @@ class CollectionSetResource(webdav.Collection):
 
     def get_active_locks(self):
         return []
+
+    def get_owner(self):
+        return None
 
     def members(self):
         p = self.backend._map_to_file_path(self.relpath)
@@ -1347,13 +1362,14 @@ def main(argv):
 
     app = web.Application()
     try:
-        import prometheus_client  # noqa: F401
+        from aiohttp_openmetrics import setup_metrics
     except ModuleNotFoundError:
-        logging.warning("Prometheus client not found; /metrics will not be available.")
+        logging.warning("aiohttp-openmetrics not found; /metrics will not be available.")
     else:
-        from .metrics import setup_metrics
-
         setup_metrics(app)
+
+    # For now, just always claim everything is okay.
+    app.router.add_get("/health", lambda r: web.Response(text='ok'))
 
     for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(

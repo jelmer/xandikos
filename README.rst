@@ -16,6 +16,7 @@ The following standards are implemented:
 - :RFC:`3744` (Access Control) - *partially implemented*
 - :RFC:`5995` (POST to create members) - *fully implemented*
 - :RFC:`5689` (Extended MKCOL) - *fully implemented*
+- :RFC:`6578` (Collection Synchronization for WebDAV) - *fully implemented*
 
 The following standards are not implemented:
 
@@ -82,7 +83,8 @@ Docker
 ------
 
 A Dockerfile is also provided; see the comments on the top of the file for
-configuration instructions.
+configuration instructions. The docker image is regularly built and
+published at ``ghcr.io/jelmer/xandikos``.
 
 Running
 =======
