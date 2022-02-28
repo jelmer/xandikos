@@ -55,7 +55,7 @@ class SyncCollectionReporter(webdav.Reporter):
     name = "{DAV:}sync-collection"
 
     @webdav.multistatus
-    async def report(
+    async def report(  # noqa: C901
         self,
         environ,
         request_body,
