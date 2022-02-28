@@ -1177,6 +1177,96 @@ def avahi_register(port: int, path: str):
     group.Commit()
 
 
+def run_simple_server(
+        directory: str,
+        current_user_principal: str,
+        autocreate: bool = False,
+        defaults: bool = False,
+        strict: bool = True,
+        route_prefix: str = "/",
+        listen_address: str = "::",
+        port: int = 8080) -> None:
+    """Simple function to run a Xandikos server.
+
+    This function is meant to be used by external code. We'll try our best
+    not to break API compatibility.
+
+    Args:
+      directory: Directory to store data in ("/tmp/blah")
+      current_user_principal: Name of current user principal ("/user")
+      autocreate: Whether to create missing principals and collections
+      defaults: Whether to create default calendar and addressbook collections
+      strict: Whether to be strict in *DAV implementation. Set to False for
+         buggy clients
+      route_prefix: Route prefix under which to server ("/")
+      listen_address: Listen address
+      port: Port to listen on
+    """
+    backend = XandikosBackend(directory)
+    backend._mark_as_principal(current_user_principal)
+
+    if autocreate or defaults:
+        if not os.path.isdir(directory):
+            os.makedirs(directory)
+        backend.create_principal(
+            current_user_principal, create_defaults=defaults
+        )
+
+    if not os.path.isdir(directory):
+        logging.warning(
+            "%r does not exist. Run xandikos with --autocreate?",
+            directory,
+        )
+    if not backend.get_resource(current_user_principal):
+        logging.warning(
+            "default user principal %s does not exist. "
+            "Run xandikos with --autocreate?",
+            current_user_principal,
+        )
+
+    main_app = XandikosApp(
+        backend,
+        current_user_principal=current_user_principal,
+        strict=strict,
+    )
+
+    async def xandikos_handler(request):
+        return await main_app.aiohttp_handler(request, route_prefix)
+
+    if "/" in listen_address:
+        socket_path = listen_address
+        listen_address = None
+        listen_port = None  # otherwise aiohttp also listens on its default host
+        logging.info("Listening on unix domain socket %s", socket_path)
+    else:
+        listen_address = listen_address
+        listen_port = port
+        socket_path = None
+        logging.info("Listening on %s:%s", listen_address, port)
+
+    from aiohttp import web
+
+    app = web.Application()
+    for path in WELLKNOWN_DAV_PATHS:
+        app.router.add_route(
+            "*", path, RedirectDavHandler(route_prefix).__call__
+        )
+
+    if route_prefix.strip("/"):
+        xandikos_app = web.Application()
+        xandikos_app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+
+        async def redirect_to_subprefix(request):
+            return web.HTTPFound(route_prefix)
+
+        app.router.add_route("*", "/", redirect_to_subprefix)
+        app.add_subapp(route_prefix, xandikos_app)
+    else:
+        app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+
+    web.run_app(app, port=listen_port, host=listen_address, path=socket_path)
+
+
 def main(argv):
     import argparse
     import sys
