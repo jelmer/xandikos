@@ -1295,7 +1295,7 @@ def run_simple_server(
     web.run_app(app, port=listen_port, host=listen_address, path=socket_path)
 
 
-def main(argv):
+def main(argv):  # noqa: C901
     import argparse
     import sys
     from xandikos import __version__
