@@ -1212,8 +1212,9 @@ def run_simple_server(
         defaults: bool = False,
         strict: bool = True,
         route_prefix: str = "/",
-        listen_address: str = "::",
-        port: int = 8080) -> None:
+        listen_address: Optional[str] = "::",
+        port: Optional[int] = 8080,
+        socket_path: Optional[str] = None) -> None:
     """Simple function to run a Xandikos server.
 
     This function is meant to be used by external code. We'll try our best
@@ -1227,8 +1228,9 @@ def run_simple_server(
       strict: Whether to be strict in *DAV implementation. Set to False for
          buggy clients
       route_prefix: Route prefix under which to server ("/")
-      listen_address: Listen address
-      port: Port to listen on
+      listen_address: IP address to listen on (None to disable)
+      port: TCP Port to listen on (None to disable)
+      socket_path: Unix domain socket path to listen on (None to disable)
     """
     backend = XandikosBackend(directory)
     backend._mark_as_principal(current_user_principal)
@@ -1261,15 +1263,9 @@ def run_simple_server(
     async def xandikos_handler(request):
         return await main_app.aiohttp_handler(request, route_prefix)
 
-    if "/" in listen_address:
-        socket_path = listen_address
-        listen_address = None
-        listen_port = None  # otherwise aiohttp also listens on its default host
+    if socket_path:
         logging.info("Listening on unix domain socket %s", socket_path)
-    else:
-        listen_address = listen_address
-        listen_port = port
-        socket_path = None
+    if listen_address and port:
         logging.info("Listening on %s:%s", listen_address, port)
 
     from aiohttp import web
@@ -1292,7 +1288,7 @@ def run_simple_server(
     else:
         app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
 
-    web.run_app(app, port=listen_port, host=listen_address, path=socket_path)
+    web.run_app(app, port=port, host=listen_address, path=socket_path)
 
 
 def main(argv):  # noqa: C901
