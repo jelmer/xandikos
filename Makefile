@@ -64,6 +64,11 @@ coverage:
 coverage-html: coverage
 	$(COVERAGE) html
 
+docs:
+	$(MAKE) -C docs html
+
+.PHONY: docs
+
 docker:
 	docker build -t jvernooij/xandikos -t ghcr.io/jelmer/xandikos .
 	docker push jvernooij/xandikos

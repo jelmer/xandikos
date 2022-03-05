@@ -5,6 +5,8 @@ Welcome to Xandikos's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   getting-started
+
 Indices and tables
 ==================
 
