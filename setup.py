@@ -51,6 +51,7 @@ setup(name="xandikos",
       ],
       extras_require={
           'prometheus': ['aiohttp_openmetrics'],
+          'systemd': ['systemd_python'],
       },
       packages=find_packages(),
       package_data={'xandikos': ['templates/*.html']},
