@@ -1,11 +1,14 @@
-Welcome to Xandikos's documentation!
-====================================
+Xandikos
+========
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
    getting-started
+   reverse-proxy
+   clients
+   troubleshooting
 
 Indices and tables
 ==================

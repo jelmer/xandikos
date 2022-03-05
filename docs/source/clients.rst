@@ -8,7 +8,7 @@ This section contains basic instructions on how to use various clients with Xand
 Please do send us patches if your favourite client is missing.
 
 Evolution
-=========
+---------
 
 Select "CardDAV" (address books) or "CalDAV" (calendars) as the type when
 adding a new account.
@@ -18,40 +18,40 @@ Addressbooks" or "Find Calenders" button and Evolution will prompt for
 credentials and show you a list of all relevant calendars or addressbooks.
 
 DAVDroid
-=======
+--------
 
 vdirsyncer
-==========
+----------
 
 sogo connector for Icedove/Thunderbird
-======================================
+--------------------------------------
 
 caldavzap/carddavmate
-=====================
+---------------------
 
 pycardsyncer
-============
+------------
 
 akonadi
-=======
+-------
 
 CalDAV-Sync
-===========
+-----------
 
 CardDAV-Sync
-============
+------------
 
 Calendarsync
-============
+------------
 
 AgendaV
-=======
+-------
 
 CardBook
-========
+--------
 
 Tasks
-=====
+-----
 
 Apple iOS
-=========
+---------
