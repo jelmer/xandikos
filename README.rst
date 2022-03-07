@@ -3,6 +3,8 @@ Xandikos is a lightweight yet complete CardDAV/CalDAV server that backs onto a G
 Xandikos (Ξανδικός or Ξανθικός) takes its name from the name of the March month
 in the ancient Macedonian calendar, used in Macedon in the first millennium BC.
 
+Extended documentation can be found `on the home page <https://www.xandikos.org/docs/>`_.
+
 Implemented standards
 =====================
 
