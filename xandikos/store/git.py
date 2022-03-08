@@ -667,9 +667,8 @@ class TreeGitStore(GitStore):
         name = name.encode(DEFAULT_ENCODING)
         return index[name].sha.decode("ascii")
 
-    def _commit_tree(self, index, message, author=None):
-        tree = index.commit(self.repo.object_store)
-        return self.repo.do_commit(message=message, author=author, tree=tree)
+    def _commit_tree(self, message, author=None):
+        return self.repo.do_commit(message=message, author=author)
 
     def _import_one(self, name, data, message, author=None):
         """Import a single object.
@@ -680,6 +679,7 @@ class TreeGitStore(GitStore):
         :param author: Optional author
         :return: etag
         """
+        # TODO(jelmer): Take branch lock
         try:
             with locked_index(self.repo.index_path()) as index:
                 p = os.path.join(self.repo.path, name)
@@ -693,10 +693,14 @@ class TreeGitStore(GitStore):
                     index[encoded_name] = IndexEntry(
                         *index_entry_from_stat(st, blob.id, 0)
                     )
-                    self._commit_tree(
-                        index, message.encode(DEFAULT_ENCODING), author=author
-                    )
-                return blob.id
+            commit_id = self._commit_tree(
+                message.encode(DEFAULT_ENCODING), author=author
+            )
+            # refresh blob.id in case one of the hooks changed it
+            tree_id = self.repo.object_store[commit_id].tree
+            unused_mode, blob_id = self.repo.object_store[tree_id](
+                self.repo.object_store.__getitem__, name)
+            return blob_id
         except OSError as e:
             if e.errno == errno.ENOSPC:
                 raise OutOfSpaceError()
@@ -727,12 +731,13 @@ class TreeGitStore(GitStore):
             if etag.encode("ascii") != current_etag:
                 raise InvalidETag(name, etag, current_etag.decode("ascii"))
         try:
+            # TODO(jelmer): Lock ref
             with locked_index(self.repo.index_path()) as index:
                 os.unlink(p)
                 del index[name.encode(DEFAULT_ENCODING)]
-                self._commit_tree(
-                    index, message.encode(DEFAULT_ENCODING), author=author
-                )
+            self._commit_tree(
+                index, message.encode(DEFAULT_ENCODING), author=author
+            )
         except FileLocked:
             raise LockedError(name)
 
