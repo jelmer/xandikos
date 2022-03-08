@@ -46,6 +46,13 @@ class SyncToken(object):
         return ret
 
 
+class InvalidToken(Exception):
+    """Requested token is invalid."""
+
+    def __init__(self, token):
+        self.token = token
+
+
 class SyncCollectionReporter(webdav.Reporter):
     """sync-collection reporter implementation.
 
@@ -87,6 +94,10 @@ class SyncCollectionReporter(webdav.Reporter):
         new_token = resource.get_sync_token()
         try:
             diff_iter = resource.iter_differences_since(old_token, new_token)
+        except InvalidToken as e:
+            raise webdav.PreconditionFailure(
+                '{%s}valid-sync-token' % webdav.NAMESPACE,
+                "Requested sync token %s is invalid" % e.token)
         except NotImplementedError:
             yield webdav.Status(
                 href,

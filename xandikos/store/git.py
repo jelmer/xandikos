@@ -36,6 +36,7 @@ from . import (
     DuplicateUidError,
     InvalidETag,
     InvalidFileContents,
+    InvalidCTag,
     NoSuchItem,
     NotStoreError,
     OutOfSpaceError,
@@ -562,7 +563,10 @@ class BareGitStore(GitStore):
         if ctag is None:
             tree = self._get_current_tree()
         else:
-            tree = self.repo.object_store[ctag.encode("ascii")]
+            try:
+                tree = self.repo.object_store[ctag.encode("ascii")]
+            except KeyError:
+                raise InvalidCTag(ctag)
         for (name, mode, sha) in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
             if name == CONFIG_FILENAME:
@@ -747,7 +751,10 @@ class TreeGitStore(GitStore):
         :yield: (name, etag) tuples
         """
         if ctag is not None:
-            tree = self.repo.object_store[ctag.encode("ascii")]
+            try:
+                tree = self.repo.object_store[ctag.encode("ascii")]
+            except KeyError:
+                raise InvalidCTag(ctag)
             for (name, mode, sha) in tree.iteritems():
                 name = name.decode(DEFAULT_ENCODING)
                 if name == CONFIG_FILENAME:

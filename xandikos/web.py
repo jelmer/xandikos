@@ -95,6 +95,7 @@ from xandikos.store import (
     InvalidFileContents,
     NoSuchItem,
     NotStoreError,
+    InvalidCTag,
     LockedError,
     OutOfSpaceError,
     STORE_TYPE_ADDRESSBOOK,
@@ -406,21 +407,24 @@ class StoreBasedCollection(object):
     ) -> Iterator[Tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
         old_resource: Optional[webdav.Resource]
         new_resource: Optional[webdav.Resource]
-        for (
-            name,
-            content_type,
-            old_etag,
-            new_etag,
-        ) in self.store.iter_changes(old_token, new_token):
-            if old_etag is not None:
-                old_resource = self._get_resource(name, content_type, old_etag)
-            else:
-                old_resource = None
-            if new_etag is not None:
-                new_resource = self._get_resource(name, content_type, new_etag)
-            else:
-                new_resource = None
-            yield (name, old_resource, new_resource)
+        try:
+            for (
+                name,
+                content_type,
+                old_etag,
+                new_etag,
+            ) in self.store.iter_changes(old_token, new_token):
+                if old_etag is not None:
+                    old_resource = self._get_resource(name, content_type, old_etag)
+                else:
+                    old_resource = None
+                if new_etag is not None:
+                    new_resource = self._get_resource(name, content_type, new_etag)
+                else:
+                    new_resource = None
+                yield (name, old_resource, new_resource)
+        except InvalidCTag as e:
+            raise sync.InvalidToken(e.ctag)
 
     def get_owner(self):
         return None
