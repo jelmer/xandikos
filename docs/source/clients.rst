@@ -17,7 +17,7 @@ Simplify provide the root URL of your Xandikos instance. Hit the "Find
 Addressbooks" or "Find Calenders" button and Evolution will prompt for
 credentials and show you a list of all relevant calendars or addressbooks.
 
-DAVDroid
+DAVx5
 --------
 
 vdirsyncer
