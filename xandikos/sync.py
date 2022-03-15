@@ -46,6 +46,13 @@ class SyncToken(object):
         return ret
 
 
+class InvalidToken(Exception):
+    """Requested token is invalid."""
+
+    def __init__(self, token):
+        self.token = token
+
+
 class SyncCollectionReporter(webdav.Reporter):
     """sync-collection reporter implementation.
 
@@ -86,45 +93,50 @@ class SyncCollectionReporter(webdav.Reporter):
 
         new_token = resource.get_sync_token()
         try:
-            diff_iter = resource.iter_differences_since(old_token, new_token)
-        except NotImplementedError:
-            yield webdav.Status(
-                href,
-                "403 Forbidden",
-                error=ET.Element("{DAV:}sync-traversal-supported"),
-            )
-            return
-
-        if limit is not None:
             try:
-                [nresults_el] = list(limit)
-            except ValueError:
-                raise webdav.BadRequestError("Invalid number of subelements in limit")
-            try:
-                nresults = int(nresults_el.text)
-            except ValueError:
-                raise webdav.BadRequestError("nresults not a number")
-            diff_iter = itertools.islice(diff_iter, nresults)
+                diff_iter = resource.iter_differences_since(old_token, new_token)
+            except NotImplementedError:
+                yield webdav.Status(
+                    href,
+                    "403 Forbidden",
+                    error=ET.Element("{DAV:}sync-traversal-supported"),
+                )
+                return
 
-        for (name, old_resource, new_resource) in diff_iter:
-            subhref = urllib.parse.urljoin(webdav.ensure_trailing_slash(href), name)
-            if new_resource is None:
-                yield webdav.Status(subhref, status="404 Not Found")
-            else:
-                propstat = []
-                for prop in requested:
-                    if old_resource is not None:
-                        old_propstat = await webdav.get_property_from_element(
-                            href, old_resource, properties, environ, prop
+            if limit is not None:
+                try:
+                    [nresults_el] = list(limit)
+                except ValueError:
+                    raise webdav.BadRequestError("Invalid number of subelements in limit")
+                try:
+                    nresults = int(nresults_el.text)
+                except ValueError:
+                    raise webdav.BadRequestError("nresults not a number")
+                diff_iter = itertools.islice(diff_iter, nresults)
+
+            for (name, old_resource, new_resource) in diff_iter:
+                subhref = urllib.parse.urljoin(webdav.ensure_trailing_slash(href), name)
+                if new_resource is None:
+                    yield webdav.Status(subhref, status="404 Not Found")
+                else:
+                    propstat = []
+                    for prop in requested:
+                        if old_resource is not None:
+                            old_propstat = await webdav.get_property_from_element(
+                                href, old_resource, properties, environ, prop
+                            )
+                        else:
+                            old_propstat = None
+                        new_propstat = await webdav.get_property_from_element(
+                            href, new_resource, properties, environ, prop
                         )
-                    else:
-                        old_propstat = None
-                    new_propstat = await webdav.get_property_from_element(
-                        href, new_resource, properties, environ, prop
-                    )
-                    if old_propstat != new_propstat:
-                        propstat.append(new_propstat)
-                yield webdav.Status(subhref, propstat=propstat)
+                        if old_propstat != new_propstat:
+                            propstat.append(new_propstat)
+                    yield webdav.Status(subhref, propstat=propstat)
+        except InvalidToken as e:
+            raise webdav.PreconditionFailure(
+                '{DAV:}valid-sync-token',
+                "Requested sync token %s is invalid" % e.token)
         yield SyncToken(new_token)
 
 

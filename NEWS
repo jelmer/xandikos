@@ -9,6 +9,9 @@
  * Use entry points to install xandikos script.
    (Jelmer Vernooĳ, #163)
 
+ * ``sync-collection``: handle invalid tokens.
+   (Jelmer Vernooĳ)
+
 0.2.8	2022-01-09
 
 0.2.7	2021-12-27

@@ -1708,15 +1708,24 @@ class ReportMethod(Method):
                 error=ET.Element("{DAV:}supported-report"),
                 description=("Report %s not supported on resource." % et.tag),
             )
-        return await reporter.report(
-            environ,
-            et,
-            functools.partial(_get_resources_by_hrefs, app.backend, environ),
-            app.properties,
-            base_href,
-            r,
-            depth,
-        )
+        try:
+            return await reporter.report(
+                environ,
+                et,
+                functools.partial(_get_resources_by_hrefs, app.backend, environ),
+                app.properties,
+                base_href,
+                r,
+                depth,
+            )
+        except PreconditionFailure as e:
+            return _send_simple_dav_error(
+                request,
+                "412 Precondition Failed",
+                error=ET.Element(e.precondition),
+                description=e.description,
+            )
+
 
 
 class PropfindMethod(Method):

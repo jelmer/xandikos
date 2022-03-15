@@ -55,6 +55,13 @@ DEFAULT_MIME_TYPE = "application/octet-stream"
 PARANOID = False
 
 
+class InvalidCTag(Exception):
+    """The request CTag can not be retrieved."""
+
+    def __init__(self, ctag):
+        self.ctag = ctag
+
+
 class File(object):
     """A file type handler."""
 
