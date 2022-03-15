@@ -28,4 +28,4 @@ if os.path.join(os.path.dirname(__file__), "..", "xandikos"):
 
 from xandikos.__main__ import main
 
-sys.exit(main(sys.argv))
+sys.exit(main(sys.argv[1:]))

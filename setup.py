@@ -53,10 +53,14 @@ setup(name="xandikos",
           'prometheus': ['aiohttp_openmetrics'],
           'systemd': ['systemd_python'],
       },
+      entry_points={
+          'console_scripts': [
+              'xandikos = xandikos.web:main'
+          ],
+      },
       packages=find_packages(),
       package_data={'xandikos': ['templates/*.html']},
       data_files=[('share/man/man8', ['man/xandikos.8'])],
-      scripts=['bin/xandikos'],
       test_suite='xandikos.tests.test_suite',
       classifiers=[
           'Development Status :: 4 - Beta',

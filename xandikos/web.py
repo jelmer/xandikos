@@ -1291,14 +1291,13 @@ def run_simple_server(
     web.run_app(app, port=port, host=listen_address, path=socket_path)
 
 
-def main(argv):  # noqa: C901
+def main(argv=None):  # noqa: C901
     import argparse
     import sys
     from xandikos import __version__
 
     parser = argparse.ArgumentParser(
-        usage="%(prog)s -d ROOT-DIR [OPTIONS]", prog=argv[0]
-    )
+        usage="%(prog)s -d ROOT-DIR [OPTIONS]")
 
     parser.add_argument(
         "--version",
@@ -1381,7 +1380,7 @@ def main(argv):  # noqa: C901
         help="Enable workarounds for buggy CalDAV/CardDAV client " "implementations.",
         default=True,
     )
-    options = parser.parse_args(argv[1:])
+    options = parser.parse_args(argv)
 
     if options.directory is None:
         parser.print_usage()
@@ -1492,4 +1491,4 @@ def main(argv):  # noqa: C901
 if __name__ == "__main__":
     import sys
 
-    main(sys.argv)
+    main(sys.argv[1:])
