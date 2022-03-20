@@ -385,7 +385,7 @@ class StoreBasedCollection(object):
             # self.get_subcollection(name).destroy()
             shutil.rmtree(os.path.join(self.store.path, name))
 
-    def create_member(
+    async def create_member(
         self, name: str, contents: Iterable[bytes], content_type: str
     ) -> Tuple[str, str]:
         try:

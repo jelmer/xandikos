@@ -463,7 +463,9 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_content_language)
 
-    async def set_body(self, body, replace_etag=None):
+    async def set_body(
+            self, body: Iterable[bytes],
+            replace_etag: Optional[str] = None) -> str:
         """Set resource contents.
 
         :param body: Iterable over bytestrings
@@ -891,7 +893,7 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.delete_member)
 
-    def create_member(self, name, contents, content_type):
+    async def create_member(self, name, contents, content_type):
         """Create a new member with specified name and contents.
 
         :param name: Member name (can be None)
@@ -1613,7 +1615,7 @@ class PostMethod(Method):
             return _send_method_not_allowed(app._get_allowed_methods(request))
         content_type, params = parse_type(request.content_type)
         try:
-            (name, etag) = r.create_member(None, new_contents, content_type)
+            (name, etag) = await r.create_member(None, new_contents, content_type)
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 request,
@@ -1668,7 +1670,7 @@ class PutMethod(Method):
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             return _send_method_not_allowed(app._get_allowed_methods(request))
         try:
-            (new_name, new_etag) = r.create_member(name, new_contents, content_type)
+            (new_name, new_etag) = await r.create_member(name, new_contents, content_type)
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 request,
