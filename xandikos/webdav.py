@@ -463,7 +463,7 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_content_language)
 
-    def set_body(self, body, replace_etag=None):
+    async def set_body(self, body, replace_etag=None):
         """Set resource contents.
 
         :param body: Iterable over bytestrings
@@ -1648,7 +1648,7 @@ class PutMethod(Method):
         if r is not None:
             # Item already exists; update it
             try:
-                new_etag = r.set_body(new_contents, current_etag)
+                new_etag = await r.set_body(new_contents, current_etag)
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
                     request,

@@ -339,7 +339,7 @@ class CalendarDataProperty(davcommon.SubbedProperty):
         if len(requested) == 0:
             serialized_cal = b"".join(await resource.get_body())
         else:
-            calendar = calendar_from_resource(resource)
+            calendar = await calendar_from_resource(resource)
             if calendar is None:
                 raise KeyError
             c = extract_from_calendar(calendar, requested)
@@ -477,13 +477,14 @@ def parse_filter(filter_el: ET.Element, cls):
     return cls
 
 
-def calendar_from_resource(resource):
+async def calendar_from_resource(resource):
     try:
         if resource.get_content_type() != "text/calendar":
             return None
     except KeyError:
         return None
-    return resource.file.calendar
+    file = await resource.get_file()
+    return file.calendar
 
 
 def extract_tzid(cal):
@@ -901,7 +902,7 @@ def extract_freebusy(comp, tzify):
 
 async def iter_freebusy(resources, start, end, tzify):
     async for (href, resource) in resources:
-        c = calendar_from_resource(resource)
+        c = await calendar_from_resource(resource)
         if c is None:
             continue
         if c.name != "VCALENDAR":

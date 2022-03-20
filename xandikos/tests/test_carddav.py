@@ -17,6 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import asyncio
 import unittest
 
 from ..carddav import apply_filter, NAMESPACE
@@ -27,8 +28,8 @@ from .test_vcard import EXAMPLE_VCARD1
 
 class TestApplyFilter(unittest.TestCase):
 
-    def setUp(self):
-        self.file = VCardFile([EXAMPLE_VCARD1], "text/vcard")
+    async def get_file(self):
+        return VCardFile([EXAMPLE_VCARD1], "text/vcard")
 
     def get_content_type(self):
         return "text/vcard"
@@ -42,4 +43,5 @@ class TestApplyFilter(unittest.TestCase):
         tm.set("collation", "i;unicode-casemap")
         tm.set("match-type", "contains")
         tm.text = "Jeffrey"
-        self.assertTrue(apply_filter(el, self))
+        loop = asyncio.get_event_loop()
+        self.assertTrue(loop.run_until_complete(apply_filter(el, self)))

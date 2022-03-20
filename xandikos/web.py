@@ -24,6 +24,7 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
+import asyncio
 from email.utils import parseaddr
 import functools
 import hashlib
@@ -196,18 +197,19 @@ class ObjectResource(webdav.Resource):
             self.get_content_type(),
         )
 
-    @property
-    def file(self) -> File:
+    async def get_file(self) -> File:
         if self._file is None:
-            self._file = self.store.get_file(self.name, self.content_type, self.etag)
+            self._file = await asyncio.to_thread(
+                self.store.get_file, self.name, self.content_type, self.etag)
         return self._file
 
     async def get_body(self) -> Iterable[bytes]:
-        return self.file.content
+        file = await self.get_file()
+        return file.content
 
-    def set_body(self, data, replace_etag=None):
+    async def set_body(self, data, replace_etag=None):
         try:
-            (name, etag) = self.store.import_one(
+            (name, etag) = await asyncio.to_thread(self.store.import_one,
                 self.name,
                 self.content_type,
                 data,
@@ -223,6 +225,8 @@ class ObjectResource(webdav.Resource):
             raise webdav.PreconditionFailure(
                 "{%s}no-uid-conflict" % caldav.NAMESPACE, "UID already in use."
             )
+        except LockedError:
+            raise webdav.ResourceLocked()
         return create_strong_etag(etag)
 
     def get_content_language(self) -> str:

@@ -219,13 +219,14 @@ class MaxImageSizeProperty(webdav.Property):
         el.text = str(resource.get_max_image_size())
 
 
-def addressbook_from_resource(resource):
+async def addressbook_from_resource(resource):
     try:
         if resource.get_content_type() != "text/vcard":
             return None
     except KeyError:
         return None
-    return resource.file.addressbook.contents
+    file = await resource.get_file()
+    return file.addressbook.contents
 
 
 def apply_text_match(el, value):
@@ -291,12 +292,12 @@ def apply_prop_filter(el, ab):
     return False
 
 
-def apply_filter(el, resource):
+async def apply_filter(el, resource):
     """Compile a filter element into a Python function."""
     if el is None or not list(el):
         # Empty filter, let's not bother parsing
         return lambda x: True
-    ab = addressbook_from_resource(resource)
+    ab = await addressbook_from_resource(resource)
     if ab is None:
         return False
     test_name = el.get("test", "anyof")
@@ -351,7 +352,7 @@ class AddressbookQueryReporter(webdav.Reporter):
         async for (href, resource) in webdav.traverse_resource(
             base_resource, base_href, depth
         ):
-            if not apply_filter(filter_el, resource):
+            if not await apply_filter(filter_el, resource):
                 continue
             if nresults is not None and i >= nresults:
                 break

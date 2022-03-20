@@ -166,7 +166,7 @@ class WebTests(WebTestCase):
         new_body = []
 
         class TestResource(Resource):
-            def set_body(self, body, replace_etag=None):
+            async def set_body(self, body, replace_etag=None):
                 new_body.extend(body)
 
             async def get_etag(self):

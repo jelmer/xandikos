@@ -701,6 +701,8 @@ class TreeGitStore(GitStore):
                         index, message.encode(DEFAULT_ENCODING), author=author
                     )
                 return blob.id
+        except FileLocked:
+            raise LockedError(name)
         except OSError as e:
             if e.errno == errno.ENOSPC:
                 raise OutOfSpaceError()
