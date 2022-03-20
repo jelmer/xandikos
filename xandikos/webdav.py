@@ -1651,6 +1651,8 @@ class PutMethod(Method):
             # Item already exists; update it
             try:
                 new_etag = await r.set_body(new_contents, current_etag)
+            except ResourceLocked:
+                return Response(status=423, reason="Resource Locked")
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
                     request,
