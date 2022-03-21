@@ -1731,7 +1731,6 @@ class ReportMethod(Method):
             )
 
 
-
 class PropfindMethod(Method):
     @multistatus
     async def handle(self, request, environ, app):

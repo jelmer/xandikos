@@ -209,12 +209,12 @@ class ObjectResource(webdav.Resource):
 
     async def set_body(self, data, replace_etag=None):
         try:
-            (name, etag) = await asyncio.to_thread(self.store.import_one,
+            (name, etag) = await asyncio.to_thread(
+                self.store.import_one,
                 self.name,
                 self.content_type,
                 data,
-                replace_etag=extract_strong_etag(replace_etag),
-            )
+                replace_etag=extract_strong_etag(replace_etag))
         except InvalidFileContents as e:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
