@@ -71,4 +71,6 @@ setup(name="xandikos",
           'Programming Language :: Python :: Implementation :: CPython',
           'Programming Language :: Python :: Implementation :: PyPy',
           'Operating System :: POSIX',
-      ])
+      ],
+      'python_requires': '>=3.9',
+      )
