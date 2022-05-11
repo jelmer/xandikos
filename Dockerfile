@@ -12,5 +12,5 @@ ADD . /code
 WORKDIR /code
 VOLUME /data
 EXPOSE 8000
-ENTRYPOINT python3 -m xandikos.web --port=8000 --listen-address=0.0.0.0 -d/data
-CMD "--defaults"
+ENTRYPOINT ["python3", "-m", "xandikos.web", "--port=8000", "--listen-address=0.0.0.0", "-d", "/data"]
+CMD ["--defaults"]
