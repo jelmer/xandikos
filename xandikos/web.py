@@ -201,6 +201,7 @@ class ObjectResource(webdav.Resource):
         if self._file is None:
             self._file = await asyncio.to_thread(
                 self.store.get_file, self.name, self.content_type, self.etag)
+            assert self._file is not None
         return self._file
 
     async def get_body(self) -> Iterable[bytes]:
