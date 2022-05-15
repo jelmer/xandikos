@@ -1400,7 +1400,7 @@ def main(argv=None):  # noqa: C901
         # os.environ.
         os.environ["XANDIKOS_DUMP_DAV_XML"] = "1"
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     backend = XandikosBackend(options.directory)
     backend._mark_as_principal(options.current_user_principal)
