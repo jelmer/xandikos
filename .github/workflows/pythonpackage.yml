@@ -41,17 +41,3 @@ jobs:
         python -m unittest xandikos.tests.test_suite
       env:
         PYTHONHASHSEED: random
-    - name: Run litmus tests
-      run: |
-        make check-litmus
-      if: "matrix.os == 'ubuntu-latest'"
-    - name: Run caldavtester tests
-      run: |
-        make check-caldavtester
-      if: "matrix.os == 'ubuntu-latest'"
-    - name: Run pycaldav tests
-      run: |
-        sudo apt install libxml2-dev libxslt1-dev
-        pip install -U nose lxml
-        make check-pycaldav
-      if: "matrix.os == 'ubuntu-latest'"
