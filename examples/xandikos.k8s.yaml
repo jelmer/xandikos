@@ -51,6 +51,8 @@ spec:
          volumeMounts:
            - name: xandikos-volume
              mountPath: /data
+     securityContext:
+       fsGroup: 1000
      volumes:
         - name: xandikos-volume
           persistentVolumeClaim:
