@@ -958,8 +958,8 @@ class PrincipalCollection(Collection, Principal):
         return p
 
 
-@functools.lru_cache(maxsize=STORE_CACHE_SIZE)
-def open_store_from_path(path):
+@functools.lru_cache(maxsize: int = STORE_CACHE_SIZE)
+def open_store_from_path(path: str):
     store = GitStore.open_from_path(path)
     store.load_extra_file_handler(ICalendarFile)
     store.load_extra_file_handler(VCardFile)
@@ -1402,7 +1402,7 @@ def main(argv=None):  # noqa: C901
 
     logging.basicConfig(level=logging.INFO, format='%(message)s')
 
-    backend = XandikosBackend(options.directory)
+    backend = XandikosBackend(os.path.abspath(options.directory))
     backend._mark_as_principal(options.current_user_principal)
 
     if options.autocreate or options.defaults:
