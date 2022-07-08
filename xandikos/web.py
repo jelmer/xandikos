@@ -958,7 +958,7 @@ class PrincipalCollection(Collection, Principal):
         return p
 
 
-@functools.lru_cache(maxsize: int = STORE_CACHE_SIZE)
+@functools.lru_cache(maxsize=STORE_CACHE_SIZE)
 def open_store_from_path(path: str):
     store = GitStore.open_from_path(path)
     store.load_extra_file_handler(ICalendarFile)
