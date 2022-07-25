@@ -2069,7 +2069,12 @@ class WebDAVApp(object):
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ["SCRIPT_NAME"] = ""
         request = WSGIRequest(environ)
+        remote_user = environ.get("HTTP_X_REMOTE_USER")
         environ = {"SCRIPT_NAME": environ["SCRIPT_NAME"]}
+        if remote_user:
+            environ["REMOTE_USER"] = remote_user
+            self.backend.set_principal(remote_user)
+
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:

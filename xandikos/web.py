@@ -1030,6 +1030,14 @@ class XandikosBackend(webdav.Backend):
             except KeyError:
                 return None
 
+    def set_principal(self, user):
+        principal = "/%s/" % user
+        if not self.get_resource(principal):
+            if os.getenv("AUTOCREATE"):
+                self.create_principal(
+                    principal, create_defaults=True
+                )
+        self._mark_as_principal(principal)
 
 class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server."""
