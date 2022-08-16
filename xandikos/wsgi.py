@@ -29,7 +29,8 @@ from .web import (
 )
 
 
-backend = XandikosBackend(path=os.environ["XANDIKOSPATH"])
+backend = XandikosBackend(path=os.environ["XANDIKOSPATH"],
+                          autocreate=os.getenv("AUTOCREATE"))
 if not os.path.isdir(backend.path):
     if os.getenv("AUTOCREATE"):
         os.makedirs(os.environ["XANDIKOSPATH"])

@@ -35,7 +35,7 @@ class WebTests(unittest.TestCase):
     def test_backend(self):
         path = tempfile.mkdtemp()
         try:
-            backend = XandikosBackend(path)
+            backend = XandikosBackend(path=path, autocreate=True)
             backend.create_principal("foo", create_defaults=True)
             XandikosApp(backend, "foo")
         finally:

@@ -57,7 +57,7 @@ class CalendarCollectionTests(unittest.TestCase):
 
         self.store = VdirStore.create(os.path.join(self.tempdir, "c"))
         self.store.load_extra_file_handler(ICalendarFile)
-        self.backend = XandikosBackend(self.tempdir)
+        self.backend = XandikosBackend(path=self.tempdir, autocreate=False)
 
         self.cal = CalendarCollection(self.backend, "c", self.store)
 
