@@ -409,7 +409,8 @@ class StoreBasedCollection(object):
 
     def iter_differences_since(
         self, old_token: str, new_token: str
-    ) -> Iterator[Tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
+    ) -> Iterator[
+            Tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
         old_resource: Optional[webdav.Resource]
         new_resource: Optional[webdav.Resource]
         try:
@@ -420,11 +421,13 @@ class StoreBasedCollection(object):
                 new_etag,
             ) in self.store.iter_changes(old_token, new_token):
                 if old_etag is not None:
-                    old_resource = self._get_resource(name, content_type, old_etag)
+                    old_resource = self._get_resource(
+                        name, content_type, old_etag)
                 else:
                     old_resource = None
                 if new_etag is not None:
-                    new_resource = self._get_resource(name, content_type, new_etag)
+                    new_resource = self._get_resource(
+                        name, content_type, new_etag)
                 else:
                     new_resource = None
                 yield (name, old_resource, new_resource)
@@ -476,7 +479,8 @@ class StoreBasedCollection(object):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "collection.html",
@@ -617,7 +621,8 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def calendar_query(self, create_filter_fn):
         filter = create_filter_fn(CalendarFilter)
         for (name, file, etag) in self.store.iter_with_filter(filter=filter):
-            resource = self._get_resource(name, file.content_type, etag, file=file)
+            resource = self._get_resource(
+                name, file.content_type, etag, file=file)
             yield (name, resource)
 
     def get_xmpp_heartbeat(self):
@@ -749,7 +754,8 @@ class CollectionSetResource(webdav.Collection):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "root.html", accepted_content_languages, self_url=self_url
@@ -779,8 +785,10 @@ class RootPage(webdav.Resource):
     def __init__(self, backend):
         self.backend = backend
 
-    def render(self, self_url, accepted_content_types, accepted_content_languages):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+    def render(self, self_url, accepted_content_types,
+               accepted_content_languages):
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return render_jinja_page(
             "root.html",
@@ -924,7 +932,8 @@ class PrincipalBare(CollectionSetResource, Principal):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "principal.html",
@@ -941,7 +950,8 @@ class PrincipalBare(CollectionSetResource, Principal):
 class PrincipalCollection(Collection, Principal):
     """Principal user resource."""
 
-    resource_types = webdav.Collection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [
+        webdav.PRINCIPAL_RESOURCE_TYPE]
 
     @classmethod
     def create(cls, backend, relpath):
@@ -1046,7 +1056,8 @@ class XandikosApp(webdav.WebDAVApp):
         self.register_properties(
             [
                 webdav.ResourceTypeProperty(),
-                webdav.CurrentUserPrincipalProperty(get_current_user_principal),
+                webdav.CurrentUserPrincipalProperty(
+                    get_current_user_principal),
                 webdav.PrincipalURLProperty(),
                 webdav.DisplayNameProperty(),
                 webdav.GetETagProperty(),
@@ -1371,7 +1382,8 @@ def main(argv=None):  # noqa: C901
         "--defaults",
         action="store_true",
         dest="defaults",
-        help=("Create initial calendar and address book. " "Implies --autocreate."),
+        help=("Create initial calendar and address book. "
+              "Implies --autocreate."),
     )
     parser.add_argument(
         "--dump-dav-xml",
@@ -1386,7 +1398,8 @@ def main(argv=None):  # noqa: C901
         "--no-strict",
         action="store_false",
         dest="strict",
-        help="Enable workarounds for buggy CalDAV/CardDAV client " "implementations.",
+        help=("Enable workarounds for buggy CalDAV/CardDAV client "
+              "implementations."),
         default=True,
     )
     options = parser.parse_args(argv)
@@ -1438,11 +1451,12 @@ def main(argv=None):  # noqa: C901
         socket_path = None
         listen_address = None
         listen_port = None
-        logging.info("Receiving file descriptors from systemd socket activation")
+        logging.info(
+            "Receiving file descriptors from systemd socket activation")
     elif "/" in options.listen_address:
         socket_path = options.listen_address
         listen_address = None
-        listen_port = None  # otherwise aiohttp also listens on its default host
+        listen_port = None  # otherwise aiohttp also listens on default host
         listen_socks = []
         logging.info("Listening on unix domain socket %s", socket_path)
     else:
@@ -1458,7 +1472,8 @@ def main(argv=None):  # noqa: C901
     try:
         from aiohttp_openmetrics import setup_metrics
     except ModuleNotFoundError:
-        logging.warning("aiohttp-openmetrics not found; /metrics will not be available.")
+        logging.warning(
+            "aiohttp-openmetrics not found; /metrics will not be available.")
     else:
         setup_metrics(app)
 
@@ -1488,7 +1503,8 @@ def main(argv=None):  # noqa: C901
             import dbus  # noqa: F401
         except ImportError:
             logging.error(
-                "Please install python-avahi and python-dbus for " "avahi support."
+                "Please install python-avahi and python-dbus for "
+                "avahi support."
             )
         else:
             avahi_register(options.port, options.route_prefix)

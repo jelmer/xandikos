@@ -113,7 +113,8 @@ class ExtractCalendarUIDTests(unittest.TestCase):
             ["Missing required field UID"],
             list(validate_calendar(fi.calendar, strict=True)),
         )
-        self.assertEqual([], list(validate_calendar(fi.calendar, strict=False)))
+        self.assertEqual(
+            [], list(validate_calendar(fi.calendar, strict=False)))
         self.assertRaises(KeyError, fi.get_uid)
 
     def test_invalid_character(self):
@@ -134,7 +135,8 @@ class CalendarFilterTests(unittest.TestCase):
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent("VEVENT")
         self.assertEqual(filter.index_keys(), [["C=VCALENDAR/C=VEVENT"]])
         self.assertEqual(
-            self.cal.get_indexes(["C=VCALENDAR/C=VEVENT", "C=VCALENDAR/C=VTODO"]),
+            self.cal.get_indexes(
+                ["C=VCALENDAR/C=VEVENT", "C=VCALENDAR/C=VTODO"]),
             {"C=VCALENDAR/C=VEVENT": [], "C=VCALENDAR/C=VTODO": [True]},
         )
         self.assertFalse(
@@ -194,9 +196,10 @@ class CalendarFilterTests(unittest.TestCase):
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
         ).filter_property("X-SUMMARY")
-        self.assertEqual(filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=X-SUMMARY"]])
-        self.assertFalse(
-            filter.check_from_indexes("file", {"C=VCALENDAR/C=VTODO/P=X-SUMMARY": []})
+        self.assertEqual(
+            filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=X-SUMMARY"]])
+        self.assertFalse(filter.check_from_indexes(
+            "file", {"C=VCALENDAR/C=VTODO/P=X-SUMMARY": []})
         )
         self.assertFalse(filter.check("file", self.cal))
         filter = CalendarFilter(None)
@@ -246,10 +249,12 @@ class CalendarFilterTests(unittest.TestCase):
 
     def test_prop_text_match(self):
         filter = CalendarFilter(None)
-        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
-            "VTODO"
-        ).filter_property("SUMMARY").filter_text_match(b"do something different")
-        self.assertEqual(filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=SUMMARY"]])
+        filter = filter.filter_subcomponent("VCALENDAR")
+        filter = filter.filter_subcomponent("VTODO")
+        filter = filter.filter_property("SUMMARY")
+        filter = filter.filter_text_match(b"do something different")
+        self.assertEqual(
+            filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=SUMMARY"]])
         self.assertFalse(
             filter.check_from_indexes(
                 "file", {"C=VCALENDAR/C=VTODO/P=SUMMARY": [b"do something"]}
@@ -268,13 +273,14 @@ class CalendarFilterTests(unittest.TestCase):
         self.assertTrue(filter.check("file", self.cal))
 
     def test_param_text_match(self):
-        self.cal = ICalendarFile([EXAMPLE_VCALENDAR_WITH_PARAM], "text/calendar")
+        self.cal = ICalendarFile(
+            [EXAMPLE_VCALENDAR_WITH_PARAM], "text/calendar")
         filter = CalendarFilter(None)
-        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
-            "VTODO"
-        ).filter_property("CREATED").filter_parameter("TZID").filter_text_match(
-            b"America/Blah"
-        )
+        filter = filter.filter_subcomponent("VCALENDAR")
+        filter = filter.filter_subcomponent("VTODO")
+        filter = filter.filter_property("CREATED")
+        filter = filter.filter_parameter("TZID")
+        filter = filter.filter_text_match(b"America/Blah")
         self.assertEqual(
             filter.index_keys(),
             [
@@ -290,11 +296,11 @@ class CalendarFilterTests(unittest.TestCase):
         )
         self.assertFalse(filter.check("file", self.cal))
         filter = CalendarFilter(None)
-        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
-            "VTODO"
-        ).filter_property("CREATED").filter_parameter("TZID").filter_text_match(
-            b"America/Denver"
-        )
+        filter = filter.filter_subcomponent("VCALENDAR")
+        filter = filter.filter_subcomponent("VTODO")
+        filter = filter.filter_property("CREATED")
+        filter = filter.filter_parameter("TZID")
+        filter = filter.filter_text_match(b"America/Denver")
         self.assertTrue(
             filter.check_from_indexes(
                 "file",
@@ -314,7 +320,8 @@ class CalendarFilterTests(unittest.TestCase):
             self._tzify(datetime(2019, 3, 10, 22, 35, 12)),
             self._tzify(datetime(2019, 3, 18, 22, 35, 12)),
         )
-        self.assertEqual(filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=CREATED"]])
+        self.assertEqual(
+            filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=CREATED"]])
         self.assertFalse(
             filter.check_from_indexes(
                 "file", {"C=VCALENDAR/C=VTODO/P=CREATED": ["20150314T223512Z"]}
