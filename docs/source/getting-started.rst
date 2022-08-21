@@ -1,3 +1,5 @@
+.. _getting-started:
+
 Getting Started
 ===============
 
@@ -5,7 +7,7 @@ Xandikos can either be run in a container (e.g. in docker or Kubernetes) or
 outside of a container.
 
 It is recommended that you run it behind a reverse proxy, since Xandikos by
-itself does provide authentication support. See `reverse-proxy` for details.
+itself does provide authentication support. See :ref:`reverse-proxy` for details.
 
 Running from systemd
 --------------------
