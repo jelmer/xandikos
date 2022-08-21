@@ -1,3 +1,5 @@
+.. _reverse-proxy:
+
 Running behind a reverse proxy
 ==============================
 
@@ -26,7 +28,7 @@ Example: Kubernetes ingress
 
 Here is an example configuring Xandikos to listen on ``/dav`` using the
 Kubernetes nginx ingress controller. Note that this relies on the
-appropriate server being set up in kubernetes (see `getting-started`) and
+appropriate server being set up in kubernetes (see :ref:`getting-started`) and
 the ``my-htpasswd`` secret being present and having a htpasswd like file in it.
 
 .. literalinclude:: ../../examples/xandikos-ingress.k8s.yaml
