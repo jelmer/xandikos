@@ -27,6 +27,7 @@ import logging
 import os
 import shutil
 import stat
+from typing import Dict, Tuple
 import uuid
 
 from . import (
@@ -157,7 +158,8 @@ class RepoCollectionMetadata(CollectionMetadata):
     def set_comment(self, comment):
         config = self._repo.get_config()
         if comment is not None:
-            config.set(b"xandikos", b"comment", comment.encode(DEFAULT_ENCODING))
+            config.set(
+                b"xandikos", b"comment", comment.encode(DEFAULT_ENCODING))
         else:
             # TODO(jelmer): Add and use config.remove()
             config.set(b"xandikos", b"comment", b"")
@@ -173,7 +175,8 @@ class RepoCollectionMetadata(CollectionMetadata):
         store_type = config.get(b"xandikos", b"type")
         store_type = store_type.decode(DEFAULT_ENCODING)
         if store_type not in VALID_STORE_TYPES:
-            logging.warning("Invalid store type %s set for %r.", store_type, self._repo)
+            logging.warning(
+                "Invalid store type %s set for %r.", store_type, self._repo)
         return store_type
 
     def get_order(self):
@@ -216,15 +219,16 @@ class locked_index(object):
 class GitStore(Store):
     """A Store backed by a Git Repository."""
 
-    def __init__(self, repo, ref=b"refs/heads/master", check_for_duplicate_uids=True):
+    def __init__(self, repo, ref: bytes = b"refs/heads/master",
+                 check_for_duplicate_uids=True):
         super(GitStore, self).__init__(MemoryIndex())
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
-        self._uid_to_fname = {}
+        self._uid_to_fname: Dict[str, Tuple[bytes, str]] = {}
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
-        self._fname_to_uid = {}
+        self._fname_to_uid: Dict[str, Tuple[str, str]] = {}
 
     @property
     def config(self):
@@ -300,7 +304,8 @@ class GitStore(Store):
         if content_type is None:
             fi = open_by_extension(data, name, self.extra_file_handlers)
         else:
-            fi = open_by_content_type(data, content_type, self.extra_file_handlers)
+            fi = open_by_content_type(
+                data, content_type, self.extra_file_handlers)
         if name is None:
             name = str(uuid.uuid4())
             extension = MIMETYPES.guess_extension(content_type)
@@ -339,10 +344,12 @@ class GitStore(Store):
             etag = sha.decode("ascii")
             if name in removed:
                 removed.remove(name)
-            if name in self._fname_to_uid and self._fname_to_uid[name][0] == etag:
+            if (name in self._fname_to_uid
+                    and self._fname_to_uid[name][0] == etag):
                 continue
             blob = self.repo.object_store[sha]
-            fi = open_by_extension(blob.chunked, name, self.extra_file_handlers)
+            fi = open_by_extension(
+                blob.chunked, name, self.extra_file_handlers)
             try:
                 uid = fi.get_uid()
             except KeyError:
@@ -518,7 +525,8 @@ class GitStore(Store):
             name: (content_type, etag)
             for (name, content_type, etag) in self.iter_with_etag(old_ctag)
         }
-        for (name, new_content_type, new_etag) in self.iter_with_etag(new_ctag):
+        for (name, new_content_type, new_etag) in self.iter_with_etag(
+                new_ctag):
             try:
                 (old_content_type, old_etag) = previous[name]
             except KeyError:
@@ -603,7 +611,8 @@ class BareGitStore(GitStore):
         tree[name_enc] = (0o644 | stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ""), (b, name_enc)])
         if tree.id != old_tree_id:
-            self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING), author=author)
+            self._commit_tree(
+                tree.id, message.encode(DEFAULT_ENCODING), author=author)
         return b.id
 
     def delete_one(self, name, message=None, author=None, etag=None):
@@ -633,7 +642,8 @@ class BareGitStore(GitStore):
                 self.extra_file_handlers,
             )
             message = "Delete " + fi.describe(name)
-        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING), author=author)
+        self._commit_tree(
+            tree.id, message.encode(DEFAULT_ENCODING), author=author)
 
     @classmethod
     def create(cls, path):
@@ -692,7 +702,8 @@ class TreeGitStore(GitStore):
                 st = os.lstat(p)
                 blob = Blob.from_string(b"".join(data))
                 encoded_name = name.encode(DEFAULT_ENCODING)
-                if encoded_name not in index or blob.id != index[encoded_name].sha:
+                if (encoded_name not in index
+                        or blob.id != index[encoded_name].sha):
                     self.repo.object_store.add_object(blob)
                     index[encoded_name] = IndexEntry(
                         *index_entry_from_stat(st, blob.id, 0)
@@ -725,7 +736,8 @@ class TreeGitStore(GitStore):
         except IOError:
             raise NoSuchItem(name)
         if message is None:
-            fi = open_by_extension(current_blob.chunked, name, self.extra_file_handlers)
+            fi = open_by_extension(
+                current_blob.chunked, name, self.extra_file_handlers)
             message = "Delete " + fi.describe(name)
         if etag is not None:
             with open(p, "rb") as f:

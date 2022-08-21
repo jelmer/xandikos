@@ -48,7 +48,8 @@ collations = {
         a.decode("ascii").upper(), b.decode("ascii").upper(), k
     ),
     "i;octet": lambda a, b, k: _match(a, b, k),
-    # TODO(jelmer): Follow all rules as specified in https://datatracker.ietf.org/doc/html/rfc5051
+    # TODO(jelmer): Follow all rules as specified in
+    # https://datatracker.ietf.org/doc/html/rfc5051
     "i;unicode-casemap": lambda a, b, k: _match(
         a.encode('utf-8', 'surrogateescape').upper(),
         b.encode('utf-8', 'surrogateescape').upper(),

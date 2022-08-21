@@ -35,9 +35,8 @@ class VCardFile(File):
     def validate(self):
         c = b"".join(self.content).strip()
         # TODO(jelmer): Do more extensive checking of VCards
-        if not c.startswith((b"BEGIN:VCARD\r\n", b"BEGIN:VCARD\n")) or not c.endswith(
-            b"\nEND:VCARD"
-        ):
+        if (not c.startswith((b"BEGIN:VCARD\r\n", b"BEGIN:VCARD\n"))
+                or not c.endswith(b"\nEND:VCARD")):
             raise InvalidFileContents(
                 self.content_type,
                 self.content,
@@ -58,5 +57,6 @@ class VCardFile(File):
             try:
                 self._addressbook = vobject.readOne(text)
             except vobject.base.ParseError as e:
-                raise InvalidFileContents(self.content_type, self.content, str(e))
+                raise InvalidFileContents(
+                    self.content_type, self.content, str(e))
         return self._addressbook
