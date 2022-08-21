@@ -249,10 +249,10 @@ class CalendarFilterTests(unittest.TestCase):
 
     def test_prop_text_match(self):
         filter = CalendarFilter(None)
-        filter = filter.filter_subcomponent("VCALENDAR")
-        filter = filter.filter_subcomponent("VTODO")
-        filter = filter.filter_property("SUMMARY")
-        filter = filter.filter_text_match(b"do something different")
+        f = filter.filter_subcomponent("VCALENDAR")
+        f = f.filter_subcomponent("VTODO")
+        f = f.filter_property("SUMMARY")
+        f.filter_text_match(b"do something different")
         self.assertEqual(
             filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=SUMMARY"]])
         self.assertFalse(
@@ -276,11 +276,11 @@ class CalendarFilterTests(unittest.TestCase):
         self.cal = ICalendarFile(
             [EXAMPLE_VCALENDAR_WITH_PARAM], "text/calendar")
         filter = CalendarFilter(None)
-        filter = filter.filter_subcomponent("VCALENDAR")
-        filter = filter.filter_subcomponent("VTODO")
-        filter = filter.filter_property("CREATED")
-        filter = filter.filter_parameter("TZID")
-        filter = filter.filter_text_match(b"America/Blah")
+        f = filter.filter_subcomponent("VCALENDAR")
+        f = f.filter_subcomponent("VTODO")
+        f = f.filter_property("CREATED")
+        f = f.filter_parameter("TZID")
+        f.filter_text_match(b"America/Blah")
         self.assertEqual(
             filter.index_keys(),
             [
@@ -296,11 +296,11 @@ class CalendarFilterTests(unittest.TestCase):
         )
         self.assertFalse(filter.check("file", self.cal))
         filter = CalendarFilter(None)
-        filter = filter.filter_subcomponent("VCALENDAR")
-        filter = filter.filter_subcomponent("VTODO")
-        filter = filter.filter_property("CREATED")
-        filter = filter.filter_parameter("TZID")
-        filter = filter.filter_text_match(b"America/Denver")
+        f = filter.filter_subcomponent("VCALENDAR")
+        f = f.filter_subcomponent("VTODO")
+        f = f.filter_property("CREATED")
+        f = f.filter_parameter("TZID")
+        f.filter_text_match(b"America/Denver")
         self.assertTrue(
             filter.check_from_indexes(
                 "file",
