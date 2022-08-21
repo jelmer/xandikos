@@ -225,7 +225,7 @@ class GitStore(Store):
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
-        self._uid_to_fname: Dict[str, Tuple[bytes, str]]  = {}
+        self._uid_to_fname: Dict[str, Tuple[bytes, str]] = {}
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid: Dict[str, Tuple[str, str]] = {}
