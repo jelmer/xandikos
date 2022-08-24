@@ -21,11 +21,12 @@ run_xandikos()
 {
 	PORT="$1"
 	shift 1
-	${XANDIKOS} -p${PORT} -llocalhost -d ${SERVEDIR} "$@" 2>&1 >$DAEMON_LOG &
+	echo "Writing daemon log to $DAEMON_LOG"
+	${XANDIKOS} --no-detect-systemd -p${PORT} -llocalhost -d ${SERVEDIR} "$@" 2>&1 >$DAEMON_LOG &
 	XANDIKOS_PID=$!
 	trap xandikos_cleanup 0 EXIT
 	i=0
-	while [ $i -lt 10 ]
+	while [ $i -lt 50 ]
 	do
 		if curl http://localhost:${PORT}/ >/dev/null; then
 			break

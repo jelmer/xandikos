@@ -110,7 +110,8 @@ class VdirStore(Store):
         for (name, content_type, etag) in self.iter_with_etag():
             if name in removed:
                 removed.remove(name)
-            if name in self._fname_to_uid and self._fname_to_uid[name][0] == etag:
+            if (name in self._fname_to_uid
+                    and self._fname_to_uid[name][0] == etag):
                 continue
             fi = open_by_extension(
                 self._get_raw(name, etag), name, self.extra_file_handlers
@@ -179,7 +180,8 @@ class VdirStore(Store):
         if content_type is None:
             fi = open_by_extension(data, name, self.extra_file_handlers)
         else:
-            fi = open_by_content_type(data, content_type, self.extra_file_handlers)
+            fi = open_by_content_type(
+                data, content_type, self.extra_file_handlers)
         if name is None:
             name = str(uuid.uuid4())
             extension = MIMETYPES.guess_extension(content_type)
