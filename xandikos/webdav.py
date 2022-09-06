@@ -2072,6 +2072,7 @@ class WebDAVApp(object):
         try:
             return await do.handle(request, environ, self)
         except BadRequestError as e:
+            logging.debug('Bad request: %s', e.message)
             return Response(
                 status="400 Bad Request",
                 body=[e.message.encode(DEFAULT_ENCODING)],
