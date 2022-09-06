@@ -70,6 +70,6 @@ docs:
 .PHONY: docs
 
 docker:
-	docker build -t jvernooij/xandikos -t ghcr.io/jelmer/xandikos .
-	docker push jvernooij/xandikos
-	docker push ghcr.io/jelmer/xandikos
+	buildah build -t jvernooij/xandikos -t ghcr.io/jelmer/xandikos .
+	buildah push jvernooij/xandikos
+	buildah push ghcr.io/jelmer/xandikos
