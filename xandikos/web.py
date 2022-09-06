@@ -1402,6 +1402,9 @@ def main(argv=None):  # noqa: C901
               "implementations."),
         default=True,
     )
+    parser.add_argument(
+        '--debug', action='store_true',
+        help='Print debug messages')
     options = parser.parse_args(argv)
 
     if options.directory is None:
@@ -1416,7 +1419,12 @@ def main(argv=None):  # noqa: C901
     if not options.route_prefix.endswith('/'):
         options.route_prefix += '/'
 
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    if options.debug:
+        loglevel = logging.DEBUG
+    else:
+        loglevel = logging.INFO
+
+    logging.basicConfig(level=loglevel, format='%(message)s')
 
     backend = XandikosBackend(os.path.abspath(options.directory))
     backend._mark_as_principal(options.current_user_principal)
