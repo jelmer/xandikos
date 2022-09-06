@@ -68,6 +68,7 @@ class MultiGetReporter(webdav.Reporter):
         base_href,
         resource,
         depth,
+        strict
     ):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an the right resource type
@@ -79,9 +80,9 @@ class MultiGetReporter(webdav.Reporter):
             elif el.tag == "{DAV:}href":
                 hrefs.append(webdav.read_href_element(el))
             else:
-                raise webdav.BadRequestError(
-                    "Unknown tag %s in report %s" % (el.tag, self.name)
-                )
+                webdav.nonfatal_bad_request(
+                    "Unknown tag %s in report %s" % (el.tag, self.name),
+                    strict)
         for (href, resource) in resources_by_hrefs(hrefs):
             if resource is None:
                 yield webdav.Status(href, "404 Not Found", propstat=[])

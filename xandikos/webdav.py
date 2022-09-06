@@ -69,6 +69,12 @@ class BadRequestError(Exception):
         self.message = message
 
 
+def nonfatal_bad_request(message, strict=False):
+    if strict:
+        raise BadRequestError(message)
+    logging.debug('Bad request: %s', message)
+
+
 class NotAcceptableError(Exception):
     """Base class for not acceptable errors."""
 
@@ -1219,17 +1225,20 @@ class Reporter(object):
         href: str,
         resource: Resource,
         depth: str,
+        strict: bool
     ) -> Status:
         """Send a report.
 
-        :param environ: wsgi environ
-        :param request_body: XML Element for request body
-        :param resources_by_hrefs: Function for retrieving resource by HREF
-        :param properties: Dictionary mapping names to DAVProperty instances
-        :param href: Base resource href
-        :param resource: Resource to start from
-        :param depth: Depth ("0", "1", ...)
-        :return: a response
+        Args:
+          environ: wsgi environ
+          request_body: XML Element for request body
+          resources_by_hrefs: Function for retrieving resource by HREF
+          properties: Dictionary mapping names to DAVProperty instances
+          href: Base resource href
+          resource: Resource to start from
+          depth: Depth ("0", "1", ...)
+          strict:
+        Returns: a response
         """
         raise NotImplementedError(self.report)
 
@@ -1271,22 +1280,26 @@ class ExpandPropertyReporter(Reporter):
         href: str,
         resource: Resource,
         environ,
+        strict
     ) -> AsyncIterable[Status]:
         """Expand properties for a resource.
 
-        :param prop_list: DAV:property elements to retrieve and expand
-        :param resources_by_hrefs: Resolve resource by HREF
-        :param properties: Available properties
-        :param href: href for current resource
-        :param resource: current resource
-        :param environ: WSGI environ dict
-        :return: Status object
+        Args:
+          prop_list: DAV:property elements to retrieve and expand
+          resources_by_hrefs: Resolve resource by HREF
+          properties: Available properties
+          href: href for current resource
+          resource: current resource
+          environ: WSGI environ dict
+        Returns: Status object
         """
         ret = []
         for prop in prop_list:
             prop_name = prop.get("name")
             if prop_name is None:
-                logging.warning("Tag %s without name attribute", prop.tag)
+                nonfatal_bad_request(
+                    "Tag %s without name attribute" % prop.tag,
+                    strict)
                 continue
             # FIXME: Resolve prop_name on resource
             propstat = await get_property_from_name(
@@ -1308,8 +1321,9 @@ class ExpandPropertyReporter(Reporter):
                 else:
                     child_href = read_href_element(prop_child)
                     if child_href is None:
-                        logging.warning(
-                            "Tag %s without valid href", prop_child.tag)
+                        nonfatal_bad_request(
+                            "Tag %s without valid href" % prop_child.tag,
+                            strict)
                         continue
                     child_resource = dict(child_resources).get(child_href)
                     if child_resource is None:
@@ -1324,6 +1338,7 @@ class ExpandPropertyReporter(Reporter):
                             child_href,
                             child_resource,
                             environ,
+                            strict
                         ):
                             new_prop.append(response.aselement())
             propstat = PropStatus(
@@ -1344,6 +1359,7 @@ class ExpandPropertyReporter(Reporter):
         href,
         resource,
         depth,
+        strict
     ):
         async for resp in self._populate(
             request_body,
@@ -1352,6 +1368,7 @@ class ExpandPropertyReporter(Reporter):
             href,
             resource,
             environ,
+            strict
         ):
             yield resp
 
@@ -1741,6 +1758,7 @@ class ReportMethod(Method):
                 base_href,
                 r,
                 depth,
+                app.strict
             )
         except PreconditionFailure as e:
             return _send_simple_dav_error(
@@ -1787,9 +1805,11 @@ class PropfindMethod(Method):
                     href, resource, app.properties, environ, requested
                 )
             else:
-                raise BadRequestError(
-                    "Expected prop/allprop/propname tag, got " + requested.tag
+                nonfatal_bad_request(
+                    "Expected prop/allprop/propname tag, got " + requested.tag,
+                    app.strict
                 )
+                continue
             yield Status(href, "200 OK", propstat=[s async for s in propstat])
         # By my reading of the WebDAV RFC, it should be legal to return
         # '200 OK' here if Depth=0, but the RFC is not super clear and
@@ -1809,8 +1829,9 @@ class ProppatchMethod(Method):
         propstat = []
         for el in et:
             if el.tag not in ("{DAV:}set", "{DAV:}remove"):
-                raise BadRequestError(
-                    "Unknown tag %s in propertyupdate" % el.tag)
+                nonfatal_bad_request(
+                    "Unknown tag %s in propertyupdate" % el.tag, app.strict)
+                continue
             propstat.extend(
                 [
                     ps
@@ -1847,7 +1868,9 @@ class MkcolMethod(Method):
             propstat = []
             for el in et:
                 if el.tag != "{DAV:}set":
-                    raise BadRequestError("Unknown tag %s in mkcol" % el.tag)
+                    nonfatal_bad_request(
+                        "Unknown tag %s in mkcol" % el.tag, app.strict)
+                    continue
                 propstat.extend(
                     [
                         ps
