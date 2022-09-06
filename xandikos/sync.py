@@ -71,6 +71,7 @@ class SyncCollectionReporter(webdav.Reporter):
         href,
         resource,
         depth,
+        strict
     ):
         old_token = None
         sync_level = None
@@ -86,7 +87,8 @@ class SyncCollectionReporter(webdav.Reporter):
             elif el.tag == "{DAV:}prop":
                 requested = list(el)
             else:
-                raise webdav.BadRequestError("unknown tag %s" % el.tag)
+                webdav.nonfatal_bad_request(
+                    "unknown tag %s" % el.tag, strict)
         # TODO(jelmer): Implement sync_level infinite
         if sync_level not in ("1",):
             raise webdav.BadRequestError(
@@ -109,13 +111,17 @@ class SyncCollectionReporter(webdav.Reporter):
                 try:
                     [nresults_el] = list(limit)
                 except ValueError:
-                    raise webdav.BadRequestError(
-                        "Invalid number of subelements in limit")
-                try:
-                    nresults = int(nresults_el.text)
-                except ValueError:
-                    raise webdav.BadRequestError("nresults not a number")
-                diff_iter = itertools.islice(diff_iter, nresults)
+                    webdav.nonfatal_bad_request(
+                        "Invalid number of subelements in limit",
+                        strict)
+                else:
+                    try:
+                        nresults = int(nresults_el.text)
+                    except ValueError:
+                        webdav.nonfatal_bad_request(
+                            "nresults not a number", strict)
+                    else:
+                        diff_iter = itertools.islice(diff_iter, nresults)
 
             for (name, old_resource, new_resource) in diff_iter:
                 subhref = urllib.parse.urljoin(

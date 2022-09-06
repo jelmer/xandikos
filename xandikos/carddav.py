@@ -24,7 +24,7 @@ https://tools.ietf.org/html/rfc6352
 
 from typing import Set
 
-from xandikos import (
+from . import (
     collation as _mod_collation,
     davcommon,
     webdav,
@@ -324,6 +324,7 @@ class AddressbookQueryReporter(webdav.Reporter):
         base_href,
         base_resource,
         depth,
+        strict
     ):
         requested = None
         filter_el = None
@@ -336,19 +337,23 @@ class AddressbookQueryReporter(webdav.Reporter):
             elif el.tag == ("{%s}limit" % NAMESPACE):
                 limit = el
             else:
-                raise webdav.BadRequestError(
-                    "Unknown tag %s in report %s" % (el.tag, self.name)
-                )
+                webdav.nonfatal_bad_request(
+                    "Unknown tag %s in report %s" % (el.tag, self.name),
+                    strict)
         if limit is not None:
             try:
                 [nresults_el] = list(limit)
             except ValueError:
-                raise webdav.BadRequestError(
-                    "Invalid number of subelements in limit")
-            try:
-                nresults = int(nresults_el.text)
-            except ValueError:
-                raise webdav.BadRequestError("nresults not a number")
+                webdav.nonfatal_bad_request(
+                    "Invalid number of subelements in limit", strict)
+                nresults = None
+            else:
+                try:
+                    nresults = int(nresults_el.text)
+                except ValueError:
+                    webdav.nonfatal_bad_request(
+                        "nresults not a number", strict)
+                    nresults = None
         else:
             nresults = None
 

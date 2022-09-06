@@ -38,7 +38,7 @@ from icalendar.cal import (
 )
 from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
 
-from xandikos import davcommon, webdav
+from . import davcommon, webdav
 
 ET = webdav.ET
 
@@ -526,6 +526,7 @@ class CalendarQueryReporter(webdav.Reporter):
         base_href,
         base_resource,
         depth,
+        strict
     ):
         # TODO(jelmer): Verify that resource is a calendar
         requested = None
@@ -539,8 +540,9 @@ class CalendarQueryReporter(webdav.Reporter):
             elif el.tag == "{urn:ietf:params:xml:ns:caldav}timezone":
                 tztext = el.text
             else:
-                raise webdav.BadRequestError(
-                    "Unknown tag %s in report %s" % (el.tag, self.name)
+                webdav.nonfatal_bad_request(
+                    "Unknown tag %s in report %s" % (el.tag, self.name),
+                    strict
                 )
         if tztext is not None:
             tz = get_pytz_from_text(tztext)
@@ -939,13 +941,15 @@ class FreeBusyQueryReporter(webdav.Reporter):
         base_href,
         base_resource,
         depth,
+        strict
     ):
         requested = None
         for el in body:
             if el.tag == "{urn:ietf:params:xml:ns:caldav}time-range":
                 requested = el
             else:
-                raise AssertionError("unexpected XML element")
+                webdav.nonfatal_bad_request("unexpected XML element", strict)
+                continue
         tz = get_calendar_timezone(base_resource)
 
         def tzify(dt):
@@ -1012,9 +1016,10 @@ class MkcalendarMethod(webdav.Method):
             propstat = []
             for el in et:
                 if el.tag != "{DAV:}set":
-                    raise webdav.BadRequestError(
-                        "Unknown tag %s in mkcalendar" % el.tag
-                    )
+                    webdav.nonfatal_bad_request(
+                        "Unknown tag %s in mkcalendar" % el.tag,
+                        app.strict)
+                    continue
                 propstat.extend(
                     [
                         ps
