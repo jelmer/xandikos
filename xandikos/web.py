@@ -1413,6 +1413,9 @@ def main(argv=None):  # noqa: C901
         # os.environ.
         os.environ["XANDIKOS_DUMP_DAV_XML"] = "1"
 
+    if not options.route_prefix.endswith('/'):
+        options.route_prefix += '/'
+
     logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     backend = XandikosBackend(os.path.abspath(options.directory))
