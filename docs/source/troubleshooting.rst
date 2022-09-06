@@ -20,7 +20,13 @@ Xandikos also has several command-line flags that may help with debugging:
  * ``--dump-dav-xml``: Write all \*DAV communication to standard out;
    interpreting the contents may require in-depth \*DAV knowledge, but
    providing this data is usually sufficient for one of the Xandikos
-   developers to identify the cause of an issue
+   developers to identify the cause of an issue.
 
  * ``--no-strict``: Don't follow a strict interpretation of the
    various standards, for clients that don't follow them.
+
+ * ``--debug``: Print extra information about Xandikos' internal state.
+
+If you do find that a particular server requires ``--no-strict``, please
+do report it - either to the servers' authors or in the
+[Xandikos Discussions](https://github.com/jelmer/xandikos/discussions).
