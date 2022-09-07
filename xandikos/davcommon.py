@@ -83,6 +83,11 @@ class MultiGetReporter(webdav.Reporter):
                 webdav.nonfatal_bad_request(
                     "Unknown tag %s in report %s" % (el.tag, self.name),
                     strict)
+        if requested is None:
+            # The CalDAV RFC says that behaviour mimicks that of PROPFIND,
+            # and the WebDAV RFC says that no body implies {DAV}allprop
+            # This isn't exactly an empty body, but close enough.
+            requested = ET.Element('{DAV:}allprop')
         for (href, resource) in resources_by_hrefs(hrefs):
             if resource is None:
                 yield webdav.Status(href, "404 Not Found", propstat=[])

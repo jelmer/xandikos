@@ -544,6 +544,11 @@ class CalendarQueryReporter(webdav.Reporter):
                     "Unknown tag %s in report %s" % (el.tag, self.name),
                     strict
                 )
+        if requested is None:
+            # The CalDAV RFC says that behaviour mimicks that of PROPFIND,
+            # and the WebDAV RFC says that no body implies {DAV}allprop
+            # This isn't exactly an empty body, but close enough.
+            requested = ET.Element('{DAV:}allprop')
         if tztext is not None:
             tz = get_pytz_from_text(tztext)
         else:
