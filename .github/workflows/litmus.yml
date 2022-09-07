@@ -1,6 +1,7 @@
 name: Litmus DAV compliance tests
 
-on: [push, pull_request]
+on:
+  - push
 
 jobs:
   build:
