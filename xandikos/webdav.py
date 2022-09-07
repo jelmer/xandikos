@@ -1053,12 +1053,10 @@ async def get_property_from_element(
         try:
             if not prop.supported_on(resource):
                 raise KeyError
-            try:
-                get_value_ext = prop.get_value_ext  # type: ignore
-            except AttributeError:
-                await prop.get_value(href, resource, ret, environ)
+            if hasattr(prop, 'get_value_ext'):
+                await prop.get_value_ext(href, resource, ret, environ, requested)
             else:
-                await get_value_ext(href, resource, ret, environ, requested)
+                await prop.get_value(href, resource, ret, environ)
         except KeyError:
             statuscode = "404 Not Found"
         except NotImplementedError:
