@@ -1054,7 +1054,8 @@ async def get_property_from_element(
             if not prop.supported_on(resource):
                 raise KeyError
             if hasattr(prop, 'get_value_ext'):
-                await prop.get_value_ext(href, resource, ret, environ, requested)
+                await prop.get_value_ext(  # type: ignore
+                    href, resource, ret, environ, requested)
             else:
                 await prop.get_value(href, resource, ret, environ)
         except KeyError:
