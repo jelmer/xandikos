@@ -16,5 +16,5 @@ WORKDIR /code
 VOLUME /data
 EXPOSE 8000
 USER xandikos
-ENTRYPOINT ["python3", "-m", "xandikos.web", "--port=8000", "--listen-address=0.0.0.0", "-d", "/data"]
+ENTRYPOINT ["python3", "-m", "xandikos.web", "--port=8000", "--metrics-port=8001", "--listen-address=0.0.0.0", "-d", "/data"]
 CMD ["--defaults"]

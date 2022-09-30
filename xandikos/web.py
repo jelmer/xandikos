@@ -1311,7 +1311,7 @@ def run_simple_server(
     web.run_app(app, port=port, host=listen_address, path=socket_path)
 
 
-def main(argv=None):  # noqa: C901
+async def main(argv=None):  # noqa: C901
     import argparse
     import sys
     from xandikos import __version__
@@ -1351,6 +1351,11 @@ def main(argv=None):  # noqa: C901
         default=8080,
         help="Port to listen on. [%(default)s]",
     )
+    access_group.add_argument(
+        "--metrics-port",
+        dest="metrics_port",
+        default=8081,
+        help="Port to listen on for metrics. [%(default)s]")
     access_group.add_argument(
         "--route-prefix",
         default="/",
@@ -1480,16 +1485,23 @@ def main(argv=None):  # noqa: C901
     from aiohttp import web
 
     app = web.Application()
-    try:
-        from aiohttp_openmetrics import setup_metrics
-    except ModuleNotFoundError:
-        logging.warning(
-            "aiohttp-openmetrics not found; /metrics will not be available.")
-    else:
-        setup_metrics(app)
+    if options.metrics_port:
+        metrics_app = web.Application()
+        try:
+            from aiohttp_openmetrics import metrics, metrics_middleware
+        except ModuleNotFoundError:
+            logging.warning(
+                "aiohttp-openmetrics not found; "
+                "/metrics will not be available.")
+        else:
+            app.middlewares.insert(0, metrics_middleware)
+            metrics_app.router.add_get("/metrics", metrics, name="metrics")
 
-    # For now, just always claim everything is okay.
-    app.router.add_get("/health", lambda r: web.Response(text='ok'))
+        # For now, just always claim everything is okay.
+        metrics_app.router.add_get(
+            "/health", lambda r: web.Response(text='ok'))
+    else:
+        metrics_app = None
 
     for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(
@@ -1520,11 +1532,30 @@ def main(argv=None):  # noqa: C901
         else:
             avahi_register(options.port, options.route_prefix)
 
-    web.run_app(app, port=listen_port, host=listen_address, path=socket_path,
-                sock=listen_socks)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    sites = []
+    if metrics_app:
+        metrics_runner = web.AppRunner(metrics_app)
+        await metrics_runner.setup()
+        # TODO(jelmer): Allow different metrics listen addres?
+        sites.append(web.TCPSite(metrics_runner, listen_address,
+                                 options.metrics_port))
+    if listen_socks:
+        sites.extend([web.SockSite(runner, sock) for sock in listen_socks])
+    if socket_path:
+        sites.append(web.UnixSite(runner, socket_path))
+    else:
+        sites.append(web.TCPSite(runner, listen_address, listen_port))
+
+    for site in sites:
+        await site.start()
+
+    while True:
+        await asyncio.sleep(3600)
 
 
 if __name__ == "__main__":
     import sys
 
-    main(sys.argv[1:])
+    asyncio.run(main(sys.argv[1:]))
