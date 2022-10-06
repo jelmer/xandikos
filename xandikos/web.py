@@ -1311,7 +1311,7 @@ def run_simple_server(
     web.run_app(app, port=port, host=listen_address, path=socket_path)
 
 
-async def main(argv=None):  # noqa: C901
+async def main_async(argv=None):  # noqa: C901
     import argparse
     import sys
     from xandikos import __version__
@@ -1554,8 +1554,10 @@ async def main(argv=None):  # noqa: C901
     while True:
         await asyncio.sleep(3600)
 
-
-if __name__ == "__main__":
+def main(argv):
     import sys
 
-    asyncio.run(main(sys.argv[1:]))
+    asyncio.run(main_async(argv))
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
