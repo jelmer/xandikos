@@ -25,7 +25,8 @@ are always strong, and should be returned without wrapping quotes.
 
 import logging
 import mimetypes
-from typing import Optional, Iterable, Tuple, Iterator, Dict, Type
+from typing import (
+    Optional, Iterable, Tuple, Iterator, Dict, Type, Union, List)
 
 from .index import IndexManager
 
@@ -53,6 +54,11 @@ MIMETYPES.add_type("text/vcard", ".vcf")  # type: ignore
 DEFAULT_MIME_TYPE = "application/octet-stream"
 
 PARANOID = False
+
+
+IndexKey = str
+IndexValue = List[Union[bytes, bool]]
+Indexes = Dict[IndexKey, IndexValue]
 
 
 class InvalidCTag(Exception):
@@ -116,15 +122,17 @@ class File(object):
         else:
             yield "Modified " + item_description
 
-    def _get_index(self, key):
+    def _get_index(self, key: IndexKey) -> IndexValue:
         """Obtain an index for this file.
 
-        :param key: Index key
-        :yield: Index values
+        Args:
+          key: Index key
+        Returns:
+          iterator over index values
         """
         raise NotImplementedError(self._get_index)
 
-    def get_indexes(self, keys):
+    def get_indexes(self, keys: Iterable[IndexKey]) -> Indexes:
         """Obtain indexes for this file.
 
         :param keys: Iterable of index keys
@@ -153,14 +161,14 @@ class Filter(object):
         """
         raise NotImplementedError(self.check)
 
-    def index_keys(self):
+    def index_keys(self) -> List[IndexKey]:
         """Returns a list of indexes that could be used to apply this filter.
 
         :return: AND-list of OR-options
         """
         raise NotImplementedError(self.index_keys)
 
-    def check_from_indexes(self, name: str, indexes) -> bool:
+    def check_from_indexes(self, name: str, indexes: Indexes) -> bool:
         """Check from a set of indexes whether a resource matches.
 
         :param name: Name of the resource
