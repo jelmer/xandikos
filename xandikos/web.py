@@ -1558,4 +1558,4 @@ async def main(argv=None):  # noqa: C901
 if __name__ == "__main__":
     import sys
 
-    asyncio.run(main(sys.argv[1:]))
+    sys.exit(asyncio.run(main(sys.argv[1:])))
