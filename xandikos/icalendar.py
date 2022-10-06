@@ -33,6 +33,7 @@ from icalendar.prop import (
     vDatetime,
     vDDDTypes,
     vText,
+    vCategory
 )
 from xandikos.store import (
     Filter,
@@ -494,6 +495,15 @@ class TextMatcher(object):
     def match(self, prop):
         if isinstance(prop, vText):
             prop = prop.encode()
+        elif isinstance(prop, vCategory):
+            if not self.negate_condition:
+                return any([self.match(cat) for cat in prop.cats])
+            else:
+                return not any([not self.match(cat) for cat in prop.cats])
+        else:
+            logging.warning(
+                "potentially unsupported value in text match search: " +
+                repr(prop))
         matches = self.collation(self.text, prop, 'equals')
         if self.negate_condition:
             return not matches
