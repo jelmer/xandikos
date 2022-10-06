@@ -21,12 +21,14 @@
 
 """
 
-import datetime
+from datetime import datetime, timedelta, time
 import logging
+from typing import Iterable, List, Dict, Callable, Union, Optional
+
 import pytz
 
 import dateutil.rrule
-from icalendar.cal import Calendar, component_factory
+from icalendar.cal import Calendar, Component, component_factory
 from icalendar.prop import (
     vDatetime,
     vDDDTypes,
@@ -35,6 +37,7 @@ from icalendar.prop import (
 from xandikos.store import (
     Filter,
     File,
+    Indexes,
     InvalidFileContents,
 )
 
@@ -284,7 +287,7 @@ def apply_time_range_vevent(start, end, comp, tzify):
     if getattr(dtstart.dt, "time", None) is not None:
         return start <= tzify(dtstart.dt)
     else:
-        return start < (tzify(dtstart.dt) + datetime.timedelta(1))
+        return start < (tzify(dtstart.dt) + timedelta(1))
 
 
 def apply_time_range_vjournal(start, end, comp, tzify):
@@ -298,7 +301,7 @@ def apply_time_range_vjournal(start, end, comp, tzify):
     if getattr(dtstart.dt, "time", None) is not None:
         return start <= tzify(dtstart.dt)
     else:
-        return start < (tzify(dtstart.dt) + datetime.timedelta(1))
+        return start < (tzify(dtstart.dt) + timedelta(1))
 
 
 def apply_time_range_vtodo(start, end, comp, tzify):
@@ -356,7 +359,7 @@ def apply_time_range_valarm(start, end, comp, tzify):
 
 
 class PropertyTimeRangeMatcher(object):
-    def __init__(self, start, end):
+    def __init__(self, start: datetime, end: datetime):
         self.start = start
         self.end = end
 
@@ -374,6 +377,12 @@ class PropertyTimeRangeMatcher(object):
         )
 
 
+TzifyFunction = Callable[[datetime], datetime]
+
+TimeRangeFilter = Callable[
+    [datetime, datetime, Component, TzifyFunction], bool]
+
+
 class ComponentTimeRangeMatcher(object):
 
     all_props = [
@@ -388,7 +397,7 @@ class ComponentTimeRangeMatcher(object):
 
     # According to https://tools.ietf.org/html/rfc4791, section 9.9 these
     # are the properties to check.
-    component_handlers = {
+    component_handlers: Dict[str, TimeRangeFilter] = {
         "VEVENT": apply_time_range_vevent,
         "VTODO": apply_time_range_vtodo,
         "VJOURNAL": apply_time_range_vjournal,
@@ -416,7 +425,7 @@ class ComponentTimeRangeMatcher(object):
                 self.end,
             )
 
-    def match(self, comp, tzify):
+    def match(self, comp: Component, tzify: TzifyFunction):
         try:
             component_handler = self.component_handlers[comp.name]
         except KeyError:
@@ -425,7 +434,7 @@ class ComponentTimeRangeMatcher(object):
             return False
         return component_handler(self.start, self.end, comp, tzify)
 
-    def match_indexes(self, indexes, tzify):
+    def match_indexes(self, indexes, tzify: TzifyFunction):
         vs = {}
         for name, value in indexes.items():
             if name and name[2:] in self.all_props:
@@ -443,7 +452,7 @@ class ComponentTimeRangeMatcher(object):
             return False
         return component_handler(self.start, self.end, vs, tzify)
 
-    def index_keys(self):
+    def index_keys(self) -> List[List[str]]:
         if self.comp == "VEVENT":
             props = ["DTSTART", "DTEND", "DURATION"]
         elif self.comp == "VTODO":
@@ -460,7 +469,9 @@ class ComponentTimeRangeMatcher(object):
 
 
 class TextMatcher(object):
-    def __init__(self, text, collation=None, negate_condition=False):
+    def __init__(self, text: Union[bytes, str],
+                 collation: Optional[str] = None,
+                 negate_condition: bool = False):
         if isinstance(text, str):
             text = text.encode()
         self.text = text
@@ -491,6 +502,9 @@ class TextMatcher(object):
 
 
 class ComponentFilter(object):
+
+    time_range: Optional[ComponentTimeRangeMatcher]
+
     def __init__(
             self, name: str, children=None, is_not_defined: bool = False,
             time_range=None):
@@ -509,25 +523,28 @@ class ComponentFilter(object):
             self.time_range,
         )
 
-    def filter_subcomponent(self, name, is_not_defined=False, time_range=None):
+    def filter_subcomponent(
+            self, name: str, is_not_defined: bool = False,
+            time_range: Optional[ComponentTimeRangeMatcher] = None):
         ret = ComponentFilter(
             name=name, is_not_defined=is_not_defined, time_range=time_range
         )
         self.children.append(ret)
         return ret
 
-    def filter_property(self, name, is_not_defined=False, time_range=None):
+    def filter_property(self, name: str, is_not_defined: bool = False,
+                        time_range: Optional[PropertyTimeRangeMatcher] = None):
         ret = PropertyFilter(
             name=name, is_not_defined=is_not_defined, time_range=time_range
         )
         self.children.append(ret)
         return ret
 
-    def filter_time_range(self, start, end):
+    def filter_time_range(self, start: datetime, end: datetime):
         self.time_range = ComponentTimeRangeMatcher(start, end, comp=self.name)
         return self.time_range
 
-    def match(self, comp, tzify):
+    def match(self, comp: Component, tzify: TzifyFunction):
         # From https://tools.ietf.org/html/rfc4791, 9.7.1:
         # A CALDAV:comp-filter is said to match if:
 
@@ -605,8 +622,8 @@ class ComponentFilter(object):
 
 class PropertyFilter(object):
 
-    def __init__(self, name, children=None, is_not_defined=False,
-                 time_range=None):
+    def __init__(self, name: str, children=None, is_not_defined: bool = False,
+                 time_range: Optional[PropertyTimeRangeMatcher] = None):
         self.name = name
         self.is_not_defined = is_not_defined
         self.children = children or []
@@ -621,12 +638,15 @@ class PropertyFilter(object):
             self.time_range,
         )
 
-    def filter_parameter(self, name, is_not_defined=False):
+    def filter_parameter(
+            self, name: str,
+            is_not_defined: bool = False) -> "ParameterFilter":
         ret = ParameterFilter(name=name, is_not_defined=is_not_defined)
         self.children.append(ret)
         return ret
 
-    def filter_time_range(self, start, end):
+    def filter_time_range(
+            self, start: datetime, end: datetime) -> PropertyTimeRangeMatcher:
         self.time_range = PropertyTimeRangeMatcher(start, end)
         return self.time_range
 
@@ -636,7 +656,7 @@ class PropertyFilter(object):
         self.children.append(ret)
         return ret
 
-    def match(self, comp, tzify):
+    def match(self, comp: Component, tzify: TzifyFunction) -> bool:
         # From https://tools.ietf.org/html/rfc4791, 9.7.2:
         # A CALDAV:comp-filter is said to match if:
 
@@ -661,7 +681,9 @@ class PropertyFilter(object):
 
         return True
 
-    def match_indexes(self, indexes, tzify):
+    def match_indexes(
+            self, indexes: Indexes,
+            tzify: TzifyFunction) -> bool:
         myindex = "P=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
@@ -691,18 +713,23 @@ class PropertyFilter(object):
 
 
 class ParameterFilter(object):
-    def __init__(self, name, children=None, is_not_defined=False):
+
+    children: List[TextMatcher]
+
+    def __init__(self, name: str, children: Optional[List[TextMatcher]] = None,
+                 is_not_defined: bool = False):
         self.name = name
         self.is_not_defined = is_not_defined
         self.children = children or []
 
-    def filter_text_match(self, text, collation=None, negate_condition=False):
+    def filter_text_match(self, text: str, collation: Optional[str] = None,
+                          negate_condition: bool = False) -> TextMatcher:
         ret = TextMatcher(
             text, collation=collation, negate_condition=negate_condition)
         self.children.append(ret)
         return ret
 
-    def match(self, prop):
+    def match(self, prop) -> bool:
         if self.is_not_defined:
             return self.name not in prop.params
 
@@ -716,10 +743,10 @@ class ParameterFilter(object):
                 return False
         return True
 
-    def index_keys(self):
+    def index_keys(self) -> Iterable[List[str]]:
         yield ["A=" + self.name]
 
-    def match_indexes(self, indexes):
+    def match_indexes(self, indexes: Indexes) -> bool:
         myindex = "A=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
@@ -785,7 +812,7 @@ class CalendarFilter(Filter):
                 return False
         return True
 
-    def index_keys(self):
+    def index_keys(self) -> List[str]:
         subindexes = []
         for child in self.children:
             subindexes.extend(child.index_keys())
@@ -804,7 +831,7 @@ class ICalendarFile(File):
         super(ICalendarFile, self).__init__(content, content_type)
         self._calendar = None
 
-    def validate(self):
+    def validate(self) -> None:
         """Verify that file contents are valid."""
         cal = self.calendar
         # TODO(jelmer): return the list of errors to the caller
@@ -897,23 +924,21 @@ class ICalendarFile(File):
                 raise AssertionError("segments: %r" % segments)
 
 
-def as_tz_aware_ts(dt, default_timezone):
+def as_tz_aware_ts(dt, default_timezone) -> datetime:
     if not getattr(dt, "time", None):
-        dt = datetime.datetime.combine(dt, datetime.time())
+        dt = datetime.combine(dt, time())
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=default_timezone)
     assert dt.tzinfo
     return dt
 
 
-def rruleset_from_comp(comp):
-    if "RRULE" not in comp:
-        return None
+def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
     dtstart = comp["DTSTART"].dt
     rrulestr = comp["RRULE"].to_ical().decode("utf-8")
     rrule = dateutil.rrule.rrulestr(rrulestr, dtstart=dtstart)
     rs = dateutil.rrule.rruleset()
-    rs.rrule(rrule)
+    rs.rrule(rrule)  # type: ignore
     if "EXDATE" in comp:
         for exdate in comp["EXDATE"]:
             rs.exdate(exdate)
@@ -927,7 +952,11 @@ def rruleset_from_comp(comp):
     return rs
 
 
-def _expand_rrule_component(incomp, start, end, existing):
+def _expand_rrule_component(
+        incomp: Component, start: datetime, end: datetime,
+        existing: Dict[str, Component]) -> Iterable[Component]:
+    if "RRULE" not in incomp:
+        return
     rs = rruleset_from_comp(incomp)
     for field in ["RRULE", "EXRULE", "UNTIL", "RDATE", "EXDATE"]:
         if field in incomp:
@@ -945,7 +974,8 @@ def _expand_rrule_component(incomp, start, end, existing):
         yield outcomp
 
 
-def expand_calendar_rrule(incal, start, end):
+def expand_calendar_rrule(
+        incal: Calendar, start: datetime, end: datetime) -> Calendar:
     outcal = Calendar()
     if incal.name != "VCALENDAR":
         raise AssertionError(

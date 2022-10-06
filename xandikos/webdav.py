@@ -27,6 +27,7 @@ functionality should live in xandikos.caldav/xandikos.carddav respectively.
 
 import asyncio
 import collections
+from datetime import datetime
 import fnmatch
 import functools
 import logging
@@ -37,6 +38,7 @@ from typing import (
     Dict,
     Iterable,
     AsyncIterable,
+    Iterator,
     List,
     Optional,
     Union,
@@ -362,26 +364,26 @@ class Resource(object):
     resource_types: List[str] = []
 
     # TODO(jelmer): Be consistent in using get/set functions vs properties.
-    def set_resource_types(self, resource_types):
+    def set_resource_types(self, resource_types: List[str]) -> None:
         """Set the resource types."""
         raise NotImplementedError(self.set_resource_types)
 
-    def get_displayname(self):
+    def get_displayname(self) -> str:
         """Get the resource display name."""
         raise KeyError
 
-    def set_displayname(self, displayname):
+    def set_displayname(self, displayname: str) -> None:
         """Set the resource display name."""
         raise NotImplementedError(self.set_displayname)
 
-    def get_creationdate(self):
+    def get_creationdate(self) -> datetime:
         """Get the resource creation date.
 
         :return: A datetime object
         """
         raise NotImplementedError(self.get_creationdate)
 
-    def get_supported_locks(self):
+    def get_supported_locks(self) -> List[Tuple[str, str]]:
         """Get the list of supported locks.
 
         This should return a list of (lockscope, locktype) tuples.
@@ -390,28 +392,28 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_supported_locks)
 
-    def get_active_locks(self):
+    def get_active_locks(self) -> List["ActiveLock"]:
         """Return the list of active locks.
 
         :return: A list of ActiveLock tuples
         """
         raise NotImplementedError(self.get_active_locks)
 
-    def get_content_type(self):
+    def get_content_type(self) -> str:
         """Get the content type for the resource.
 
         This is a mime type like text/plain
         """
         raise NotImplementedError(self.get_content_type)
 
-    def get_owner(self):
+    def get_owner(self) -> str:
         """Get an href identifying the owner of the resource.
 
         Can be None if owner information is not known.
         """
         raise NotImplementedError(self.get_owner)
 
-    async def get_etag(self):
+    async def get_etag(self) -> str:
         """Get the etag for this resource.
 
         Contains the ETag header value (from Section 14.19 of [RFC2616]) as it
@@ -419,14 +421,16 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_etag)
 
-    async def get_body(self):
+    async def get_body(self) -> Iterable[bytes]:
         """Get resource contents.
 
         :return: Iterable over bytestrings."""
         raise NotImplementedError(self.get_body)
 
     async def render(
-            self, self_url, accepted_content_types, accepted_languages):
+            self, self_url: str, accepted_content_types: List[str],
+            accepted_languages: List[str]) -> Tuple[
+                Iterable[bytes], int, str, str, Optional[str]]:
         """'Render' this resource in the specified content type.
 
         The default implementation just checks that the
@@ -457,14 +461,14 @@ class Resource(object):
             content_language,
         )
 
-    async def get_content_length(self):
+    async def get_content_length(self) -> int:
         """Get content length.
 
         :return: Length of this objects content.
         """
         return sum(map(len, await self.get_body()))
 
-    def get_content_language(self):
+    def get_content_language(self) -> str:
         """Get content language.
 
         :return: Language, as used in HTTP Accept-Language
@@ -481,42 +485,42 @@ class Resource(object):
         """
         raise NotImplementedError(self.set_body)
 
-    def set_comment(self, comment):
+    def set_comment(self, comment: str) -> None:
         """Set resource comment.
 
         :param comment: New comment
         """
         raise NotImplementedError(self.set_comment)
 
-    def get_comment(self):
+    def get_comment(self) -> str:
         """Get resource comment.
 
         :return: comment
         """
         raise NotImplementedError(self.get_comment)
 
-    def get_last_modified(self):
+    def get_last_modified(self) -> datetime:
         """Get last modified time.
 
         :return: Last modified time
         """
         raise NotImplementedError(self.get_last_modified)
 
-    def get_is_executable(self):
+    def get_is_executable(self) -> bool:
         """Get executable bit.
 
         :return: Boolean indicating executability
         """
         raise NotImplementedError(self.get_is_executable)
 
-    def set_is_executable(self, executable):
+    def set_is_executable(self, executable: bool) -> None:
         """Set executable bit.
 
         :param executable: Boolean indicating executability
         """
         raise NotImplementedError(self.set_is_executable)
 
-    def get_quota_used_bytes(self):
+    def get_quota_used_bytes(self) -> int:
         """Return bytes consumed by this resource.
 
         If unknown, this can raise KeyError.
@@ -525,7 +529,7 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_quota_used_bytes)
 
-    def get_quota_available_bytes(self):
+    def get_quota_available_bytes(self) -> int:
         """Return quota available as bytes.
 
         This can raise KeyError if there is infinite quota available.
@@ -685,7 +689,7 @@ class GetLastModifiedProperty(Property):
             "%a, %d %b %Y %H:%M:%S GMT")
 
 
-def format_datetime(dt):
+def format_datetime(dt: datetime) -> bytes:
     s = "%04d%02d%02dT%02d%02d%02dZ" % (
         dt.year,
         dt.month,
@@ -880,45 +884,54 @@ class Collection(Resource):
 
     resource_types = Resource.resource_types + [COLLECTION_RESOURCE_TYPE]
 
-    def members(self):
+    def members(self) -> Iterable[Tuple[str, Resource]]:
         """List all members.
 
-        :return: List of (name, Resource) tuples
+        Returns: List of (name, Resource) tuples
         """
         raise NotImplementedError(self.members)
 
-    def get_member(self, name):
+    def get_member(self, name: str) -> Resource:
         """Retrieve a member by name.
 
-        :param name: Name of member to retrieve
-        :return: A Resource
+        Args;
+          name: Name of member to retrieve
+        Returns:
+          A Resource
         """
         raise NotImplementedError(self.get_member)
 
-    def delete_member(self, name, etag=None):
+    def delete_member(self, name: str, etag: Optional[str] = None) -> None:
         """Delete a member with a specific name.
 
-        :param name: Member name
-        :param etag: Optional required etag
-        :raise KeyError: when the item doesn't exist
+        Args:
+          name: Member name
+          etag: Optional required etag
+        Raises:
+          KeyError: when the item doesn't exist
         """
         raise NotImplementedError(self.delete_member)
 
-    async def create_member(self, name, contents, content_type):
+    async def create_member(
+            self, name: str, contents: Iterable[bytes],
+            content_type: str) -> Tuple[str, str]:
         """Create a new member with specified name and contents.
 
-        :param name: Member name (can be None)
-        :param contents: Chunked contents
-        :param etag: Optional required etag
-        :return: (name, etag) for the new member
+        Args:
+          name: Member name (can be None)
+          contents: Chunked contents
+          etag: Optional required etag
+        Returns: (name, etag) for the new member
         """
         raise NotImplementedError(self.create_member)
 
-    def get_sync_token(self):
+    def get_sync_token(self) -> str:
         """Get sync-token for the current state of this collection."""
         raise NotImplementedError(self.get_sync_token)
 
-    def iter_differences_since(self, old_token, new_token):
+    def iter_differences_since(
+            self, old_token: str, new_token: str) -> Iterator[
+                Tuple[str, Optional[Resource], Optional[Resource]]]:
         """Iterate over differences in this collection.
 
         Should return an iterator over (name, old resource, new resource)
@@ -933,24 +946,24 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.iter_differences_since)
 
-    def get_ctag(self):
-        raise NotImplementedError(self.getctag)
+    def get_ctag(self) -> str:
+        raise NotImplementedError(self.get_ctag)
 
-    def get_headervalue(self):
+    def get_headervalue(self) -> str:
         raise NotImplementedError(self.get_headervalue)
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroy this collection itself."""
         raise NotImplementedError(self.destroy)
 
-    def set_refreshrate(self, value):
+    def set_refreshrate(self, value: Optional[str]) -> None:
         """Set the recommended refresh rate for this collection.
 
         :param value: Refresh rate (None to remove)
         """
         raise NotImplementedError(self.set_refreshrate)
 
-    def get_refreshrate(self):
+    def get_refreshrate(self) -> str:
         """Get the recommended refresh rate.
 
         :return: Recommended refresh rate
@@ -964,43 +977,43 @@ class Principal(Resource):
 
     resource_Types = Resource.resource_types + [PRINCIPAL_RESOURCE_TYPE]
 
-    def get_principal_url(self):
+    def get_principal_url(self) -> str:
         """Return the principal URL for this principal.
 
         :return: A URL identifying this principal.
         """
         raise NotImplementedError(self.get_principal_url)
 
-    def get_infit_settings(self):
+    def get_infit_settings(self) -> str:
         """Return inf-it settings string."""
         raise NotImplementedError(self.get_infit_settings)
 
-    def set_infit_settings(self, settings):
+    def set_infit_settings(self, settings: Optional[str]) -> None:
         """Set inf-it settings string."""
         raise NotImplementedError(self.get_infit_settings)
 
-    def get_group_membership(self):
+    def get_group_membership(self) -> List[str]:
         """Get group membership URLs."""
         raise NotImplementedError(self.get_group_membership)
 
-    def get_calendar_proxy_read_for(self):
+    def get_calendar_proxy_read_for(self) -> List[str]:
         """List principals for which this one is a read proxy.
 
         :return: List of principal hrefs
         """
         raise NotImplementedError(self.get_calendar_proxy_read_for)
 
-    def get_calendar_proxy_write_for(self):
+    def get_calendar_proxy_write_for(self) -> List[str]:
         """List principals for which this one is a write proxy.
 
         :return: List of principal hrefs
         """
         raise NotImplementedError(self.get_calendar_proxy_write_for)
 
-    def get_schedule_inbox_url(self):
+    def get_schedule_inbox_url(self) -> str:
         raise NotImplementedError(self.get_schedule_inbox_url)
 
-    def get_schedule_outbox_url(self):
+    def get_schedule_outbox_url(self) -> str:
         raise NotImplementedError(self.get_schedule_outbox_url)
 
 
