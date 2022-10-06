@@ -57,7 +57,8 @@ else:
     def get_systemd_listen_sockets() -> List[socket.socket]:
         socks = []
         for fd in systemd.daemon.listen_fds():
-            for family in (socket.AF_UNIX, socket.AF_INET, socket.AF_INET6):
+            for family in (socket.AF_UNIX,  # type: ignore
+                           socket.AF_INET, socket.AF_INET6):
                 if systemd.daemon.is_socket(fd, family=family,
                                             type=socket.SOCK_STREAM,
                                             listening=True):
