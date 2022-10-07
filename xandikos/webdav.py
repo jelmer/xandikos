@@ -1556,9 +1556,9 @@ async def apply_modify_prop(el, href, resource, properties):
         raise AssertionError
     try:
         [requested] = el
-    except IndexError:
+    except IndexError as exc:
         raise BadRequestError(
-            "Received more than one element in {DAV:}set element.")
+            "Received more than one element in {DAV:}set element.") from exc
     if requested.tag != "{DAV:}prop":
         raise BadRequestError("Expected prop tag, got " + requested.tag)
     for propel in requested:
@@ -1608,8 +1608,8 @@ async def _readXmlBody(
         print("IN: " + body.decode("utf-8"))
     try:
         et = xmlparse(body)
-    except ET.ParseError:
-        raise BadRequestError("Unable to parse body.")
+    except ET.ParseError as exc:
+        raise BadRequestError("Unable to parse body.") from exc
     if expected_tag is not None and et.tag != expected_tag:
         raise BadRequestError(
             "Expected %s tag, got %s" % (expected_tag, et.tag))
@@ -1799,9 +1799,9 @@ class PropfindMethod(Method):
                 request, "{DAV:}propfind", strict=app.strict)
             try:
                 [requested] = et
-            except ValueError:
+            except ValueError as exc:
                 raise BadRequestError(
-                    "Received more than one element in propfind.")
+                    "Received more than one element in propfind.") from exc
         async for href, resource in traverse_resource(
                 base_resource, base_href, depth):
             propstat = []

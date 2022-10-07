@@ -56,7 +56,7 @@ class VCardFile(File):
             text = b"".join(self.content).decode('utf-8', 'surrogateescape')
             try:
                 self._addressbook = vobject.readOne(text)
-            except vobject.base.ParseError as e:
+            except vobject.base.ParseError as exc:
                 raise InvalidFileContents(
-                    self.content_type, self.content, str(e))
+                    self.content_type, self.content, str(exc)) from exc
         return self._addressbook

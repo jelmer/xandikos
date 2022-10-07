@@ -854,9 +854,9 @@ class ICalendarFile(File):
         if self._calendar is None:
             try:
                 self._calendar = Calendar.from_ical(b"".join(self.content))
-            except ValueError as e:
+            except ValueError as exc:
                 raise InvalidFileContents(
-                    self.content_type, self.content, str(e))
+                    self.content_type, self.content, str(exc)) from exc
         return self._calendar
 
     def describe_delta(self, name, previous):

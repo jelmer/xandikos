@@ -65,5 +65,5 @@ def get_collation(name: str) -> Callable[[str, str, str], bool]:
     """
     try:
         return collations[name]
-    except KeyError:
-        raise UnknownCollation(name)
+    except KeyError as exc:
+        raise UnknownCollation(name) from exc

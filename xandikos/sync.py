@@ -144,10 +144,10 @@ class SyncCollectionReporter(webdav.Reporter):
                         if old_propstat != new_propstat:
                             propstat.append(new_propstat)
                     yield webdav.Status(subhref, propstat=propstat)
-        except InvalidToken as e:
+        except InvalidToken as exc:
             raise webdav.PreconditionFailure(
                 '{DAV:}valid-sync-token',
-                "Requested sync token %s is invalid" % e.token)
+                "Requested sync token %s is invalid" % exc.token) from exc
         yield SyncToken(new_token)
 
 
