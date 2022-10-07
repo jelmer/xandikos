@@ -217,18 +217,18 @@ class ObjectResource(webdav.Resource):
                 self.content_type,
                 data,
                 replace_etag=extract_strong_etag(replace_etag))
-        except InvalidFileContents as e:
+        except InvalidFileContents as exc:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
                 "{%s}valid-calendar-data" % caldav.NAMESPACE,
-                "Not a valid calendar file: %s" % e.error,
-            )
-        except DuplicateUidError:
+                "Not a valid calendar file: %s" % exc.error,
+            ) from exc
+        except DuplicateUidError as exc:
             raise webdav.PreconditionFailure(
                 "{%s}no-uid-conflict" % caldav.NAMESPACE, "UID already in use."
-            )
-        except LockedError:
-            raise webdav.ResourceLocked()
+            ) from exc
+        except LockedError as exc:
+            raise webdav.ResourceLocked() from exc
         return create_strong_etag(etag)
 
     def get_content_language(self) -> str:
@@ -392,20 +392,20 @@ class StoreBasedCollection(object):
     ) -> Tuple[str, str]:
         try:
             (name, etag) = self.store.import_one(name, content_type, contents)
-        except InvalidFileContents as e:
+        except InvalidFileContents as exc:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
                 "{%s}valid-calendar-data" % caldav.NAMESPACE,
-                "Not a valid calendar file: %s" % e.error,
-            )
-        except DuplicateUidError:
+                "Not a valid calendar file: %s" % exc.error,
+            ) from exc
+        except DuplicateUidError as exc:
             raise webdav.PreconditionFailure(
                 "{%s}no-uid-conflict" % caldav.NAMESPACE, "UID already in use."
-            )
-        except OutOfSpaceError:
-            raise webdav.InsufficientStorage()
-        except LockedError:
-            raise webdav.ResourceLocked()
+            ) from exc
+        except OutOfSpaceError as exc:
+            raise webdav.InsufficientStorage() from exc
+        except LockedError as exc:
+            raise webdav.ResourceLocked() from exc
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(
@@ -432,8 +432,8 @@ class StoreBasedCollection(object):
                 else:
                     new_resource = None
                 yield (name, old_resource, new_resource)
-        except InvalidCTag as e:
-            raise sync.InvalidToken(e.ctag)
+        except InvalidCTag as exc:
+            raise sync.InvalidToken(e.ctag) from exc
 
     def get_owner(self):
         return None

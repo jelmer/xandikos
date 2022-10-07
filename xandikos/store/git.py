@@ -27,8 +27,19 @@ import logging
 import os
 import shutil
 import stat
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List, Optional
 import uuid
+
+from dulwich.file import GitFile, FileLocked
+from dulwich.index import (
+    Index,
+    IndexEntry,
+    index_entry_from_stat,
+    write_index_dict,
+)
+from dulwich.objects import Blob, Tree
+from dulwich.pack import SHA1Writer
+import dulwich.repo
 
 from . import (
     DEFAULT_MIME_TYPE,
@@ -53,17 +64,6 @@ from .config import (
 )
 from .index import MemoryIndex
 
-
-from dulwich.file import GitFile, FileLocked
-from dulwich.index import (
-    Index,
-    IndexEntry,
-    index_entry_from_stat,
-    write_index_dict,
-)
-from dulwich.objects import Blob, Tree
-from dulwich.pack import SHA1Writer
-import dulwich.repo
 
 DEFAULT_ENCODING = "utf-8"
 
@@ -229,6 +229,14 @@ class GitStore(Store):
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid: Dict[str, Tuple[str, str]] = {}
+
+    def _get_etag(self, name: str) -> str:
+        raise NotImplementedError(self._get_etag)
+
+    def _import_one(
+            self, name: str, data: List[bytes], message: str,
+            author: Optional[str] = None):
+        raise NotImplementedError(self._import_one)
 
     @property
     def config(self):
@@ -573,8 +581,8 @@ class BareGitStore(GitStore):
         else:
             try:
                 tree = self.repo.object_store[ctag.encode("ascii")]
-            except KeyError:
-                raise InvalidCTag(ctag)
+            except KeyError as exc:
+                raise InvalidCTag(ctag) from exc
         for (name, mode, sha) in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
             if name == CONFIG_FILENAME:
@@ -629,8 +637,8 @@ class BareGitStore(GitStore):
         name_enc = name.encode(DEFAULT_ENCODING)
         try:
             current_sha = tree[name_enc][1]
-        except KeyError:
-            raise NoSuchItem(name)
+        except KeyError as exc:
+            raise NoSuchItem(name) from exc
         if etag is not None and current_sha != etag.encode("ascii"):
             raise InvalidETag(name, etag, current_sha.decode("ascii"))
         del tree[name_enc]
@@ -712,11 +720,11 @@ class TreeGitStore(GitStore):
                         index, message.encode(DEFAULT_ENCODING), author=author
                     )
                 return blob.id
-        except FileLocked:
-            raise LockedError(name)
-        except OSError as e:
-            if e.errno == errno.ENOSPC:
-                raise OutOfSpaceError()
+        except FileLocked as exc:
+            raise LockedError(name) from exc
+        except OSError as exc:
+            if exc.errno == errno.ENOSPC:
+                raise OutOfSpaceError() from exc
             raise
 
     def delete_one(self, name, message=None, author=None, etag=None):
@@ -733,8 +741,8 @@ class TreeGitStore(GitStore):
         try:
             with open(p, "rb") as f:
                 current_blob = Blob.from_string(f.read())
-        except IOError:
-            raise NoSuchItem(name)
+        except FileNotFoundError as exc:
+            raise NoSuchItem(name) from exc
         if message is None:
             fi = open_by_extension(
                 current_blob.chunked, name, self.extra_file_handlers)
@@ -767,8 +775,8 @@ class TreeGitStore(GitStore):
         if ctag is not None:
             try:
                 tree = self.repo.object_store[ctag.encode("ascii")]
-            except KeyError:
-                raise InvalidCTag(ctag)
+            except KeyError as exc:
+                raise InvalidCTag(ctag) from exc
             for (name, mode, sha) in tree.iteritems():
                 name = name.decode(DEFAULT_ENCODING)
                 if name == CONFIG_FILENAME:
