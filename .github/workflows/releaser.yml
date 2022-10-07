@@ -20,4 +20,4 @@ jobs:
           pip install git+https://github.com/jelmer/releaser
       - name: Validate releaser.conf
         run: |
-          releaser validate .
+          PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python releaser validate .
