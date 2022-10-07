@@ -12,6 +12,9 @@ jobs:
       - uses: actions/checkout@v2
       - name: Set up Python
         uses: actions/setup-python@v2
+      - name: Install dependencies
+        run: |
+          sudo apt install protobuf-compiler
       - name: Install releaser
         run: |
           pip install git+https://github.com/jelmer/releaser
