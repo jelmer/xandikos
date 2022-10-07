@@ -433,7 +433,7 @@ class StoreBasedCollection(object):
                     new_resource = None
                 yield (name, old_resource, new_resource)
         except InvalidCTag as exc:
-            raise sync.InvalidToken(e.ctag) from exc
+            raise sync.InvalidToken(exc.ctag) from exc
 
     def get_owner(self):
         return None
