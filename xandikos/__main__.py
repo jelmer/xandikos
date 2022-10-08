@@ -19,16 +19,12 @@
 
 """Xandikos command-line handling."""
 
-from typing import List
-
-
-def main(argv: List[str]):
-    from .web import main
-
-    return main(argv)
+import asyncio
 
 
 if __name__ == "__main__":
     import sys
+    # For now, just invoke xandikos.web
+    from .web import main
 
-    main(sys.argv)
+    sys.exit(asyncio.run(main(sys.argv)))
