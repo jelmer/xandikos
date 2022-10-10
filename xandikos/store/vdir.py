@@ -101,7 +101,7 @@ class VdirStore(Store):
                 return [f.read()]
         except FileNotFoundError as exc:
             raise KeyError(name) from exc
-        except IsADirectoryError: as exc:
+        except IsADirectoryError as exc:
             raise KeyError(name) from exc
 
     def _scan_uids(self):
