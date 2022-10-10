@@ -23,7 +23,7 @@
 
 from datetime import datetime, timedelta, time
 import logging
-from typing import Iterable, List, Dict, Callable, Union, Optional
+from typing import Iterable, List, Dict, Callable, Union, Optional, TYPE_CHECKING
 
 import pytz
 
@@ -33,7 +33,11 @@ from icalendar.prop import (
     vDatetime,
     vDDDTypes,
     vText,
+    TypesFactory,
 )
+
+PropTypes = Union[vText]
+
 from xandikos.store import (
     Filter,
     File,
@@ -491,7 +495,7 @@ class TextMatcher(object):
     def match_indexes(self, indexes):
         return any(self.match(k) for k in indexes[None])
 
-    def match(self, prop):
+    def match(self, prop: Union[vText]):
         if isinstance(prop, vText):
             prop = prop.encode()
         matches = self.collation(self.text, prop, 'equals')
@@ -729,7 +733,7 @@ class ParameterFilter(object):
         self.children.append(ret)
         return ret
 
-    def match(self, prop) -> bool:
+    def match(self, prop: PropTypes) -> bool:
         if self.is_not_defined:
             return self.name not in prop.params
 
