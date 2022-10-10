@@ -230,7 +230,7 @@ async def addressbook_from_resource(resource):
     return file.addressbook.contents
 
 
-def apply_text_match(el, value):
+def apply_text_match(el: ET.Element, value: str) -> bool:
     collation = el.get("collation", "i;ascii-casemap")
     negate_condition = el.get("negate-condition", "no")
     match_type = el.get("match-type", "contains")
