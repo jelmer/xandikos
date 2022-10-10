@@ -27,7 +27,7 @@ caldav_servers = [
 ]
 EOF
 
-run_xandikos 5233 --defaults
+run_xandikos 5233 5234 --defaults
 
 pushd $(dirname $0)/pycaldav
 ${PYTHON:-python3} -m pytest tests "$@"
