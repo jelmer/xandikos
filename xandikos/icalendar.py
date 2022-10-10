@@ -30,6 +30,7 @@ import pytz
 import dateutil.rrule
 from icalendar.cal import Calendar, Component, component_factory
 from icalendar.prop import (
+    vCategory,
     vDatetime,
     vDDDTypes,
     vText,
@@ -505,16 +506,21 @@ class TextMatcher(object):
         )
 
     def match_indexes(self, indexes: SubIndexes):
-        return any(self.match(self.type_fn(k)) for k in indexes[None])
+        return any(
+            self.match(self.type_fn.from_ical(k)) for k in indexes[None])
 
-    def match(self, prop: Union[vText]):
+    def match(self, prop: Union[vText, vCategory, str]):
         if isinstance(prop, vText):
-            prop = str(prop)
+            matches = self.collation(self.text, str(prop), 'equals')
         elif isinstance(prop, str):
-            pass
+            matches = self.collation(self.text, prop, 'equals')
+        elif isinstance(prop, vCategory):
+            matches = any([self.match(cat) for cat in prop.cats])
         else:
-            raise TypeError(type(prop).__name__)
-        matches = self.collation(self.text, prop, 'equals')
+            logging.warning(
+                "potentially unsupported value in text match search: " +
+                repr(prop))
+            return False
         if self.negate_condition:
             return not matches
         else:

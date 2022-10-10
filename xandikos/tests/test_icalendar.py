@@ -25,7 +25,7 @@ import pytz
 import unittest
 
 from icalendar.cal import Event
-from icalendar.prop import vText
+from icalendar.prop import vText, vCategory
 
 from xandikos import (
     collation as _mod_collation,
@@ -417,6 +417,16 @@ class TextMatchTest(unittest.TestCase):
         self.assertFalse(tm.match(vText("FOOBAR")))
         self.assertTrue(tm.match(vText("foobar")))
         self.assertFalse(tm.match(vText("fobar")))
+
+    def test_category(self):
+        tm = TextMatcher("summary", "foobar")
+        self.assertTrue(tm.match(vCategory(["FOOBAR", "blah"])))
+        self.assertTrue(tm.match(vCategory(["foobar"])))
+        self.assertFalse(tm.match(vCategory(["fobar"])))
+
+    def test_unknown_type(self):
+        tm = TextMatcher("summary", "foobar")
+        self.assertFalse(tm.match(object()))
 
     def test_unknown_collation(self):
         self.assertRaises(
