@@ -25,6 +25,7 @@ import pytz
 import unittest
 
 from icalendar.cal import Event
+from icalendar.prop import vText
 
 from xandikos import (
     collation as _mod_collation,
@@ -252,7 +253,7 @@ class CalendarFilterTests(unittest.TestCase):
         f = filter.filter_subcomponent("VCALENDAR")
         f = f.filter_subcomponent("VTODO")
         f = f.filter_property("SUMMARY")
-        f.filter_text_match(b"do something different")
+        f.filter_text_match("do something different")
         self.assertEqual(
             filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=SUMMARY"]])
         self.assertFalse(
@@ -264,7 +265,7 @@ class CalendarFilterTests(unittest.TestCase):
         filter = CalendarFilter(None)
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
-        ).filter_property("SUMMARY").filter_text_match(b"do something")
+        ).filter_property("SUMMARY").filter_text_match("do something")
         self.assertTrue(
             filter.check_from_indexes(
                 "file", {"C=VCALENDAR/C=VTODO/P=SUMMARY": [b"do something"]}
@@ -280,7 +281,7 @@ class CalendarFilterTests(unittest.TestCase):
         f = f.filter_subcomponent("VTODO")
         f = f.filter_property("CREATED")
         f = f.filter_parameter("TZID")
-        f.filter_text_match(b"America/Blah")
+        f.filter_text_match("America/Blah")
         self.assertEqual(
             filter.index_keys(),
             [
@@ -300,7 +301,7 @@ class CalendarFilterTests(unittest.TestCase):
         f = f.filter_subcomponent("VTODO")
         f = f.filter_property("CREATED")
         f = f.filter_parameter("TZID")
-        f.filter_text_match(b"America/Denver")
+        f.filter_text_match("America/Denver")
         self.assertTrue(
             filter.check_from_indexes(
                 "file",
@@ -400,28 +401,29 @@ class CalendarFilterTests(unittest.TestCase):
 
 class TextMatchTest(unittest.TestCase):
     def test_default_collation(self):
-        tm = TextMatcher(b"foobar")
-        self.assertTrue(tm.match(b"FOOBAR"))
-        self.assertTrue(tm.match(b"foobar"))
-        self.assertFalse(tm.match(b"fobar"))
+        tm = TextMatcher("summary", "foobar")
+        self.assertTrue(tm.match(vText("FOOBAR")))
+        self.assertTrue(tm.match(vText("foobar")))
+        self.assertFalse(tm.match(vText("fobar")))
 
     def test_casecmp_collation(self):
-        tm = TextMatcher(b"foobar", collation="i;ascii-casemap")
-        self.assertTrue(tm.match(b"FOOBAR"))
-        self.assertTrue(tm.match(b"foobar"))
-        self.assertFalse(tm.match(b"fobar"))
+        tm = TextMatcher("summary", "foobar", collation="i;ascii-casemap")
+        self.assertTrue(tm.match(vText("FOOBAR")))
+        self.assertTrue(tm.match(vText("foobar")))
+        self.assertFalse(tm.match(vText("fobar")))
 
     def test_cmp_collation(self):
-        tm = TextMatcher(b"foobar", "i;octet")
-        self.assertFalse(tm.match(b"FOOBAR"))
-        self.assertTrue(tm.match(b"foobar"))
-        self.assertFalse(tm.match(b"fobar"))
+        tm = TextMatcher("summary", "foobar", collation="i;octet")
+        self.assertFalse(tm.match(vText("FOOBAR")))
+        self.assertTrue(tm.match(vText("foobar")))
+        self.assertFalse(tm.match(vText("fobar")))
 
     def test_unknown_collation(self):
         self.assertRaises(
             _mod_collation.UnknownCollation,
             TextMatcher,
-            b"foobar",
+            "summary",
+            "foobar",
             collation="i;blah",
         )
 

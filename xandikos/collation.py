@@ -19,7 +19,7 @@
 
 """Collations."""
 
-from typing import Callable, Dict, Callable
+from typing import Callable, Dict
 
 
 class UnknownCollation(Exception):
@@ -45,7 +45,7 @@ def _match(a, b, k):
 
 collations: Dict[str, Callable[[str, str, str], bool]] = {
     "i;ascii-casemap": lambda a, b, k: _match(
-        a.encode("ascii").upper(), b.decode("ascii").upper(), k
+        a.encode("ascii").upper(), b.encode("ascii").upper(), k
     ),
     "i;octet": lambda a, b, k: _match(a, b, k),
     # TODO(jelmer): Follow all rules as specified in
