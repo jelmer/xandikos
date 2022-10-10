@@ -33,17 +33,28 @@ from icalendar.prop import (
     vDatetime,
     vDDDTypes,
     vText,
+    TypesFactory,
 )
+
 from xandikos.store import (
     Filter,
     File,
     Indexes,
+    IndexKey,
+    IndexValue,
     InvalidFileContents,
 )
 
 from . import (
     collation as _mod_collation,
 )
+
+TYPES_FACTORY = TypesFactory()
+
+PropTypes = Union[vText]
+
+TzifyFunction = Callable[[datetime], datetime]
+
 
 # TODO(jelmer): Populate this further based on
 # https://tools.ietf.org/html/rfc5545#3.3.11
@@ -67,8 +78,13 @@ def validate_calendar(cal, strict=False):
         yield error
 
 
-def create_subindexes(indexes, base):
-    ret = {}
+# SubIndexes is like Indexes, but None can also occur as a key
+SubIndexes = Dict[Optional[IndexKey], IndexValue]
+
+
+def create_subindexes(
+        indexes: Union[SubIndexes, Indexes], base: str) -> SubIndexes:
+    ret: SubIndexes = {}
     for k, v in indexes.items():
         if k is not None and k.startswith(base + "/"):
             ret[k[len(base) + 1 :]] = v
@@ -370,14 +386,12 @@ class PropertyTimeRangeMatcher(object):
         dt = tzify(prop.dt)
         return dt >= self.start and dt <= self.end
 
-    def match_indexes(self, prop, tzify):
+    def match_indexes(self, prop: SubIndexes, tzify: TzifyFunction):
         return any(
             self.match(
                 vDDDTypes(vDatetime.from_ical(p)), tzify) for p in prop[None]
         )
 
-
-TzifyFunction = Callable[[datetime], datetime]
 
 TimeRangeFilter = Callable[
     [datetime, datetime, Component, TzifyFunction], bool]
@@ -434,7 +448,7 @@ class ComponentTimeRangeMatcher(object):
             return False
         return component_handler(self.start, self.end, comp, tzify)
 
-    def match_indexes(self, indexes, tzify: TzifyFunction):
+    def match_indexes(self, indexes: SubIndexes, tzify: TzifyFunction):
         vs = {}
         for name, value in indexes.items():
             if name and name[2:] in self.all_props:
@@ -469,11 +483,12 @@ class ComponentTimeRangeMatcher(object):
 
 
 class TextMatcher(object):
-    def __init__(self, text: Union[bytes, str],
+    def __init__(self, name: str, text: str,
                  collation: Optional[str] = None,
                  negate_condition: bool = False):
-        if isinstance(text, str):
-            text = text.encode()
+        self.name = name
+        self.type_fn = TYPES_FACTORY.for_property(name)
+        assert isinstance(text, str)
         self.text = text
         if collation is None:
             collation = "i;ascii-casemap"
@@ -481,19 +496,24 @@ class TextMatcher(object):
         self.negate_condition = negate_condition
 
     def __repr__(self):
-        return "%s(%r, collation=%r, negate_condition=%r)" % (
+        return "%s(%r, %r, collation=%r, negate_condition=%r)" % (
             self.__class__.__name__,
+            self.name,
             self.text,
             self.collation,
             self.negate_condition,
         )
 
-    def match_indexes(self, indexes):
-        return any(self.match(k) for k in indexes[None])
+    def match_indexes(self, indexes: SubIndexes):
+        return any(self.match(self.type_fn(k)) for k in indexes[None])
 
-    def match(self, prop):
+    def match(self, prop: Union[vText]):
         if isinstance(prop, vText):
-            prop = prop.encode()
+            prop = str(prop)
+        elif isinstance(prop, str):
+            pass
+        else:
+            raise TypeError(type(prop).__name__)
         matches = self.collation(self.text, prop, 'equals')
         if self.negate_condition:
             return not matches
@@ -588,7 +608,7 @@ class ComponentFilter(object):
             for child in self.children
         )
 
-    def match_indexes(self, indexes, tzify):
+    def match_indexes(self, indexes: SubIndexes, tzify: TzifyFunction):
         myindex = "C=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
@@ -650,8 +670,10 @@ class PropertyFilter(object):
         self.time_range = PropertyTimeRangeMatcher(start, end)
         return self.time_range
 
-    def filter_text_match(self, text, collation=None, negate_condition=False):
-        ret = TextMatcher(text, collation=collation,
+    def filter_text_match(
+            self, text: str, collation: Optional[str] = None,
+            negate_condition: bool = False) -> TextMatcher:
+        ret = TextMatcher(self.name, text, collation=collation,
                           negate_condition=negate_condition)
         self.children.append(ret)
         return ret
@@ -682,12 +704,12 @@ class PropertyFilter(object):
         return True
 
     def match_indexes(
-            self, indexes: Indexes,
+            self, indexes: SubIndexes,
             tzify: TzifyFunction) -> bool:
         myindex = "P=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
-        subindexes = create_subindexes(indexes, myindex)
+        subindexes: SubIndexes = create_subindexes(indexes, myindex)
         if not self.children and not self.time_range:
             return bool(indexes[myindex])
 
@@ -725,16 +747,17 @@ class ParameterFilter(object):
     def filter_text_match(self, text: str, collation: Optional[str] = None,
                           negate_condition: bool = False) -> TextMatcher:
         ret = TextMatcher(
-            text, collation=collation, negate_condition=negate_condition)
+            self.name, text, collation=collation,
+            negate_condition=negate_condition)
         self.children.append(ret)
         return ret
 
-    def match(self, prop) -> bool:
+    def match(self, prop: PropTypes) -> bool:
         if self.is_not_defined:
             return self.name not in prop.params
 
         try:
-            value = prop.params[self.name].encode()
+            value = prop.params[self.name]
         except KeyError:
             return False
 
@@ -751,13 +774,13 @@ class ParameterFilter(object):
         if self.is_not_defined:
             return not bool(indexes[myindex])
 
-        try:
-            value = indexes[myindex][0]
-        except IndexError:
+        subindexes = create_subindexes(indexes, myindex)
+
+        if not subindexes:
             return False
 
         for child in self.children:
-            if not child.match(value):
+            if not child.match_indexes(subindexes):
                 return False
         return True
 

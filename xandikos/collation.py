@@ -19,7 +19,7 @@
 
 """Collations."""
 
-from typing import Callable
+from typing import Callable, Dict
 
 
 class UnknownCollation(Exception):
@@ -43,9 +43,9 @@ def _match(a, b, k):
         raise NotImplementedError
 
 
-collations = {
+collations: Dict[str, Callable[[str, str, str], bool]] = {
     "i;ascii-casemap": lambda a, b, k: _match(
-        a.decode("ascii").upper(), b.decode("ascii").upper(), k
+        a.encode("ascii").upper(), b.encode("ascii").upper(), k
     ),
     "i;octet": lambda a, b, k: _match(a, b, k),
     # TODO(jelmer): Follow all rules as specified in
@@ -60,8 +60,10 @@ collations = {
 def get_collation(name: str) -> Callable[[str, str, str], bool]:
     """Get a collation by name.
 
-    :param name: Collation name
-    :raises UnknownCollation: If the collation is not supported
+    Args:
+      name: Collation name
+    Raises:
+      UnknownCollation: If the collation is not supported
     """
     try:
         return collations[name]

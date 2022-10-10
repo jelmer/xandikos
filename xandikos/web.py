@@ -28,10 +28,11 @@ import asyncio
 from email.utils import parseaddr
 import functools
 import hashlib
-import jinja2
 import logging
 import os
 import posixpath
+import shutil
+import socket
 from typing import (
     List,
     Tuple,
@@ -39,11 +40,9 @@ from typing import (
     Iterator,
     Optional,
 )
-
-import shutil
-import socket
 import urllib.parse
 
+import jinja2
 try:
     import systemd.daemon
 except ImportError:

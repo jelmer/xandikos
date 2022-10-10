@@ -97,7 +97,7 @@ class CalendarCollectionTests(unittest.TestCase):
             f.filter_subcomponent("VCALENDAR").filter_subcomponent(
                 "VTODO"
             ).filter_property("UID").filter_text_match(
-                b"bdc22720-b9e1-42c9-89c2-a85405d8fbff"
+                "bdc22720-b9e1-42c9-89c2-a85405d8fbff"
             )
             return f
 
