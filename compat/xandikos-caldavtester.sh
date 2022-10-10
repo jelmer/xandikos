@@ -61,6 +61,6 @@ mkprincipal principals/__uids__/user01/
 mkcol principals/users
 mkprincipal principals/users/user01
 
-run_xandikos 5233 --defaults
+run_xandikos 5233 5234 --defaults
 
 $TESTCALDAV --print-details-onfail -s ${CFGDIR}/serverinfo.xml ${TESTS}

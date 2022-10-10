@@ -23,7 +23,6 @@ See https://github.com/pimutils/vdirsyncer/blob/master/docs/vdir.rst
 """
 
 import configparser
-import errno
 import hashlib
 import logging
 import os
@@ -83,10 +82,10 @@ class VdirStore(Store):
             with open(path, "rb") as f:
                 for chunk in f:
                     md5.update(chunk)
-        except IOError as e:
-            if e.errno == errno.ENOENT:
-                raise KeyError
-            raise
+        except FileNotFoundError as exc:
+            raise KeyError(name) from exc
+        except IsADirectoryError as exc:
+            raise KeyError(name) from exc
         return md5.hexdigest()
 
     def _get_raw(self, name, etag=None):
@@ -100,10 +99,10 @@ class VdirStore(Store):
         try:
             with open(path, "rb") as f:
                 return [f.read()]
-        except IOError as e:
-            if e.errno == errno.ENOENT:
-                raise KeyError
-            raise
+        except FileNotFoundError as exc:
+            raise KeyError(name) from exc
+        except IsADirectoryError as exc:
+            raise KeyError(name) from exc
 
     def _scan_uids(self):
         removed = set(self._fname_to_uid.keys())
@@ -276,7 +275,9 @@ class VdirStore(Store):
         try:
             with open(os.path.join(self.path, name), "r") as f:
                 return f.read().strip()
-        except EnvironmentError:
+        except FileNotFoundError:
+            return None
+        except IsADirectoryError:
             return None
 
     def _write_metadata(self, name, data):
@@ -357,10 +358,10 @@ class VdirStore(Store):
                 raise InvalidETag(name, etag, current_etag)
         try:
             os.unlink(path)
-        except EnvironmentError as e:
-            if e.errno == errno.ENOENT:
-                raise NoSuchItem(path)
-            raise
+        except FileNotFoundError as exc:
+            raise NoSuchItem(path) from exc
+        except IsADirectoryError as exc:
+            raise NoSuchItem(path) from exc
 
     def get_ctag(self):
         """Return the ctag for this store."""

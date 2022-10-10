@@ -1549,6 +1549,11 @@ async def main(argv=None):  # noqa: C901
     else:
         sites.append(web.TCPSite(runner, listen_address, listen_port))
 
+    import signal
+    # Set SIGINT to default handler; this appears to be necessary
+    # when running under coverage.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
     for site in sites:
         await site.start()
 
