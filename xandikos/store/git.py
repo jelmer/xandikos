@@ -743,6 +743,8 @@ class TreeGitStore(GitStore):
                 current_blob = Blob.from_string(f.read())
         except FileNotFoundError as exc:
             raise NoSuchItem(name) from exc
+        except IsADirectoryError as exc:
+            raise NoSuchItem(name) from exc
         if message is None:
             fi = open_by_extension(
                 current_blob.chunked, name, self.extra_file_handlers)
