@@ -43,21 +43,21 @@ def _match(a, b, k):
         raise NotImplementedError
 
 
-collations: Dict[str, Callable[[bytes, bytes, str], bool]] = {
+collations: Dict[str, Callable[[str, str, str], bool]] = {
     "i;ascii-casemap": lambda a, b, k: _match(
-        a.decode("ascii").upper(), b.decode("ascii").upper(), k
+        a.encode("ascii").upper(), b.decode("ascii").upper(), k
     ),
     "i;octet": lambda a, b, k: _match(a, b, k),
     # TODO(jelmer): Follow all rules as specified in
     # https://datatracker.ietf.org/doc/html/rfc5051
     "i;unicode-casemap": lambda a, b, k: _match(
-        a.decode('utf-8', 'surrogateescape').upper(),
-        b.decode('utf-8', 'surrogateescape').upper(),
+        a.encode('utf-8', 'surrogateescape').upper(),
+        b.encode('utf-8', 'surrogateescape').upper(),
         k),
 }
 
 
-def get_collation(name: str) -> Callable[[bytes, bytes, str], bool]:
+def get_collation(name: str) -> Callable[[str, str, str], bool]:
     """Get a collation by name.
 
     Args:

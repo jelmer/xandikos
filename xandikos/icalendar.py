@@ -497,7 +497,7 @@ class TextMatcher(object):
 
     def match(self, prop: Union[vText]):
         if isinstance(prop, vText):
-            prop = prop.encode()
+            prop = str(prop)
         matches = self.collation(self.text, prop, 'equals')
         if self.negate_condition:
             return not matches
