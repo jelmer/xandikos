@@ -114,6 +114,19 @@ from xandikos.store.git import (
 from xandikos.vcard import VCardFile
 
 
+try:
+    from asyncio import to_thread  # type: ignore
+except ImportError:  # python < 3.8
+    from asyncio import events
+    import contextvars
+
+    async def to_thread(func, *args, **kwargs):  # type: ignore
+        loop = events.get_running_loop()
+        ctx = contextvars.copy_context()
+        func_call = functools.partial(ctx.run, func, *args, **kwargs)
+        return await loop.run_in_executor(None, func_call)
+
+
 WELLKNOWN_DAV_PATHS = {
     caldav.WELLKNOWN_CALDAV_PATH,
     carddav.WELLKNOWN_CARDDAV_PATH,
@@ -199,7 +212,7 @@ class ObjectResource(webdav.Resource):
 
     async def get_file(self) -> File:
         if self._file is None:
-            self._file = await asyncio.to_thread(
+            self._file = await to_thread(
                 self.store.get_file, self.name, self.content_type, self.etag)
             assert self._file is not None
         return self._file
@@ -210,7 +223,7 @@ class ObjectResource(webdav.Resource):
 
     async def set_body(self, data, replace_etag=None):
         try:
-            (name, etag) = await asyncio.to_thread(
+            (name, etag) = await to_thread(
                 self.store.import_one,
                 self.name,
                 self.content_type,
