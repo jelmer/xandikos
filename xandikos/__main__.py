@@ -22,14 +22,14 @@
 import asyncio
 
 
-async def main(argv):
+def main(argv=None):
     # For now, just invoke xandikos.web
     from .web import main
 
-    return await main(argv)
+    return asyncio.run(main(argv))
 
 
 if __name__ == "__main__":
     import sys
 
-    sys.exit(asyncio.run(main(sys.argv)))
+    sys.exit(main(sys.argv))
