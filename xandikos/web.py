@@ -990,8 +990,9 @@ def open_store_from_path(path: str):
 
 
 class XandikosBackend(webdav.Backend):
-    def __init__(self, path):
+    def __init__(self, path, autocreate):
         self.path = path
+        self.autocreate = autocreate
         self._user_principals = set()
 
     def _map_to_file_path(self, relpath):
@@ -1052,6 +1053,15 @@ class XandikosBackend(webdav.Backend):
                 return store.get_member(name)
             except KeyError:
                 return None
+
+    def set_principal(self, user):
+        principal = "/%s/" % user
+        if not self.get_resource(principal):
+            if self.autocreate:
+                self.create_principal(
+                    principal, create_defaults=True
+                )
+        self._mark_as_principal(principal)
 
 
 class XandikosApp(webdav.WebDAVApp):
@@ -1265,7 +1275,7 @@ def run_simple_server(
       port: TCP Port to listen on (None to disable)
       socket_path: Unix domain socket path to listen on (None to disable)
     """
-    backend = XandikosBackend(directory)
+    backend = XandikosBackend(directory, autocreate)
     backend._mark_as_principal(current_user_principal)
 
     if autocreate or defaults:
@@ -1444,7 +1454,8 @@ async def main(argv=None):  # noqa: C901
 
     logging.basicConfig(level=loglevel, format='%(message)s')
 
-    backend = XandikosBackend(os.path.abspath(options.directory))
+    backend = XandikosBackend(os.path.abspath(options.directory),
+                              options.autocreate)
     backend._mark_as_principal(options.current_user_principal)
 
     if options.autocreate or options.defaults:
