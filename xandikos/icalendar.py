@@ -505,9 +505,15 @@ class TextMatcher(object):
             self.negate_condition,
         )
 
+    def _ical_type(self, k):
+        if isinstance(k, self.type_fn):
+            return k
+        else:
+            return self.type_fn.from_ical(k)
+
     def match_indexes(self, indexes: SubIndexes):
         return any(
-            self.match(self.type_fn.from_ical(k)) for k in indexes[None])
+            self.match(self._ical_type(k)) for k in indexes[None])
 
     def match(self, prop: Union[vText, vCategory, str]):
         if isinstance(prop, vText):
