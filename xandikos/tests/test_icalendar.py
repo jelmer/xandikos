@@ -51,6 +51,7 @@ DTSTAMP:20150527T221952Z
 LAST-MODIFIED:20150314T223512Z
 STATUS:NEEDS-ACTION
 SUMMARY:do something
+CATEGORIES:home
 UID:bdc22720-b9e1-42c9-89c2-a85405d8fbff
 END:VTODO
 END:VCALENDAR
@@ -269,6 +270,36 @@ class CalendarFilterTests(unittest.TestCase):
         self.assertTrue(
             filter.check_from_indexes(
                 "file", {"C=VCALENDAR/C=VTODO/P=SUMMARY": [b"do something"]}
+            )
+        )
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_prop_text_match_category(self):
+        filter = CalendarFilter(None)
+        f = filter.filter_subcomponent("VCALENDAR")
+        f = f.filter_subcomponent("VTODO")
+        f = f.filter_property("CATEGORIES")
+        f.filter_text_match("work")
+        self.assertEqual(
+            self.cal.get_indexes(["C=VCALENDAR/C=VTODO/P=CATEGORIES"]),
+            {"C=VCALENDAR/C=VTODO/P=CATEGORIES": [b'home']},
+        )
+
+        self.assertEqual(
+            filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=CATEGORIES"]])
+        self.assertFalse(
+            filter.check_from_indexes(
+                "file", {"C=VCALENDAR/C=VTODO/P=CATEGORIES": [b"home"]}
+            )
+        )
+        self.assertFalse(filter.check("file", self.cal))
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VTODO"
+        ).filter_property("CATEGORIES").filter_text_match("home")
+        self.assertTrue(
+            filter.check_from_indexes(
+                "file", {"C=VCALENDAR/C=VTODO/P=CATEGORIES": [b"home"]}
             )
         )
         self.assertTrue(filter.check("file", self.cal))
