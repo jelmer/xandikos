@@ -405,28 +405,40 @@ class TextMatchTest(unittest.TestCase):
         self.assertTrue(tm.match(vText("FOOBAR")))
         self.assertTrue(tm.match(vText("foobar")))
         self.assertFalse(tm.match(vText("fobar")))
+        self.assertTrue(tm.match_indexes({None: [b'foobar']}))
+        self.assertTrue(tm.match_indexes({None: [b'FOOBAR']}))
+        self.assertFalse(tm.match_indexes({None: [b'fobar']}))
 
     def test_casecmp_collation(self):
         tm = TextMatcher("summary", "foobar", collation="i;ascii-casemap")
         self.assertTrue(tm.match(vText("FOOBAR")))
         self.assertTrue(tm.match(vText("foobar")))
         self.assertFalse(tm.match(vText("fobar")))
+        self.assertTrue(tm.match_indexes({None: [b'foobar']}))
+        self.assertTrue(tm.match_indexes({None: [b'FOOBAR']}))
+        self.assertFalse(tm.match_indexes({None: [b'fobar']}))
 
     def test_cmp_collation(self):
         tm = TextMatcher("summary", "foobar", collation="i;octet")
         self.assertFalse(tm.match(vText("FOOBAR")))
         self.assertTrue(tm.match(vText("foobar")))
         self.assertFalse(tm.match(vText("fobar")))
+        self.assertFalse(tm.match_indexes({None: [b'FOOBAR']}))
+        self.assertTrue(tm.match_indexes({None: [b'foobar']}))
+        self.assertFalse(tm.match_indexes({None: [b'fobar']}))
 
     def test_category(self):
-        tm = TextMatcher("summary", "foobar")
+        tm = TextMatcher("categories", "foobar")
         self.assertTrue(tm.match(vCategory(["FOOBAR", "blah"])))
         self.assertTrue(tm.match(vCategory(["foobar"])))
         self.assertFalse(tm.match(vCategory(["fobar"])))
+        self.assertTrue(tm.match_indexes({None: [b'foobar,blah']}))
+        self.assertFalse(tm.match_indexes({None: [b'foobarblah']}))
 
     def test_unknown_type(self):
-        tm = TextMatcher("summary", "foobar")
+        tm = TextMatcher("dontknow", "foobar")
         self.assertFalse(tm.match(object()))
+        self.assertFalse(tm.match_indexes({None: [b'foobarblah']}))
 
     def test_unknown_collation(self):
         self.assertRaises(

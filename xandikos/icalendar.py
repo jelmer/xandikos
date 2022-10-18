@@ -507,7 +507,8 @@ class TextMatcher(object):
 
     def match_indexes(self, indexes: SubIndexes):
         return any(
-            self.match(self.type_fn.from_ical(k)) for k in indexes[None])
+            self.match(self.type_fn(self.type_fn.from_ical(k)))
+            for k in indexes[None])
 
     def match(self, prop: Union[vText, vCategory, str]):
         if isinstance(prop, vText):
