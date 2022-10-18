@@ -391,8 +391,8 @@ class PropertyTimeRangeMatcher(object):
     def match_indexes(self, prop: SubIndexes, tzify: TzifyFunction):
         return any(
             self.match(
-                vDDDTypes(vDatetime.from_ical(p)), tzify) for p in prop[None]
-        )
+                vDDDTypes(vDatetime.from_ical(p.decode('utf-8'))), tzify)
+            for p in prop[None] if not isinstance(p, bool))
 
 
 TimeRangeFilter = Callable[
@@ -454,11 +454,9 @@ class ComponentTimeRangeMatcher(object):
         vs = {}
         for name, value in indexes.items():
             if name and name[2:] in self.all_props:
-                if value and value[0]:
-                    if not isinstance(value[0], vDDDTypes):
-                        vs[name[2:]] = vDDDTypes(vDatetime.from_ical(value[0]))
-                    else:
-                        vs[name[2:]] = value[0]
+                if value and not isinstance(value[0], bool):
+                    vs[name[2:]] = vDDDTypes(vDatetime.from_ical(
+                        value[0].decode('utf-8')))
 
         try:
             component_handler = self.component_handlers[self.comp]

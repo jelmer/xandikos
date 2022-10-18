@@ -356,7 +356,8 @@ class CalendarFilterTests(unittest.TestCase):
             filter.index_keys(), [["C=VCALENDAR/C=VTODO/P=CREATED"]])
         self.assertFalse(
             filter.check_from_indexes(
-                "file", {"C=VCALENDAR/C=VTODO/P=CREATED": ["20150314T223512Z"]}
+                "file",
+                {"C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"]}
             )
         )
         self.assertFalse(filter.check("file", self.cal))
@@ -369,12 +370,16 @@ class CalendarFilterTests(unittest.TestCase):
         )
         self.assertTrue(
             filter.check_from_indexes(
-                "file", {"C=VCALENDAR/C=VTODO/P=CREATED": ["20150314T223512Z"]}
-            )
+                "file",
+                {"C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"]})
         )
         self.assertTrue(filter.check("file", self.cal))
 
     def test_comp_apply_time_range(self):
+        self.assertEqual(
+            self.cal.get_indexes(["C=VCALENDAR/C=VTODO/P=CREATED"]),
+            {'C=VCALENDAR/C=VTODO/P=CREATED': [b'20150314T223512Z']})
+
         filter = CalendarFilter(self._tzify)
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
@@ -397,7 +402,7 @@ class CalendarFilterTests(unittest.TestCase):
             filter.check_from_indexes(
                 "file",
                 {
-                    "C=VCALENDAR/C=VTODO/P=CREATED": ["20150314T223512Z"],
+                    "C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"],
                     "C=VCALENDAR/C=VTODO": [True],
                     "C=VCALENDAR/C=VTODO/P=DUE": [],
                     "C=VCALENDAR/C=VTODO/P=DURATION": [],
@@ -418,7 +423,7 @@ class CalendarFilterTests(unittest.TestCase):
             filter.check_from_indexes(
                 "file",
                 {
-                    "C=VCALENDAR/C=VTODO/P=CREATED": ["20150314T223512Z"],
+                    "C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"],
                     "C=VCALENDAR/C=VTODO": [True],
                     "C=VCALENDAR/C=VTODO/P=DUE": [],
                     "C=VCALENDAR/C=VTODO/P=DURATION": [],
