@@ -43,6 +43,7 @@ from xandikos.store import (
     Indexes,
     IndexKey,
     IndexValue,
+    IndexValueIterator,
     InvalidFileContents,
 )
 
@@ -507,7 +508,8 @@ class TextMatcher(object):
 
     def match_indexes(self, indexes: SubIndexes):
         return any(
-            self.match(self.type_fn.from_ical(k)) for k in indexes[None])
+            self.match(self.type_fn(self.type_fn.from_ical(k)))
+            for k in indexes[None])
 
     def match(self, prop: Union[vText, vCategory, str]):
         if isinstance(prop, vText):
@@ -807,7 +809,10 @@ class CalendarFilter(Filter):
         self.children.append(ret)
         return ret
 
-    def check(self, name, file):
+    def check(self, name: str, file: File) -> bool:
+        if not isinstance(file, ICalendarFile):
+            return False
+
         c = file.calendar
         if c is None:
             return False
@@ -826,7 +831,7 @@ class CalendarFilter(Filter):
                 return False
         return True
 
-    def check_from_indexes(self, name, indexes):
+    def check_from_indexes(self, name: str, indexes: Indexes) -> bool:
         for child_filter in self.children:
             try:
                 if not child_filter.match_indexes(indexes, self.tzify):
@@ -927,9 +932,10 @@ class ICalendarFile(File):
                 pass
         raise KeyError
 
-    def _get_index(self, key):
+    def _get_index(self, key: IndexKey) -> IndexValueIterator:
         todo = [(self.calendar, key.split("/"))]
         rest = []
+        c: Component
         while todo:
             (c, segments) = todo.pop(0)
             if segments and segments[0].startswith("C="):
@@ -946,7 +952,7 @@ class ICalendarFile(File):
             elif segments[0].startswith("P="):
                 assert len(segments) == 1
                 try:
-                    yield c[segments[0][2:]]
+                    yield c[segments[0][2:]].to_ical()
                 except KeyError:
                     pass
             else:

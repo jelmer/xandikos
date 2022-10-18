@@ -183,8 +183,7 @@ class BaseStoreTest(object):
                 return [[filtertext]]
 
             def check_from_indexes(self, name, index_values):
-                return any(
-                    self.text in v.encode() for v in index_values[filtertext])
+                return any(self.text in v for v in index_values[filtertext])
 
             def check(self, name, resource):
                 return self.text in b"".join(resource.content)

@@ -58,6 +58,7 @@ PARANOID = False
 
 IndexKey = str
 IndexValue = List[Union[bytes, bool]]
+IndexValueIterator = Iterator[Union[bytes, bool]]
 Indexes = Dict[IndexKey, IndexValue]
 
 
@@ -122,7 +123,7 @@ class File(object):
         else:
             yield "Modified " + item_description
 
-    def _get_index(self, key: IndexKey) -> IndexValue:
+    def _get_index(self, key: IndexKey) -> IndexValueIterator:
         """Obtain an index for this file.
 
         Args:
