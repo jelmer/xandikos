@@ -22,6 +22,13 @@
 
 import collections
 import logging
+from typing import Union, List, Iterator, Dict, Iterable, Optional
+
+
+IndexKey = str
+IndexValue = List[Union[bytes, bool]]
+IndexValueIterator = Iterator[Union[bytes, bool]]
+Indexes = Dict[IndexKey, IndexValue]
 
 
 INDEXING_THRESHOLD = 5
@@ -30,15 +37,15 @@ INDEXING_THRESHOLD = 5
 class Index(object):
     """Index management."""
 
-    def available_keys(self):
+    def available_keys(self) -> Iterable[IndexKey]:
         """Return list of available index keys."""
-        raise NotImplementedError(self.available_indexes)
+        raise NotImplementedError(self.available_keys)
 
-    def get_values(self, name, etag, keys):
+    def get_values(self, name: str, etag: str, keys: List[IndexKey]):
         """Get the values for specified keys for a name."""
         raise NotImplementedError(self.get_values)
 
-    def iter_etags(self):
+    def iter_etags(self) -> Iterator[str]:
         """Return all the etags covered by this index."""
         raise NotImplementedError(self.iter_etags)
 
@@ -87,7 +94,8 @@ class IndexManager(object):
         self.desired = collections.defaultdict(lambda: 0)
         self.indexing_threshold = threshold
 
-    def find_present_keys(self, necessary_keys):
+    def find_present_keys(
+            self, necessary_keys) -> Optional[Iterable[IndexKey]]:
         available_keys = self.index.available_keys()
         needed_keys = []
         missing_keys = []

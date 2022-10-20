@@ -40,11 +40,13 @@ from icalendar.prop import (
 from xandikos.store import (
     Filter,
     File,
+    InvalidFileContents,
+)
+from xandikos.store.index import (
     Indexes,
     IndexKey,
     IndexValue,
     IndexValueIterator,
-    InvalidFileContents,
 )
 
 from . import (

@@ -26,9 +26,9 @@ are always strong, and should be returned without wrapping quotes.
 import logging
 import mimetypes
 from typing import (
-    Optional, Iterable, Tuple, Iterator, Dict, Type, Union, List)
+    Optional, Iterable, Tuple, Iterator, Dict, Type, List)
 
-from .index import IndexManager
+from .index import IndexManager, IndexKey, IndexValueIterator, Indexes
 
 STORE_TYPE_ADDRESSBOOK = "addressbook"
 STORE_TYPE_CALENDAR = "calendar"
@@ -54,12 +54,6 @@ MIMETYPES.add_type("text/vcard", ".vcf")  # type: ignore
 DEFAULT_MIME_TYPE = "application/octet-stream"
 
 PARANOID = False
-
-
-IndexKey = str
-IndexValue = List[Union[bytes, bool]]
-IndexValueIterator = Iterator[Union[bytes, bool]]
-Indexes = Dict[IndexKey, IndexValue]
 
 
 class InvalidCTag(Exception):
