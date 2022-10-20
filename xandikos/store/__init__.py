@@ -26,9 +26,9 @@ are always strong, and should be returned without wrapping quotes.
 import logging
 import mimetypes
 from typing import (
-    Optional, Iterable, Tuple, Iterator, Dict, Type, Union, List)
+    Optional, Iterable, Tuple, Iterator, Dict, Type, List)
 
-from .index import IndexManager
+from .index import AutoIndexManager, IndexKey, IndexValueIterator, IndexDict
 
 STORE_TYPE_ADDRESSBOOK = "addressbook"
 STORE_TYPE_CALENDAR = "calendar"
@@ -52,14 +52,6 @@ MIMETYPES.add_type("text/calendar", ".ics")  # type: ignore
 MIMETYPES.add_type("text/vcard", ".vcf")  # type: ignore
 
 DEFAULT_MIME_TYPE = "application/octet-stream"
-
-PARANOID = False
-
-
-IndexKey = str
-IndexValue = List[Union[bytes, bool]]
-IndexValueIterator = Iterator[Union[bytes, bool]]
-Indexes = Dict[IndexKey, IndexValue]
 
 
 class InvalidCTag(Exception):
@@ -133,7 +125,7 @@ class File(object):
         """
         raise NotImplementedError(self._get_index)
 
-    def get_indexes(self, keys: Iterable[IndexKey]) -> Indexes:
+    def get_indexes(self, keys: Iterable[IndexKey]) -> IndexDict:
         """Obtain indexes for this file.
 
         :param keys: Iterable of index keys
@@ -169,7 +161,7 @@ class Filter(object):
         """
         raise NotImplementedError(self.index_keys)
 
-    def check_from_indexes(self, name: str, indexes: Indexes) -> bool:
+    def check_from_indexes(self, name: str, indexes: IndexDict) -> bool:
         """Check from a set of indexes whether a resource matches.
 
         :param name: Name of the resource
@@ -272,10 +264,13 @@ class Store(object):
 
     extra_file_handlers: Dict[str, Type[File]]
 
-    def __init__(self, index):
+    def __init__(self, index, *, double_check_indexes: bool = False,
+                 index_threshold: Optional[int] = None):
         self.extra_file_handlers = {}
         self.index = index
-        self.index_manager = IndexManager(self.index)
+        self.index_manager = AutoIndexManager(
+            self.index, threshold=index_threshold)
+        self.double_check_indexes = double_check_indexes
 
     def load_extra_file_handler(self, file_handler: Type[File]) -> None:
         self.extra_file_handlers[file_handler.content_type] = file_handler
@@ -346,7 +341,7 @@ class Store(object):
                 if file_values is None:
                     continue
                 file = self.get_file(name, content_type, etag)
-                if PARANOID:
+                if self.double_check_indexes:
                     if file_values != file.get_indexes(keys):
                         raise AssertionError(
                             "%r != %r" % (file_values, file.get_indexes(keys))

@@ -22,23 +22,30 @@
 
 import collections
 import logging
+from typing import Union, List, Iterator, Dict, Iterable, Optional
 
 
-INDEXING_THRESHOLD = 5
+IndexKey = str
+IndexValue = List[Union[bytes, bool]]
+IndexValueIterator = Iterator[Union[bytes, bool]]
+IndexDict = Dict[IndexKey, IndexValue]
+
+
+DEFAULT_INDEXING_THRESHOLD = 5
 
 
 class Index(object):
     """Index management."""
 
-    def available_keys(self):
+    def available_keys(self) -> Iterable[IndexKey]:
         """Return list of available index keys."""
-        raise NotImplementedError(self.available_indexes)
+        raise NotImplementedError(self.available_keys)
 
-    def get_values(self, name, etag, keys):
+    def get_values(self, name: str, etag: str, keys: List[IndexKey]):
         """Get the values for specified keys for a name."""
         raise NotImplementedError(self.get_values)
 
-    def iter_etags(self):
+    def iter_etags(self) -> Iterator[str]:
         """Return all the etags covered by this index."""
         raise NotImplementedError(self.iter_etags)
 
@@ -81,16 +88,20 @@ class MemoryIndex(Index):
             self._indexes[key] = {}
 
 
-class IndexManager(object):
-    def __init__(self, index, threshold=INDEXING_THRESHOLD):
+class AutoIndexManager(object):
+    def __init__(self, index, threshold: Optional[int] = None):
         self.index = index
-        self.desired = collections.defaultdict(lambda: 0)
+        self.desired: Dict[IndexKey, int] = collections.defaultdict(lambda: 0)
+        if threshold is None:
+            threshold = DEFAULT_INDEXING_THRESHOLD
         self.indexing_threshold = threshold
 
-    def find_present_keys(self, necessary_keys):
+    def find_present_keys(
+            self, necessary_keys: Iterable[IndexKey]) -> Optional[
+                Iterable[IndexKey]]:
         available_keys = self.index.available_keys()
         needed_keys = []
-        missing_keys = []
+        missing_keys: List[IndexKey] = []
         new_index_keys = set()
         for keys in necessary_keys:
             found = False
