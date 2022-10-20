@@ -28,10 +28,10 @@ from typing import Union, List, Iterator, Dict, Iterable, Optional
 IndexKey = str
 IndexValue = List[Union[bytes, bool]]
 IndexValueIterator = Iterator[Union[bytes, bool]]
-Indexes = Dict[IndexKey, IndexValue]
+IndexDict = Dict[IndexKey, IndexValue]
 
 
-INDEXING_THRESHOLD = 5
+DEFAULT_INDEXING_THRESHOLD = 5
 
 
 class Index(object):
@@ -88,17 +88,20 @@ class MemoryIndex(Index):
             self._indexes[key] = {}
 
 
-class IndexManager(object):
-    def __init__(self, index, threshold=INDEXING_THRESHOLD):
+class AutoIndexManager(object):
+    def __init__(self, index, threshold: Optional[int] = None):
         self.index = index
-        self.desired = collections.defaultdict(lambda: 0)
+        self.desired: Dict[IndexKey, int] = collections.defaultdict(lambda: 0)
+        if threshold is None:
+            threshold = DEFAULT_INDEXING_THRESHOLD
         self.indexing_threshold = threshold
 
     def find_present_keys(
-            self, necessary_keys) -> Optional[Iterable[IndexKey]]:
+            self, necessary_keys: Iterable[IndexKey]) -> Optional[
+                Iterable[IndexKey]]:
         available_keys = self.index.available_keys()
         needed_keys = []
-        missing_keys = []
+        missing_keys: List[IndexKey] = []
         new_index_keys = set()
         for keys in necessary_keys:
             found = False

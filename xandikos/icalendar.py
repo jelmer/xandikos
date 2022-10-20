@@ -43,7 +43,7 @@ from xandikos.store import (
     InvalidFileContents,
 )
 from xandikos.store.index import (
-    Indexes,
+    IndexDict,
     IndexKey,
     IndexValue,
     IndexValueIterator,
@@ -82,13 +82,13 @@ def validate_calendar(cal, strict=False):
         yield error
 
 
-# SubIndexes is like Indexes, but None can also occur as a key
-SubIndexes = Dict[Optional[IndexKey], IndexValue]
+# SubIndexDict is like IndexDict, but None can also occur as a key
+SubIndexDict = Dict[Optional[IndexKey], IndexValue]
 
 
 def create_subindexes(
-        indexes: Union[SubIndexes, Indexes], base: str) -> SubIndexes:
-    ret: SubIndexes = {}
+        indexes: Union[SubIndexDict, IndexDict], base: str) -> SubIndexDict:
+    ret: SubIndexDict = {}
     for k, v in indexes.items():
         if k is not None and k.startswith(base + "/"):
             ret[k[len(base) + 1 :]] = v
@@ -390,7 +390,7 @@ class PropertyTimeRangeMatcher(object):
         dt = tzify(prop.dt)
         return dt >= self.start and dt <= self.end
 
-    def match_indexes(self, prop: SubIndexes, tzify: TzifyFunction):
+    def match_indexes(self, prop: SubIndexDict, tzify: TzifyFunction):
         return any(
             self.match(
                 vDDDTypes(vDatetime.from_ical(p.decode('utf-8'))), tzify)
@@ -452,7 +452,7 @@ class ComponentTimeRangeMatcher(object):
             return False
         return component_handler(self.start, self.end, comp, tzify)
 
-    def match_indexes(self, indexes: SubIndexes, tzify: TzifyFunction):
+    def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
         vs = {}
         for name, value in indexes.items():
             if name and name[2:] in self.all_props:
@@ -506,7 +506,7 @@ class TextMatcher(object):
             self.negate_condition,
         )
 
-    def match_indexes(self, indexes: SubIndexes):
+    def match_indexes(self, indexes: SubIndexDict):
         return any(
             self.match(self.type_fn(self.type_fn.from_ical(k)))
             for k in indexes[None])
@@ -616,7 +616,7 @@ class ComponentFilter(object):
             for child in self.children
         )
 
-    def match_indexes(self, indexes: SubIndexes, tzify: TzifyFunction):
+    def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
         myindex = "C=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
@@ -712,12 +712,12 @@ class PropertyFilter(object):
         return True
 
     def match_indexes(
-            self, indexes: SubIndexes,
+            self, indexes: SubIndexDict,
             tzify: TzifyFunction) -> bool:
         myindex = "P=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
-        subindexes: SubIndexes = create_subindexes(indexes, myindex)
+        subindexes: SubIndexDict = create_subindexes(indexes, myindex)
         if not self.children and not self.time_range:
             return bool(indexes[myindex])
 
@@ -777,7 +777,7 @@ class ParameterFilter(object):
     def index_keys(self) -> Iterable[List[str]]:
         yield ["A=" + self.name]
 
-    def match_indexes(self, indexes: Indexes) -> bool:
+    def match_indexes(self, indexes: IndexDict) -> bool:
         myindex = "A=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
@@ -831,7 +831,7 @@ class CalendarFilter(Filter):
                 return False
         return True
 
-    def check_from_indexes(self, name: str, indexes: Indexes) -> bool:
+    def check_from_indexes(self, name: str, indexes: IndexDict) -> bool:
         for child_filter in self.children:
             try:
                 if not child_filter.match_indexes(indexes, self.tzify):

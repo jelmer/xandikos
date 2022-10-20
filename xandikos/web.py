@@ -39,6 +39,7 @@ from typing import (
     Iterable,
     Iterator,
     Optional,
+    Set,
 )
 import urllib.parse
 
@@ -982,17 +983,20 @@ class PrincipalCollection(Collection, Principal):
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
-def open_store_from_path(path: str):
-    store = GitStore.open_from_path(path)
+def open_store_from_path(path: str, **kwargs):
+    store = GitStore.open_from_path(path, **kwargs)
     store.load_extra_file_handler(ICalendarFile)
     store.load_extra_file_handler(VCardFile)
     return store
 
 
 class XandikosBackend(webdav.Backend):
-    def __init__(self, path):
+    def __init__(self, path, *, paranoid: bool = False,
+                 index_threshold: Optional[int] = None):
         self.path = path
-        self._user_principals = set()
+        self._user_principals: Set[str] = set()
+        self.paranoid = paranoid
+        self.index_threshold = index_threshold
 
     def _map_to_file_path(self, relpath):
         return os.path.join(self.path, relpath.lstrip("/"))
@@ -1025,7 +1029,9 @@ class XandikosBackend(webdav.Backend):
             return None
         if os.path.isdir(p):
             try:
-                store = open_store_from_path(p)
+                store = open_store_from_path(
+                    p, double_check_indexes=self.paranoid,
+                    index_threshold=self.index_threshold)
             except NotStoreError:
                 if relpath in self._user_principals:
                     return PrincipalBare(self, relpath)
@@ -1423,6 +1429,11 @@ async def main(argv=None):  # noqa: C901
     parser.add_argument(
         '--debug', action='store_true',
         help='Print debug messages')
+    # Hidden arguments. These may change without notice in between releases,
+    # and are generally just meant for developers.
+    parser.add_argument('--paranoid', action='store_true',
+                        help=argparse.HIDDEN)
+    parser.add_argument('--index-threshold', type=int, help=argparse.HIDDEN)
     options = parser.parse_args(argv)
 
     if options.directory is None:
@@ -1444,7 +1455,9 @@ async def main(argv=None):  # noqa: C901
 
     logging.basicConfig(level=loglevel, format='%(message)s')
 
-    backend = XandikosBackend(os.path.abspath(options.directory))
+    backend = XandikosBackend(
+        os.path.abspath(options.directory), paranoid=options.paranoid,
+        index_threshold=options.index_threshold)
     backend._mark_as_principal(options.current_user_principal)
 
     if options.autocreate or options.defaults:

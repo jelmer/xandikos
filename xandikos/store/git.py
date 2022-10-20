@@ -219,9 +219,10 @@ class locked_index(object):
 class GitStore(Store):
     """A Store backed by a Git Repository."""
 
-    def __init__(self, repo, ref: bytes = b"refs/heads/master",
-                 check_for_duplicate_uids=True):
-        super(GitStore, self).__init__(MemoryIndex())
+    def __init__(self, repo, *, ref: bytes = b"refs/heads/master",
+                 check_for_duplicate_uids=True,
+                 **kwargs):
+        super(GitStore, self).__init__(MemoryIndex(), **kwargs)
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
@@ -402,28 +403,28 @@ class GitStore(Store):
         raise NotImplementedError(cls.create)
 
     @classmethod
-    def open_from_path(cls, path):
+    def open_from_path(cls, path, **kwargs):
         """Open a GitStore from a path.
 
         :param path: Path
         :return: A `GitStore`
         """
         try:
-            return cls.open(dulwich.repo.Repo(path))
+            return cls.open(dulwich.repo.Repo(path), **kwargs)
         except dulwich.repo.NotGitRepository:
             raise NotStoreError(path)
 
     @classmethod
-    def open(cls, repo):
+    def open(cls, repo, **kwargs):
         """Open a GitStore given a Repo object.
 
         :param repo: A Dulwich `Repo`
         :return: A `GitStore`
         """
         if repo.has_index():
-            return TreeGitStore(repo)
+            return TreeGitStore(repo, **kwargs)
         else:
-            return BareGitStore(repo)
+            return BareGitStore(repo, **kwargs)
 
     def get_description(self):
         """Get extended description.
