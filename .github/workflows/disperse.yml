@@ -6,7 +6,7 @@ name: Disperse configuration
   - pull_request
 
 jobs:
-  build:
+  disperse:
 
     runs-on: ubuntu-latest
 

@@ -5,7 +5,7 @@ on:
   - pull_request
 
 jobs:
-  build:
+  pythontests:
 
     runs-on: ${{ matrix.os }}
     strategy:

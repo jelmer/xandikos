@@ -5,7 +5,7 @@ on:
   - pull_request
 
 jobs:
-  build:
+  litmus:
 
     runs-on: ${{ matrix.os }}
     strategy:

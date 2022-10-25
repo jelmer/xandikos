@@ -5,7 +5,7 @@ on:
   - pull_request
 
 jobs:
-  build:
+  caldavtester:
 
     runs-on: ${{ matrix.os }}
     strategy:

@@ -6,7 +6,7 @@ name: pycaldav cross-tests
   - pull_request
 
 jobs:
-  build:
+  pycaldav:
 
     runs-on: ${{ matrix.os }}
     strategy:
