@@ -1345,13 +1345,13 @@ async def main(argv=None):  # noqa: C901
     )
 
     access_group = parser.add_argument_group(title="Access Options")
-    if systemd_imported:
-        access_group.add_argument(
-            "--no-detect-systemd",
-            action="store_false",
-            dest="detect_systemd",
-            help="Disable systemd detection and socket activation.",
-        )
+    access_group.add_argument(
+        "--no-detect-systemd",
+        action="store_false",
+        dest="detect_systemd",
+        help="Disable systemd detection and socket activation.",
+        default=systemd_imported
+    )
     access_group.add_argument(
         "-l",
         "--listen-address",
@@ -1488,7 +1488,11 @@ async def main(argv=None):  # noqa: C901
     async def xandikos_handler(request):
         return await main_app.aiohttp_handler(request, options.route_prefix)
 
-    if getattr(options, "detect_systemd", False) and systemd.daemon.booted():
+    if options.detect_systemd and not systemd_imported:
+        parser.error(
+            'systemd detection requested, but unable to find systemd_python')
+
+    if options.detect_systemd and systemd.daemon.booted():
         listen_socks = get_systemd_listen_sockets()
         socket_path = None
         listen_address = None
