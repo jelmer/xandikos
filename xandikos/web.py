@@ -1432,8 +1432,8 @@ async def main(argv=None):  # noqa: C901
     # Hidden arguments. These may change without notice in between releases,
     # and are generally just meant for developers.
     parser.add_argument('--paranoid', action='store_true',
-                        help=argparse.HIDDEN)
-    parser.add_argument('--index-threshold', type=int, help=argparse.HIDDEN)
+                        help=argparse.SUPPRESS)
+    parser.add_argument('--index-threshold', type=int, help=argparse.SUPPRESS)
     options = parser.parse_args(argv)
 
     if options.directory is None:
