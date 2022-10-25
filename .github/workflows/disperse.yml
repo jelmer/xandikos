@@ -3,6 +3,7 @@ name: Disperse configuration
 
 "on":
   - push
+  - pull_request
 
 jobs:
   build:
