@@ -21,7 +21,7 @@
 
 """
 
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone, date
 import logging
 from typing import Iterable, List, Dict, Callable, Union, Optional
 
@@ -32,6 +32,7 @@ from icalendar.cal import Calendar, Component, component_factory
 from icalendar.prop import (
     vCategory,
     vDatetime,
+    vDuration,
     vDDDTypes,
     vText,
     TypesFactory,
@@ -453,12 +454,34 @@ class ComponentTimeRangeMatcher(object):
         return component_handler(self.start, self.end, comp, tzify)
 
     def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
-        vs = {}
-        for name, value in indexes.items():
-            if name and name[2:] in self.all_props:
-                if value and not isinstance(value[0], bool):
-                    vs[name[2:]] = vDDDTypes(vDatetime.from_ical(
-                        value[0].decode('utf-8')))
+        vs: List[Dict[str, vDDDTypes]] = []
+        # TODO(jelmer): If the recurring events are a bit odd - e.g.
+        # some have DTEND, some have DURATION, then this may break
+        i = 0
+        while True:
+            d: Dict[str, Optional[vDDDTypes]] = {}
+            for name, values in indexes.items():
+                if not name:
+                    continue
+                field = name[2:]
+                if field in self.all_props:
+                    try:
+                        value = values[i]
+                    except IndexError:
+                        continue
+                    else:
+                        if isinstance(value, bool):
+                            continue
+                        if field == 'DURATION':
+                            d[field] = vDDDTypes(vDuration.from_ical(
+                                value.decode('utf-8')))
+                        else:
+                            d[field] = vDDDTypes(vDatetime.from_ical(
+                                value.decode('utf-8')))
+            if not d:
+                break
+            vs.append(d)
+            i += 1
 
         try:
             component_handler = self.component_handlers[self.comp]
@@ -466,7 +489,11 @@ class ComponentTimeRangeMatcher(object):
             logging.warning(
                 "unknown component %r in time-range filter", self.comp)
             return False
-        return component_handler(self.start, self.end, vs, tzify)
+
+        for v in vs:
+            if component_handler(self.start, self.end, v, tzify):
+                return True
+        return False
 
     def index_keys(self) -> List[List[str]]:
         if self.comp == "VEVENT":
@@ -798,9 +825,9 @@ class CalendarFilter(Filter):
 
     content_type = "text/calendar"
 
-    def __init__(self, default_timezone):
+    def __init__(self, default_timezone: timezone):
         self.tzify = lambda dt: as_tz_aware_ts(dt, default_timezone)
-        self.children = []
+        self.children: List[ComponentFilter] = []
 
     def filter_subcomponent(self, name, is_not_defined=False, time_range=None):
         ret = ComponentFilter(
@@ -813,13 +840,13 @@ class CalendarFilter(Filter):
         if not isinstance(file, ICalendarFile):
             return False
 
-        c = file.calendar
+        c = file.expanded_calendar
         if c is None:
             return False
 
         for child_filter in self.children:
             try:
-                if not child_filter.match(file.calendar, self.tzify):
+                if not child_filter.match(c, self.tzify):
                     return False
             except MissingProperty as e:
                 logging.warning(
@@ -834,7 +861,8 @@ class CalendarFilter(Filter):
     def check_from_indexes(self, name: str, indexes: IndexDict) -> bool:
         for child_filter in self.children:
             try:
-                if not child_filter.match_indexes(indexes, self.tzify):
+                if not child_filter.match_indexes(
+                        indexes, self.tzify):  # type: ignore
                     return False
             except MissingProperty as e:
                 logging.warning(
@@ -864,6 +892,7 @@ class ICalendarFile(File):
     def __init__(self, content, content_type):
         super(ICalendarFile, self).__init__(content, content_type)
         self._calendar = None
+        self._expanded_calendar = None
 
     def validate(self) -> None:
         """Verify that file contents are valid."""
@@ -892,6 +921,12 @@ class ICalendarFile(File):
                 raise InvalidFileContents(
                     self.content_type, self.content, str(exc)) from exc
         return self._calendar
+
+    @property
+    def expanded_calendar(self):
+        if self._expanded_calendar is None:
+            self._expanded_calendar = expand_calendar_rrule(self.calendar)
+        return self._expanded_calendar
 
     def describe_delta(self, name, previous):
         try:
@@ -933,7 +968,7 @@ class ICalendarFile(File):
         raise KeyError
 
     def _get_index(self, key: IndexKey) -> IndexValueIterator:
-        todo = [(self.calendar, key.split("/"))]
+        todo = [(self.expanded_calendar, key.split("/"))]
         rest = []
         c: Component
         while todo:
@@ -959,13 +994,16 @@ class ICalendarFile(File):
                 raise AssertionError("segments: %r" % segments)
 
 
-def as_tz_aware_ts(dt, default_timezone) -> datetime:
+def as_tz_aware_ts(dt: Union[datetime, date],
+                   default_timezone: timezone) -> datetime:
     if not getattr(dt, "time", None):
-        dt = datetime.combine(dt, time())
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=default_timezone)
-    assert dt.tzinfo
-    return dt
+        _dt = datetime.combine(dt, time())
+    else:
+        _dt = dt  # type: ignore
+    if _dt.tzinfo is None:
+        _dt = _dt.replace(tzinfo=default_timezone)
+    assert _dt.tzinfo
+    return _dt
 
 
 def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
@@ -988,8 +1026,9 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
 
 
 def _expand_rrule_component(
-        incomp: Component, start: datetime, end: datetime,
-        existing: Dict[str, Component]) -> Iterable[Component]:
+        incomp: Component, start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        existing: Dict[str, Component] = {}) -> Iterable[Component]:
     if "RRULE" not in incomp:
         return
     rs = rruleset_from_comp(incomp)
@@ -997,7 +1036,15 @@ def _expand_rrule_component(
         if field in incomp:
             del incomp[field]
     # Work our magic
-    for ts in rs.between(start, end):
+    if start is not None and end is not None:
+        it = rs.between(start, end)
+    elif start is not None:
+        it = rs.after(start)
+    elif end is not None:
+        it = rs.before(end)
+    else:
+        it = rs
+    for ts in it:
         utcts = asutc(ts)
         try:
             outcomp = existing.pop(utcts)
@@ -1010,7 +1057,8 @@ def _expand_rrule_component(
 
 
 def expand_calendar_rrule(
-        incal: Calendar, start: datetime, end: datetime) -> Calendar:
+        incal: Calendar, start: Optional[datetime] = None,
+        end: Optional[datetime] = None) -> Calendar:
     outcal = Calendar()
     if incal.name != "VCALENDAR":
         raise AssertionError(
@@ -1029,7 +1077,8 @@ def expand_calendar_rrule(
         if "RECURRENCE-ID" in insub:
             continue
         if "RRULE" in insub:
-            for outsub in _expand_rrule_component(insub, start, end, known):
+            for outsub in _expand_rrule_component(
+                    insub, start=start, end=end, existing=known):
                 outcal.add_component(outsub)
         else:
             outcal.add_component(insub)

@@ -489,7 +489,7 @@ async def calendar_from_resource(resource):
     except KeyError:
         return None
     file = await resource.get_file()
-    return file.calendar
+    return file.expanded_calendar
 
 
 def extract_tzid(cal):
