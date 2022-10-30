@@ -32,7 +32,6 @@ from icalendar.cal import Calendar, Component, component_factory
 from icalendar.prop import (
     vCategory,
     vDatetime,
-    vDate,
     vDDDTypes,
     vText,
     TypesFactory,
