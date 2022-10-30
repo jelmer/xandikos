@@ -21,7 +21,7 @@
 
 """
 
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 import logging
 from typing import Iterable, List, Dict, Callable, Union, Optional
 
@@ -393,7 +393,7 @@ class PropertyTimeRangeMatcher(object):
     def match_indexes(self, prop: SubIndexDict, tzify: TzifyFunction):
         return any(
             self.match(
-                vDDDTypes(vDatetime.from_ical(p.decode('utf-8'))), tzify)
+                vDDDTypes(vDDDTypes.from_ical(p.decode('utf-8'))), tzify)
             for p in prop[None] if not isinstance(p, bool))
 
 
@@ -453,12 +453,17 @@ class ComponentTimeRangeMatcher(object):
         return component_handler(self.start, self.end, comp, tzify)
 
     def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
-        vs = {}
-        for name, value in indexes.items():
-            if name and name[2:] in self.all_props:
-                if value and not isinstance(value[0], bool):
-                    vs[name[2:]] = vDDDTypes(vDatetime.from_ical(
-                        value[0].decode('utf-8')))
+        vs: Dict[str, vDDDTypes] = {}
+        for name, values in indexes.items():
+            if not name:
+                continue
+            field = name[2:]
+            if field not in self.all_props:
+                continue
+            for value in values:
+                if value and not isinstance(value, bool):
+                    vs.setdefault(field, []).append(
+                        vDDDTypes(vDDDTypes.from_ical(value.decode('utf-8'))))
 
         try:
             component_handler = self.component_handlers[self.comp]
@@ -466,7 +471,12 @@ class ComponentTimeRangeMatcher(object):
             logging.warning(
                 "unknown component %r in time-range filter", self.comp)
             return False
-        return component_handler(self.start, self.end, vs, tzify)
+        return component_handler(
+            self.start,
+            self.end,
+            # TODO(jelmer): What to do if there is more than one value?
+            {k: vs[0] for (k, vs) in vs.items()},
+            tzify)
 
     def index_keys(self) -> List[List[str]]:
         if self.comp == "VEVENT":
@@ -616,7 +626,7 @@ class ComponentFilter(object):
             for child in self.children
         )
 
-    def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
+    def match_indexes(self, indexes: IndexDict, tzify: TzifyFunction):
         myindex = "C=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
@@ -798,9 +808,9 @@ class CalendarFilter(Filter):
 
     content_type = "text/calendar"
 
-    def __init__(self, default_timezone):
+    def __init__(self, default_timezone: Union[str, timezone]):
         self.tzify = lambda dt: as_tz_aware_ts(dt, default_timezone)
-        self.children = []
+        self.children: List[ComponentFilter] = []
 
     def filter_subcomponent(self, name, is_not_defined=False, time_range=None):
         ret = ComponentFilter(
@@ -959,7 +969,7 @@ class ICalendarFile(File):
                 raise AssertionError("segments: %r" % segments)
 
 
-def as_tz_aware_ts(dt, default_timezone) -> datetime:
+def as_tz_aware_ts(dt, default_timezone: Union[str, timezone]) -> datetime:
     if not getattr(dt, "time", None):
         dt = datetime.combine(dt, time())
     if dt.tzinfo is None:

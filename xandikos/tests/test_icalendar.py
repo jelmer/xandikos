@@ -345,7 +345,7 @@ class CalendarFilterTests(unittest.TestCase):
         return as_tz_aware_ts(dt, pytz.utc)
 
     def test_prop_apply_time_range(self):
-        filter = CalendarFilter(self._tzify)
+        filter = CalendarFilter(pytz.utc)
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
         ).filter_property("CREATED").filter_time_range(
@@ -358,6 +358,12 @@ class CalendarFilterTests(unittest.TestCase):
             filter.check_from_indexes(
                 "file",
                 {"C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"]}
+            )
+        )
+        self.assertFalse(
+            filter.check_from_indexes(
+                "file",
+                {"C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314"]}
             )
         )
         self.assertFalse(filter.check("file", self.cal))
@@ -380,7 +386,7 @@ class CalendarFilterTests(unittest.TestCase):
             self.cal.get_indexes(["C=VCALENDAR/C=VTODO/P=CREATED"]),
             {'C=VCALENDAR/C=VTODO/P=CREATED': [b'20150314T223512Z']})
 
-        filter = CalendarFilter(self._tzify)
+        filter = CalendarFilter(pytz.utc)
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
         ).filter_time_range(
@@ -411,8 +417,21 @@ class CalendarFilterTests(unittest.TestCase):
                 },
             )
         )
+        self.assertFalse(
+            filter.check_from_indexes(
+                "file",
+                {
+                    "C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314"],
+                    "C=VCALENDAR/C=VTODO": [True],
+                    "C=VCALENDAR/C=VTODO/P=DUE": [],
+                    "C=VCALENDAR/C=VTODO/P=DURATION": [],
+                    "C=VCALENDAR/C=VTODO/P=COMPLETED": [],
+                    "C=VCALENDAR/C=VTODO/P=DTSTART": [],
+                },
+            )
+        )
         self.assertFalse(filter.check("file", self.cal))
-        filter = CalendarFilter(self._tzify)
+        filter = CalendarFilter(pytz.utc)
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
         ).filter_time_range(
