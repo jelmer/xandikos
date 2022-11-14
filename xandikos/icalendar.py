@@ -962,9 +962,12 @@ class ICalendarFile(File):
             elif segments[0].startswith("P="):
                 assert len(segments) == 1
                 try:
-                    yield c[segments[0][2:]].to_ical()
+                    p = c[segments[0][2:]]
                 except KeyError:
                     pass
+                else:
+                    if p is not None:
+                        yield p.to_ical()
             else:
                 raise AssertionError("segments: %r" % segments)
 
