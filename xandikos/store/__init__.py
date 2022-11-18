@@ -350,8 +350,9 @@ class Store(object):
                     if (filter.check_from_indexes(name, file_values)
                             != filter.check(name, file)):
                         raise AssertionError(
-                            "index based filter not matching real file filter"
-                        )
+                            f"index based filter {filter} "
+                            f"(values: {file_values}) not matching "
+                            "real file filter")
                 if filter.check_from_indexes(name, file_values):
                     file = self.get_file(name, content_type, etag)
                     yield (name, file, etag)
