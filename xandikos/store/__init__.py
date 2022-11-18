@@ -276,7 +276,8 @@ class Store(object):
         self.extra_file_handlers[file_handler.content_type] = file_handler
 
     def iter_with_etag(
-            self, ctag: str = None) -> Iterator[Tuple[str, str, str]]:
+            self, ctag: Optional[str] = None) -> Iterator[
+                Tuple[str, str, str]]:
         """Iterate over all items in the store with etag.
 
         :param ctag: Possible ctag to iterate for
