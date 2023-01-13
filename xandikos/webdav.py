@@ -35,16 +35,10 @@ import os
 import posixpath
 from typing import (
     Callable,
-    Dict,
-    Iterable,
-    AsyncIterable,
-    Iterator,
-    List,
     Optional,
     Union,
-    Tuple,
-    Sequence,
 )
+from collections.abc import Iterable, AsyncIterable, Iterator, Sequence
 import urllib.parse
 from wsgiref.util import request_uri
 
@@ -67,7 +61,7 @@ class BadRequestError(Exception):
     """Base class for bad request errors."""
 
     def __init__(self, message):
-        super(BadRequestError, self).__init__(message)
+        super().__init__(message)
         self.message = message
 
 
@@ -81,7 +75,7 @@ class NotAcceptableError(Exception):
     """Base class for not acceptable errors."""
 
     def __init__(self, available_content_types, acceptable_content_types):
-        super(NotAcceptableError, self).__init__(
+        super().__init__(
             "Unable to convert from content types %r to one of %r"
             % (available_content_types, acceptable_content_types)
         )
@@ -93,8 +87,8 @@ class UnsupportedMediaType(Exception):
     """Base class for unsupported media type errors."""
 
     def __init__(self, content_type):
-        super(UnsupportedMediaType, self).__init__(
-            "Unsupported media type: %r" % (content_type,)
+        super().__init__(
+            "Unsupported media type: {!r}".format(content_type)
         )
         self.content_type = content_type
 
@@ -103,10 +97,10 @@ class UnauthorizedError(Exception):
     """Base class for unauthorized errors."""
 
     def __init__(self):
-        super(UnauthorizedError, self).__init__("Request unauthorized")
+        super().__init__("Request unauthorized")
 
 
-class Response(object):
+class Response:
     """Generic wrapper for HTTP-style responses."""
 
     def __init__(self, status=200, reason="OK", body=None, headers=None):
@@ -286,7 +280,7 @@ def path_from_environ(environ, name):
     return posixpath.normpath(path)
 
 
-class Status(object):
+class Status:
     """A DAV response that can be used in multi-status."""
 
     def __init__(
@@ -304,7 +298,7 @@ class Status(object):
         self.responsedescription = responsedescription
 
     def __repr__(self):
-        return "<%s(%r, %r, %r)>" % (
+        return "<{}({!r}, {!r}, {!r})>".format(
             type(self).__name__,
             self.href,
             self.status,
@@ -357,14 +351,14 @@ def multistatus(req_fn):
     return wrapper
 
 
-class Resource(object):
+class Resource:
     """A WebDAV resource."""
 
     # A list of resource type names (e.g. '{DAV:}collection')
-    resource_types: List[str] = []
+    resource_types: list[str] = []
 
     # TODO(jelmer): Be consistent in using get/set functions vs properties.
-    def set_resource_types(self, resource_types: List[str]) -> None:
+    def set_resource_types(self, resource_types: list[str]) -> None:
         """Set the resource types."""
         raise NotImplementedError(self.set_resource_types)
 
@@ -383,7 +377,7 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_creationdate)
 
-    def get_supported_locks(self) -> List[Tuple[str, str]]:
+    def get_supported_locks(self) -> list[tuple[str, str]]:
         """Get the list of supported locks.
 
         This should return a list of (lockscope, locktype) tuples.
@@ -392,7 +386,7 @@ class Resource(object):
         """
         raise NotImplementedError(self.get_supported_locks)
 
-    def get_active_locks(self) -> List["ActiveLock"]:
+    def get_active_locks(self) -> list["ActiveLock"]:
         """Return the list of active locks.
 
         :return: A list of ActiveLock tuples
@@ -428,8 +422,8 @@ class Resource(object):
         raise NotImplementedError(self.get_body)
 
     async def render(
-            self, self_url: str, accepted_content_types: List[str],
-            accepted_languages: List[str]) -> Tuple[
+            self, self_url: str, accepted_content_types: list[str],
+            accepted_languages: list[str]) -> tuple[
                 Iterable[bytes], int, str, str, Optional[str]]:
         """'Render' this resource in the specified content type.
 
@@ -537,7 +531,7 @@ class Resource(object):
         raise NotImplementedError(self.get_quota_available_bytes)
 
 
-class Property(object):
+class Property:
     """Handler for listing, retrieving and updating DAV Properties."""
 
     # Property name (e.g. '{DAV:}resourcetype')
@@ -565,7 +559,7 @@ class Property(object):
         return False
 
     async def is_set(
-        self, href: str, resource: Resource, environ: Dict[str, str]
+        self, href: str, resource: Resource, environ: dict[str, str]
     ) -> bool:
         """Check if this property is set on a resource."""
         if not self.supported_on(resource):
@@ -582,7 +576,7 @@ class Property(object):
         href: str,
         resource: Resource,
         el: ET.Element,
-        environ: Dict[str, str],
+        environ: dict[str, str],
     ) -> None:
         """Get property with specified name.
 
@@ -766,7 +760,7 @@ class CurrentUserPrincipalProperty(Property):
     live = True
 
     def __init__(self, get_current_user_principal):
-        super(CurrentUserPrincipalProperty, self).__init__()
+        super().__init__()
         self.get_current_user_principal = get_current_user_principal
 
     async def get_value(self, href, resource, el, environ):
@@ -884,7 +878,7 @@ class Collection(Resource):
 
     resource_types = Resource.resource_types + [COLLECTION_RESOURCE_TYPE]
 
-    def members(self) -> Iterable[Tuple[str, Resource]]:
+    def members(self) -> Iterable[tuple[str, Resource]]:
         """List all members.
 
         Returns: List of (name, Resource) tuples
@@ -914,7 +908,7 @@ class Collection(Resource):
 
     async def create_member(
             self, name: str, contents: Iterable[bytes],
-            content_type: str) -> Tuple[str, str]:
+            content_type: str) -> tuple[str, str]:
         """Create a new member with specified name and contents.
 
         Args:
@@ -931,7 +925,7 @@ class Collection(Resource):
 
     def iter_differences_since(
             self, old_token: str, new_token: str) -> Iterator[
-                Tuple[str, Optional[Resource], Optional[Resource]]]:
+                tuple[str, Optional[Resource], Optional[Resource]]]:
         """Iterate over differences in this collection.
 
         Should return an iterator over (name, old resource, new resource)
@@ -992,18 +986,18 @@ class Principal(Resource):
         """Set inf-it settings string."""
         raise NotImplementedError(self.get_infit_settings)
 
-    def get_group_membership(self) -> List[str]:
+    def get_group_membership(self) -> list[str]:
         """Get group membership URLs."""
         raise NotImplementedError(self.get_group_membership)
 
-    def get_calendar_proxy_read_for(self) -> List[str]:
+    def get_calendar_proxy_read_for(self) -> list[str]:
         """List principals for which this one is a read proxy.
 
         :return: List of principal hrefs
         """
         raise NotImplementedError(self.get_calendar_proxy_read_for)
 
-    def get_calendar_proxy_write_for(self) -> List[str]:
+    def get_calendar_proxy_write_for(self) -> list[str]:
         """List principals for which this one is a write proxy.
 
         :return: List of principal hrefs
@@ -1037,7 +1031,7 @@ async def get_property_from_name(
 async def get_property_from_element(
     href: str,
     resource: Resource,
-    properties: Dict[str, Property],
+    properties: dict[str, Property],
     environ,
     requested: ET.Element,
 ) -> PropStatus:
@@ -1088,7 +1082,7 @@ async def get_property_from_element(
 async def get_properties(
     href: str,
     resource: Resource,
-    properties: Dict[str, Property],
+    properties: dict[str, Property],
     environ,
     requested: ET.Element,
 ) -> AsyncIterable[PropStatus]:
@@ -1110,7 +1104,7 @@ async def get_properties(
 async def get_property_names(
     href: str,
     resource: Resource,
-    properties: Dict[str, Property],
+    properties: dict[str, Property],
     environ,
     requested: ET.Element,
 ) -> AsyncIterable[PropStatus]:
@@ -1129,7 +1123,7 @@ async def get_property_names(
 
 
 async def get_all_properties(
-    href: str, resource: Resource, properties: Dict[str, Property], environ
+    href: str, resource: Resource, properties: dict[str, Property], environ
 ) -> AsyncIterable[PropStatus]:
     """Get all properties.
 
@@ -1165,8 +1159,8 @@ async def traverse_resource(
     base_href: str,
     depth: str,
     members: Optional[
-        Callable[[Collection], Iterable[Tuple[str, Resource]]]] = None,
-) -> AsyncIterable[Tuple[str, Resource]]:
+        Callable[[Collection], Iterable[tuple[str, Resource]]]] = None,
+) -> AsyncIterable[tuple[str, Resource]]:
     """Traverse a resource.
 
     :param base_resource: Resource to traverse from
@@ -1207,12 +1201,12 @@ async def traverse_resource(
                 todo.append((child_href, child_resource, nextdepth))
 
 
-class Reporter(object):
+class Reporter:
     """Implementation for DAV REPORT requests."""
 
     name: str
 
-    resource_type: Optional[Union[str, Tuple]] = None
+    resource_type: Optional[Union[str, tuple]] = None
 
     def supported_on(self, resource: Resource) -> bool:
         """Check if this reporter is available for the specified resource.
@@ -1229,11 +1223,11 @@ class Reporter(object):
 
     async def report(
         self,
-        environ: Dict[str, str],
+        environ: dict[str, str],
         request_body: ET.Element,
         resources_by_hrefs:
-            Callable[[Iterable[str]], Iterable[Tuple[str, Resource]]],
-        properties: Dict[str, Property],
+            Callable[[Iterable[str]], Iterable[tuple[str, Resource]]],
+        properties: dict[str, Property],
         href: str,
         resource: Resource,
         depth: str,
@@ -1287,8 +1281,8 @@ class ExpandPropertyReporter(Reporter):
         self,
         prop_list: ET.Element,
         resources_by_hrefs:
-            Callable[[Iterable[str]], List[Tuple[str, Resource]]],
-        properties: Dict[str, Property],
+            Callable[[Iterable[str]], list[tuple[str, Resource]]],
+        properties: dict[str, Property],
         href: str,
         resource: Resource,
         environ,
@@ -1451,7 +1445,7 @@ class CommentProperty(Property):
         resource.set_comment(el.text)
 
 
-class Backend(object):
+class Backend:
     """WebDAV backend."""
 
     def create_collection(self, relpath):
@@ -1612,11 +1606,11 @@ async def _readXmlBody(
         raise BadRequestError("Unable to parse body.") from exc
     if expected_tag is not None and et.tag != expected_tag:
         raise BadRequestError(
-            "Expected %s tag, got %s" % (expected_tag, et.tag))
+            "Expected {} tag, got {}".format(expected_tag, et.tag))
     return et
 
 
-class Method(object):
+class Method:
     @property
     def name(self):
         return type(self).__name__.upper()[:-6]
@@ -1982,7 +1976,7 @@ async def _do_get(request, environ, app, send_body):
         return Response(status=200, reason="OK", headers=headers)
 
 
-class WSGIRequest(object):
+class WSGIRequest:
     """Request object for wsgi requests (with environ)."""
 
     def __init__(self, environ):
@@ -2004,7 +1998,7 @@ class WSGIRequest(object):
         )
         self.url = request_uri(environ)
 
-        class StreamWrapper(object):
+        class StreamWrapper:
             def __init__(self, stream):
                 self._stream = stream
 
@@ -2028,7 +2022,7 @@ class WSGIRequest(object):
         return self._environ["wsgi.input"].read()
 
 
-class WebDAVApp(object):
+class WebDAVApp:
     """A wsgi App that provides a WebDAV server.
 
     A concrete implementation should provide an implementation of the

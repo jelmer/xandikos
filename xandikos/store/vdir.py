@@ -56,7 +56,7 @@ class VdirStore(Store):
     """A Store backed by a Vdir directory."""
 
     def __init__(self, path, check_for_duplicate_uids=True):
-        super(VdirStore, self).__init__(MemoryIndex())
+        super().__init__(MemoryIndex())
         self.path = path
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
@@ -73,7 +73,7 @@ class VdirStore(Store):
         self.config = FileBasedCollectionMetadata(cp, save=save_config)
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def _get_etag(self, name):
         path = os.path.join(self.path, name)
@@ -273,7 +273,7 @@ class VdirStore(Store):
 
     def _read_metadata(self, name):
         try:
-            with open(os.path.join(self.path, name), "r") as f:
+            with open(os.path.join(self.path, name)) as f:
                 return f.read().strip()
         except FileNotFoundError:
             return None

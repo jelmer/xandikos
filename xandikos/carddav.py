@@ -22,8 +22,6 @@
 https://tools.ietf.org/html/rfc6352
 """
 
-from typing import Set
-
 from . import (
     collation as _mod_collation,
     davcommon,
@@ -143,7 +141,7 @@ class Addressbook(webdav.Collection):
 class PrincipalExtensions:
     """Extensions to webdav.Principal."""
 
-    def get_addressbook_home_set(self) -> Set[str]:
+    def get_addressbook_home_set(self) -> set[str]:
         """Return set of addressbook home URLs.
 
         :return: set of URLs
@@ -339,7 +337,7 @@ class AddressbookQueryReporter(webdav.Reporter):
                 limit = el
             else:
                 webdav.nonfatal_bad_request(
-                    "Unknown tag %s in report %s" % (el.tag, self.name),
+                    "Unknown tag {} in report {}".format(el.tag, self.name),
                     strict)
         if requested is None:
             # The CardDAV RFC says that behaviour mimicks that of PROPFIND,

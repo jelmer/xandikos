@@ -51,7 +51,7 @@ END:VCALENDAR
 
 class CalendarCollectionTests(unittest.TestCase):
     def setUp(self):
-        super(CalendarCollectionTests, self).setUp()
+        super().setUp()
         self.tempdir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tempdir)
 

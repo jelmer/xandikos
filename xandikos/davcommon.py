@@ -81,7 +81,7 @@ class MultiGetReporter(webdav.Reporter):
                 hrefs.append(webdav.read_href_element(el))
             else:
                 webdav.nonfatal_bad_request(
-                    "Unknown tag %s in report %s" % (el.tag, self.name),
+                    "Unknown tag {} in report {}".format(el.tag, self.name),
                     strict)
         if requested is None:
             # The CalDAV RFC says that behaviour mimicks that of PROPFIND,

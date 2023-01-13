@@ -25,7 +25,7 @@ import posixpath
 from .web import WELLKNOWN_DAV_PATHS
 
 
-class WellknownRedirector(object):
+class WellknownRedirector:
     """Redirect paths under .well-known/ to the appropriate paths."""
 
     def __init__(self, inner_app, dav_root):

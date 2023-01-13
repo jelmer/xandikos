@@ -22,26 +22,27 @@
 
 import collections
 import logging
-from typing import Union, List, Iterator, Dict, Iterable, Optional
+from typing import Union, Optional
+from collections.abc import Iterator, Iterable
 
 
 IndexKey = str
-IndexValue = List[Union[bytes, bool]]
+IndexValue = list[Union[bytes, bool]]
 IndexValueIterator = Iterator[Union[bytes, bool]]
-IndexDict = Dict[IndexKey, IndexValue]
+IndexDict = dict[IndexKey, IndexValue]
 
 
 DEFAULT_INDEXING_THRESHOLD = 5
 
 
-class Index(object):
+class Index:
     """Index management."""
 
     def available_keys(self) -> Iterable[IndexKey]:
         """Return list of available index keys."""
         raise NotImplementedError(self.available_keys)
 
-    def get_values(self, name: str, etag: str, keys: List[IndexKey]):
+    def get_values(self, name: str, etag: str, keys: list[IndexKey]):
         """Get the values for specified keys for a name."""
         raise NotImplementedError(self.get_values)
 
@@ -88,10 +89,10 @@ class MemoryIndex(Index):
             self._indexes[key] = {}
 
 
-class AutoIndexManager(object):
+class AutoIndexManager:
     def __init__(self, index, threshold: Optional[int] = None):
         self.index = index
-        self.desired: Dict[IndexKey, int] = collections.defaultdict(lambda: 0)
+        self.desired: dict[IndexKey, int] = collections.defaultdict(lambda: 0)
         if threshold is None:
             threshold = DEFAULT_INDEXING_THRESHOLD
         self.indexing_threshold = threshold
@@ -101,7 +102,7 @@ class AutoIndexManager(object):
                 Iterable[IndexKey]]:
         available_keys = self.index.available_keys()
         needed_keys = []
-        missing_keys: List[IndexKey] = []
+        missing_keys: list[IndexKey] = []
         new_index_keys = set()
         for keys in necessary_keys:
             found = False

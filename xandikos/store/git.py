@@ -27,7 +27,7 @@ import logging
 import os
 import shutil
 import stat
-from typing import Dict, Tuple, List, Optional
+from typing import Optional
 import uuid
 
 from dulwich.file import GitFile, FileLocked
@@ -194,7 +194,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         self._write_config(config)
 
 
-class locked_index(object):
+class locked_index:
     def __init__(self, path):
         self._path = path
 
@@ -222,20 +222,20 @@ class GitStore(Store):
     def __init__(self, repo, *, ref: bytes = b"refs/heads/master",
                  check_for_duplicate_uids=True,
                  **kwargs):
-        super(GitStore, self).__init__(MemoryIndex(), **kwargs)
+        super().__init__(MemoryIndex(), **kwargs)
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
-        self._uid_to_fname: Dict[str, Tuple[bytes, str]] = {}
+        self._uid_to_fname: dict[str, tuple[bytes, str]] = {}
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
-        self._fname_to_uid: Dict[str, Tuple[str, str]] = {}
+        self._fname_to_uid: dict[str, tuple[str, str]] = {}
 
     def _get_etag(self, name: str) -> str:
         raise NotImplementedError(self._get_etag)
 
     def _import_one(
-            self, name: str, data: List[bytes], message: str,
+            self, name: str, data: list[bytes], message: str,
             author: Optional[str] = None):
         raise NotImplementedError(self._import_one)
 
@@ -263,7 +263,8 @@ class GitStore(Store):
             return FileBasedCollectionMetadata(cp, save=save_config)
 
     def __repr__(self):
-        return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
+        return "{}({!r}, ref={!r})".format(
+            type(self).__name__, self.repo, self.ref)
 
     @property
     def path(self):
@@ -517,7 +518,7 @@ class GitStore(Store):
         try:
             return self.config.get_type()
         except KeyError:
-            return super(GitStore, self).get_type()
+            return super().get_type()
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.

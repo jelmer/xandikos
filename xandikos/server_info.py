@@ -34,7 +34,7 @@ FEATURE = "server-info"
 SERVER_INFO_MIME_TYPE = "application/server-info+xml"
 
 
-class ServerInfo(object):
+class ServerInfo:
     """Server info."""
 
     def __init__(self):

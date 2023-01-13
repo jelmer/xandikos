@@ -23,7 +23,8 @@
 
 from datetime import datetime, timedelta, time, timezone
 import logging
-from typing import Iterable, List, Dict, Callable, Union, Optional
+from typing import Callable, Union, Optional
+from collections.abc import Iterable
 
 import pytz
 
@@ -67,7 +68,7 @@ _INVALID_CONTROL_CHARACTERS = ["\x0c", "\x01"]
 
 class MissingProperty(Exception):
     def __init__(self, property_name):
-        super(MissingProperty, self).__init__(
+        super().__init__(
             "Property %r missing" % property_name)
         self.property_name = property_name
 
@@ -78,12 +79,11 @@ def validate_calendar(cal, strict=False):
     :param cal: Calendar object
     :return: iterator over error messages
     """
-    for error in validate_component(cal, strict=strict):
-        yield error
+    yield from validate_component(cal, strict=strict)
 
 
 # SubIndexDict is like IndexDict, but None can also occur as a key
-SubIndexDict = Dict[Optional[IndexKey], IndexValue]
+SubIndexDict = dict[Optional[IndexKey], IndexValue]
 
 
 def create_subindexes(
@@ -107,7 +107,7 @@ def validate_component(comp, strict=False):
         if isinstance(value, vText):
             for c in _INVALID_CONTROL_CHARACTERS:
                 if c in value:
-                    yield "Invalid character %s in field %s" % (
+                    yield "Invalid character {} in field {}".format(
                         c.encode("unicode_escape"),
                         name,
                     )
@@ -118,8 +118,7 @@ def validate_component(comp, strict=False):
             except KeyError:
                 yield "Missing required field %s" % required
     for subcomp in comp.subcomponents:
-        for error in validate_component(subcomp, strict=strict):
-            yield error
+        yield from validate_component(subcomp, strict=strict)
 
 
 def calendar_component_delta(old_cal, new_cal):
@@ -187,19 +186,17 @@ def describe_component(component):
             return "calendar item"
 
 
-DELTA_IGNORE_FIELDS = set(
-    [
-        "LAST-MODIFIED",
-        "SEQUENCE",
-        "DTSTAMP",
-        "PRODID",
-        "CREATED",
-        "COMPLETED",
-        "X-MOZ-GENERATION",
-        "X-LIC-ERROR",
-        "UID",
-    ]
-)
+DELTA_IGNORE_FIELDS = {
+    "LAST-MODIFIED",
+    "SEQUENCE",
+    "DTSTAMP",
+    "PRODID",
+    "CREATED",
+    "COMPLETED",
+    "X-MOZ-GENERATION",
+    "X-LIC-ERROR",
+    "UID",
+}
 
 
 def describe_calendar_delta(old_cal, new_cal):
@@ -234,7 +231,7 @@ def describe_calendar_delta(old_cal, new_cal):
                         "COMPLETED": "complete",
                         "CANCELLED": "cancelled",
                     }
-                    yield "%s marked as %s" % (
+                    yield "{} marked as {}".format(
                         description,
                         human_readable.get(new_value.upper(), new_value),
                     )
@@ -243,7 +240,8 @@ def describe_calendar_delta(old_cal, new_cal):
             elif field.upper() == "SUMMARY":
                 yield "changed summary of %s" % description
             elif field.upper() == "LOCATION":
-                yield "changed location of %s to %s" % (description, new_value)
+                yield "changed location of {} to {}".format(
+                    description, new_value)
             elif (
                 old_component.name.upper() == "VTODO"
                 and field.upper() == "PERCENT-COMPLETE"
@@ -251,31 +249,31 @@ def describe_calendar_delta(old_cal, new_cal):
             ):
                 yield "%s marked as %d%% completed." % (description, new_value)
             elif field.upper() == "DUE":
-                yield "changed due date for %s from %s to %s" % (
+                yield "changed due date for {} from {} to {}".format(
                     description,
                     old_value.dt if old_value else "none",
                     new_value.dt if new_value else "none",
                 )
             elif field.upper() == "DTSTART":
-                yield "changed start date/time of %s from %s to %s" % (
+                yield "changed start date/time of {} from {} to {}".format(
                     description,
                     old_value.dt if old_value else "none",
                     new_value.dt if new_value else "none",
                 )
             elif field.upper() == "DTEND":
-                yield "changed end date/time of %s from %s to %s" % (
+                yield "changed end date/time of {} from {} to {}".format(
                     description,
                     old_value.dt if old_value else "none",
                     new_value.dt if new_value else "none",
                 )
             elif field.upper() == "CLASS":
-                yield "changed class of %s from %s to %s" % (
+                yield "changed class of {} from {} to {}".format(
                     description,
                     old_value.lower() if old_value else "none",
                     new_value.lower() if new_value else "none",
                 )
             else:
-                yield "modified field %s in %s" % (field, description)
+                yield "modified field {} in {}".format(field, description)
                 logging.debug(
                     "Changed %s/%s or %s/%s from %s to %s.",
                     old_component.name,
@@ -378,13 +376,14 @@ def apply_time_range_valarm(start, end, comp, tzify):
     raise NotImplementedError(apply_time_range_valarm)
 
 
-class PropertyTimeRangeMatcher(object):
+class PropertyTimeRangeMatcher:
     def __init__(self, start: datetime, end: datetime):
         self.start = start
         self.end = end
 
     def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.start, self.end)
+        return "{}({!r}, {!r})".format(
+            self.__class__.__name__, self.start, self.end)
 
     def match(self, prop, tzify):
         dt = tzify(prop.dt)
@@ -401,7 +400,7 @@ TimeRangeFilter = Callable[
     [datetime, datetime, Component, TzifyFunction], bool]
 
 
-class ComponentTimeRangeMatcher(object):
+class ComponentTimeRangeMatcher:
 
     all_props = [
         "DTSTART",
@@ -415,7 +414,7 @@ class ComponentTimeRangeMatcher(object):
 
     # According to https://tools.ietf.org/html/rfc4791, section 9.9 these
     # are the properties to check.
-    component_handlers: Dict[str, TimeRangeFilter] = {
+    component_handlers: dict[str, TimeRangeFilter] = {
         "VEVENT": apply_time_range_vevent,
         "VTODO": apply_time_range_vtodo,
         "VJOURNAL": apply_time_range_vjournal,
@@ -430,14 +429,14 @@ class ComponentTimeRangeMatcher(object):
 
     def __repr__(self):
         if self.comp is not None:
-            return "%s(%r, %r, comp=%r)" % (
+            return "{}({!r}, {!r}, comp={!r})".format(
                 self.__class__.__name__,
                 self.start,
                 self.end,
                 self.comp,
             )
         else:
-            return "%s(%r, %r)" % (
+            return "{}({!r}, {!r})".format(
                 self.__class__.__name__,
                 self.start,
                 self.end,
@@ -453,7 +452,7 @@ class ComponentTimeRangeMatcher(object):
         return component_handler(self.start, self.end, comp, tzify)
 
     def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
-        vs: Dict[str, vDDDTypes] = {}
+        vs: dict[str, vDDDTypes] = {}
         for name, values in indexes.items():
             if not name:
                 continue
@@ -478,7 +477,7 @@ class ComponentTimeRangeMatcher(object):
             {k: vs[0] for (k, vs) in vs.items()},
             tzify)
 
-    def index_keys(self) -> List[List[str]]:
+    def index_keys(self) -> list[list[str]]:
         if self.comp == "VEVENT":
             props = ["DTSTART", "DTEND", "DURATION"]
         elif self.comp == "VTODO":
@@ -494,7 +493,7 @@ class ComponentTimeRangeMatcher(object):
         return [["P=" + prop] for prop in props]
 
 
-class TextMatcher(object):
+class TextMatcher:
     def __init__(self, name: str, text: str,
                  collation: Optional[str] = None,
                  negate_condition: bool = False):
@@ -508,7 +507,7 @@ class TextMatcher(object):
         self.negate_condition = negate_condition
 
     def __repr__(self):
-        return "%s(%r, %r, collation=%r, negate_condition=%r)" % (
+        return "{}({!r}, {!r}, collation={!r}, negate_condition={!r})".format(
             self.__class__.__name__,
             self.name,
             self.text,
@@ -539,7 +538,7 @@ class TextMatcher(object):
             return matches
 
 
-class ComponentFilter(object):
+class ComponentFilter:
 
     time_range: Optional[ComponentTimeRangeMatcher]
 
@@ -553,13 +552,13 @@ class ComponentFilter(object):
         self.children = children or []
 
     def __repr__(self):
-        return "%s(%r, children=%r, is_not_defined=%r, time_range=%r)" % (
-            self.__class__.__name__,
-            self.name,
-            self.children,
-            self.is_not_defined,
-            self.time_range,
-        )
+        return ("{}({!r}, children={!r}, is_not_defined={!r}, time_range={!r})"
+                .format(
+                    self.__class__.__name__,
+                    self.name,
+                    self.children,
+                    self.is_not_defined,
+                    self.time_range))
 
     def filter_subcomponent(
             self, name: str, is_not_defined: bool = False,
@@ -658,7 +657,7 @@ class ComponentFilter(object):
             yield [mine]
 
 
-class PropertyFilter(object):
+class PropertyFilter:
 
     def __init__(self, name: str, children=None, is_not_defined: bool = False,
                  time_range: Optional[PropertyTimeRangeMatcher] = None):
@@ -668,13 +667,10 @@ class PropertyFilter(object):
         self.time_range = time_range
 
     def __repr__(self):
-        return "%s(%r, children=%r, is_not_defined=%r, time_range=%r)" % (
-            self.__class__.__name__,
-            self.name,
-            self.children,
-            self.is_not_defined,
-            self.time_range,
-        )
+        return ("{}({!r}, children={!r}, is_not_defined={!r}, time_range={!r})"
+                .format(
+                    self.__class__.__name__, self.name, self.children,
+                    self.is_not_defined, self.time_range))
 
     def filter_parameter(
             self, name: str,
@@ -752,11 +748,11 @@ class PropertyFilter(object):
         yield [mine]
 
 
-class ParameterFilter(object):
+class ParameterFilter:
 
-    children: List[TextMatcher]
+    children: list[TextMatcher]
 
-    def __init__(self, name: str, children: Optional[List[TextMatcher]] = None,
+    def __init__(self, name: str, children: Optional[list[TextMatcher]] = None,
                  is_not_defined: bool = False):
         self.name = name
         self.is_not_defined = is_not_defined
@@ -784,7 +780,7 @@ class ParameterFilter(object):
                 return False
         return True
 
-    def index_keys(self) -> Iterable[List[str]]:
+    def index_keys(self) -> Iterable[list[str]]:
         yield ["A=" + self.name]
 
     def match_indexes(self, indexes: IndexDict) -> bool:
@@ -810,7 +806,7 @@ class CalendarFilter(Filter):
 
     def __init__(self, default_timezone: Union[str, timezone]):
         self.tzify = lambda dt: as_tz_aware_ts(dt, default_timezone)
-        self.children: List[ComponentFilter] = []
+        self.children: list[ComponentFilter] = []
 
     def filter_subcomponent(self, name, is_not_defined=False, time_range=None):
         ret = ComponentFilter(
@@ -856,14 +852,14 @@ class CalendarFilter(Filter):
                 return False
         return True
 
-    def index_keys(self) -> List[str]:
+    def index_keys(self) -> list[str]:
         subindexes = []
         for child in self.children:
             subindexes.extend(child.index_keys())
         return subindexes
 
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, self.children)
+        return "{}({!r})".format(self.__class__.__name__, self.children)
 
 
 class ICalendarFile(File):
@@ -872,7 +868,7 @@ class ICalendarFile(File):
     content_type = "text/calendar"
 
     def __init__(self, content, content_type):
-        super(ICalendarFile, self).__init__(content, content_type)
+        super().__init__(content, content_type)
         self._calendar = None
 
     def validate(self) -> None:
@@ -913,7 +909,7 @@ class ICalendarFile(File):
         except NotImplementedError:
             lines = []
         if not lines:
-            lines = super(ICalendarFile, self).describe_delta(name, previous)
+            lines = super().describe_delta(name, previous)
         return lines
 
     def describe(self, name):
@@ -927,7 +923,7 @@ class ICalendarFile(File):
                     return component["SUMMARY"]
                 except KeyError:
                     pass
-        return super(ICalendarFile, self).describe(name)
+        return super().describe(name)
 
     def get_uid(self):
         """Extract the UID from a VCalendar file.
@@ -1002,7 +998,7 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
 
 def _expand_rrule_component(
         incomp: Component, start: datetime, end: datetime,
-        existing: Dict[str, Component]) -> Iterable[Component]:
+        existing: dict[str, Component]) -> Iterable[Component]:
     if "RRULE" not in incomp:
         return
     rs = rruleset_from_comp(incomp)

@@ -25,8 +25,8 @@ are always strong, and should be returned without wrapping quotes.
 
 import logging
 import mimetypes
-from typing import (
-    Optional, Iterable, Tuple, Iterator, Dict, Type, List)
+from typing import Optional
+from collections.abc import Iterable, Iterator
 
 from .index import AutoIndexManager, IndexKey, IndexValueIterator, IndexDict
 
@@ -61,7 +61,7 @@ class InvalidCTag(Exception):
         self.ctag = ctag
 
 
-class File(object):
+class File:
     """A file type handler."""
 
     content: Iterable[bytes]
@@ -137,7 +137,7 @@ class File(object):
         return ret
 
 
-class Filter(object):
+class Filter:
     """A filter that can be used to query for certain resources.
 
     Filters are often resource-type specific.
@@ -154,7 +154,7 @@ class Filter(object):
         """
         raise NotImplementedError(self.check)
 
-    def index_keys(self) -> List[IndexKey]:
+    def index_keys(self) -> list[IndexKey]:
         """Returns a list of indexes that could be used to apply this filter.
 
         :return: AND-list of OR-options
@@ -188,7 +188,7 @@ def open_by_content_type(
 def open_by_extension(
     content: Iterable[bytes],
     name: str,
-    extra_file_handlers: Dict[str, Type[File]],
+    extra_file_handlers: dict[str, type[File]],
 ) -> File:
     """Open a file based on the filename extension.
 
@@ -259,10 +259,10 @@ class LockedError(Exception):
         self.path = path
 
 
-class Store(object):
+class Store:
     """A object store."""
 
-    extra_file_handlers: Dict[str, Type[File]]
+    extra_file_handlers: dict[str, type[File]]
 
     def __init__(self, index, *, double_check_indexes: bool = False,
                  index_threshold: Optional[int] = None):
@@ -272,12 +272,12 @@ class Store(object):
             self.index, threshold=index_threshold)
         self.double_check_indexes = double_check_indexes
 
-    def load_extra_file_handler(self, file_handler: Type[File]) -> None:
+    def load_extra_file_handler(self, file_handler: type[File]) -> None:
         self.extra_file_handlers[file_handler.content_type] = file_handler
 
     def iter_with_etag(
             self, ctag: Optional[str] = None) -> Iterator[
-                Tuple[str, str, str]]:
+                tuple[str, str, str]]:
         """Iterate over all items in the store with etag.
 
         :param ctag: Possible ctag to iterate for
@@ -286,7 +286,7 @@ class Store(object):
         raise NotImplementedError(self.iter_with_etag)
 
     def iter_with_filter(
-            self, filter: Filter) -> Iterator[Tuple[str, File, str]]:
+            self, filter: Filter) -> Iterator[tuple[str, File, str]]:
         """Iterate over all items in the store that match a particular filter.
 
         :param filter: Filter to apply
@@ -306,7 +306,7 @@ class Store(object):
 
     def _iter_with_filter_naive(
         self, filter: Filter
-    ) -> Iterator[Tuple[str, File, str]]:
+    ) -> Iterator[tuple[str, File, str]]:
         for (name, content_type, etag) in self.iter_with_etag():
             if not filter.content_type == content_type:
                 continue
@@ -319,7 +319,7 @@ class Store(object):
 
     def _iter_with_filter_indexes(
         self, filter: Filter, keys
-    ) -> Iterator[Tuple[str, File, str]]:
+    ) -> Iterator[tuple[str, File, str]]:
         for (name, content_type, etag) in self.iter_with_etag():
             if not filter.content_type == content_type:
                 continue
@@ -345,8 +345,8 @@ class Store(object):
                 if self.double_check_indexes:
                     if file_values != file.get_indexes(keys):
                         raise AssertionError(
-                            "%r != %r" % (file_values, file.get_indexes(keys))
-                        )
+                            "{!r} != {!r}".format(
+                                file_values, file.get_indexes(keys)))
                     if (filter.check_from_indexes(name, file_values)
                             != filter.check(name, file)):
                         raise AssertionError(
@@ -401,7 +401,7 @@ class Store(object):
         message: Optional[str] = None,
         author: Optional[str] = None,
         replace_etag: Optional[str] = None,
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         """Import a single object.
 
         :param name: Name of the object
@@ -482,7 +482,7 @@ class Store(object):
 
     def iter_changes(
         self, old_ctag: str, new_ctag: str
-    ) -> Iterator[Tuple[str, str, str, str]]:
+    ) -> Iterator[tuple[str, str, str, str]]:
         """Get changes between two versions of this store.
 
         :param old_ctag: Old ctag (None for empty Store)
