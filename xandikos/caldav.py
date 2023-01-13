@@ -176,7 +176,7 @@ class Calendar(webdav.Collection):
         raise NotImplementedError(self.get_xmpp_uri)
 
 
-class Subscription(object):
+class Subscription:
 
     resource_types = webdav.Collection.resource_types + [
         SUBSCRIPTION_RESOURCE_TYPE]
@@ -209,7 +209,7 @@ class Subscription(object):
         raise NotImplementedError(self.get_supported_calendar_components)
 
 
-class CalendarHomeSet(object):
+class CalendarHomeSet:
     def get_managed_attachments_server_url(self):
         """Return the attachments server URL."""
         raise NotImplementedError(self.get_managed_attachments_server_url)
@@ -541,7 +541,7 @@ class CalendarQueryReporter(webdav.Reporter):
                 tztext = el.text
             else:
                 webdav.nonfatal_bad_request(
-                    "Unknown tag %s in report %s" % (el.tag, self.name),
+                    "Unknown tag {} in report {}".format(el.tag, self.name),
                     strict
                 )
         if requested is None:

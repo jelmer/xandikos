@@ -28,12 +28,12 @@ from xandikos.webdav import Collection, ET, Property, Resource, WebDAVApp
 
 class WebTestCase(unittest.TestCase):
     def setUp(self):
-        super(WebTestCase, self).setUp()
+        super().setUp()
         logging.disable(logging.WARNING)
         self.addCleanup(logging.disable, logging.NOTSET)
 
     def makeApp(self, resources, properties):
-        class Backend(object):
+        class Backend:
             get_resource = resources.get
 
         app = WebDAVApp(Backend())
@@ -194,7 +194,7 @@ class WebTests(WebTestCase):
         self.assertEqual(b"", contents)
 
     def test_mkcol_ok(self):
-        class Backend(object):
+        class Backend:
             def create_collection(self, relpath):
                 pass
 
@@ -419,7 +419,7 @@ class PickContentTypesTests(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            set(["text/plain", "text/html"]),
+            {"text/plain", "text/html"},
             set(
                 webdav.pick_content_types(
                     [("text/*", {"q": "0.4"}), ("text/plain", {"q": "0.3"})],

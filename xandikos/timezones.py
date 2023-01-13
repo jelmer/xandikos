@@ -39,7 +39,7 @@ class TimezoneServiceSetProperty(webdav.Property):
     live = True
 
     def __init__(self, timezone_services):
-        super(TimezoneServiceSetProperty, self).__init__()
+        super().__init__()
         self._timezone_services = timezone_services
 
     async def get_value(self, base_href, resource, el, environ):

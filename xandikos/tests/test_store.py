@@ -27,8 +27,6 @@ import unittest
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
-from typing import Type
-
 from xandikos.icalendar import ICalendarFile
 from xandikos.store import (
     DuplicateUidError,
@@ -116,7 +114,7 @@ END:VCALENDAR
 """
 
 
-class BaseStoreTest(object):
+class BaseStoreTest:
     def test_import_one(self):
         gc = self.create_store()
         (name, etag) = gc.import_one(
@@ -308,22 +306,18 @@ class BaseStoreTest(object):
         (name2, etag2) = gc.import_one(
             "bar.ics", "text/calendar", [EXAMPLE_VCALENDAR2])
         self.assertEqual(
-            set(
-                [
-                    ("foo.ics", "text/calendar", etag1),
-                    ("bar.ics", "text/calendar", etag2),
-                ]
-            ),
+            {
+                ("foo.ics", "text/calendar", etag1),
+                ("bar.ics", "text/calendar", etag2),
+            },
             set(gc.iter_with_etag()),
         )
         self.assertRaises(InvalidETag, gc.delete_one, "foo.ics", etag=etag2)
         self.assertEqual(
-            set(
-                [
-                    ("foo.ics", "text/calendar", etag1),
-                    ("bar.ics", "text/calendar", etag2),
-                ]
-            ),
+            {
+                ("foo.ics", "text/calendar", etag1),
+                ("bar.ics", "text/calendar", etag2),
+            },
             set(gc.iter_with_etag()),
         )
 
@@ -342,7 +336,7 @@ class VdirStoreTest(BaseStoreTest, unittest.TestCase):
 
 class BaseGitStoreTest(BaseStoreTest):
 
-    kls: Type[Store]
+    kls: type[Store]
 
     def create_store(self):
         raise NotImplementedError(self.create_store)

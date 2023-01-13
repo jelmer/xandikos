@@ -25,7 +25,7 @@ import configparser
 FILENAME = ".xandikos"
 
 
-class CollectionMetadata(object):
+class CollectionMetadata:
     """Metadata for a configuration."""
 
     def get_color(self) -> str:

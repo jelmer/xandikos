@@ -52,7 +52,7 @@ class WebTests(test_webdav.WebTestCase):
         return _code[0], _headers, contents
 
     def test_mkcalendar_ok(self):
-        class Backend(object):
+        class Backend:
             def create_collection(self, relpath):
                 pass
 
@@ -83,7 +83,7 @@ class WebTests(test_webdav.WebTestCase):
 
 class ExtractfromCalendarTests(unittest.TestCase):
     def setUp(self):
-        super(ExtractfromCalendarTests, self).setUp()
+        super().setUp()
         self.requested = ET.Element("{%s}calendar-data" % caldav.NAMESPACE)
 
     def extractEqual(self, incal_str, outcal_str):

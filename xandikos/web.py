@@ -33,14 +33,8 @@ import os
 import posixpath
 import shutil
 import socket
-from typing import (
-    List,
-    Tuple,
-    Iterable,
-    Iterator,
-    Optional,
-    Set,
-)
+from typing import Optional
+from collections.abc import Iterable, Iterator
 import urllib.parse
 
 import jinja2
@@ -49,12 +43,12 @@ try:
 except ImportError:
     systemd_imported = False
 
-    def get_systemd_listen_sockets() -> List[socket.socket]:
+    def get_systemd_listen_sockets() -> list[socket.socket]:
         raise NotImplementedError
 else:
     systemd_imported = True
 
-    def get_systemd_listen_sockets() -> List[socket.socket]:
+    def get_systemd_listen_sockets() -> list[socket.socket]:
         socks = []
         for fd in systemd.daemon.listen_fds():
             for family in (socket.AF_UNIX,  # type: ignore
@@ -145,8 +139,8 @@ jinja_env = jinja2.Environment(
 
 
 async def render_jinja_page(
-    name: str, accepted_content_languages: List[str], **kwargs
-) -> Tuple[Iterable[bytes], int, Optional[str], str, List[str]]:
+    name: str, accepted_content_languages: list[str], **kwargs
+) -> tuple[Iterable[bytes], int, Optional[str], str, list[str]]:
     """Render a HTML page from jinja template.
 
     :param name: Name of the page
@@ -203,7 +197,7 @@ class ObjectResource(webdav.Resource):
         self._file = file
 
     def __repr__(self) -> str:
-        return "%s(%r, %r, %r, %r)" % (
+        return "{}({!r}, {!r}, {!r}, {!r})".format(
             type(self).__name__,
             self.store,
             self.name,
@@ -296,14 +290,14 @@ class ObjectResource(webdav.Resource):
         raise KeyError
 
 
-class StoreBasedCollection(object):
+class StoreBasedCollection:
     def __init__(self, backend, relpath, store):
         self.backend = backend
         self.relpath = relpath
         self.store = store
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.store)
+        return "{}({!r})".format(type(self).__name__, self.store)
 
     def set_resource_types(self, resource_types):
         # TODO(jelmer): Allow more than just this set; allow combining
@@ -371,7 +365,7 @@ class StoreBasedCollection(object):
     async def get_etag(self) -> str:
         return create_strong_etag(self.store.get_ctag())
 
-    def members(self) -> Iterator[Tuple[str, webdav.Resource]]:
+    def members(self) -> Iterator[tuple[str, webdav.Resource]]:
         for (name, content_type, etag) in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
             yield (name, resource)
@@ -402,7 +396,7 @@ class StoreBasedCollection(object):
 
     async def create_member(
         self, name: str, contents: Iterable[bytes], content_type: str
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         try:
             (name, etag) = self.store.import_one(name, content_type, contents)
         except InvalidFileContents as exc:
@@ -424,7 +418,7 @@ class StoreBasedCollection(object):
     def iter_differences_since(
         self, old_token: str, new_token: str
     ) -> Iterator[
-            Tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
+            tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
         old_resource: Optional[webdav.Resource]
         new_resource: Optional[webdav.Resource]
         try:
@@ -794,7 +788,7 @@ class CollectionSetResource(webdav.Collection):
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
 
-    resource_types: List[str] = []
+    resource_types: list[str] = []
 
     def __init__(self, backend):
         self.backend = backend
@@ -892,7 +886,7 @@ class Principal(webdav.Principal):
         p = self.backend._map_to_file_path(relpath)
         if not os.path.exists(p):
             raise KeyError
-        with open(p, "r") as f:
+        with open(p) as f:
             return f.read()
 
     def get_group_membership(self):
@@ -932,7 +926,7 @@ class PrincipalBare(CollectionSetResource, Principal):
 
     @classmethod
     def create(cls, backend, relpath):
-        p = super(PrincipalBare, cls).create(backend, relpath)
+        p = super().create(backend, relpath)
         to_create = set()
         to_create.update(p.get_addressbook_home_set())
         to_create.update(p.get_calendar_home_set())
@@ -969,7 +963,7 @@ class PrincipalCollection(Collection, Principal):
 
     @classmethod
     def create(cls, backend, relpath):
-        p = super(PrincipalCollection, cls).create(backend, relpath)
+        p = super().create(backend, relpath)
         p.store.set_type(STORE_TYPE_PRINCIPAL)
         to_create = set()
         to_create.update(p.get_addressbook_home_set())
@@ -994,7 +988,7 @@ class XandikosBackend(webdav.Backend):
     def __init__(self, path, *, paranoid: bool = False,
                  index_threshold: Optional[int] = None):
         self.path = path
-        self._user_principals: Set[str] = set()
+        self._user_principals: set[str] = set()
         self.paranoid = paranoid
         self.index_threshold = index_threshold
 
@@ -1064,7 +1058,7 @@ class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server."""
 
     def __init__(self, backend, current_user_principal, strict=True):
-        super(XandikosApp, self).__init__(backend, strict=strict)
+        super().__init__(backend, strict=strict)
 
         def get_current_user_principal(env):
             try:
@@ -1198,7 +1192,7 @@ def create_principal_defaults(backend, principal):
         logging.info("Create inbox in %s.", resource.store.path)
 
 
-class RedirectDavHandler(object):
+class RedirectDavHandler:
     def __init__(self, dav_root: str):
         self._dav_root = dav_root
 

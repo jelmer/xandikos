@@ -29,7 +29,7 @@ class VCardFile(File):
     content_type = "text/vcard"
 
     def __init__(self, content, content_type):
-        super(VCardFile, self).__init__(content, content_type)
+        super().__init__(content, content_type)
         self._addressbook = None
 
     def validate(self):

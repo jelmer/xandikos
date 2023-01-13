@@ -34,7 +34,7 @@ ET = webdav.ET
 FEATURE = "sync-collection"
 
 
-class SyncToken(object):
+class SyncToken:
     """A sync token wrapper."""
 
     def __init__(self, token):

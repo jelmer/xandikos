@@ -1,4 +1,3 @@
-# encoding: utf-8
 #
 # Xandikos
 # Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.

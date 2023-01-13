@@ -19,12 +19,12 @@
 
 """Collations."""
 
-from typing import Callable, Dict
+from typing import Callable
 
 
 class UnknownCollation(Exception):
     def __init__(self, collation: str):
-        super(UnknownCollation, self).__init__(
+        super().__init__(
             "Collation %r is not supported" % collation
         )
         self.collation = collation
@@ -43,7 +43,7 @@ def _match(a, b, k):
         raise NotImplementedError
 
 
-collations: Dict[str, Callable[[str, str, str], bool]] = {
+collations: dict[str, Callable[[str, str, str], bool]] = {
     "i;ascii-casemap": lambda a, b, k: _match(
         a.encode("ascii").upper(), b.encode("ascii").upper(), k
     ),

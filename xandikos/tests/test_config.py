@@ -90,7 +90,7 @@ displayname = DISPLAY-NAME
         self.assertRaises(KeyError, cc.get_displayname)
 
 
-class MetadataTests(object):
+class MetadataTests:
     def test_color(self):
         self.assertRaises(KeyError, self._config.get_color)
         self._config.set_color("#ffffff")
@@ -130,12 +130,12 @@ class MetadataTests(object):
 
 class FileMetadataTests(TestCase, MetadataTests):
     def setUp(self):
-        super(FileMetadataTests, self).setUp()
+        super().setUp()
         self._config = FileBasedCollectionMetadata()
 
 
 class RepoMetadataTests(TestCase, MetadataTests):
     def setUp(self):
-        super(RepoMetadataTests, self).setUp()
+        super().setUp()
         self._repo = dulwich.repo.MemoryRepo()
         self._config = RepoCollectionMetadata(self._repo)
