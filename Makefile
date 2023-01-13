@@ -42,21 +42,9 @@ check-vdirsyncer:
 coverage-vdirsyncer:
 	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-vdirsyncer.sh
 
-check-caldavtester:
-	TESTS="$(CALDAVTESTER_TESTS)" ./compat/xandikos-caldavtester.sh
+check-all: check check-vdirsyncer check-litmus check-pycaldav style
 
-coverage-caldavtester:
-	TESTS="$(CALDAVTESTER_TESTS)" XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-caldavtester.sh
-
-check-caldavtester-all:
-	./compat/xandikos-caldavtester.sh
-
-coverage-caldavtester-all:
-	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-caldavtester.sh
-
-check-all: check check-vdirsyncer check-litmus check-caldavtester check-pycaldav style
-
-coverage-all: coverage coverage-litmus coverage-vdirsyncer coverage-caldavtester
+coverage-all: coverage coverage-litmus coverage-vdirsyncer
 
 coverage:
 	$(COVERAGE_RUN) --source=xandikos -m unittest $(TESTSUITE)
