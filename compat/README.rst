@@ -5,4 +5,3 @@ Currently supported:
 
 - `Vdirsyncer <https://github.com/pimutils/vdirsyncer>`_
 - `litmus <https://www.webdav.org/neon/litmus/>`_
-- `caldavtester <https://www.calendarserver.org/CalDAVTester.html>`_
