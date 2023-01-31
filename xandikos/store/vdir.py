@@ -29,22 +29,11 @@ import os
 import shutil
 import uuid
 
-from . import (
-    MIMETYPES,
-    Store,
-    DuplicateUidError,
-    InvalidETag,
-    InvalidFileContents,
-    NoSuchItem,
-    open_by_content_type,
-    open_by_extension,
-)
-from .config import (
-    FileBasedCollectionMetadata,
-    FILENAME as CONFIG_FILENAME,
-)
+from . import (MIMETYPES, DuplicateUidError, InvalidETag, InvalidFileContents,
+               NoSuchItem, Store, open_by_content_type, open_by_extension)
+from .config import FILENAME as CONFIG_FILENAME
+from .config import FileBasedCollectionMetadata
 from .index import MemoryIndex
-
 
 DEFAULT_ENCODING = "utf-8"
 

@@ -19,24 +19,18 @@
 
 import logging
 import os
-import tempfile
 import shutil
 import stat
+import tempfile
 import unittest
 
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
 from xandikos.icalendar import ICalendarFile
-from xandikos.store import (
-    DuplicateUidError,
-    File,
-    InvalidETag,
-    NoSuchItem,
-    Filter,
-    Store,
-)
-from xandikos.store.git import GitStore, BareGitStore, TreeGitStore
+from xandikos.store import (DuplicateUidError, File, Filter, InvalidETag,
+                            NoSuchItem, Store)
+from xandikos.store.git import BareGitStore, GitStore, TreeGitStore
 from xandikos.store.vdir import VdirStore
 
 EXAMPLE_VCALENDAR1 = b"""\

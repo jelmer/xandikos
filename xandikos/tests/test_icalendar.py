@@ -19,26 +19,17 @@
 
 """Tests for xandikos.icalendar."""
 
+import unittest
 from datetime import datetime
 
 import pytz
-import unittest
-
 from icalendar.cal import Event
-from icalendar.prop import vText, vCategory
+from icalendar.prop import vCategory, vText
 
-from xandikos import (
-    collation as _mod_collation,
-)
-from xandikos.icalendar import (
-    CalendarFilter,
-    ICalendarFile,
-    MissingProperty,
-    TextMatcher,
-    validate_calendar,
-    apply_time_range_vevent,
-    as_tz_aware_ts,
-)
+from xandikos import collation as _mod_collation
+from xandikos.icalendar import (CalendarFilter, ICalendarFile, MissingProperty,
+                                TextMatcher, apply_time_range_vevent,
+                                as_tz_aware_ts, validate_calendar)
 from xandikos.store import InvalidFileContents
 
 EXAMPLE_VCALENDAR1 = b"""\

@@ -27,11 +27,7 @@ import unittest
 from .. import caldav
 from ..icalendar import ICalendarFile
 from ..store.vdir import VdirStore
-from ..web import (
-    XandikosBackend,
-    CalendarCollection,
-)
-
+from ..web import CalendarCollection, XandikosBackend
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR

@@ -21,38 +21,21 @@
 
 """
 
-from datetime import datetime, timedelta, time, timezone
 import logging
-from typing import Callable, Union, Optional
 from collections.abc import Iterable
-
-import pytz
+from datetime import datetime, time, timedelta, timezone
+from typing import Callable, Optional, Union
 
 import dateutil.rrule
+import pytz
 from icalendar.cal import Calendar, Component, component_factory
-from icalendar.prop import (
-    vCategory,
-    vDatetime,
-    vDDDTypes,
-    vText,
-    TypesFactory,
-)
+from icalendar.prop import TypesFactory, vCategory, vDatetime, vDDDTypes, vText
 
-from xandikos.store import (
-    Filter,
-    File,
-    InvalidFileContents,
-)
-from xandikos.store.index import (
-    IndexDict,
-    IndexKey,
-    IndexValue,
-    IndexValueIterator,
-)
+from xandikos.store import File, Filter, InvalidFileContents
+from xandikos.store.index import (IndexDict, IndexKey, IndexValue,
+                                  IndexValueIterator)
 
-from . import (
-    collation as _mod_collation,
-)
+from . import collation as _mod_collation
 
 TYPES_FACTORY = TypesFactory()
 

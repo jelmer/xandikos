@@ -23,7 +23,6 @@ See https://tools.ietf.org/html/rfc6578
 """
 
 import itertools
-
 import urllib.parse
 
 from xandikos import webdav

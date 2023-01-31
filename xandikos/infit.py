@@ -19,7 +19,7 @@
 
 """Inf-It properties.
 """
-from xandikos import webdav, carddav
+from xandikos import carddav, webdav
 
 
 class SettingsProperty(webdav.Property):

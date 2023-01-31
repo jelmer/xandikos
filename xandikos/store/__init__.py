@@ -25,10 +25,10 @@ are always strong, and should be returned without wrapping quotes.
 
 import logging
 import mimetypes
-from typing import Optional
 from collections.abc import Iterable, Iterator
+from typing import Optional
 
-from .index import AutoIndexManager, IndexKey, IndexValueIterator, IndexDict
+from .index import AutoIndexManager, IndexDict, IndexKey, IndexValueIterator
 
 STORE_TYPE_ADDRESSBOOK = "addressbook"
 STORE_TYPE_CALENDAR = "calendar"

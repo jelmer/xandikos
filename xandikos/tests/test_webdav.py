@@ -17,13 +17,13 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from io import BytesIO
 import logging
 import unittest
+from io import BytesIO
 from wsgiref.util import setup_testing_defaults
 
 from xandikos import webdav
-from xandikos.webdav import Collection, ET, Property, Resource, WebDAVApp
+from xandikos.webdav import ET, Collection, Property, Resource, WebDAVApp
 
 
 class WebTestCase(unittest.TestCase):

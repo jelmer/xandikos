@@ -20,7 +20,7 @@
 import asyncio
 import unittest
 
-from ..carddav import apply_filter, NAMESPACE
+from ..carddav import NAMESPACE, apply_filter
 from ..vcard import VCardFile
 from ..webdav import ET
 from .test_vcard import EXAMPLE_VCARD1

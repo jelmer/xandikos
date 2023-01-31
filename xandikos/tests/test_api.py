@@ -21,10 +21,7 @@ import shutil
 import tempfile
 import unittest
 
-from xandikos.web import (
-    XandikosApp,
-    XandikosBackend,
-)
+from xandikos.web import XandikosApp, XandikosBackend
 
 
 class WebTests(unittest.TestCase):

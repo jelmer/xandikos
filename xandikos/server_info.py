@@ -24,8 +24,7 @@ See https://www.ietf.org/archive/id/draft-douglass-server-info-03.txt
 
 import hashlib
 
-from xandikos import version_string
-from xandikos import webdav
+from xandikos import version_string, webdav
 
 ET = webdav.ET
 

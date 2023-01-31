@@ -25,7 +25,6 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import asyncio
-from email.utils import parseaddr
 import functools
 import hashlib
 import logging
@@ -33,11 +32,13 @@ import os
 import posixpath
 import shutil
 import socket
-from typing import Optional
-from collections.abc import Iterable, Iterator
 import urllib.parse
+from collections.abc import Iterable, Iterator
+from email.utils import parseaddr
+from typing import Optional
 
 import jinja2
+
 try:
     import systemd.daemon
 except ImportError:
@@ -67,53 +68,24 @@ else:
         return socks
 
 from xandikos import __version__ as xandikos_version
-from xandikos import (
-    access,
-    apache,
-    caldav,
-    carddav,
-    quota,
-    sync,
-    webdav,
-    infit,
-    scheduling,
-    timezones,
-    xmpp,
-)
-from xandikos.icalendar import (
-    ICalendarFile,
-    CalendarFilter,
-)
-from xandikos.store import (
-    Store,
-    File,
-    DuplicateUidError,
-    InvalidFileContents,
-    NoSuchItem,
-    NotStoreError,
-    InvalidCTag,
-    LockedError,
-    OutOfSpaceError,
-    STORE_TYPE_ADDRESSBOOK,
-    STORE_TYPE_CALENDAR,
-    STORE_TYPE_PRINCIPAL,
-    STORE_TYPE_SCHEDULE_INBOX,
-    STORE_TYPE_SCHEDULE_OUTBOX,
-    STORE_TYPE_SUBSCRIPTION,
-    STORE_TYPE_OTHER,
-)
-from xandikos.store.git import (
-    GitStore,
-    TreeGitStore,
-)
+from xandikos import (access, apache, caldav, carddav, infit, quota,
+                      scheduling, sync, timezones, webdav, xmpp)
+from xandikos.icalendar import CalendarFilter, ICalendarFile
+from xandikos.store import (STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
+                            STORE_TYPE_OTHER, STORE_TYPE_PRINCIPAL,
+                            STORE_TYPE_SCHEDULE_INBOX,
+                            STORE_TYPE_SCHEDULE_OUTBOX,
+                            STORE_TYPE_SUBSCRIPTION, DuplicateUidError, File,
+                            InvalidCTag, InvalidFileContents, LockedError,
+                            NoSuchItem, NotStoreError, OutOfSpaceError, Store)
+from xandikos.store.git import GitStore, TreeGitStore
 from xandikos.vcard import VCardFile
-
 
 try:
     from asyncio import to_thread  # type: ignore
 except ImportError:  # python < 3.8
-    from asyncio import events
     import contextvars
+    from asyncio import events
 
     async def to_thread(func, *args, **kwargs):  # type: ignore
         loop = events.get_running_loop()
@@ -1327,6 +1299,7 @@ def run_simple_server(
 async def main(argv=None):  # noqa: C901
     import argparse
     import sys
+
     from xandikos import __version__
 
     parser = argparse.ArgumentParser(
@@ -1573,6 +1546,7 @@ async def main(argv=None):  # noqa: C901
         sites.append(web.TCPSite(runner, listen_address, listen_port))
 
     import signal
+
     # Set SIGINT to default handler; this appears to be necessary
     # when running under coverage.
     signal.signal(signal.SIGINT, signal.SIG_DFL)

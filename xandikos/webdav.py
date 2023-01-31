@@ -27,25 +27,20 @@ functionality should live in xandikos.caldav/xandikos.carddav respectively.
 
 import asyncio
 import collections
-from datetime import datetime
 import fnmatch
 import functools
 import logging
 import os
 import posixpath
-from typing import (
-    Callable,
-    Optional,
-    Union,
-)
-from collections.abc import Iterable, AsyncIterable, Iterator, Sequence
 import urllib.parse
+from collections.abc import AsyncIterable, Iterable, Iterator, Sequence
+from datetime import datetime
+from typing import Callable, Optional, Union
 from wsgiref.util import request_uri
-
-from defusedxml.ElementTree import fromstring as xmlparse
-
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
+
+from defusedxml.ElementTree import fromstring as xmlparse
 
 DEFAULT_ENCODING = "utf-8"
 COLLECTION_RESOURCE_TYPE = "{DAV:}collection"
