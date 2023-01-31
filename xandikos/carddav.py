@@ -22,11 +22,8 @@
 https://tools.ietf.org/html/rfc6352
 """
 
-from . import (
-    collation as _mod_collation,
-    davcommon,
-    webdav,
-)
+from . import collation as _mod_collation
+from . import davcommon, webdav
 
 ET = webdav.ET
 

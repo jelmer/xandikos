@@ -20,10 +20,10 @@
 """Tests for xandikos.store.config."""
 
 from io import StringIO
-
 from unittest import TestCase
 
 import dulwich.repo
+
 from ..store.config import FileBasedCollectionMetadata
 from ..store.git import RepoCollectionMetadata
 

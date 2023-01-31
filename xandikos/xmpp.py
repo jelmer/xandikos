@@ -25,6 +25,7 @@ https://github.com/evert/calendarserver-extensions/blob/master/caldav-pubsubdisc
 
 from . import webdav
 from .caldav import CALENDAR_RESOURCE_TYPE
+
 ET = webdav.ET
 
 

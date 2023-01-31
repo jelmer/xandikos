@@ -22,9 +22,8 @@
 
 import collections
 import logging
-from typing import Union, Optional
-from collections.abc import Iterator, Iterable
-
+from collections.abc import Iterable, Iterator
+from typing import Optional, Union
 
 IndexKey = str
 IndexValue = list[Union[bytes, bool]]

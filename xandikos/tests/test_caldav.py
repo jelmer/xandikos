@@ -23,9 +23,8 @@ from wsgiref.util import setup_testing_defaults
 from icalendar.cal import Calendar as ICalendar
 
 from xandikos import caldav
-from xandikos.webdav import Property, WebDAVApp, ET
-
 from xandikos.tests import test_webdav
+from xandikos.webdav import ET, Property, WebDAVApp
 
 
 class WebTests(test_webdav.WebTestCase):

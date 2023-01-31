@@ -23,11 +23,7 @@
 import logging
 import os
 
-from .web import (
-    XandikosBackend,
-    XandikosApp,
-)
-
+from .web import XandikosApp, XandikosBackend
 
 backend = XandikosBackend(path=os.environ["XANDIKOSPATH"])
 if not os.path.isdir(backend.path):

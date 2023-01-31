@@ -23,22 +23,15 @@ https://tools.ietf.org/html/rfc4791
 """
 import datetime
 import itertools
-import pytz
 
-from .icalendar import (
-    apply_time_range_vevent,
-    as_tz_aware_ts,
-    expand_calendar_rrule,
-)
-from icalendar.cal import (
-    component_factory,
-    Calendar as ICalendar,
-    FreeBusy,
-    Component,
-)
-from icalendar.prop import vDDDTypes, vPeriod, LocalTimezone
+import pytz
+from icalendar.cal import Calendar as ICalendar
+from icalendar.cal import Component, FreeBusy, component_factory
+from icalendar.prop import LocalTimezone, vDDDTypes, vPeriod
 
 from . import davcommon, webdav
+from .icalendar import (apply_time_range_vevent, as_tz_aware_ts,
+                        expand_calendar_rrule)
 
 ET = webdav.ET
 

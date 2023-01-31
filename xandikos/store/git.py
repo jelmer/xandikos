@@ -22,48 +22,28 @@
 
 import configparser
 import errno
-from io import BytesIO, StringIO
 import logging
 import os
 import shutil
 import stat
-from typing import Optional
 import uuid
+from io import BytesIO, StringIO
+from typing import Optional
 
-from dulwich.file import GitFile, FileLocked
-from dulwich.index import (
-    Index,
-    IndexEntry,
-    index_entry_from_stat,
-    write_index_dict,
-)
+import dulwich.repo
+from dulwich.file import FileLocked, GitFile
+from dulwich.index import (Index, IndexEntry, index_entry_from_stat,
+                           write_index_dict)
 from dulwich.objects import Blob, Tree
 from dulwich.pack import SHA1Writer
-import dulwich.repo
 
-from . import (
-    DEFAULT_MIME_TYPE,
-    MIMETYPES,
-    Store,
-    DuplicateUidError,
-    InvalidETag,
-    InvalidFileContents,
-    InvalidCTag,
-    NoSuchItem,
-    NotStoreError,
-    OutOfSpaceError,
-    LockedError,
-    VALID_STORE_TYPES,
-    open_by_content_type,
-    open_by_extension,
-)
-from .config import (
-    FILENAME as CONFIG_FILENAME,
-    CollectionMetadata,
-    FileBasedCollectionMetadata,
-)
+from . import (DEFAULT_MIME_TYPE, MIMETYPES, VALID_STORE_TYPES,
+               DuplicateUidError, InvalidCTag, InvalidETag,
+               InvalidFileContents, LockedError, NoSuchItem, NotStoreError,
+               OutOfSpaceError, Store, open_by_content_type, open_by_extension)
+from .config import FILENAME as CONFIG_FILENAME
+from .config import CollectionMetadata, FileBasedCollectionMetadata
 from .index import MemoryIndex
-
 
 DEFAULT_ENCODING = "utf-8"
 
