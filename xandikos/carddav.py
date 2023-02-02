@@ -337,7 +337,7 @@ class AddressbookQueryReporter(webdav.Reporter):
                     "Unknown tag {} in report {}".format(el.tag, self.name),
                     strict)
         if requested is None:
-            # The CardDAV RFC says that behaviour mimicks that of PROPFIND,
+            # The CardDAV RFC says that behaviour mimics that of PROPFIND,
             # and the WebDAV RFC says that no body implies {DAV}allprop
             # This isn't exactly an empty body, but close enough.
             requested = ET.Element('{DAV:}allprop')

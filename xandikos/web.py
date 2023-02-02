@@ -1535,7 +1535,7 @@ async def main(argv=None):  # noqa: C901
     if metrics_app:
         metrics_runner = web.AppRunner(metrics_app)
         await metrics_runner.setup()
-        # TODO(jelmer): Allow different metrics listen addres?
+        # TODO(jelmer): Allow different metrics listen address?
         sites.append(web.TCPSite(metrics_runner, listen_address,
                                  options.metrics_port))
     if listen_socks:

@@ -16,7 +16,7 @@ wsgi_app = 'xandikos.wsgi:app'
 # daemon mode
 daemon = False
 
-# enviroment variables
+# environment variables
 raw_env = [
     'XANDIKOSPATH=./data',
     'CURRENT_USER_PRINCIPAL=/user/',

@@ -30,7 +30,7 @@ The following standards are not implemented:
 - :RFC:`4324` (iCAL CAP) - *not implemented*
 - :RFC:`7953` (iCal AVAILABILITY) - *not implemented*
 
-See `DAV compliance <notes/dav-compliance.rst>`_ for more detail on specification compliancy.
+See `DAV compliance <notes/dav-compliance.rst>`_ for more detail on specification compliance.
 
 Limitations
 -----------

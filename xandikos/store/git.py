@@ -613,7 +613,7 @@ class BareGitStore(GitStore):
         :param author: Optional author to store
         :param etag: Optional mandatory etag of object to remove
         :raise NoSuchItem: when the item doesn't exist
-        :raise InvalidETag: If the specified ETag doesn't match the curren
+        :raise InvalidETag: If the specified ETag doesn't match the current
         """
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
@@ -717,7 +717,7 @@ class TreeGitStore(GitStore):
         :param author: Optional author
         :param etag: Optional mandatory etag of object to remove
         :raise NoSuchItem: when the item doesn't exist
-        :raise InvalidETag: If the specified ETag doesn't match the curren
+        :raise InvalidETag: If the specified ETag doesn't match the current
         """
         p = os.path.join(self.repo.path, name)
         try:

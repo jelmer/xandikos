@@ -335,7 +335,7 @@ class VdirStore(Store):
         :param author: Optional author
         :param etag: Optional mandatory etag of object to remove
         :raise NoSuchItem: when the item doesn't exist
-        :raise InvalidETag: If the specified ETag doesn't match the curren
+        :raise InvalidETag: If the specified ETag doesn't match the current
         """
         path = os.path.join(self.path, name)
         if etag is not None:

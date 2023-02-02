@@ -212,7 +212,7 @@ def etag_matches(condition, actual_etag):
     """Check if an etag matches an If-Matches condition.
 
     :param condition: Condition (e.g. '*', '"foo"' or '"foo", "bar"'
-    :param actual_etag: ETag to compare to. None nonexistant
+    :param actual_etag: ETag to compare to. None nonexistent
     :return: bool indicating whether condition matches
     """
     if actual_etag is None and condition:
@@ -2022,7 +2022,7 @@ class WebDAVApp:
 
     A concrete implementation should provide an implementation of the
     lookup_resource function that can map a path to a Resource object
-    (returning None for nonexistant objects).
+    (returning None for nonexistent objects).
     """
 
     def __init__(self, backend, strict=True):

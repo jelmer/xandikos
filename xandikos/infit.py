@@ -23,7 +23,7 @@ from xandikos import carddav, webdav
 
 
 class SettingsProperty(webdav.Property):
-    """settings propety.
+    """settings property.
 
     JSON settings.
     """
