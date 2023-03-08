@@ -26,6 +26,7 @@ jobs:
         pip install -U pip coverage codecov flake8 pycalendar vobject requests six tzlocal pytz attrs multidict pytest
     - name: Install dependencies (linux)
       run: |
+        sudo apt -y update
         sudo apt -y install libsystemd-dev
         python -m pip install -e ".[systemd,prometheus]"
         python setup.py develop
