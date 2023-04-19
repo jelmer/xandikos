@@ -27,11 +27,12 @@ import unittest
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 
-from xandikos.icalendar import ICalendarFile
 from xandikos.store import (DuplicateUidError, File, Filter, InvalidETag,
                             NoSuchItem, Store)
-from xandikos.store.git import BareGitStore, GitStore, TreeGitStore
-from xandikos.store.vdir import VdirStore
+
+from ..icalendar import ICalendarFile
+from ..store.git import BareGitStore, GitStore, TreeGitStore
+from ..store.vdir import VdirStore
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
