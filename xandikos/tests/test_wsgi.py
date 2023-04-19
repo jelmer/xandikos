@@ -19,7 +19,7 @@
 
 import unittest
 
-from xandikos.wsgi_helpers import WellknownRedirector
+from ..wsgi_helpers import WellknownRedirector
 
 
 class WebTests(unittest.TestCase):

@@ -21,7 +21,7 @@
 
 import unittest
 
-from xandikos.vcard import VCardFile
+from ..vcard import VCardFile
 
 EXAMPLE_VCARD1 = b"""\
 BEGIN:VCARD

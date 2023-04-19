@@ -32,7 +32,7 @@ from icalendar.cal import Calendar, Component, component_factory
 from icalendar.prop import TypesFactory, vCategory, vDatetime, vDDDTypes, vText
 
 from xandikos.store import File, Filter, InvalidFileContents
-from xandikos.store.index import (IndexDict, IndexKey, IndexValue,
+from .store.index import (IndexDict, IndexKey, IndexValue,
                                   IndexValueIterator)
 
 from . import collation as _mod_collation

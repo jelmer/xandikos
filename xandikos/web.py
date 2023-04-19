@@ -70,7 +70,7 @@ else:
 from xandikos import __version__ as xandikos_version
 from xandikos import (access, apache, caldav, carddav, infit, quota,
                       scheduling, sync, timezones, webdav, xmpp)
-from xandikos.icalendar import CalendarFilter, ICalendarFile
+from .icalendar import CalendarFilter, ICalendarFile
 from xandikos.store import (STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
                             STORE_TYPE_OTHER, STORE_TYPE_PRINCIPAL,
                             STORE_TYPE_SCHEDULE_INBOX,
@@ -78,8 +78,8 @@ from xandikos.store import (STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
                             STORE_TYPE_SUBSCRIPTION, DuplicateUidError, File,
                             InvalidCTag, InvalidFileContents, LockedError,
                             NoSuchItem, NotStoreError, OutOfSpaceError, Store)
-from xandikos.store.git import GitStore, TreeGitStore
-from xandikos.vcard import VCardFile
+from .store.git import GitStore, TreeGitStore
+from .vcard import VCardFile
 
 try:
     from asyncio import to_thread  # type: ignore
