@@ -27,10 +27,11 @@ from icalendar.cal import Event
 from icalendar.prop import vCategory, vText
 
 from xandikos import collation as _mod_collation
-from ..icalendar import (CalendarFilter, ICalendarFile, MissingProperty,
-                                TextMatcher, apply_time_range_vevent,
-                                as_tz_aware_ts, validate_calendar)
 from xandikos.store import InvalidFileContents
+
+from ..icalendar import (CalendarFilter, ICalendarFile, MissingProperty,
+                         TextMatcher, apply_time_range_vevent, as_tz_aware_ts,
+                         validate_calendar)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR

@@ -70,7 +70,6 @@ else:
 from xandikos import __version__ as xandikos_version
 from xandikos import (access, apache, caldav, carddav, infit, quota,
                       scheduling, sync, timezones, webdav, xmpp)
-from .icalendar import CalendarFilter, ICalendarFile
 from xandikos.store import (STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
                             STORE_TYPE_OTHER, STORE_TYPE_PRINCIPAL,
                             STORE_TYPE_SCHEDULE_INBOX,
@@ -78,6 +77,8 @@ from xandikos.store import (STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
                             STORE_TYPE_SUBSCRIPTION, DuplicateUidError, File,
                             InvalidCTag, InvalidFileContents, LockedError,
                             NoSuchItem, NotStoreError, OutOfSpaceError, Store)
+
+from .icalendar import CalendarFilter, ICalendarFile
 from .store.git import GitStore, TreeGitStore
 from .vcard import VCardFile
 

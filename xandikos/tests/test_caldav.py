@@ -24,6 +24,7 @@ from icalendar.cal import Calendar as ICalendar
 
 from xandikos import caldav
 from xandikos.tests import test_webdav
+
 from ..webdav import ET, Property, WebDAVApp
 
 

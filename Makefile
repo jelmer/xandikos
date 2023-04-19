@@ -14,6 +14,7 @@ check:
 
 style:
 	$(PYTHON) -m flake8
+	isort --check .
 
 typing:
 	$(PYTHON) -m mypy xandikos
@@ -61,3 +62,6 @@ docker:
 	buildah build -t jvernooij/xandikos -t ghcr.io/jelmer/xandikos .
 	buildah push jvernooij/xandikos
 	buildah push ghcr.io/jelmer/xandikos
+
+reformat:
+	isort .

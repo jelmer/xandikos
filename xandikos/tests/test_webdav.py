@@ -23,6 +23,7 @@ from io import BytesIO
 from wsgiref.util import setup_testing_defaults
 
 from xandikos import webdav
+
 from ..webdav import ET, Collection, Property, Resource, WebDAVApp
 
 
