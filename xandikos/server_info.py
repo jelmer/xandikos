@@ -36,7 +36,7 @@ SERVER_INFO_MIME_TYPE = "application/server-info+xml"
 class ServerInfo:
     """Server info."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._token = None
         self._features = []
         self._applications = []

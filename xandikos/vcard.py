@@ -17,9 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""VCard file handling.
-
-"""
+"""VCard file handling."""
 
 from .store import File, InvalidFileContents
 
@@ -28,7 +26,7 @@ class VCardFile(File):
 
     content_type = "text/vcard"
 
-    def __init__(self, content, content_type):
+    def __init__(self, content, content_type) -> None:
         super().__init__(content, content_type)
         self._addressbook = None
 

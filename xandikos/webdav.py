@@ -55,7 +55,7 @@ PropStatus = collections.namedtuple(
 class BadRequestError(Exception):
     """Base class for bad request errors."""
 
-    def __init__(self, message):
+    def __init__(self, message) -> None:
         super().__init__(message)
         self.message = message
 
@@ -69,7 +69,7 @@ def nonfatal_bad_request(message, strict=False):
 class NotAcceptableError(Exception):
     """Base class for not acceptable errors."""
 
-    def __init__(self, available_content_types, acceptable_content_types):
+    def __init__(self, available_content_types, acceptable_content_types) -> None:
         super().__init__(
             "Unable to convert from content types %r to one of %r"
             % (available_content_types, acceptable_content_types)
@@ -81,9 +81,9 @@ class NotAcceptableError(Exception):
 class UnsupportedMediaType(Exception):
     """Base class for unsupported media type errors."""
 
-    def __init__(self, content_type):
+    def __init__(self, content_type) -> None:
         super().__init__(
-            "Unsupported media type: {!r}".format(content_type)
+            f"Unsupported media type: {content_type!r}"
         )
         self.content_type = content_type
 
@@ -91,14 +91,14 @@ class UnsupportedMediaType(Exception):
 class UnauthorizedError(Exception):
     """Base class for unauthorized errors."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("Request unauthorized")
 
 
 class Response:
     """Generic wrapper for HTTP-style responses."""
 
-    def __init__(self, status=200, reason="OK", body=None, headers=None):
+    def __init__(self, status=200, reason="OK", body=None, headers=None) -> None:
         if isinstance(status, str):
             self.status = int(status.split(" ", 1)[0])
             self.reason = status.split(" ", 1)[1]
@@ -195,7 +195,7 @@ def parse_accept_header(accept):
 class PreconditionFailure(Exception):
     """A precondition failed."""
 
-    def __init__(self, precondition, description):
+    def __init__(self, precondition, description) -> None:
         self.precondition = precondition
         self.description = description
 
@@ -285,14 +285,14 @@ class Status:
         error=None,
         responsedescription=None,
         propstat=None,
-    ):
+    ) -> None:
         self.href = str(href)
         self.status = status
         self.error = error
         self.propstat = propstat
         self.responsedescription = responsedescription
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<{}({!r}, {!r}, {!r})>".format(
             type(self).__name__,
             self.href,
@@ -308,14 +308,14 @@ class Status:
         if self.propstat:
             [ret] = list(propstat_as_xml(self.propstat))
             body = ET.tostringlist(ret, encoding)
-            return body, ('text/xml; encoding="%s"' % encoding)
+            return body, (f'text/xml; encoding="{encoding}"')
         else:
             body = (
                 [self.responsedescription.encode(encoding)]
                 if self.responsedescription
                 else []
             )
-            return body, ('text/plain; encoding="%s"' % encoding)
+            return body, (f'text/plain; encoding="{encoding}"')
 
     def aselement(self):
         ret = ET.Element("{DAV:}response")
@@ -413,7 +413,8 @@ class Resource:
     async def get_body(self) -> Iterable[bytes]:
         """Get resource contents.
 
-        :return: Iterable over bytestrings."""
+        :return: Iterable over bytestrings.
+        """
         raise NotImplementedError(self.get_body)
 
     async def render(
@@ -754,7 +755,7 @@ class CurrentUserPrincipalProperty(Property):
     in_allprops = False
     live = True
 
-    def __init__(self, get_current_user_principal):
+    def __init__(self, get_current_user_principal) -> None:
         super().__init__()
         self.get_current_user_principal = get_current_user_principal
 
@@ -797,7 +798,7 @@ class SupportedReportSetProperty(Property):
     in_allprops = False
     live = True
 
-    def __init__(self, reporters):
+    def __init__(self, reporters) -> None:
         self._reporters = reporters
 
     async def get_value(self, href, resource, el, environ):
@@ -809,7 +810,7 @@ class SupportedReportSetProperty(Property):
 
 
 class GetCTagProperty(Property):
-    """getctag property"""
+    """getctag property."""
 
     name: str
     resource_type = COLLECTION_RESOURCE_TYPE
@@ -821,13 +822,13 @@ class GetCTagProperty(Property):
 
 
 class DAVGetCTagProperty(GetCTagProperty):
-    """getctag property"""
+    """getctag property."""
 
     name = "{DAV:}getctag"
 
 
 class AppleGetCTagProperty(GetCTagProperty):
-    """getctag property"""
+    """getctag property."""
 
     name = "{http://calendarserver.org/ns/}getctag"
 
@@ -1189,7 +1190,7 @@ async def traverse_resource(
         elif depth == "infinity":
             nextdepth = "infinity"
         else:
-            raise AssertionError("invalid depth %r" % depth)
+            raise AssertionError(f"invalid depth {depth!r}")
         if COLLECTION_RESOURCE_TYPE in resource.resource_types:
             for (child_name, child_resource) in members_fn(resource):
                 child_href = urllib.parse.urljoin(href, child_name)
@@ -1299,7 +1300,7 @@ class ExpandPropertyReporter(Reporter):
             prop_name = prop.get("name")
             if prop_name is None:
                 nonfatal_bad_request(
-                    "Tag %s without name attribute" % prop.tag,
+                    f"Tag {prop.tag} without name attribute",
                     strict)
                 continue
             # FIXME: Resolve prop_name on resource
@@ -1323,7 +1324,7 @@ class ExpandPropertyReporter(Reporter):
                     child_href = read_href_element(prop_child)
                     if child_href is None:
                         nonfatal_bad_request(
-                            "Tag %s without valid href" % prop_child.tag,
+                            f"Tag {prop_child.tag} without valid href",
                             strict)
                         continue
                     child_resource = dict(child_resources).get(child_href)
@@ -1476,7 +1477,7 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
 
 
 def _send_xml_response(status, et, out_encoding):
-    body_type = 'text/xml; charset="%s"' % out_encoding
+    body_type = f'text/xml; charset="{out_encoding}"'
     if os.environ.get("XANDIKOS_DUMP_DAV_XML"):
         print("OUT: " + ET.tostring(et).decode("utf-8"))
     body = ET.tostringlist(et, encoding=out_encoding)
@@ -1601,7 +1602,7 @@ async def _readXmlBody(
         raise BadRequestError("Unable to parse body.") from exc
     if expected_tag is not None and et.tag != expected_tag:
         raise BadRequestError(
-            "Expected {} tag, got {}".format(expected_tag, et.tag))
+            f"Expected {expected_tag} tag, got {et.tag}")
     return et
 
 
@@ -1740,14 +1741,14 @@ class ReportMethod(Method):
                 request,
                 "403 Forbidden",
                 error=ET.Element("{DAV:}supported-report"),
-                description=("Unknown report %s." % et.tag),
+                description=f"Unknown report {et.tag}.",
             )
         if not reporter.supported_on(r):
             return _send_simple_dav_error(
                 request,
                 "403 Forbidden",
                 error=ET.Element("{DAV:}supported-report"),
-                description=("Report %s not supported on resource." % et.tag),
+                description=f"Report {et.tag} not supported on resource.",
             )
         try:
             return await reporter.report(
@@ -1831,7 +1832,7 @@ class ProppatchMethod(Method):
         for el in et:
             if el.tag not in ("{DAV:}set", "{DAV:}remove"):
                 nonfatal_bad_request(
-                    "Unknown tag %s in propertyupdate" % el.tag, app.strict)
+                    f"Unknown tag {el.tag} in propertyupdate", app.strict)
                 continue
             propstat.extend(
                 [
@@ -1870,7 +1871,7 @@ class MkcolMethod(Method):
             for el in et:
                 if el.tag != "{DAV:}set":
                     nonfatal_bad_request(
-                        "Unknown tag %s in mkcol" % el.tag, app.strict)
+                        f"Unknown tag {el.tag} in mkcol", app.strict)
                     continue
                 propstat.extend(
                     [
@@ -1974,7 +1975,7 @@ async def _do_get(request, environ, app, send_body):
 class WSGIRequest:
     """Request object for wsgi requests (with environ)."""
 
-    def __init__(self, environ):
+    def __init__(self, environ) -> None:
         self._environ = environ
         self.method = environ["REQUEST_METHOD"]
         self.raw_path = environ["SCRIPT_NAME"] + environ["PATH_INFO"]
@@ -1994,7 +1995,7 @@ class WSGIRequest:
         self.url = request_uri(environ)
 
         class StreamWrapper:
-            def __init__(self, stream):
+            def __init__(self, stream) -> None:
                 self._stream = stream
 
             async def read(self, size=None):
@@ -2025,7 +2026,7 @@ class WebDAVApp:
     (returning None for nonexistant objects).
     """
 
-    def __init__(self, backend, strict=True):
+    def __init__(self, backend, strict=True) -> None:
         self.backend = backend
         self.properties = {}
         self.reporters = {}
@@ -2110,7 +2111,7 @@ class WebDAVApp:
             return Response(
                 status="415 Unsupported Media Type",
                 body=[
-                    ("Unsupported media type %r" % e.content_type).encode(
+                    f"Unsupported media type {e.content_type!r}".encode(
                         DEFAULT_ENCODING
                     )
                 ],

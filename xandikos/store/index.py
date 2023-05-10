@@ -17,8 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Indexing.
-"""
+"""Indexing."""
 
 import collections
 import logging
@@ -51,7 +50,7 @@ class Index:
 
 
 class MemoryIndex(Index):
-    def __init__(self):
+    def __init__(self) -> None:
         self._indexes = {}
         self._in_index = set()
 
@@ -89,7 +88,7 @@ class MemoryIndex(Index):
 
 
 class AutoIndexManager:
-    def __init__(self, index, threshold: Optional[int] = None):
+    def __init__(self, index, threshold: Optional[int] = None) -> None:
         self.index = index
         self.desired: dict[IndexKey, int] = collections.defaultdict(lambda: 0)
         if threshold is None:

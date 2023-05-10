@@ -17,8 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Collection configuration file.
-"""
+"""Collection configuration file."""
 
 import configparser
 
@@ -63,7 +62,7 @@ class CollectionMetadata:
 class FileBasedCollectionMetadata(CollectionMetadata):
     """Metadata for a configuration."""
 
-    def __init__(self, cp=None, save=None):
+    def __init__(self, cp=None, save=None) -> None:
         if cp is None:
             cp = configparser.ConfigParser()
         self._configparser = cp

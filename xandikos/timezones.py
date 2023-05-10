@@ -26,7 +26,7 @@ from xandikos import webdav
 
 
 class TimezoneServiceSetProperty(webdav.Property):
-    """timezone-service-set property
+    """timezone-service-set property.
 
     See http://www.webdav.org/specs/rfc7809.html, section 5.1
     """
@@ -38,7 +38,7 @@ class TimezoneServiceSetProperty(webdav.Property):
     in_allprops = False
     live = True
 
-    def __init__(self, timezone_services):
+    def __init__(self, timezone_services) -> None:
         super().__init__()
         self._timezone_services = timezone_services
 

@@ -17,8 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Git store.
-"""
+"""Git store."""
 
 import configparser
 import errno
@@ -52,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 class RepoCollectionMetadata(CollectionMetadata):
-    def __init__(self, repo):
+    def __init__(self, repo) -> None:
         self._repo = repo
 
     @classmethod
@@ -175,7 +174,7 @@ class RepoCollectionMetadata(CollectionMetadata):
 
 
 class locked_index:
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self._path = path
 
     def __enter__(self):
@@ -201,7 +200,7 @@ class GitStore(Store):
 
     def __init__(self, repo, *, ref: bytes = b"refs/heads/master",
                  check_for_duplicate_uids=True,
-                 **kwargs):
+                 **kwargs) -> None:
         super().__init__(MemoryIndex(), **kwargs)
         self.ref = ref
         self.repo = repo
@@ -242,9 +241,8 @@ class GitStore(Store):
 
             return FileBasedCollectionMetadata(cp, save=save_config)
 
-    def __repr__(self):
-        return "{}({!r}, ref={!r})".format(
-            type(self).__name__, self.repo, self.ref)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.repo!r}, ref={self.ref!r})"
 
     @property
     def path(self):

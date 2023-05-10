@@ -227,7 +227,7 @@ class PrincipalExtensions:
 
 
 class CalendarHomeSetProperty(webdav.Property):
-    """calendar-home-set property
+    """calendar-home-set property.
 
     See https://www.ietf.org/rfc/rfc4791.txt, section 6.2.1.
     """
@@ -287,7 +287,7 @@ def _extract_from_component(
                 outcomp.add_component(outsub)
                 _extract_from_component(insub, outsub, tag)
         else:
-            raise AssertionError("invalid element %r" % tag)
+            raise AssertionError(f"invalid element {tag!r}")
 
 
 def extract_from_calendar(incal, requested):
@@ -315,12 +315,12 @@ def extract_from_calendar(incal, requested):
             raise NotImplementedError(
                 "limit-freebusy-set is not yet implemented")
         else:
-            raise AssertionError("invalid element %r" % tag)
+            raise AssertionError(f"invalid element {tag!r}")
     return incal
 
 
 class CalendarDataProperty(davcommon.SubbedProperty):
-    """calendar-data property
+    """calendar-data property.
 
     See https://tools.ietf.org/html/rfc4791, section 5.2.4
 
@@ -387,7 +387,7 @@ def parse_prop_filter(el, cls):
         elif subel.tag == "{urn:ietf:params:xml:ns:caldav}is-not-defined":
             pass
         else:
-            raise AssertionError("unknown subelement %r" % subel.tag)
+            raise AssertionError(f"unknown subelement {subel.tag!r}")
     return prop_filter
 
 
@@ -462,7 +462,7 @@ def parse_comp_filter(el: ET.Element, cls):
         elif subel.tag == "{urn:ietf:params:xml:ns:caldav}time-range":
             parse_time_range(subel, comp_filter.filter_time_range)
         else:
-            raise AssertionError("unknown filter tag %r" % subel.tag)
+            raise AssertionError(f"unknown filter tag {subel.tag!r}")
     return comp_filter
 
 
@@ -471,7 +471,7 @@ def parse_filter(filter_el: ET.Element, cls):
         if subel.tag == "{urn:ietf:params:xml:ns:caldav}comp-filter":
             parse_comp_filter(subel, cls.filter_subcomponent)
         else:
-            raise AssertionError("unknown filter tag %r" % subel.tag)
+            raise AssertionError(f"unknown filter tag {subel.tag!r}")
     return cls
 
 
@@ -534,7 +534,7 @@ class CalendarQueryReporter(webdav.Reporter):
                 tztext = el.text
             else:
                 webdav.nonfatal_bad_request(
-                    "Unknown tag {} in report {}".format(el.tag, self.name),
+                    f"Unknown tag {el.tag} in report {self.name}",
                     strict
                 )
         if requested is None:
@@ -575,7 +575,7 @@ class CalendarQueryReporter(webdav.Reporter):
 
 
 class CalendarColorProperty(webdav.Property):
-    """calendar-color property
+    """calendar-color property.
 
     This contains a HTML #RRGGBB color code, as CDATA.
     """
@@ -591,7 +591,7 @@ class CalendarColorProperty(webdav.Property):
 
 
 class SupportedCalendarComponentSetProperty(webdav.Property):
-    """supported-calendar-component-set property
+    """supported-calendar-component-set property.
 
     Set of supported calendar components by this calendar.
 
@@ -872,14 +872,14 @@ class ScheduleCalendarTransparencyProperty(webdav.Property):
         elif transp == TRANSPARENCY_OPAQUE:
             ET.SubElement(el, "{%s}opaque" % NAMESPACE)
         else:
-            raise ValueError("Invalid transparency %s" % transp)
+            raise ValueError(f"Invalid transparency {transp}")
 
 
 def map_freebusy(comp):
     transp = comp.get("TRANSP", "OPAQUE")
     if transp == "TRANSPARENT":
         return "FREE"
-    assert transp == "OPAQUE", "unknown transp %r" % transp
+    assert transp == "OPAQUE", f"unknown transp {transp!r}"
     status = comp.get("STATUS", "CONFIRMED")
     if status == "CONFIRMED":
         return "BUSY"
@@ -890,7 +890,7 @@ def map_freebusy(comp):
     elif status.startswith("X-"):
         return status
     else:
-        raise AssertionError("unknown status %r" % status)
+        raise AssertionError(f"unknown status {status!r}")
 
 
 def extract_freebusy(comp, tzify):
@@ -992,7 +992,7 @@ class MkcalendarMethod(webdav.Method):
                 request,
                 "403 Forbidden",
                 error=ET.Element("{DAV:}resource-must-be-null"),
-                description=("Something already exists at %r" % path),
+                description=f"Something already exists at {path!r}",
             )
         try:
             resource = app.backend.create_collection(path)
@@ -1015,7 +1015,7 @@ class MkcalendarMethod(webdav.Method):
             for el in et:
                 if el.tag != "{DAV:}set":
                     webdav.nonfatal_bad_request(
-                        "Unknown tag %s in mkcalendar" % el.tag,
+                        f"Unknown tag {el.tag} in mkcalendar",
                         app.strict)
                     continue
                 propstat.extend(

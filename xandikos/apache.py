@@ -25,7 +25,7 @@ from xandikos import webdav
 
 
 class ExecutableProperty(webdav.Property):
-    """executable property
+    """executable property.
 
     Equivalent of the 'x' bit on POSIX.
     """
@@ -43,4 +43,4 @@ class ExecutableProperty(webdav.Property):
         elif el.text == "F":
             resource.set_is_executable(False)
         else:
-            raise ValueError("invalid executable setting %r" % el.text)
+            raise ValueError(f"invalid executable setting {el.text!r}")

@@ -36,7 +36,7 @@ FEATURE = "sync-collection"
 class SyncToken:
     """A sync token wrapper."""
 
-    def __init__(self, token):
+    def __init__(self, token) -> None:
         self.token = token
 
     def aselement(self):
@@ -48,7 +48,7 @@ class SyncToken:
 class InvalidToken(Exception):
     """Requested token is invalid."""
 
-    def __init__(self, token):
+    def __init__(self, token) -> None:
         self.token = token
 
 
@@ -87,11 +87,11 @@ class SyncCollectionReporter(webdav.Reporter):
                 requested = list(el)
             else:
                 webdav.nonfatal_bad_request(
-                    "unknown tag %s" % el.tag, strict)
+                    f"unknown tag {el.tag}", strict)
         # TODO(jelmer): Implement sync_level infinite
         if sync_level not in ("1",):
             raise webdav.BadRequestError(
-                "sync level %r unsupported" % sync_level)
+                f"sync level {sync_level!r} unsupported")
 
         new_token = resource.get_sync_token()
         try:
@@ -146,7 +146,7 @@ class SyncCollectionReporter(webdav.Reporter):
         except InvalidToken as exc:
             raise webdav.PreconditionFailure(
                 '{DAV:}valid-sync-token',
-                "Requested sync token %s is invalid" % exc.token) from exc
+                f"Requested sync token {exc.token} is invalid") from exc
         yield SyncToken(new_token)
 
 

@@ -131,7 +131,7 @@ async def render_jinja_page(
         [body_encoded],
         len(body_encoded),
         None,
-        "text/html; encoding=%s" % encoding,
+        f"text/html; encoding={encoding}",
         ["en-UK"],
     )
 
@@ -162,7 +162,7 @@ class ObjectResource(webdav.Resource):
         content_type: str,
         etag: str,
         file: Optional[File] = None,
-    ):
+    ) -> None:
         self.store = store
         self.name = name
         self.etag = etag
@@ -201,7 +201,7 @@ class ObjectResource(webdav.Resource):
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
                 "{%s}valid-calendar-data" % caldav.NAMESPACE,
-                "Not a valid calendar file: %s" % exc.error,
+                f"Not a valid calendar file: {exc.error}",
             ) from exc
         except DuplicateUidError as exc:
             raise webdav.PreconditionFailure(
@@ -264,13 +264,13 @@ class ObjectResource(webdav.Resource):
 
 
 class StoreBasedCollection:
-    def __init__(self, backend, relpath, store):
+    def __init__(self, backend, relpath, store) -> None:
         self.backend = backend
         self.relpath = relpath
         self.store = store
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.store)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.store!r})"
 
     def set_resource_types(self, resource_types):
         # TODO(jelmer): Allow more than just this set; allow combining
@@ -376,7 +376,7 @@ class StoreBasedCollection:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
                 "{%s}valid-calendar-data" % caldav.NAMESPACE,
-                "Not a valid calendar file: %s" % exc.error,
+                f"Not a valid calendar file: {exc.error}",
             ) from exc
         except DuplicateUidError as exc:
             raise webdav.PreconditionFailure(
@@ -652,7 +652,7 @@ class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
 class CollectionSetResource(webdav.Collection):
     """Resource for calendar sets."""
 
-    def __init__(self, backend, relpath):
+    def __init__(self, backend, relpath) -> None:
         self.backend = backend
         self.relpath = relpath
 
@@ -763,7 +763,7 @@ class RootPage(webdav.Resource):
 
     resource_types: list[str] = []
 
-    def __init__(self, backend):
+    def __init__(self, backend) -> None:
         self.backend = backend
 
     def render(self, self_url, accepted_content_types,
@@ -959,7 +959,7 @@ def open_store_from_path(path: str, **kwargs):
 
 class XandikosBackend(webdav.Backend):
     def __init__(self, path, *, paranoid: bool = False,
-                 index_threshold: Optional[int] = None):
+                 index_threshold: Optional[int] = None) -> None:
         self.path = path
         self._user_principals: set[str] = set()
         self.paranoid = paranoid
@@ -1015,7 +1015,7 @@ class XandikosBackend(webdav.Backend):
                 }[store.get_type()](self, relpath, store)
         else:
             (basepath, name) = os.path.split(relpath)
-            assert name != "", "path is %r" % relpath
+            assert name != "", f"path is {relpath!r}"
             store = self.get_resource(basepath)
             if store is None:
                 return None
@@ -1030,7 +1030,7 @@ class XandikosBackend(webdav.Backend):
 class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server."""
 
-    def __init__(self, backend, current_user_principal, strict=True):
+    def __init__(self, backend, current_user_principal, strict=True) -> None:
         super().__init__(backend, strict=strict)
 
         def get_current_user_principal(env):
@@ -1166,7 +1166,7 @@ def create_principal_defaults(backend, principal):
 
 
 class RedirectDavHandler:
-    def __init__(self, dav_root: str):
+    def __init__(self, dav_root: str) -> None:
         self._dav_root = dav_root
 
     async def __call__(self, request):
@@ -1203,7 +1203,7 @@ def avahi_register(port: int, path: str):
                 "",
                 "",
                 port,
-                avahi.string_array_to_txt_array(["path=%s" % path]),
+                avahi.string_array_to_txt_array([f"path={path}"]),
             )
         except dbus.DBusException as e:
             logging.error("Error registering %s: %s", service, e)
