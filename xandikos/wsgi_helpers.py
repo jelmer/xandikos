@@ -17,8 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""WSGI wrapper for xandikos.
-"""
+"""WSGI wrapper for xandikos."""
 
 import posixpath
 
@@ -28,7 +27,7 @@ from .web import WELLKNOWN_DAV_PATHS
 class WellknownRedirector:
     """Redirect paths under .well-known/ to the appropriate paths."""
 
-    def __init__(self, inner_app, dav_root):
+    def __init__(self, inner_app, dav_root) -> None:
         self._inner_app = inner_app
         self._dav_root = dav_root
 

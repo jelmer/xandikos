@@ -130,7 +130,7 @@ class BaseStoreTest:
 
             content_type = "text/calendar"
 
-            def __init__(self, text):
+            def __init__(self, text) -> None:
                 self.text = text
 
             def check(self, name, resource):
@@ -169,7 +169,7 @@ class BaseStoreTest:
 
             content_type = "text/calendar"
 
-            def __init__(self, text):
+            def __init__(self, text) -> None:
                 self.text = text
 
             def index_keys(self):

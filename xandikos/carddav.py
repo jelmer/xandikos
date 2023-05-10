@@ -37,7 +37,7 @@ FEATURE = "addressbook"
 
 
 class AddressbookHomeSetProperty(webdav.Property):
-    """addressbook-home-set property
+    """addressbook-home-set property.
 
     See https://tools.ietf.org/html/rfc6352, section 7.1.1
     """
@@ -54,7 +54,7 @@ class AddressbookHomeSetProperty(webdav.Property):
 
 
 class AddressDataProperty(davcommon.SubbedProperty):
-    """address-data property
+    """address-data property.
 
     See https://tools.ietf.org/html/rfc6352, section 10.4
 
@@ -121,14 +121,14 @@ class Addressbook(webdav.Collection):
         raise NotImplementedError(self.get_supported_address_data_types)
 
     def get_max_resource_size(self) -> int:
-        """Get maximum object size this address book will store (in bytes)
+        """Get maximum object size this address book will store (in bytes).
 
         Absence indicates no maximum.
         """
         raise NotImplementedError(self.get_max_resource_size)
 
     def get_max_image_size(self) -> int:
-        """Get maximum image size this address book will store (in bytes)
+        """Get maximum image size this address book will store (in bytes).
 
         Absence indicates no maximum.
         """
@@ -334,7 +334,7 @@ class AddressbookQueryReporter(webdav.Reporter):
                 limit = el
             else:
                 webdav.nonfatal_bad_request(
-                    "Unknown tag {} in report {}".format(el.tag, self.name),
+                    f"Unknown tag {el.tag} in report {self.name}",
                     strict)
         if requested is None:
             # The CardDAV RFC says that behaviour mimicks that of PROPFIND,

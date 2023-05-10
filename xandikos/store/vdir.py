@@ -27,6 +27,7 @@ import hashlib
 import logging
 import os
 import shutil
+from typing import Dict
 import uuid
 
 from . import (MIMETYPES, DuplicateUidError, InvalidETag, InvalidFileContents,
@@ -44,14 +45,14 @@ logger = logging.getLogger(__name__)
 class VdirStore(Store):
     """A Store backed by a Vdir directory."""
 
-    def __init__(self, path, check_for_duplicate_uids=True):
+    def __init__(self, path, check_for_duplicate_uids=True) -> None:
         super().__init__(MemoryIndex())
         self.path = path
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
-        self._fname_to_uid = {}
+        self._fname_to_uid: Dict[str, str] = {}
         # Maps uids to (sha, fname)
-        self._uid_to_fname = {}
+        self._uid_to_fname: Dict[str, str] = {}
         cp = configparser.ConfigParser()
         cp.read([os.path.join(self.path, CONFIG_FILENAME)])
 
@@ -61,8 +62,8 @@ class VdirStore(Store):
 
         self.config = FileBasedCollectionMetadata(cp, save=save_config)
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     def _get_etag(self, name):
         path = os.path.join(self.path, name)

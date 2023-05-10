@@ -57,7 +57,7 @@ DEFAULT_MIME_TYPE = "application/octet-stream"
 class InvalidCTag(Exception):
     """The request CTag can not be retrieved."""
 
-    def __init__(self, ctag):
+    def __init__(self, ctag) -> None:
         self.ctag = ctag
 
 
@@ -67,7 +67,7 @@ class File:
     content: Iterable[bytes]
     content_type: str
 
-    def __init__(self, content: Iterable[bytes], content_type: str):
+    def __init__(self, content: Iterable[bytes], content_type: str) -> None:
         self.content = content
         self.content_type = content_type
 
@@ -207,7 +207,7 @@ def open_by_extension(
 class DuplicateUidError(Exception):
     """UID already exists in store."""
 
-    def __init__(self, uid: str, existing_name: str, new_name: str):
+    def __init__(self, uid: str, existing_name: str, new_name: str) -> None:
         self.uid = uid
         self.existing_name = existing_name
         self.new_name = new_name
@@ -216,14 +216,14 @@ class DuplicateUidError(Exception):
 class NoSuchItem(Exception):
     """No such item."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self.name = name
 
 
 class InvalidETag(Exception):
     """Unexpected value for etag."""
 
-    def __init__(self, name: str, expected_etag: str, got_etag: str):
+    def __init__(self, name: str, expected_etag: str, got_etag: str) -> None:
         self.name = name
         self.expected_etag = expected_etag
         self.got_etag = got_etag
@@ -232,14 +232,14 @@ class InvalidETag(Exception):
 class NotStoreError(Exception):
     """Not a store."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         self.path = path
 
 
 class InvalidFileContents(Exception):
     """Invalid file contents."""
 
-    def __init__(self, content_type: str, data, error):
+    def __init__(self, content_type: str, data, error) -> None:
         self.content_type = content_type
         self.data = data
         self.error = error
@@ -248,14 +248,14 @@ class InvalidFileContents(Exception):
 class OutOfSpaceError(Exception):
     """Out of disk space."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
 
 class LockedError(Exception):
     """File or store being accessed is locked."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         self.path = path
 
 
@@ -265,7 +265,7 @@ class Store:
     extra_file_handlers: dict[str, type[File]]
 
     def __init__(self, index, *, double_check_indexes: bool = False,
-                 index_threshold: Optional[int] = None):
+                 index_threshold: Optional[int] = None) -> None:
         self.extra_file_handlers = {}
         self.index = index
         self.index_manager = AutoIndexManager(
@@ -345,8 +345,7 @@ class Store:
                 if self.double_check_indexes:
                     if file_values != file.get_indexes(keys):
                         raise AssertionError(
-                            "{!r} != {!r}".format(
-                                file_values, file.get_indexes(keys)))
+                            f"{file_values!r} != {file.get_indexes(keys)!r}")
                     if (filter.check_from_indexes(name, file_values)
                             != filter.check(name, file)):
                         raise AssertionError(

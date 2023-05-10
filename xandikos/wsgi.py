@@ -17,8 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""WSGI wrapper for xandikos.
-"""
+"""WSGI wrapper for xandikos."""
 
 import logging
 import os

@@ -17,13 +17,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Indexing.
-"""
+"""Indexing."""
 
 import collections
 import logging
 from collections.abc import Iterable, Iterator
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Set
 
 IndexKey = str
 IndexValue = list[Union[bytes, bool]]
@@ -51,9 +50,9 @@ class Index:
 
 
 class MemoryIndex(Index):
-    def __init__(self):
-        self._indexes = {}
-        self._in_index = set()
+    def __init__(self) -> None:
+        self._indexes: Dict[IndexKey, Dict[str, IndexValue]] = {}
+        self._in_index: Set[str] = set()
 
     def available_keys(self):
         return self._indexes.keys()
@@ -89,7 +88,7 @@ class MemoryIndex(Index):
 
 
 class AutoIndexManager:
-    def __init__(self, index, threshold: Optional[int] = None):
+    def __init__(self, index, threshold: Optional[int] = None) -> None:
         self.index = index
         self.desired: dict[IndexKey, int] = collections.defaultdict(lambda: 0)
         if threshold is None:

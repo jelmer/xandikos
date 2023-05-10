@@ -23,9 +23,9 @@ from typing import Callable
 
 
 class UnknownCollation(Exception):
-    def __init__(self, collation: str):
+    def __init__(self, collation: str) -> None:
         super().__init__(
-            "Collation %r is not supported" % collation
+            f"Collation {collation!r} is not supported"
         )
         self.collation = collation
 

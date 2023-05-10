@@ -177,7 +177,7 @@ class ScheduleOutboxURLProperty(webdav.Property):
 
 
 class CalendarUserAddressSetProperty(webdav.Property):
-    """calendar-user-address-set property
+    """calendar-user-address-set property.
 
     See https://tools.ietf.org/html/rfc6638, section 2.4.1
     """
@@ -192,7 +192,7 @@ class CalendarUserAddressSetProperty(webdav.Property):
 
 
 class ScheduleTagProperty(webdav.Property):
-    """schedule-tag property
+    """schedule-tag property.
 
     See https://tools.ietf.org/html/rfc6638, section 3.2.10
     """
@@ -208,7 +208,7 @@ class ScheduleTagProperty(webdav.Property):
 
 
 class CalendarUserTypeProperty(webdav.Property):
-    """calendar-user-type property
+    """calendar-user-type property.
 
     See https://tools.ietf.org/html/rfc6638, section 2.4.2
     """

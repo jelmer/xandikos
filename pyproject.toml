@@ -57,3 +57,17 @@ ignore_missing_imports = true
 
 [tool.distutils.bdist_wheel]
 universal = 1
+
+[tool.ruff]
+select = [
+    "ANN",
+    "D",
+    "E",
+    "F"
+]
+ignore = [
+    "ANN101",  # missing-type-self
+]
+
+[tool.ruff.pydocstyle]
+convention = "google"

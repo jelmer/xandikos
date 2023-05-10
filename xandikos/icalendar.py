@@ -17,9 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""ICalendar file handling.
-
-"""
+"""ICalendar file handling."""
 
 import logging
 from collections.abc import Iterable
@@ -49,9 +47,9 @@ _INVALID_CONTROL_CHARACTERS = ["\x0c", "\x01"]
 
 
 class MissingProperty(Exception):
-    def __init__(self, property_name):
+    def __init__(self, property_name) -> None:
         super().__init__(
-            "Property %r missing" % property_name)
+            f"Property {property_name!r} missing")
         self.property_name = property_name
 
 
@@ -98,7 +96,7 @@ def validate_component(comp, strict=False):
             try:
                 comp[required]
             except KeyError:
-                yield "Missing required field %s" % required
+                yield f"Missing required field {required}"
     for subcomp in comp.subcomponents:
         yield from validate_component(subcomp, strict=strict)
 
@@ -158,7 +156,7 @@ def calendar_prop_delta(old_component, new_component):
 def describe_component(component):
     if component.name == "VTODO":
         try:
-            return "task '%s'" % component["SUMMARY"]
+            return f"task '{component['SUMMARY']}'"
         except KeyError:
             return "task"
     else:
@@ -192,11 +190,11 @@ def describe_calendar_delta(old_cal, new_cal):
     for old_component, new_component in calendar_component_delta(
             old_cal, new_cal):
         if not new_component:
-            yield "Deleted %s" % describe_component(old_component)
+            yield f"Deleted {describe_component(old_component)}"
             continue
         description = describe_component(new_component)
         if not old_component:
-            yield "Added %s" % describe_component(new_component)
+            yield f"Added {describe_component(new_component)}"
             continue
         for field, old_value, new_value in calendar_prop_delta(
             old_component, new_component
@@ -206,7 +204,7 @@ def describe_calendar_delta(old_cal, new_cal):
             if (old_component.name.upper() == "VTODO"
                     and field.upper() == "STATUS"):
                 if new_value is None:
-                    yield "status of %s deleted" % description
+                    yield f"status of {description} deleted"
                 else:
                     human_readable = {
                         "NEEDS-ACTION": "needing action",
@@ -218,12 +216,11 @@ def describe_calendar_delta(old_cal, new_cal):
                         human_readable.get(new_value.upper(), new_value),
                     )
             elif field.upper() == "DESCRIPTION":
-                yield "changed description of %s" % description
+                yield f"changed description of {description}"
             elif field.upper() == "SUMMARY":
-                yield "changed summary of %s" % description
+                yield f"changed summary of {description}"
             elif field.upper() == "LOCATION":
-                yield "changed location of {} to {}".format(
-                    description, new_value)
+                yield f"changed location of {description} to {new_value}"
             elif (
                 old_component.name.upper() == "VTODO"
                 and field.upper() == "PERCENT-COMPLETE"
@@ -255,7 +252,7 @@ def describe_calendar_delta(old_cal, new_cal):
                     new_value.lower() if new_value else "none",
                 )
             else:
-                yield "modified field {} in {}".format(field, description)
+                yield f"modified field {field} in {description}"
                 logging.debug(
                     "Changed %s/%s or %s/%s from %s to %s.",
                     old_component.name,
@@ -359,13 +356,12 @@ def apply_time_range_valarm(start, end, comp, tzify):
 
 
 class PropertyTimeRangeMatcher:
-    def __init__(self, start: datetime, end: datetime):
+    def __init__(self, start: datetime, end: datetime) -> None:
         self.start = start
         self.end = end
 
-    def __repr__(self):
-        return "{}({!r}, {!r})".format(
-            self.__class__.__name__, self.start, self.end)
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.start!r}, {self.end!r})"
 
     def match(self, prop, tzify):
         dt = tzify(prop.dt)
@@ -404,12 +400,12 @@ class ComponentTimeRangeMatcher:
         "VALARM": apply_time_range_valarm,
     }
 
-    def __init__(self, start, end, comp=None):
+    def __init__(self, start, end, comp=None) -> None:
         self.start = start
         self.end = end
         self.comp = comp
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.comp is not None:
             return "{}({!r}, {!r}, comp={!r})".format(
                 self.__class__.__name__,
@@ -418,11 +414,7 @@ class ComponentTimeRangeMatcher:
                 self.comp,
             )
         else:
-            return "{}({!r}, {!r})".format(
-                self.__class__.__name__,
-                self.start,
-                self.end,
-            )
+            return f"{self.__class__.__name__}({self.start!r}, {self.end!r})"
 
     def match(self, comp: Component, tzify: TzifyFunction):
         try:
@@ -478,7 +470,7 @@ class ComponentTimeRangeMatcher:
 class TextMatcher:
     def __init__(self, name: str, text: str,
                  collation: Optional[str] = None,
-                 negate_condition: bool = False):
+                 negate_condition: bool = False) -> None:
         self.name = name
         self.type_fn = TYPES_FACTORY.for_property(name)
         assert isinstance(text, str)
@@ -488,7 +480,7 @@ class TextMatcher:
         self.collation = _mod_collation.get_collation(collation)
         self.negate_condition = negate_condition
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, {!r}, collation={!r}, negate_condition={!r})".format(
             self.__class__.__name__,
             self.name,
@@ -526,14 +518,14 @@ class ComponentFilter:
 
     def __init__(
             self, name: str, children=None, is_not_defined: bool = False,
-            time_range=None):
+            time_range=None) -> None:
         self.name = name
         self.children = children
         self.is_not_defined = is_not_defined
         self.time_range = time_range
         self.children = children or []
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return ("{}({!r}, children={!r}, is_not_defined={!r}, time_range={!r})"
                 .format(
                     self.__class__.__name__,
@@ -642,13 +634,13 @@ class ComponentFilter:
 class PropertyFilter:
 
     def __init__(self, name: str, children=None, is_not_defined: bool = False,
-                 time_range: Optional[PropertyTimeRangeMatcher] = None):
+                 time_range: Optional[PropertyTimeRangeMatcher] = None) -> None:
         self.name = name
         self.is_not_defined = is_not_defined
         self.children = children or []
         self.time_range = time_range
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return ("{}({!r}, children={!r}, is_not_defined={!r}, time_range={!r})"
                 .format(
                     self.__class__.__name__, self.name, self.children,
@@ -735,7 +727,7 @@ class ParameterFilter:
     children: list[TextMatcher]
 
     def __init__(self, name: str, children: Optional[list[TextMatcher]] = None,
-                 is_not_defined: bool = False):
+                 is_not_defined: bool = False) -> None:
         self.name = name
         self.is_not_defined = is_not_defined
         self.children = children or []
@@ -786,7 +778,7 @@ class CalendarFilter(Filter):
 
     content_type = "text/calendar"
 
-    def __init__(self, default_timezone: Union[str, timezone]):
+    def __init__(self, default_timezone: Union[str, timezone]) -> None:
         self.tzify = lambda dt: as_tz_aware_ts(dt, default_timezone)
         self.children: list[ComponentFilter] = []
 
@@ -840,8 +832,8 @@ class CalendarFilter(Filter):
             subindexes.extend(child.index_keys())
         return subindexes
 
-    def __repr__(self):
-        return "{}({!r})".format(self.__class__.__name__, self.children)
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.children!r})"
 
 
 class ICalendarFile(File):
@@ -849,7 +841,7 @@ class ICalendarFile(File):
 
     content_type = "text/calendar"
 
-    def __init__(self, content, content_type):
+    def __init__(self, content, content_type) -> None:
         super().__init__(content, content_type)
         self._calendar = None
 
@@ -947,7 +939,7 @@ class ICalendarFile(File):
                     if p is not None:
                         yield p.to_ical()
             else:
-                raise AssertionError("segments: %r" % segments)
+                raise AssertionError(f"segments: {segments!r}")
 
 
 def as_tz_aware_ts(dt, default_timezone: Union[str, timezone]) -> datetime:
@@ -1005,7 +997,7 @@ def expand_calendar_rrule(
     outcal = Calendar()
     if incal.name != "VCALENDAR":
         raise AssertionError(
-            "called on file with root component %s" % incal.name)
+            f"called on file with root component {incal.name}")
     for field in incal:
         outcal[field] = incal[field]
     known = {}
