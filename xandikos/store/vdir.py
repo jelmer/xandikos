@@ -27,6 +27,7 @@ import hashlib
 import logging
 import os
 import shutil
+from typing import Dict
 import uuid
 
 from . import (MIMETYPES, DuplicateUidError, InvalidETag, InvalidFileContents,
@@ -49,9 +50,9 @@ class VdirStore(Store):
         self.path = path
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
-        self._fname_to_uid = {}
+        self._fname_to_uid: Dict[str, str] = {}
         # Maps uids to (sha, fname)
-        self._uid_to_fname = {}
+        self._uid_to_fname: Dict[str, str] = {}
         cp = configparser.ConfigParser()
         cp.read([os.path.join(self.path, CONFIG_FILENAME)])
 

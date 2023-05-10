@@ -22,7 +22,7 @@
 import collections
 import logging
 from collections.abc import Iterable, Iterator
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Set
 
 IndexKey = str
 IndexValue = list[Union[bytes, bool]]
@@ -51,8 +51,8 @@ class Index:
 
 class MemoryIndex(Index):
     def __init__(self) -> None:
-        self._indexes = {}
-        self._in_index = set()
+        self._indexes: Dict[IndexKey, Dict[str, IndexValue]] = {}
+        self._in_index: Set[str] = set()
 
     def available_keys(self):
         return self._indexes.keys()

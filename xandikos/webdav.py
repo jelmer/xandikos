@@ -35,7 +35,7 @@ import posixpath
 import urllib.parse
 from collections.abc import AsyncIterable, Iterable, Iterator, Sequence
 from datetime import datetime
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Dict, Type
 from wsgiref.util import request_uri
 # Hmm, defusedxml doesn't have XML generation functions? :(
 from xml.etree import ElementTree as ET
@@ -1469,7 +1469,7 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
         if not href.startswith(script_name):
             resource = None
         else:
-            path = href[len(script_name) :]
+            path = href[len(script_name):]
             if not path.startswith("/"):
                 path = "/" + path
             resource = backend.get_resource(path)
@@ -1984,7 +1984,7 @@ class WSGIRequest:
         self.content_type = environ.get(
             "CONTENT_TYPE", "application/octet-stream")
         try:
-            self.content_length = int(environ["CONTENT_LENGTH"])
+            self.content_length: Optional[int] = int(environ["CONTENT_LENGTH"])
         except (KeyError, ValueError):
             self.content_length = None
         from multidict import CIMultiDict
@@ -2028,9 +2028,9 @@ class WebDAVApp:
 
     def __init__(self, backend, strict=True) -> None:
         self.backend = backend
-        self.properties = {}
-        self.reporters = {}
-        self.methods = {}
+        self.properties: Dict[str, Type[Property]] = {}
+        self.reporters: Dict[str, Type[Reporter]] = {}
+        self.methods: Dict[str, Type[Method]] = {}
         self.strict = strict
         self.register_methods(
             [
