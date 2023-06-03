@@ -63,11 +63,31 @@ select = [
     "ANN",
     "D",
     "E",
-    "F"
+    "F",
+    "UP",
 ]
 ignore = [
+    "ANN001",
+    "ANN002",
+    "ANN003",
     "ANN101",  # missing-type-self
+    "ANN102",
+    "ANN201",
+    "ANN202",
+    "ANN204",
+    "ANN206",
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D107",
+    "D403",
+    "D417",
+    "E501",
 ]
+target-version = "py37"
 
 [tool.ruff.pydocstyle]
 convention = "google"

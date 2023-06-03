@@ -17,8 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Inf-It properties.
-"""
+"""Inf-It properties."""
 from xandikos import carddav, webdav
 
 
