@@ -71,8 +71,7 @@ class NotAcceptableError(Exception):
 
     def __init__(self, available_content_types, acceptable_content_types) -> None:
         super().__init__(
-            "Unable to convert from content types %r to one of %r"
-            % (available_content_types, acceptable_content_types)
+            f"Unable to convert from content types {available_content_types!r} to one of {acceptable_content_types!r}"
         )
         self.available_content_types = available_content_types
         self.acceptable_content_types = acceptable_content_types
