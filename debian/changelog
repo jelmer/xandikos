@@ -1,3 +1,9 @@
+xandikos (0.2.8-2) UNRELEASED; urgency=medium
+
+  * Ignore .egg-info changes during build. Closes: #1046990
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 13 Aug 2023 22:40:40 +0100
+
 xandikos (0.2.8-1) unstable; urgency=low
 
   * New upstream release.

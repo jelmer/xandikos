@@ -1,2 +1,2 @@
 extend-diff-ignore = "^\.travis\.yml$"
-extend-diff-ignore = "^xandikos\.egg-info/SOURCES\.txt$"
+extend-diff-ignore = "^xandikos\.egg-info/.*$"
