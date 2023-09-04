@@ -1,4 +1,4 @@
-0.2.9	UNRELEASED
+0.2.10	UNRELEASED
 
  * Add support for systemd socket activation.
    (schnusch, #136, #155)

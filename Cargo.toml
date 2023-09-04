@@ -1,6 +1,6 @@
 [package]
 name = "xandikos"
-version = "0.2.8"
+version = "0.2.10"
 authors = [ "Jelmer Vernooij <jelmer@jelmer.uk>"]
 edition = "2021"
 license = "GPL-3.0+"
