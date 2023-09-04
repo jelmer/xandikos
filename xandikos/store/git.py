@@ -27,7 +27,7 @@ import shutil
 import stat
 import uuid
 from io import BytesIO, StringIO
-from typing import Optional
+from typing import Optional, Iterable
 
 import dulwich.repo
 from dulwich.file import FileLocked, GitFile
@@ -214,7 +214,7 @@ class GitStore(Store):
         raise NotImplementedError(self._get_etag)
 
     def _import_one(
-            self, name: str, data: list[bytes], message: str,
+            self, name: str, data: Iterable[bytes], message: str,
             author: Optional[str] = None):
         raise NotImplementedError(self._import_one)
 
@@ -269,13 +269,13 @@ class GitStore(Store):
 
     def import_one(
         self,
-        name,
-        content_type,
-        data,
-        message=None,
-        author=None,
-        replace_etag=None,
-    ):
+        name: str,
+        content_type: str,
+        data: Iterable[bytes],
+        message: Optional[str] = None,
+        author: Optional[str] = None,
+        replace_etag: Optional[str] = None,
+    ) -> tuple[str, str]:
         """Import a single object.
 
         :param name: name of the object
@@ -673,7 +673,7 @@ class TreeGitStore(GitStore):
         tree = index.commit(self.repo.object_store)
         return self.repo.do_commit(message=message, author=author, tree=tree)
 
-    def _import_one(self, name, data, message, author=None):
+    def _import_one(self, name: str, data: Iterable[bytes], message: str, author: Optional[str] = None) -> bytes:
         """Import a single object.
 
         :param name: name of the object

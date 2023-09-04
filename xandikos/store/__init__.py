@@ -396,6 +396,7 @@ class Store:
     def import_one(
         self,
         name: str,
+        content_type: str,
         data: Iterable[bytes],
         message: Optional[str] = None,
         author: Optional[str] = None,
@@ -404,6 +405,7 @@ class Store:
         """Import a single object.
 
         :param name: Name of the object
+        :param content_type: Content type of the object
         :param data: serialized object as list of bytes
         :param message: Commit message
         :param author: Optional author
