@@ -31,7 +31,7 @@ from typing import Optional
 
 import dulwich.repo
 from dulwich.file import FileLocked, GitFile
-from dulwich.index import (Index, IndexEntry, index_entry_from_stat,
+from dulwich.index import (Index, index_entry_from_stat,
                            write_index_dict)
 from dulwich.objects import Blob, Tree
 from dulwich.pack import SHA1Writer
@@ -693,9 +693,7 @@ class TreeGitStore(GitStore):
                 if (encoded_name not in index
                         or blob.id != index[encoded_name].sha):
                     self.repo.object_store.add_object(blob)
-                    index[encoded_name] = IndexEntry(
-                        *index_entry_from_stat(st, blob.id, 0)
-                    )
+                    index[encoded_name] = index_entry_from_stat(st, blob.id)
                     self._commit_tree(
                         index, message.encode(DEFAULT_ENCODING), author=author
                     )

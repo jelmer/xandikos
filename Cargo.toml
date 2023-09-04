@@ -10,3 +10,5 @@ homepage = "https://github.com/jelmer/xandikos"
 
 [dependencies]
 pyo3 = { version = "0.18", features=["auto-initialize"]}
+clap = "4"
+tokio = { version = "1", features = ["full"] }
