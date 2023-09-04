@@ -81,9 +81,10 @@ class VdirStore(Store):
     def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
 
-        :param name: Name of the item
-        :param etag: Optional etag (ignored)
-        :return: raw contents as chunks
+        Args:
+          name: Name of the item
+          etag: Optional etag (ignored)
+        Returns: raw contents as chunks
         """
         path = os.path.join(self.path, name)
         try:
@@ -155,16 +156,17 @@ class VdirStore(Store):
     ):
         """Import a single object.
 
-        :param name: name of the object
-        :param content_type: Content type
-        :param data: serialized object as list of bytes
-        :param message: Commit message
-        :param author: Optional author
-        :param replace_etag: optional etag of object to replace
-        :raise InvalidETag: when the name already exists but with different
-                            etag
-        :raise DuplicateUidError: when the uid already exists
-        :return: etag
+        Args:
+          name: name of the object
+          content_type: Content type
+          data: serialized object as list of bytes
+          message: Commit message
+          author: Optional author
+          replace_etag: optional etag of object to replace
+        Raises:
+          InvalidETag: when the name already exists but with different etag
+          DuplicateUidError: when the uid already exists
+        Returns: etag
         """
         if content_type is None:
             fi = open_by_extension(data, name, self.extra_file_handlers)
@@ -199,8 +201,9 @@ class VdirStore(Store):
     def iter_with_etag(self, ctag=None):
         """Iterate over all items in the store with etag.
 
-        :param ctag: Ctag to iterate for
-        :yield: (name, content_type, etag) tuples
+        Args:
+          ctag: Ctag to iterate for
+        Returns: iterator over (name, content_type, etag) tuples
         """
         for name in os.listdir(self.path):
             if name.endswith(".tmp"):
@@ -219,7 +222,7 @@ class VdirStore(Store):
     def create(cls, path: str) -> "VdirStore":
         """Create a new store backed by a Vdir on disk.
 
-        :return: A `VdirStore`
+        Returns: A `VdirStore`
         """
         os.mkdir(path)
         return cls(path)
@@ -228,36 +231,39 @@ class VdirStore(Store):
     def open_from_path(cls, path: str) -> "VdirStore":
         """Open a VdirStore from a path.
 
-        :param path: Path
-        :return: A `VdirStore`
+        Args:
+          path: Path
+        Returns: A `VdirStore`
         """
         return cls(path)
 
     def get_description(self):
         """Get extended description.
 
-        :return: repository description as string
+        Returns: repository description as string
         """
         return self.config.get_description()
 
     def set_description(self, description):
         """Set extended description.
 
-        :param description: repository description as string
+        Args:
+          description: repository description as string
         """
         self.config.set_description(description)
 
     def set_comment(self, comment):
         """Set comment.
 
-        :param comment: Comment
+        Args:
+          comment: Comment
         """
         raise NotImplementedError(self.set_comment)
 
     def get_comment(self):
         """Get comment.
 
-        :return: Comment
+        Returns: Comment
         """
         raise NotImplementedError(self.get_comment)
 
@@ -281,7 +287,7 @@ class VdirStore(Store):
     def get_color(self):
         """Get color.
 
-        :return: A Color code, or None
+        Returns: A Color code, or None
         """
         color = self._read_metadata("color")
         if color is not None:
@@ -304,23 +310,25 @@ class VdirStore(Store):
     def get_displayname(self):
         """Get display name.
 
-        :return: The display name, or None if not set
+        Returns: The display name, or None if not set
         """
         return self._read_metadata("displayname")
 
     def set_displayname(self, displayname):
         """Set the display name.
 
-        :param displayname: New display name
+        Args:
+          displayname: New display name
         """
         self._write_metadata("displayname", displayname)
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.
 
-        :param old_ctag: Old ctag (None for empty Store)
-        :param new_ctag: New ctag
-        :return: Iterator over (name, content_type, old_etag, new_etag)
+        Args:
+          old_ctag: Old ctag (None for empty Store)
+          new_ctag: New ctag
+        Returns: Iterator over (name, content_type, old_etag, new_etag)
         """
         raise NotImplementedError(self.iter_changes)
 
@@ -331,12 +339,14 @@ class VdirStore(Store):
     def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
 
-        :param name: Filename to delete
-        :param message: Commit message
-        :param author: Optional author
-        :param etag: Optional mandatory etag of object to remove
-        :raise NoSuchItem: when the item doesn't exist
-        :raise InvalidETag: If the specified ETag doesn't match the curren
+        Args:
+          name: Filename to delete
+          message: Commit message
+          author: Optional author
+          etag: Optional mandatory etag of object to remove
+        Raises:
+          NoSuchItem: when the item doesn't exist
+          InvalidETag: If the specified ETag doesn't match the curren
         """
         path = os.path.join(self.path, name)
         if etag is not None:
@@ -360,7 +370,7 @@ class VdirStore(Store):
     def subdirectories(self):
         """Returns subdirectories to probe for other stores.
 
-        :return: List of names
+        Returns: List of names
         """
         ret = []
         for name in os.listdir(self.path):

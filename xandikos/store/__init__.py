@@ -94,7 +94,7 @@ class File:
         :raise NotImplementedError: If UIDs aren't supported for this format
         :raise KeyError: If there is no UID set on this file
         :raise InvalidFileContents: If the file is misformatted
-        :return: UID
+        Returns: UID
         """
         raise NotImplementedError(self.get_uid)
 
@@ -102,10 +102,12 @@ class File:
             self, name: str, previous: Optional["File"]) -> Iterator[str]:
         """Describe the important difference between this and previous one.
 
-        :param name: File name
-        :param previous: Previous file to compare to.
-        :raise InvalidFileContents: If the file is misformatted
-        :return: List of strings describing change
+        Args:
+          name: File name
+          previous: Previous file to compare to.
+        Raises:
+          InvalidFileContents: If the file is misformatted
+        Returns: List of strings describing change
         """
         assert name is not None
         item_description = self.describe(name)
@@ -128,8 +130,9 @@ class File:
     def get_indexes(self, keys: Iterable[IndexKey]) -> IndexDict:
         """Obtain indexes for this file.
 
-        :param keys: Iterable of index keys
-        :return: Dictionary mapping key names to values
+        Args:
+          keys: Iterable of index keys
+        Returns: Dictionary mapping key names to values
         """
         ret = {}
         for k in keys:
@@ -148,25 +151,27 @@ class Filter:
     def check(self, name: str, resource: File) -> bool:
         """Check if this filter applies to a resource.
 
-        :param name: Name of the resource
-        :param resource: File object
-        :return: boolean
+        Args:
+          name: Name of the resource
+          resource: File object
+        Returns: boolean
         """
         raise NotImplementedError(self.check)
 
     def index_keys(self) -> list[IndexKey]:
         """Returns a list of indexes that could be used to apply this filter.
 
-        :return: AND-list of OR-options
+        Returns: AND-list of OR-options
         """
         raise NotImplementedError(self.index_keys)
 
     def check_from_indexes(self, name: str, indexes: IndexDict) -> bool:
         """Check from a set of indexes whether a resource matches.
 
-        :param name: Name of the resource
-        :param indexes: Dictionary mapping index names to values
-        :return: boolean
+        Args:
+          name: Name of the resource
+          indexes: Dictionary mapping index names to values
+        Returns: boolean
         """
         raise NotImplementedError(self.check_from_indexes)
 
@@ -176,9 +181,10 @@ def open_by_content_type(
 ) -> File:
     """Open a file based on content type.
 
-    :param content: list of bytestrings with content
-    :param content_type: MIME type
-    :return: File instance
+    Args:
+      content: list of bytestrings with content
+      content_type: MIME type
+    Returns: File instance
     """
     return extra_file_handlers.get(content_type.split(";")[0], File)(
         content, content_type
@@ -192,9 +198,10 @@ def open_by_extension(
 ) -> File:
     """Open a file based on the filename extension.
 
-    :param content: list of bytestrings with content
-    :param name: Name of file to open
-    :return: File instance
+    Args:
+      content: list of bytestrings with content
+      name: Name of file to open
+    Returns: File instance
     """
     (mime_type, _) = MIMETYPES.guess_type(name)
     if mime_type is None:
@@ -280,8 +287,9 @@ class Store:
                 tuple[str, str, str]]:
         """Iterate over all items in the store with etag.
 
-        :param ctag: Possible ctag to iterate for
-        :yield: (name, content_type, etag) tuples
+        Args:
+          ctag: Possible ctag to iterate for
+        Returns: iterator over (name, content_type, etag) tuples
         """
         raise NotImplementedError(self.iter_with_etag)
 
@@ -289,8 +297,9 @@ class Store:
             self, filter: Filter) -> Iterator[tuple[str, File, str]]:
         """Iterate over all items in the store that match a particular filter.
 
-        :param filter: Filter to apply
-        :yield: (name, file, etag) tuples
+        Args:
+          filter: Filter to apply
+        Returns: iterator over (name, file, etag) tuples
         """
         if self.index_manager is not None:
             try:
@@ -364,7 +373,7 @@ class Store:
     ) -> File:
         """Get the contents of an object.
 
-        :return: A File object
+        Returns: A File object
         """
         if content_type is None:
             return open_by_extension(
@@ -383,9 +392,10 @@ class Store:
             self, name: str, etag: Optional[str] = None) -> Iterable[bytes]:
         """Get the raw contents of an object.
 
-        :param name: Filename
-        :param etag: Optional etag to return
-        :return: raw contents
+        Args:
+          name: Filename
+          etag: Optional etag to return
+        Returns: raw contents
         """
         raise NotImplementedError(self._get_raw)
 
@@ -396,6 +406,7 @@ class Store:
     def import_one(
         self,
         name: str,
+        content_type: str,
         data: Iterable[bytes],
         message: Optional[str] = None,
         author: Optional[str] = None,
@@ -403,14 +414,17 @@ class Store:
     ) -> tuple[str, str]:
         """Import a single object.
 
-        :param name: Name of the object
-        :param data: serialized object as list of bytes
-        :param message: Commit message
-        :param author: Optional author
-        :param replace_etag: Etag to replace
-        :raise NameExists: when the name already exists
-        :raise DuplicateUidError: when the uid already exists
-        :return: (name, etag)
+        Args:
+          name: Name of the object
+          content_type: Content type of the object
+          data: serialized object as list of bytes
+          message: Commit message
+          author: Optional author
+          replace_etag: Etag to replace
+        Raise:
+          NameExists: when the name already exists
+          DuplicateUidError: when the uid already exists
+        Returns: (name, etag)
         """
         raise NotImplementedError(self.import_one)
 
@@ -423,26 +437,29 @@ class Store:
     ) -> None:
         """Delete an item.
 
-        :param name: Filename to delete
-        :param message: Commit message
-        :param author: Optional author
-        :param etag: Optional mandatory etag of object to remove
-        :raise NoSuchItem: when the item doesn't exist
-        :raise InvalidETag: If the specified ETag doesn't match the current
+        Args:
+          name: Filename to delete
+          message: Commit message
+          author: Optional author
+          etag: Optional mandatory etag of object to remove
+        Raises:
+          NoSuchItem: when the item doesn't exist
+          InvalidETag: If the specified ETag doesn't match the current
         """
         raise NotImplementedError(self.delete_one)
 
     def set_type(self, store_type: str) -> None:
         """Set store type.
 
-        :param store_type: New store type (one of VALID_STORE_TYPES)
+        Args:
+          store_type: New store type (one of VALID_STORE_TYPES)
         """
         raise NotImplementedError(self.set_type)
 
     def get_type(self) -> str:
         """Get type of this store.
 
-        :return: one of VALID_STORE_TYPES
+        Returns: one of VALID_STORE_TYPES
         """
         ret = STORE_TYPE_OTHER
         for (name, content_type, etag) in self.iter_with_etag():
@@ -455,7 +472,8 @@ class Store:
     def set_description(self, description: str) -> None:
         """Set the extended description of this store.
 
-        :param description: String with description
+        Args:
+          description: String with description
         """
         raise NotImplementedError(self.set_description)
 
@@ -484,23 +502,25 @@ class Store:
     ) -> Iterator[tuple[str, str, str, str]]:
         """Get changes between two versions of this store.
 
-        :param old_ctag: Old ctag (None for empty Store)
-        :param new_ctag: New ctag
-        :return: Iterator over (name, content_type, old_etag, new_etag)
+        Args:
+          old_ctag: Old ctag (None for empty Store)
+          new_ctag: New ctag
+        Returns: Iterator over (name, content_type, old_etag, new_etag)
         """
         raise NotImplementedError(self.iter_changes)
 
     def get_comment(self) -> str:
         """Retrieve store comment.
 
-        :return: Comment
+        Returns: Comment
         """
         raise NotImplementedError(self.get_comment)
 
     def set_comment(self, comment: str) -> None:
         """Set comment.
 
-        :param comment: New comment to set
+        Args:
+          comment: New comment to set
         """
         raise NotImplementedError(self.set_comment)
 
@@ -511,7 +531,7 @@ class Store:
     def subdirectories(self) -> Iterator[str]:
         """Returns subdirectories to probe for other stores.
 
-        :return: List of names
+        Returns: List of names
         """
         raise NotImplementedError(self.subdirectories)
 
@@ -527,8 +547,9 @@ class Store:
 def open_store(location: str) -> Store:
     """Open store from a location string.
 
-    :param location: Location string to open
-    :return: A `Store`
+    Args:
+      location: Location string to open
+    Returns: A `Store`
     """
     # For now, just support opening git stores
     from .git import GitStore

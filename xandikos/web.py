@@ -116,9 +116,10 @@ async def render_jinja_page(
 ) -> tuple[Iterable[bytes], int, Optional[str], str, list[str]]:
     """Render a HTML page from jinja template.
 
-    :param name: Name of the page
-    :param accepted_content_languages: List of accepted content languages
-    :return: Tuple of (body, content_length, etag, content_type, languages)
+    Args:
+      name: Name of the page
+      accepted_content_languages: List of accepted content languages
+    Returns: Tuple of (body, content_length, etag, content_type, languages)
     """
     # TODO(jelmer): Support rendering other languages
     encoding = "utf-8"
@@ -139,8 +140,9 @@ async def render_jinja_page(
 def create_strong_etag(etag: str) -> str:
     """Create strong etags.
 
-    :param etag: basic etag
-    :return: A strong etag
+    Args:
+      etag: basic etag
+    Returns: A strong etag
     """
     return '"' + etag + '"'
 
@@ -1128,8 +1130,9 @@ class XandikosApp(webdav.WebDAVApp):
 def create_principal_defaults(backend, principal):
     """Create default calendar and addressbook for a principal.
 
-    :param backend: Backend in which the principal exists.
-    :param principal: Principal object
+    Args:
+      backend: Backend in which the principal exists.
+      principal: Principal object
     """
     calendar_path = posixpath.join(
         principal.relpath, principal.get_calendar_home_set()[0], "calendar"

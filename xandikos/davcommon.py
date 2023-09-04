@@ -30,11 +30,12 @@ class SubbedProperty(webdav.Property):
     async def get_value_ext(self, href, resource, el, environ, requested):
         """Get the value of a data property.
 
-        :param href: Resource href
-        :param resource: Resource to get value for
-        :param el: Element to fill in
-        :param environ: WSGI environ dict
-        :param requested: Requested property (including subelements)
+        Args:
+          href: Resource href
+          resource: Resource to get value for
+          el: Element to fill in
+          environ: WSGI environ dict
+          requested: Requested property (including subelements)
         """
         raise NotImplementedError(self.get_value_ext)
 
