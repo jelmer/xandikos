@@ -1,4 +1,4 @@
-0.2.10	UNRELEASED
+0.2.10	2023-09-04
 
  * Add support for systemd socket activation.
    (schnusch, #136, #155)
