@@ -116,7 +116,7 @@ class Addressbook(webdav.Collection):
     def get_supported_address_data_types(self):
         """Get list of supported data types.
 
-        :return: List of tuples with content type and version
+        Returns: List of tuples with content type and version
         """
         raise NotImplementedError(self.get_supported_address_data_types)
 
@@ -141,7 +141,7 @@ class PrincipalExtensions:
     def get_addressbook_home_set(self) -> set[str]:
         """Return set of addressbook home URLs.
 
-        :return: set of URLs
+        Returns: set of URLs
         """
         raise NotImplementedError(self.get_addressbook_home_set)
 

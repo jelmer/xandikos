@@ -136,8 +136,10 @@ class Response:
 def pick_content_types(accepted_content_types, available_content_types):
     """Pick best content types for a client.
 
-    :param accepted_content_types: Accept variable (as name, params tuples)
-    :raise NotAcceptableError: If there are no overlapping content types
+    Args:
+      accepted_content_types: Accept variable (as name, params tuples)
+    Raises:
+      NotAcceptableError: If there are no overlapping content types
     """
     available_content_types = set(available_content_types)
     acceptable_by_q = {}
@@ -161,8 +163,9 @@ def pick_content_types(accepted_content_types, available_content_types):
 def parse_type(content_type):
     """Parse a content-type style header.
 
-    :param content_type: type to parse
-    :return: Tuple with base name and dict with params
+    Args:
+      content_type: type to parse
+    Returns: Tuple with base name and dict with params
     """
     params = {}
     try:
@@ -179,8 +182,9 @@ def parse_type(content_type):
 def parse_accept_header(accept):
     """Parse a HTTP Accept or Accept-Language header.
 
-    :param accept: Accept header contents
-    :return: List of (content_type, params) tuples
+    Args:
+      accept: Accept header contents
+    Returns: List of (content_type, params) tuples
     """
     ret = []
     for part in accept.split(","):
@@ -210,9 +214,10 @@ class ResourceLocked(Exception):
 def etag_matches(condition, actual_etag):
     """Check if an etag matches an If-Matches condition.
 
-    :param condition: Condition (e.g. '*', '"foo"' or '"foo", "bar"'
-    :param actual_etag: ETag to compare to. None nonexistant
-    :return: bool indicating whether condition matches
+    Args:
+      condition: Condition (e.g. '*', '"foo"' or '"foo", "bar"'
+      actual_etag: ETag to compare to. None nonexistant
+    Returns: bool indicating whether condition matches
     """
     if actual_etag is None and condition:
         return False
@@ -231,8 +236,9 @@ class NeedsMultiStatus(Exception):
 def propstat_by_status(propstat):
     """Sort a list of propstatus objects by HTTP status.
 
-    :param propstat: List of PropStatus objects:
-    :return: dictionary mapping HTTP status code to list of PropStatus objects
+    Args:
+      propstat: List of PropStatus objects:
+    Returns: dictionary mapping HTTP status code to list of PropStatus objects
     """
     bystatus = {}
     for propstat in propstat:
@@ -247,8 +253,9 @@ def propstat_by_status(propstat):
 def propstat_as_xml(propstat):
     """Format a list of propstats as XML elements.
 
-    :param propstat: List of PropStatus objects
-    :return: Iterator over {DAV:}propstat elements
+    Args:
+      propstat: List of PropStatus objects
+    Returns: Iterator over {DAV:}propstat elements
     """
     bystatus = propstat_by_status(propstat)
     for (status, rd), props in sorted(bystatus.items()):
@@ -367,7 +374,7 @@ class Resource:
     def get_creationdate(self) -> datetime:
         """Get the resource creation date.
 
-        :return: A datetime object
+        Returns: A datetime object
         """
         raise NotImplementedError(self.get_creationdate)
 
@@ -383,7 +390,7 @@ class Resource:
     def get_active_locks(self) -> list["ActiveLock"]:
         """Return the list of active locks.
 
-        :return: A list of ActiveLock tuples
+        Returns: A list of ActiveLock tuples
         """
         raise NotImplementedError(self.get_active_locks)
 
@@ -412,7 +419,7 @@ class Resource:
     async def get_body(self) -> Iterable[bytes]:
         """Get resource contents.
 
-        :return: Iterable over bytestrings.
+        Returns: Iterable over bytestrings.
         """
         raise NotImplementedError(self.get_body)
 
@@ -426,10 +433,12 @@ class Resource:
         resource' content type is acceptable and if so returns
         (get_body(), get_content_type(), get_content_language()).
 
-        :param accepted_content_types: List of accepted content types
-        :param accepted_languages: List of accepted languages
-        :raise NotAcceptableError: if there is no acceptable content type
-        :return: Tuple with (content_body, content_length, etag, content_type,
+        Args:
+          accepted_content_types: List of accepted content types
+          accepted_languages: List of accepted languages
+        Raises:
+          NotAcceptableError: if there is no acceptable content type
+        Returns: Tuple with (content_body, content_length, etag, content_type,
                  content_language)
         """
         # TODO(jelmer): Check content_language
@@ -453,14 +462,14 @@ class Resource:
     async def get_content_length(self) -> int:
         """Get content length.
 
-        :return: Length of this objects content.
+        Returns: Length of this objects content.
         """
         return sum(map(len, await self.get_body()))
 
     def get_content_language(self) -> str:
         """Get content language.
 
-        :return: Language, as used in HTTP Accept-Language
+        Returns: Language, as used in HTTP Accept-Language
         """
         raise NotImplementedError(self.get_content_language)
 
@@ -469,43 +478,46 @@ class Resource:
             replace_etag: Optional[str] = None) -> str:
         """Set resource contents.
 
-        :param body: Iterable over bytestrings
-        :return: New ETag
+        Args:
+          body: Iterable over bytestrings
+        Returns: New ETag
         """
         raise NotImplementedError(self.set_body)
 
     def set_comment(self, comment: str) -> None:
         """Set resource comment.
 
-        :param comment: New comment
+        Args:
+          comment: New comment
         """
         raise NotImplementedError(self.set_comment)
 
     def get_comment(self) -> str:
         """Get resource comment.
 
-        :return: comment
+        Returns: comment
         """
         raise NotImplementedError(self.get_comment)
 
     def get_last_modified(self) -> datetime:
         """Get last modified time.
 
-        :return: Last modified time
+        Returns: Last modified time
         """
         raise NotImplementedError(self.get_last_modified)
 
     def get_is_executable(self) -> bool:
         """Get executable bit.
 
-        :return: Boolean indicating executability
+        Returns: Boolean indicating executability
         """
         raise NotImplementedError(self.get_is_executable)
 
     def set_is_executable(self, executable: bool) -> None:
         """Set executable bit.
 
-        :param executable: Boolean indicating executability
+        Args:
+          executable: Boolean indicating executability
         """
         raise NotImplementedError(self.set_is_executable)
 
@@ -514,7 +526,7 @@ class Resource:
 
         If unknown, this can raise KeyError.
 
-        :return: an integer
+        Returns: an integer
         """
         raise NotImplementedError(self.get_quota_used_bytes)
 
@@ -575,11 +587,13 @@ class Property:
     ) -> None:
         """Get property with specified name.
 
-        :param href: Resource href
-        :param resource: Resource for which to retrieve the property
-        :param el: Element to populate
-        :param environ: WSGI environment dict
-        :raise KeyError: if this property is not present
+        Args:
+          href: Resource href
+          resource: Resource for which to retrieve the property
+          el: Element to populate
+          environ: WSGI environment dict
+        Raises:
+          KeyError: if this property is not present
         """
         raise KeyError(self.name)
 
@@ -587,10 +601,12 @@ class Property:
             self, href: str, resource: Resource, el: ET.Element) -> None:
         """Set property.
 
-        :param href: Resource href
-        :param resource: Resource to modify
-        :param el: Element to get new value from (None to remove property)
-        :raise NotImplementedError: to indicate this property can not be set
+        Args:
+          href: Resource href
+          resource: Resource to modify
+          el: Element to get new value from (None to remove property)
+        Raises:
+          NotImplementedError: to indicate this property can not be set
             (i.e. is protected)
         """
         raise NotImplementedError(self.set_value)
@@ -761,7 +777,8 @@ class CurrentUserPrincipalProperty(Property):
     async def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
-        :param name: A property name.
+        Args:
+          name: A property name.
         """
         current_user_principal = self.get_current_user_principal(environ)
         if current_user_principal is None:
@@ -784,7 +801,8 @@ class PrincipalURLProperty(Property):
     async def get_value(self, href, resource, el, environ):
         """Get property with specified name.
 
-        :param name: A property name.
+        Args:
+          name: A property name.
         """
         el.append(create_href(
             ensure_trailing_slash(resource.get_principal_url()), href))
@@ -948,14 +966,15 @@ class Collection(Resource):
     def set_refreshrate(self, value: Optional[str]) -> None:
         """Set the recommended refresh rate for this collection.
 
-        :param value: Refresh rate (None to remove)
+        Args:
+          value: Refresh rate (None to remove)
         """
         raise NotImplementedError(self.set_refreshrate)
 
     def get_refreshrate(self) -> str:
         """Get the recommended refresh rate.
 
-        :return: Recommended refresh rate
+        Returns: Recommended refresh rate
         :raise KeyError: if there is no refresh rate set
         """
         raise NotImplementedError(self.get_refreshrate)
@@ -969,7 +988,7 @@ class Principal(Resource):
     def get_principal_url(self) -> str:
         """Return the principal URL for this principal.
 
-        :return: A URL identifying this principal.
+        Returns: A URL identifying this principal.
         """
         raise NotImplementedError(self.get_principal_url)
 
@@ -988,14 +1007,14 @@ class Principal(Resource):
     def get_calendar_proxy_read_for(self) -> list[str]:
         """List principals for which this one is a read proxy.
 
-        :return: List of principal hrefs
+        Returns: List of principal hrefs
         """
         raise NotImplementedError(self.get_calendar_proxy_read_for)
 
     def get_calendar_proxy_write_for(self) -> list[str]:
         """List principals for which this one is a write proxy.
 
-        :return: List of principal hrefs
+        Returns: List of principal hrefs
         """
         raise NotImplementedError(self.get_calendar_proxy_write_for)
 
@@ -1011,12 +1030,13 @@ async def get_property_from_name(
 ):
     """Get a single property on a resource.
 
-    :param href: Resource href
-    :param resource: Resource object
-    :param properties: Dictionary of properties
-    :param environ: WSGI environ dict
-    :param name: name of property to resolve
-    :return: PropStatus items
+    Args:
+      href: Resource href
+      resource: Resource object
+      properties: Dictionary of properties
+      environ: WSGI environ dict
+      name: name of property to resolve
+    Returns: PropStatus items
     """
     return await get_property_from_element(
         href, resource, properties, environ, ET.Element(name)
@@ -1032,12 +1052,13 @@ async def get_property_from_element(
 ) -> PropStatus:
     """Get a single property on a resource.
 
-    :param href: Resource href
-    :param resource: Resource object
-    :param properties: Dictionary of properties
-    :param environ: WSGI environ dict
-    :param requested: Requested element
-    :return: PropStatus items
+    Args:
+      href: Resource href
+      resource: Resource object
+      properties: Dictionary of properties
+      environ: WSGI environ dict
+      requested: Requested element
+    Returns: PropStatus items
     """
     responsedescription = None
     ret = ET.Element(requested.tag)
@@ -1083,12 +1104,13 @@ async def get_properties(
 ) -> AsyncIterable[PropStatus]:
     """Get a set of properties.
 
-    :param href: Resource Href
-    :param resource: Resource object
-    :param properties: Dictionary of properties
-    :param requested: XML {DAV:}prop element with properties to look up
-    :param environ: WSGI environ dict
-    :return: Iterator over PropStatus items
+    Args:
+      href: Resource Href
+      resource: Resource object
+      properties: Dictionary of properties
+      requested: XML {DAV:}prop element with properties to look up
+      environ: WSGI environ dict
+    Returns: Iterator over PropStatus items
     """
     for propreq in list(requested):
         yield await get_property_from_element(
@@ -1105,12 +1127,13 @@ async def get_property_names(
 ) -> AsyncIterable[PropStatus]:
     """Get a set of property names.
 
-    :param href: Resource Href
-    :param resource: Resource object
-    :param properties: Dictionary of properties
-    :param environ: WSGI environ dict
-    :param requested: XML {DAV:}prop element with properties to look up
-    :return: Iterator over PropStatus items
+    Args:
+      href: Resource Href
+      resource: Resource object
+      properties: Dictionary of properties
+      environ: WSGI environ dict
+      requested: XML {DAV:}prop element with properties to look up
+    Returns: Iterator over PropStatus items
     """
     for name, prop in properties.items():
         if await prop.is_set(href, resource, environ):
@@ -1122,12 +1145,13 @@ async def get_all_properties(
 ) -> AsyncIterable[PropStatus]:
     """Get all properties.
 
-    :param href: Resource Href
-    :param resource: Resource object
-    :param properties: Dictionary of properties
-    :param requested: XML {DAV:}prop element with properties to look up
-    :param environ: WSGI environ dict
-    :return: Iterator over PropStatus items
+    Args:
+      href: Resource Href
+      resource: Resource object
+      properties: Dictionary of properties
+      requested: XML {DAV:}prop element with properties to look up
+      environ: WSGI environ dict
+    Returns: Iterator over PropStatus items
     """
     for name in properties:
         ps = await get_property_from_name(
@@ -1141,8 +1165,9 @@ def ensure_trailing_slash(href: str) -> str:
 
     Useful for collection hrefs, e.g. when used with urljoin.
 
-    :param href: href to possibly add slash to
-    :return: href with trailing slash
+    Args:
+      href: href to possibly add slash to
+    Returns: href with trailing slash
     """
     if href.endswith("/"):
         return href
@@ -1158,12 +1183,13 @@ async def traverse_resource(
 ) -> AsyncIterable[tuple[str, Resource]]:
     """Traverse a resource.
 
-    :param base_resource: Resource to traverse from
-    :param base_href: href for base resource
-    :param depth: Depth ("0", "1", "infinity")
-    :param members: Function to use to get members of each
+    Args:
+      base_resource: Resource to traverse from
+      base_href: href for base resource
+      depth: Depth ("0", "1", "infinity")
+      members: Function to use to get members of each
         collection.
-    :return: Iterator over (URL, Resource) tuples
+    Returns: Iterator over (URL, Resource) tuples
     """
     if members is None:
 
@@ -1206,8 +1232,9 @@ class Reporter:
     def supported_on(self, resource: Resource) -> bool:
         """Check if this reporter is available for the specified resource.
 
-        :param resource: Resource to check for
-        :return: boolean indicating whether this reporter is available
+        Args:
+          resource: Resource to check for
+        Returns: boolean indicating whether this reporter is available
         """
         if self.resource_type is None:
             return True
@@ -1446,7 +1473,8 @@ class Backend:
     def create_collection(self, relpath):
         """Create a collection with the specified relpath.
 
-        :param relpath: Collection path
+        Args:
+          relpath: Collection path
         """
         raise NotImplementedError(self.create_collection)
 
@@ -1457,10 +1485,11 @@ class Backend:
 def _get_resources_by_hrefs(backend, environ, hrefs):
     """Retrieve multiple resources by href.
 
-    :param backend: backend from which to retrieve resources
-    :param environ: Environment dictionary
-    :param hrefs: List of hrefs to resolve
-    :return: iterator over (href, resource) tuples
+    Args:
+      backend: backend from which to retrieve resources
+      environ: Environment dictionary
+      hrefs: List of hrefs to resolve
+    Returns: iterator over (href, resource) tuples
     """
     script_name = environ["SCRIPT_NAME"]
     # TODO(jelmer): Bulk query hrefs in a more efficient manner
@@ -1534,11 +1563,12 @@ def _send_method_not_allowed(allowed_methods):
 async def apply_modify_prop(el, href, resource, properties):
     """Apply property set/remove operations.
 
-    :param el: set element to apply.
-    :param href: Resource href
-    :param resource: Resource to apply property modifications on
-    :param properties: Known properties
-    :yield: PropStatus objects
+    Returns:
+      el: set element to apply.
+      href: Resource href
+      resource: Resource to apply property modifications on
+      properties: Known properties
+    Returns: PropStatus objects
     """
     if el.tag not in ("{DAV:}set", "{DAV:}remove"):
         # callers should check tag

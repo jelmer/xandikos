@@ -56,8 +56,9 @@ class MissingProperty(Exception):
 def validate_calendar(cal, strict=False):
     """Validate a calendar object.
 
-    :param cal: Calendar object
-    :return: iterator over error messages
+    Args:
+      cal: Calendar object
+    Returns: iterator over error messages
     """
     yield from validate_component(cal, strict=strict)
 
@@ -71,7 +72,7 @@ def create_subindexes(
     ret: SubIndexDict = {}
     for k, v in indexes.items():
         if k is not None and k.startswith(base + "/"):
-            ret[k[len(base) + 1 :]] = v
+            ret[k[len(base) + 1:]] = v
         elif k == base:
             ret[None] = v
     return ret
@@ -80,7 +81,8 @@ def create_subindexes(
 def validate_component(comp, strict=False):
     """Validate a calendar component.
 
-    :param comp: Calendar component
+    Args:
+      comp: Calendar component
     """
     # Check text fields for invalid characters
     for (name, value) in comp.items():
@@ -104,9 +106,10 @@ def validate_component(comp, strict=False):
 def calendar_component_delta(old_cal, new_cal):
     """Find the differences between components in two calendars.
 
-    :param old_cal: Old calendar (can be None)
-    :param new_cal: New calendar (can be None)
-    :yield: (old_component, new_component) tuples (either can be None)
+    Args:
+      old_cal: Old calendar (can be None)
+      new_cal: New calendar (can be None)
+    Returns: iterator over (old_component, new_component) tuples (either can be None)
     """
     by_uid = {}
     by_content = {}
@@ -182,9 +185,10 @@ DELTA_IGNORE_FIELDS = {
 def describe_calendar_delta(old_cal, new_cal):
     """Describe the differences between two calendars.
 
-    :param old_cal: Old calendar (can be None)
-    :param new_cal: New calendar (can be None)
-    :yield: Lines describing changes
+    Args:
+      old_cal: Old calendar (can be None)
+      new_cal: New calendar (can be None)
+    Returns: Lines describing changes
     """
     # TODO(jelmer): Extend
     for old_component, new_component in calendar_component_delta(
@@ -902,8 +906,9 @@ class ICalendarFile(File):
     def get_uid(self):
         """Extract the UID from a VCalendar file.
 
-        :param cal: Calendar, possibly serialized.
-        :return: UID
+        Args:
+          cal: Calendar, possibly serialized.
+        Returns: UID
         """
         for component in self.calendar.subcomponents:
             try:

@@ -73,14 +73,14 @@ class ScheduleInbox(webdav.Collection):
     def get_supported_calendar_components(self):
         """Return set of supported calendar components in this calendar.
 
-        :return: iterable over component names
+        Returns: iterable over component names
         """
         raise NotImplementedError(self.get_supported_calendar_components)
 
     def get_supported_calendar_data_types(self):
         """Return supported calendar data types.
 
-        :return: iterable over (content_type, version) tuples
+        Returns: iterable over (content_type, version) tuples
         """
         raise NotImplementedError(self.get_supported_calendar_data_types)
 
@@ -120,14 +120,14 @@ class ScheduleOutbox(webdav.Collection):
     def get_supported_calendar_components(self):
         """Return set of supported calendar components in this calendar.
 
-        :return: iterable over component names
+        Returns: iterable over component names
         """
         raise NotImplementedError(self.get_supported_calendar_components)
 
     def get_supported_calendar_data_types(self):
         """Return supported calendar data types.
 
-        :return: iterable over (content_type, version) tuples
+        Returns: iterable over (content_type, version) tuples
         """
         raise NotImplementedError(self.get_supported_calendar_data_types)
 

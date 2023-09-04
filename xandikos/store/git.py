@@ -278,16 +278,17 @@ class GitStore(Store):
     ) -> tuple[str, str]:
         """Import a single object.
 
-        :param name: name of the object
-        :param content_type: Content type
-        :param data: serialized object as list of bytes
-        :param message: Commit message
-        :param author: Optional author
-        :param replace_etag: optional etag of object to replace
-        :raise InvalidETag: when the name already exists but with different
-                            etag
-        :raise DuplicateUidError: when the uid already exists
-        :return: etag
+        Args:
+          name: name of the object
+          content_type: Content type
+          data: serialized object as list of bytes
+          message: Commit message
+          author: Optional author
+          replace_etag: optional etag of object to replace
+        Raises:
+          InvalidETag: when the name already exists but with different etag
+          DuplicateUidError: when the uid already exists
+        Returns: etag
         """
         if content_type is None:
             fi = open_by_extension(data, name, self.extra_file_handlers)
@@ -317,9 +318,10 @@ class GitStore(Store):
     def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
 
-        :param name: Name of the item
-        :param etag: Optional etag
-        :return: raw contents as chunks
+        Args:
+          name: Name of the item
+          etag: Optional etag
+        Returns: raw contents as chunks
         """
         if etag is None:
             etag = self._get_etag(name)
@@ -364,8 +366,9 @@ class GitStore(Store):
     def iter_with_etag(self, ctag=None):
         """Iterate over all items in the store with etag.
 
-        :param ctag: Ctag to iterate for
-        :yield: (name, content_type, etag) tuples
+        Args:
+          ctag: Ctag to iterate for
+        Returns: iterator over (name, content_type, etag) tuples
         """
         for (name, mode, sha) in self._iterblobs(ctag):
             (mime_type, _) = MIMETYPES.guess_type(name)
@@ -377,7 +380,7 @@ class GitStore(Store):
     def create(cls, path):
         """Create a new store backed by a Git repository on disk.
 
-        :return: A `GitStore`
+        Returns: A `GitStore`
         """
         raise NotImplementedError(cls.create)
 
@@ -385,8 +388,9 @@ class GitStore(Store):
     def open_from_path(cls, path, **kwargs):
         """Open a GitStore from a path.
 
-        :param path: Path
-        :return: A `GitStore`
+        Args:
+          path: Path
+        Returns: A `GitStore`
         """
         try:
             return cls.open(dulwich.repo.Repo(path), **kwargs)
@@ -397,8 +401,9 @@ class GitStore(Store):
     def open(cls, repo, **kwargs):
         """Open a GitStore given a Repo object.
 
-        :param repo: A Dulwich `Repo`
-        :return: A `GitStore`
+        Args:
+          repo: A Dulwich `Repo`
+        Returns: A `GitStore`
         """
         if repo.has_index():
             return TreeGitStore(repo, **kwargs)
@@ -408,7 +413,7 @@ class GitStore(Store):
     def get_description(self):
         """Get extended description.
 
-        :return: repository description as string
+        Returns: repository description as string
         """
         try:
             return self.config.get_description()
@@ -418,21 +423,23 @@ class GitStore(Store):
     def set_description(self, description):
         """Set extended description.
 
-        :param description: repository description as string
+        Args:
+          description: repository description as string
         """
         self.config.set_description(description)
 
     def set_comment(self, comment):
         """Set comment.
 
-        :param comment: Comment
+        Args:
+          comment: Comment
         """
         self.config.set_comment(comment)
 
     def get_comment(self):
         """Get comment.
 
-        :return: Comment
+        Returns: Comment
         """
         try:
             return self.config.get_comment()
@@ -442,7 +449,7 @@ class GitStore(Store):
     def get_color(self):
         """Get color.
 
-        :return: A Color code, or None
+        Returns: A Color code, or None
         """
         try:
             return self.config.get_color()
@@ -467,7 +474,7 @@ class GitStore(Store):
     def get_displayname(self):
         """Get display name.
 
-        :return: The display name, or None if not set
+        Returns: The display name, or None if not set
         """
         try:
             return self.config.get_displayname()
@@ -477,14 +484,16 @@ class GitStore(Store):
     def set_displayname(self, displayname):
         """Set the display name.
 
-        :param displayname: New display name
+        Args:
+          displayname: New display name
         """
         self.config.set_displayname(displayname)
 
     def set_type(self, store_type):
         """Set store type.
 
-        :param store_type: New store type (one of VALID_STORE_TYPES)
+        Args:
+          store_type: New store type (one of VALID_STORE_TYPES)
         """
         self.config.set_type(store_type)
 
@@ -501,9 +510,10 @@ class GitStore(Store):
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.
 
-        :param old_ctag: Old ctag (None for empty Store)
-        :param new_ctag: New ctag
-        :return: Iterator over (name, content_type, old_etag, new_etag)
+        Args:
+          old_ctag: Old ctag (None for empty Store)
+          new_ctag: New ctag
+        Returns: Iterator over (name, content_type, old_etag, new_etag)
         """
         if old_ctag is None:
             t = Tree()
@@ -570,10 +580,10 @@ class BareGitStore(GitStore):
             yield (name, mode, sha)
 
     @classmethod
-    def create_memory(cls):
+    def create_memory(cls) -> "GitStore":
         """Create a new store backed by a memory repository.
 
-        :return: A `GitStore`
+        Returns: A `GitStore`
         """
         return cls(dulwich.repo.MemoryRepo())
 
@@ -582,14 +592,16 @@ class BareGitStore(GitStore):
             message=message, tree=tree_id, ref=self.ref, author=author
         )
 
-    def _import_one(self, name, data, message, author=None):
+    def _import_one(self, name: str, data: Iterable[bytes], message: str,
+                    author: Optional[str] = None) -> bytes:
         """Import a single object.
 
-        :param name: Optional name of the object
-        :param data: serialized object as bytes
-        :param message: optional commit message
-        :param author: optional author
-        :return: etag
+        Args:
+          name: Optional name of the object
+          data: serialized object as bytes
+          message: optional commit message
+          author: optional author
+        Returns: etag
         """
         b = Blob()
         b.chunked = data
@@ -606,12 +618,14 @@ class BareGitStore(GitStore):
     def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
 
-        :param name: Filename to delete
-        :param message; Commit message
-        :param author: Optional author to store
-        :param etag: Optional mandatory etag of object to remove
-        :raise NoSuchItem: when the item doesn't exist
-        :raise InvalidETag: If the specified ETag doesn't match the curren
+        Args:
+          name: Filename to delete
+          message; Commit message
+          author: Optional author to store
+          etag: Optional mandatory etag of object to remove
+        Raises:
+          NoSuchItem: when the item doesn't exist
+          InvalidETag: If the specified ETag doesn't match the curren
         """
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
@@ -637,7 +651,7 @@ class BareGitStore(GitStore):
     def create(cls, path):
         """Create a new store backed by a Git repository on disk.
 
-        :return: A `GitStore`
+        Returns: A `GitStore`
         """
         os.mkdir(path)
         return cls(dulwich.repo.Repo.init_bare(path))
@@ -645,7 +659,7 @@ class BareGitStore(GitStore):
     def subdirectories(self):
         """Returns subdirectories to probe for other stores.
 
-        :return: List of names
+        Returns: List of names
         """
         # Or perhaps just return all subdirectories but filter out
         # Git-owned ones?
@@ -659,7 +673,7 @@ class TreeGitStore(GitStore):
     def create(cls, path, bare=True):
         """Create a new store backed by a Git repository on disk.
 
-        :return: A `GitStore`
+        Returns: A `GitStore`
         """
         os.mkdir(path)
         return cls(dulwich.repo.Repo.init(path))
@@ -676,11 +690,12 @@ class TreeGitStore(GitStore):
     def _import_one(self, name: str, data: Iterable[bytes], message: str, author: Optional[str] = None) -> bytes:
         """Import a single object.
 
-        :param name: name of the object
-        :param data: serialized object as list of bytes
-        :param message: Commit message
-        :param author: Optional author
-        :return: etag
+        Args:
+          name: name of the object
+          data: serialized object as list of bytes
+          message: Commit message
+          author: Optional author
+        Returns: etag
         """
         try:
             with locked_index(self.repo.index_path()) as index:
@@ -708,12 +723,14 @@ class TreeGitStore(GitStore):
     def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
 
-        :param name: Filename to delete
-        :param message: Commit message
-        :param author: Optional author
-        :param etag: Optional mandatory etag of object to remove
-        :raise NoSuchItem: when the item doesn't exist
-        :raise InvalidETag: If the specified ETag doesn't match the curren
+        Args:
+          name: Filename to delete
+          message: Commit message
+          author: Optional author
+          etag: Optional mandatory etag of object to remove
+        Raise:
+          NoSuchItem: when the item doesn't exist
+          InvalidETag: If the specified ETag doesn't match the curren
         """
         p = os.path.join(self.repo.path, name)
         try:
@@ -773,7 +790,7 @@ class TreeGitStore(GitStore):
     def subdirectories(self):
         """Returns subdirectories to probe for other stores.
 
-        :return: List of names
+        Returns: List of names
         """
         ret = []
         for name in os.listdir(self.path):

@@ -101,14 +101,14 @@ class Calendar(webdav.Collection):
     def get_supported_calendar_components(self) -> str:
         """Return set of supported calendar components in this calendar.
 
-        :return: iterable over component names
+        Returns: iterable over component names
         """
         raise NotImplementedError(self.get_supported_calendar_components)
 
     def get_supported_calendar_data_types(self) -> str:
         """Return supported calendar data types.
 
-        :return: iterable over (content_type, version) tuples
+        Returns: iterable over (content_type, version) tuples
         """
         raise NotImplementedError(self.get_supported_calendar_data_types)
 
@@ -153,9 +153,10 @@ class Calendar(webdav.Collection):
         This is a naive implementation; subclasses should ideally provide
         their own implementation that is faster.
 
-        :param create_filter_fn: Callback that constructs a
+        Args:
+          create_filter_fn: Callback that constructs a
             filter; takes a filter building class.
-        :return: Iterator over name, resource objects
+        Returns: Iterator over name, resource objects
         """
         raise NotImplementedError(self.calendar_query)
 
@@ -197,7 +198,7 @@ class Subscription:
     def get_supported_calendar_components(self):
         """Return set of supported calendar components in this calendar.
 
-        :return: iterable over component names
+        Returns: iterable over component names
         """
         raise NotImplementedError(self.get_supported_calendar_components)
 
@@ -214,14 +215,14 @@ class PrincipalExtensions:
     def get_calendar_home_set(self):
         """Get the calendar home set.
 
-        :return: a set of URLs
+        Returns: a set of URLs
         """
         raise NotImplementedError(self.get_calendar_home_set)
 
     def get_calendar_user_address_set(self):
         """Get the calendar user address set.
 
-        :return: a set of URLs (usually mailto:...)
+        Returns: a set of URLs (usually mailto:...)
         """
         raise NotImplementedError(self.get_calendar_user_address_set)
 
@@ -293,8 +294,9 @@ def _extract_from_component(
 def extract_from_calendar(incal, requested):
     """Extract requested components/properties from calendar.
 
-    :param incal: Calendar to filter
-    :param requested: <calendar-data> element with requested
+    Args:
+      incal: Calendar to filter
+      requested: <calendar-data> element with requested
         components/properties
     """
     for tag in requested:
