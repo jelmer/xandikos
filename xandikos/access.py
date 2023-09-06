@@ -31,7 +31,7 @@ FEATURE = "access-control"
 
 
 class CurrentUserPrivilegeSetProperty(webdav.Property):
-    """current-user-privilege-set property
+    """current-user-privilege-set property.
 
     See http://www.webdav.org/specs/rfc3744.html, section 3.7
     """

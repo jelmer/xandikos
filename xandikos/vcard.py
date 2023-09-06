@@ -17,24 +17,44 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""VCard file handling.
-
-"""
+"""VCard file handling."""
 
 from .store import File, InvalidFileContents
 
 
 class VCardFile(File):
+
     content_type = "text/vcard"
+
+    def __init__(self, content, content_type) -> None:
+        super().__init__(content, content_type)
+        self._addressbook = None
 
     def validate(self):
         c = b"".join(self.content).strip()
         # TODO(jelmer): Do more extensive checking of VCards
-        if not c.startswith((b"BEGIN:VCARD\r\n", b"BEGIN:VCARD\n")) or not c.endswith(
-            b"\nEND:VCARD"
-        ):
+        if (not c.startswith((b"BEGIN:VCARD\r\n", b"BEGIN:VCARD\n"))
+                or not c.endswith(b"\nEND:VCARD")):
             raise InvalidFileContents(
                 self.content_type,
                 self.content,
                 "Missing header and trailer lines",
             )
+        if not self.addressbook.validate():
+            # TODO(jelmer): Get data about what is invalid
+            raise InvalidFileContents(
+                self.content_type,
+                self.content,
+                "Invalid VCard file")
+
+    @property
+    def addressbook(self):
+        if self._addressbook is None:
+            import vobject
+            text = b"".join(self.content).decode('utf-8', 'surrogateescape')
+            try:
+                self._addressbook = vobject.readOne(text)
+            except vobject.base.ParseError as exc:
+                raise InvalidFileContents(
+                    self.content_type, self.content, str(exc)) from exc
+        return self._addressbook

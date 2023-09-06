@@ -22,13 +22,8 @@
 https://tools.ietf.org/html/rfc6352
 """
 
-from typing import Set
-
-from xandikos import (
-    collation as _mod_collation,
-    davcommon,
-    webdav,
-)
+from . import collation as _mod_collation
+from . import davcommon, webdav
 
 ET = webdav.ET
 
@@ -42,7 +37,7 @@ FEATURE = "addressbook"
 
 
 class AddressbookHomeSetProperty(webdav.Property):
-    """addressbook-home-set property
+    """addressbook-home-set property.
 
     See https://tools.ietf.org/html/rfc6352, section 7.1.1
     """
@@ -59,7 +54,7 @@ class AddressbookHomeSetProperty(webdav.Property):
 
 
 class AddressDataProperty(davcommon.SubbedProperty):
-    """address-data property
+    """address-data property.
 
     See https://tools.ietf.org/html/rfc6352, section 10.4
 
@@ -103,7 +98,8 @@ class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
 
 class Addressbook(webdav.Collection):
 
-    resource_types = webdav.Collection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [
+        ADDRESSBOOK_RESOURCE_TYPE]
 
     def get_addressbook_description(self) -> str:
         raise NotImplementedError(self.get_addressbook_description)
@@ -120,19 +116,19 @@ class Addressbook(webdav.Collection):
     def get_supported_address_data_types(self):
         """Get list of supported data types.
 
-        :return: List of tuples with content type and version
+        Returns: List of tuples with content type and version
         """
         raise NotImplementedError(self.get_supported_address_data_types)
 
     def get_max_resource_size(self) -> int:
-        """Get maximum object size this address book will store (in bytes)
+        """Get maximum object size this address book will store (in bytes).
 
         Absence indicates no maximum.
         """
         raise NotImplementedError(self.get_max_resource_size)
 
     def get_max_image_size(self) -> int:
-        """Get maximum image size this address book will store (in bytes)
+        """Get maximum image size this address book will store (in bytes).
 
         Absence indicates no maximum.
         """
@@ -142,10 +138,10 @@ class Addressbook(webdav.Collection):
 class PrincipalExtensions:
     """Extensions to webdav.Principal."""
 
-    def get_addressbook_home_set(self) -> Set[str]:
+    def get_addressbook_home_set(self) -> set[str]:
         """Return set of addressbook home URLs.
 
-        :return: set of URLs
+        Returns: set of URLs
         """
         raise NotImplementedError(self.get_addressbook_home_set)
 
@@ -219,24 +215,22 @@ class MaxImageSizeProperty(webdav.Property):
         el.text = str(resource.get_max_image_size())
 
 
-def addressbook_from_resource(resource):
+async def addressbook_from_resource(resource):
     try:
         if resource.get_content_type() != "text/vcard":
             return None
     except KeyError:
         return None
-    return resource.file.addressbook
+    file = await resource.get_file()
+    return file.addressbook.contents
 
 
-def apply_text_match(el, value):
+def apply_text_match(el: ET.Element, value: str) -> bool:
     collation = el.get("collation", "i;ascii-casemap")
     negate_condition = el.get("negate-condition", "no")
-    # TODO(jelmer): Handle match-type: 'contains', 'equals', 'starts-with',
-    # 'ends-with'
     match_type = el.get("match-type", "contains")
-    if match_type != "contains":
-        raise NotImplementedError("match_type != contains: %r" % match_type)
-    matches = _mod_collation.collations[collation](el.text, value)
+    matches = _mod_collation.collations[collation](
+        value, el.text or '', match_type)
 
     if negate_condition == "yes":
         return not matches
@@ -246,7 +240,8 @@ def apply_text_match(el, value):
 
 def apply_param_filter(el, prop):
     name = el.get("name")
-    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
+    if (len(el) == 1
+            and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined"):
         return name not in prop.params
 
     try:
@@ -264,14 +259,15 @@ def apply_param_filter(el, prop):
 
 
 def apply_prop_filter(el, ab):
-    name = el.get("name")
+    name = el.get("name").lower()
     # From https://tools.ietf.org/html/rfc6352
     # A CARDDAV:prop-filter is said to match if:
 
     # The CARDDAV:prop-filter XML element contains a CARDDAV:is-not-defined XML
     # element and no property of the type specified by the "name" attribute
     # exists in the enclosing calendar component;
-    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
+    if (len(el) == 1
+            and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined"):
         return name not in ab
 
     try:
@@ -279,22 +275,28 @@ def apply_prop_filter(el, ab):
     except KeyError:
         return False
 
-    for subel in el:
-        if subel.tag == "{urn:ietf:params:xml:ns:carddav}text-match":
-            if not apply_text_match(subel, prop):
-                return False
-        elif subel.tag == "{urn:ietf:params:xml:ns:carddav}param-filter":
-            if not apply_param_filter(subel, prop):
-                return False
-    return True
+    for prop_el in prop:
+        matched = True
+        for subel in el:
+            if subel.tag == "{urn:ietf:params:xml:ns:carddav}text-match":
+                if not apply_text_match(subel, str(prop_el)):
+                    matched = False
+                    break
+            elif subel.tag == "{urn:ietf:params:xml:ns:carddav}param-filter":
+                if not apply_param_filter(subel, prop_el):
+                    matched = False
+                    break
+        if matched:
+            return True
+    return False
 
 
-def apply_filter(el, resource):
+async def apply_filter(el, resource):
     """Compile a filter element into a Python function."""
     if el is None or not list(el):
         # Empty filter, let's not bother parsing
         return lambda x: True
-    ab = addressbook_from_resource(resource)
+    ab = await addressbook_from_resource(resource)
     if ab is None:
         return False
     test_name = el.get("test", "anyof")
@@ -318,6 +320,7 @@ class AddressbookQueryReporter(webdav.Reporter):
         base_href,
         base_resource,
         depth,
+        strict
     ):
         requested = None
         filter_el = None
@@ -330,18 +333,28 @@ class AddressbookQueryReporter(webdav.Reporter):
             elif el.tag == ("{%s}limit" % NAMESPACE):
                 limit = el
             else:
-                raise webdav.BadRequestError(
-                    "Unknown tag %s in report %s" % (el.tag, self.name)
-                )
+                webdav.nonfatal_bad_request(
+                    f"Unknown tag {el.tag} in report {self.name}",
+                    strict)
+        if requested is None:
+            # The CardDAV RFC says that behaviour mimicks that of PROPFIND,
+            # and the WebDAV RFC says that no body implies {DAV}allprop
+            # This isn't exactly an empty body, but close enough.
+            requested = ET.Element('{DAV:}allprop')
         if limit is not None:
             try:
                 [nresults_el] = list(limit)
             except ValueError:
-                raise webdav.BadRequestError("Invalid number of subelements in limit")
-            try:
-                nresults = int(nresults_el.text)
-            except ValueError:
-                raise webdav.BadRequestError("nresults not a number")
+                webdav.nonfatal_bad_request(
+                    "Invalid number of subelements in limit", strict)
+                nresults = None
+            else:
+                try:
+                    nresults = int(nresults_el.text)
+                except ValueError:
+                    webdav.nonfatal_bad_request(
+                        "nresults not a number", strict)
+                    nresults = None
         else:
             nresults = None
 
@@ -349,7 +362,7 @@ class AddressbookQueryReporter(webdav.Reporter):
         async for (href, resource) in webdav.traverse_resource(
             base_resource, base_href, depth
         ):
-            if not apply_filter(filter_el, resource):
+            if not await apply_filter(filter_el, resource):
                 continue
             if nresults is not None and i >= nresults:
                 break
@@ -361,5 +374,6 @@ class AddressbookQueryReporter(webdav.Reporter):
                 environ,
                 requested,
             )
-            yield webdav.Status(href, "200 OK", propstat=[s async for s in propstat])
+            yield webdav.Status(
+                href, "200 OK", propstat=[s async for s in propstat])
             i += 1

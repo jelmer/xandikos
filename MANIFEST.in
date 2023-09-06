@@ -9,5 +9,5 @@ include compat/*.xml
 include compat/*.sha256sum
 include notes/*.rst
 include tox.ini
-include xandikos.1
 graft examples
+graft man

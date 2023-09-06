@@ -24,64 +24,75 @@ high level application logic that combines the WebDAV server,
 the carddav support, the caldav support and the DAV store.
 """
 
-from email.utils import parseaddr
+import asyncio
 import functools
 import hashlib
-import jinja2
 import logging
 import os
 import posixpath
-from typing import (
-    List,
-    Tuple,
-    Iterable,
-    Iterator,
-    Optional,
-)
-
 import shutil
+import socket
 import urllib.parse
+from collections.abc import Iterable, Iterator
+from email.utils import parseaddr
+from typing import Optional
+
+import jinja2
+
+try:
+    import systemd.daemon
+except ImportError:
+    systemd_imported = False
+
+    def get_systemd_listen_sockets() -> list[socket.socket]:
+        raise NotImplementedError
+else:
+    systemd_imported = True
+
+    def get_systemd_listen_sockets() -> list[socket.socket]:
+        socks = []
+        for fd in systemd.daemon.listen_fds():
+            for family in (socket.AF_UNIX,  # type: ignore
+                           socket.AF_INET, socket.AF_INET6):
+                if systemd.daemon.is_socket(fd, family=family,
+                                            type=socket.SOCK_STREAM,
+                                            listening=True):
+                    sock = socket.fromfd(fd, family, socket.SOCK_STREAM)
+                    socks.append(sock)
+                    break
+            else:
+                raise RuntimeError(
+                    "socket family must be AF_INET, AF_INET6, or AF_UNIX; "
+                    "socket type must be SOCK_STREAM; and it must be listening"
+                )
+        return socks
 
 from xandikos import __version__ as xandikos_version
-from xandikos import (
-    access,
-    apache,
-    caldav,
-    carddav,
-    quota,
-    sync,
-    webdav,
-    infit,
-    scheduling,
-    timezones,
-    xmpp,
-)
-from xandikos.icalendar import (
-    ICalendarFile,
-    CalendarFilter,
-)
-from xandikos.store import (
-    Store,
-    File,
-    DuplicateUidError,
-    InvalidFileContents,
-    NoSuchItem,
-    NotStoreError,
-    LockedError,
-    OutOfSpaceError,
-    STORE_TYPE_ADDRESSBOOK,
-    STORE_TYPE_CALENDAR,
-    STORE_TYPE_PRINCIPAL,
-    STORE_TYPE_SCHEDULE_INBOX,
-    STORE_TYPE_SCHEDULE_OUTBOX,
-    STORE_TYPE_SUBSCRIPTION,
-    STORE_TYPE_OTHER,
-)
-from xandikos.store.git import (
-    GitStore,
-    TreeGitStore,
-)
-from xandikos.vcard import VCardFile
+from xandikos import (access, apache, caldav, carddav, infit, quota,
+                      scheduling, sync, timezones, webdav, xmpp)
+from xandikos.store import (STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
+                            STORE_TYPE_OTHER, STORE_TYPE_PRINCIPAL,
+                            STORE_TYPE_SCHEDULE_INBOX,
+                            STORE_TYPE_SCHEDULE_OUTBOX,
+                            STORE_TYPE_SUBSCRIPTION, DuplicateUidError, File,
+                            InvalidCTag, InvalidFileContents, LockedError,
+                            NoSuchItem, NotStoreError, OutOfSpaceError, Store)
+
+from .icalendar import CalendarFilter, ICalendarFile
+from .store.git import GitStore, TreeGitStore
+from .vcard import VCardFile
+
+try:
+    from asyncio import to_thread  # type: ignore
+except ImportError:  # python < 3.8
+    import contextvars
+    from asyncio import events
+
+    async def to_thread(func, *args, **kwargs):  # type: ignore
+        loop = events.get_running_loop()
+        ctx = contextvars.copy_context()
+        func_call = functools.partial(ctx.run, func, *args, **kwargs)
+        return await loop.run_in_executor(None, func_call)
 
 
 WELLKNOWN_DAV_PATHS = {
@@ -101,13 +112,14 @@ jinja_env = jinja2.Environment(
 
 
 async def render_jinja_page(
-    name: str, accepted_content_languages: List[str], **kwargs
-) -> Tuple[Iterable[bytes], int, Optional[str], str, List[str]]:
+    name: str, accepted_content_languages: list[str], **kwargs
+) -> tuple[Iterable[bytes], int, Optional[str], str, list[str]]:
     """Render a HTML page from jinja template.
 
-    :param name: Name of the page
-    :param accepted_content_languages: List of accepted content languages
-    :return: Tuple of (body, content_length, etag, content_type, languages)
+    Args:
+      name: Name of the page
+      accepted_content_languages: List of accepted content languages
+    Returns: Tuple of (body, content_length, etag, content_type, languages)
     """
     # TODO(jelmer): Support rendering other languages
     encoding = "utf-8"
@@ -120,7 +132,7 @@ async def render_jinja_page(
         [body_encoded],
         len(body_encoded),
         None,
-        "text/html; encoding=%s" % encoding,
+        f"text/html; encoding={encoding}",
         ["en-UK"],
     )
 
@@ -128,8 +140,9 @@ async def render_jinja_page(
 def create_strong_etag(etag: str) -> str:
     """Create strong etags.
 
-    :param etag: basic etag
-    :return: A strong etag
+    Args:
+      etag: basic etag
+    Returns: A strong etag
     """
     return '"' + etag + '"'
 
@@ -151,7 +164,7 @@ class ObjectResource(webdav.Resource):
         content_type: str,
         etag: str,
         file: Optional[File] = None,
-    ):
+    ) -> None:
         self.store = store
         self.name = name
         self.etag = etag
@@ -159,7 +172,7 @@ class ObjectResource(webdav.Resource):
         self._file = file
 
     def __repr__(self) -> str:
-        return "%s(%r, %r, %r, %r)" % (
+        return "{}({!r}, {!r}, {!r}, {!r})".format(
             type(self).__name__,
             self.store,
             self.name,
@@ -167,33 +180,37 @@ class ObjectResource(webdav.Resource):
             self.get_content_type(),
         )
 
-    @property
-    def file(self) -> File:
+    async def get_file(self) -> File:
         if self._file is None:
-            self._file = self.store.get_file(self.name, self.content_type, self.etag)
+            self._file = await to_thread(
+                self.store.get_file, self.name, self.content_type, self.etag)
+            assert self._file is not None
         return self._file
 
     async def get_body(self) -> Iterable[bytes]:
-        return self.file.content
+        file = await self.get_file()
+        return file.content
 
-    def set_body(self, data, replace_etag=None):
+    async def set_body(self, data, replace_etag=None):
         try:
-            (name, etag) = self.store.import_one(
+            (name, etag) = await to_thread(
+                self.store.import_one,
                 self.name,
                 self.content_type,
                 data,
-                replace_etag=extract_strong_etag(replace_etag),
-            )
-        except InvalidFileContents as e:
+                replace_etag=extract_strong_etag(replace_etag))
+        except InvalidFileContents as exc:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
                 "{%s}valid-calendar-data" % caldav.NAMESPACE,
-                "Not a valid calendar file: %s" % e.error,
-            )
-        except DuplicateUidError:
+                f"Not a valid calendar file: {exc.error}",
+            ) from exc
+        except DuplicateUidError as exc:
             raise webdav.PreconditionFailure(
                 "{%s}no-uid-conflict" % caldav.NAMESPACE, "UID already in use."
-            )
+            ) from exc
+        except LockedError as exc:
+            raise webdav.ResourceLocked() from exc
         return create_strong_etag(etag)
 
     def get_content_language(self) -> str:
@@ -248,14 +265,14 @@ class ObjectResource(webdav.Resource):
         raise KeyError
 
 
-class StoreBasedCollection(object):
-    def __init__(self, backend, relpath, store):
+class StoreBasedCollection:
+    def __init__(self, backend, relpath, store) -> None:
         self.backend = backend
         self.relpath = relpath
         self.store = store
 
-    def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.store)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.store!r})"
 
     def set_resource_types(self, resource_types):
         # TODO(jelmer): Allow more than just this set; allow combining
@@ -323,7 +340,7 @@ class StoreBasedCollection(object):
     async def get_etag(self) -> str:
         return create_strong_etag(self.store.get_ctag())
 
-    def members(self) -> Iterator[Tuple[str, webdav.Resource]]:
+    def members(self) -> Iterator[tuple[str, webdav.Resource]]:
         for (name, content_type, etag) in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
             yield (name, resource)
@@ -352,47 +369,53 @@ class StoreBasedCollection(object):
             # self.get_subcollection(name).destroy()
             shutil.rmtree(os.path.join(self.store.path, name))
 
-    def create_member(
+    async def create_member(
         self, name: str, contents: Iterable[bytes], content_type: str
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         try:
             (name, etag) = self.store.import_one(name, content_type, contents)
-        except InvalidFileContents as e:
+        except InvalidFileContents as exc:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
                 "{%s}valid-calendar-data" % caldav.NAMESPACE,
-                "Not a valid calendar file: %s" % e.error,
-            )
-        except DuplicateUidError:
+                f"Not a valid calendar file: {exc.error}",
+            ) from exc
+        except DuplicateUidError as exc:
             raise webdav.PreconditionFailure(
                 "{%s}no-uid-conflict" % caldav.NAMESPACE, "UID already in use."
-            )
-        except OutOfSpaceError:
-            raise webdav.InsufficientStorage()
-        except LockedError:
-            raise webdav.ResourceLocked()
+            ) from exc
+        except OutOfSpaceError as exc:
+            raise webdav.InsufficientStorage() from exc
+        except LockedError as exc:
+            raise webdav.ResourceLocked() from exc
         return (name, create_strong_etag(etag))
 
     def iter_differences_since(
         self, old_token: str, new_token: str
-    ) -> Iterator[Tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
+    ) -> Iterator[
+            tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
         old_resource: Optional[webdav.Resource]
         new_resource: Optional[webdav.Resource]
-        for (
-            name,
-            content_type,
-            old_etag,
-            new_etag,
-        ) in self.store.iter_changes(old_token, new_token):
-            if old_etag is not None:
-                old_resource = self._get_resource(name, content_type, old_etag)
-            else:
-                old_resource = None
-            if new_etag is not None:
-                new_resource = self._get_resource(name, content_type, new_etag)
-            else:
-                new_resource = None
-            yield (name, old_resource, new_resource)
+        try:
+            for (
+                name,
+                content_type,
+                old_etag,
+                new_etag,
+            ) in self.store.iter_changes(old_token, new_token):
+                if old_etag is not None:
+                    old_resource = self._get_resource(
+                        name, content_type, old_etag)
+                else:
+                    old_resource = None
+                if new_etag is not None:
+                    new_resource = self._get_resource(
+                        name, content_type, new_etag)
+                else:
+                    new_resource = None
+                yield (name, old_resource, new_resource)
+        except InvalidCTag as exc:
+            raise sync.InvalidToken(exc.ctag) from exc
 
     def get_owner(self):
         return None
@@ -439,7 +462,8 @@ class StoreBasedCollection(object):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "collection.html",
@@ -580,7 +604,8 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def calendar_query(self, create_filter_fn):
         filter = create_filter_fn(CalendarFilter)
         for (name, file, etag) in self.store.iter_with_filter(filter=filter):
-            resource = self._get_resource(name, file.content_type, etag, file=file)
+            resource = self._get_resource(
+                name, file.content_type, etag, file=file)
             yield (name, resource)
 
     def get_xmpp_heartbeat(self):
@@ -629,7 +654,7 @@ class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
 class CollectionSetResource(webdav.Collection):
     """Resource for calendar sets."""
 
-    def __init__(self, backend, relpath):
+    def __init__(self, backend, relpath) -> None:
         self.backend = backend
         self.relpath = relpath
 
@@ -712,7 +737,8 @@ class CollectionSetResource(webdav.Collection):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "root.html", accepted_content_languages, self_url=self_url
@@ -737,13 +763,15 @@ class CollectionSetResource(webdav.Collection):
 class RootPage(webdav.Resource):
     """A non-DAV resource."""
 
-    resource_types: List[str] = []
+    resource_types: list[str] = []
 
-    def __init__(self, backend):
+    def __init__(self, backend) -> None:
         self.backend = backend
 
-    def render(self, self_url, accepted_content_types, accepted_content_languages):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+    def render(self, self_url, accepted_content_types,
+               accepted_content_languages):
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return render_jinja_page(
             "root.html",
@@ -833,7 +861,7 @@ class Principal(webdav.Principal):
         p = self.backend._map_to_file_path(relpath)
         if not os.path.exists(p):
             raise KeyError
-        with open(p, "r") as f:
+        with open(p) as f:
             return f.read()
 
     def get_group_membership(self):
@@ -873,7 +901,7 @@ class PrincipalBare(CollectionSetResource, Principal):
 
     @classmethod
     def create(cls, backend, relpath):
-        p = super(PrincipalBare, cls).create(backend, relpath)
+        p = super().create(backend, relpath)
         to_create = set()
         to_create.update(p.get_addressbook_home_set())
         to_create.update(p.get_calendar_home_set())
@@ -887,7 +915,8 @@ class PrincipalBare(CollectionSetResource, Principal):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(
+            accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "principal.html",
@@ -904,11 +933,12 @@ class PrincipalBare(CollectionSetResource, Principal):
 class PrincipalCollection(Collection, Principal):
     """Principal user resource."""
 
-    resource_types = webdav.Collection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [
+        webdav.PRINCIPAL_RESOURCE_TYPE]
 
     @classmethod
     def create(cls, backend, relpath):
-        p = super(PrincipalCollection, cls).create(backend, relpath)
+        p = super().create(backend, relpath)
         p.store.set_type(STORE_TYPE_PRINCIPAL)
         to_create = set()
         to_create.update(p.get_addressbook_home_set())
@@ -922,17 +952,20 @@ class PrincipalCollection(Collection, Principal):
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
-def open_store_from_path(path):
-    store = GitStore.open_from_path(path)
+def open_store_from_path(path: str, **kwargs):
+    store = GitStore.open_from_path(path, **kwargs)
     store.load_extra_file_handler(ICalendarFile)
     store.load_extra_file_handler(VCardFile)
     return store
 
 
 class XandikosBackend(webdav.Backend):
-    def __init__(self, path):
+    def __init__(self, path, *, paranoid: bool = False,
+                 index_threshold: Optional[int] = None) -> None:
         self.path = path
-        self._user_principals = set()
+        self._user_principals: set[str] = set()
+        self.paranoid = paranoid
+        self.index_threshold = index_threshold
 
     def _map_to_file_path(self, relpath):
         return os.path.join(self.path, relpath.lstrip("/"))
@@ -965,7 +998,9 @@ class XandikosBackend(webdav.Backend):
             return None
         if os.path.isdir(p):
             try:
-                store = open_store_from_path(p)
+                store = open_store_from_path(
+                    p, double_check_indexes=self.paranoid,
+                    index_threshold=self.index_threshold)
             except NotStoreError:
                 if relpath in self._user_principals:
                     return PrincipalBare(self, relpath)
@@ -982,7 +1017,7 @@ class XandikosBackend(webdav.Backend):
                 }[store.get_type()](self, relpath, store)
         else:
             (basepath, name) = os.path.split(relpath)
-            assert name != "", "path is %r" % relpath
+            assert name != "", f"path is {relpath!r}"
             store = self.get_resource(basepath)
             if store is None:
                 return None
@@ -997,8 +1032,8 @@ class XandikosBackend(webdav.Backend):
 class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server."""
 
-    def __init__(self, backend, current_user_principal, strict=True):
-        super(XandikosApp, self).__init__(backend, strict=strict)
+    def __init__(self, backend, current_user_principal, strict=True) -> None:
+        super().__init__(backend, strict=strict)
 
         def get_current_user_principal(env):
             try:
@@ -1009,7 +1044,8 @@ class XandikosApp(webdav.WebDAVApp):
         self.register_properties(
             [
                 webdav.ResourceTypeProperty(),
-                webdav.CurrentUserPrincipalProperty(get_current_user_principal),
+                webdav.CurrentUserPrincipalProperty(
+                    get_current_user_principal),
                 webdav.PrincipalURLProperty(),
                 webdav.DisplayNameProperty(),
                 webdav.GetETagProperty(),
@@ -1094,8 +1130,9 @@ class XandikosApp(webdav.WebDAVApp):
 def create_principal_defaults(backend, principal):
     """Create default calendar and addressbook for a principal.
 
-    :param backend: Backend in which the principal exists.
-    :param principal: Principal object
+    Args:
+      backend: Backend in which the principal exists.
+      principal: Principal object
     """
     calendar_path = posixpath.join(
         principal.relpath, principal.get_calendar_home_set()[0], "calendar"
@@ -1131,8 +1168,8 @@ def create_principal_defaults(backend, principal):
         logging.info("Create inbox in %s.", resource.store.path)
 
 
-class RedirectDavHandler(object):
-    def __init__(self, dav_root: str):
+class RedirectDavHandler:
+    def __init__(self, dav_root: str) -> None:
         self._dav_root = dav_root
 
     async def __call__(self, request):
@@ -1169,7 +1206,7 @@ def avahi_register(port: int, path: str):
                 "",
                 "",
                 port,
-                avahi.string_array_to_txt_array(["path=%s" % path]),
+                avahi.string_array_to_txt_array([f"path={path}"]),
             )
         except dbus.DBusException as e:
             logging.error("Error registering %s: %s", service, e)
@@ -1177,14 +1214,100 @@ def avahi_register(port: int, path: str):
     group.Commit()
 
 
-def main(argv):
+def run_simple_server(
+        directory: str,
+        current_user_principal: str,
+        autocreate: bool = False,
+        defaults: bool = False,
+        strict: bool = True,
+        route_prefix: str = "/",
+        listen_address: Optional[str] = "::",
+        port: Optional[int] = 8080,
+        socket_path: Optional[str] = None) -> None:
+    """Simple function to run a Xandikos server.
+
+    This function is meant to be used by external code. We'll try our best
+    not to break API compatibility.
+
+    Args:
+      directory: Directory to store data in ("/tmp/blah")
+      current_user_principal: Name of current user principal ("/user")
+      autocreate: Whether to create missing principals and collections
+      defaults: Whether to create default calendar and addressbook collections
+      strict: Whether to be strict in *DAV implementation. Set to False for
+         buggy clients
+      route_prefix: Route prefix under which to server ("/")
+      listen_address: IP address to listen on (None to disable)
+      port: TCP Port to listen on (None to disable)
+      socket_path: Unix domain socket path to listen on (None to disable)
+    """
+    backend = XandikosBackend(directory)
+    backend._mark_as_principal(current_user_principal)
+
+    if autocreate or defaults:
+        if not os.path.isdir(directory):
+            os.makedirs(directory)
+        backend.create_principal(
+            current_user_principal, create_defaults=defaults
+        )
+
+    if not os.path.isdir(directory):
+        logging.warning(
+            "%r does not exist. Run xandikos with --autocreate?",
+            directory,
+        )
+    if not backend.get_resource(current_user_principal):
+        logging.warning(
+            "default user principal %s does not exist. "
+            "Run xandikos with --autocreate?",
+            current_user_principal,
+        )
+
+    main_app = XandikosApp(
+        backend,
+        current_user_principal=current_user_principal,
+        strict=strict,
+    )
+
+    async def xandikos_handler(request):
+        return await main_app.aiohttp_handler(request, route_prefix)
+
+    if socket_path:
+        logging.info("Listening on unix domain socket %s", socket_path)
+    if listen_address and port:
+        logging.info("Listening on %s:%s", listen_address, port)
+
+    from aiohttp import web
+
+    app = web.Application()
+    for path in WELLKNOWN_DAV_PATHS:
+        app.router.add_route(
+            "*", path, RedirectDavHandler(route_prefix).__call__
+        )
+
+    if route_prefix.strip("/"):
+        xandikos_app = web.Application()
+        xandikos_app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+
+        async def redirect_to_subprefix(request):
+            return web.HTTPFound(route_prefix)
+
+        app.router.add_route("*", "/", redirect_to_subprefix)
+        app.add_subapp(route_prefix, xandikos_app)
+    else:
+        app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+
+    web.run_app(app, port=port, host=listen_address, path=socket_path)
+
+
+async def main(argv=None):  # noqa: C901
     import argparse
     import sys
+
     from xandikos import __version__
 
     parser = argparse.ArgumentParser(
-        usage="%(prog)s -d ROOT-DIR [OPTIONS]", prog=argv[0]
-    )
+        usage="%(prog)s -d ROOT-DIR [OPTIONS]")
 
     parser.add_argument(
         "--version",
@@ -1193,6 +1316,13 @@ def main(argv):
     )
 
     access_group = parser.add_argument_group(title="Access Options")
+    access_group.add_argument(
+        "--no-detect-systemd",
+        action="store_false",
+        dest="detect_systemd",
+        help="Disable systemd detection and socket activation.",
+        default=systemd_imported
+    )
     access_group.add_argument(
         "-l",
         "--listen-address",
@@ -1211,6 +1341,11 @@ def main(argv):
         default=8080,
         help="Port to listen on. [%(default)s]",
     )
+    access_group.add_argument(
+        "--metrics-port",
+        dest="metrics_port",
+        default=8081,
+        help="Port to listen on for metrics. [%(default)s]")
     access_group.add_argument(
         "--route-prefix",
         default="/",
@@ -1242,7 +1377,8 @@ def main(argv):
         "--defaults",
         action="store_true",
         dest="defaults",
-        help=("Create initial calendar and address book. " "Implies --autocreate."),
+        help=("Create initial calendar and address book. "
+              "Implies --autocreate."),
     )
     parser.add_argument(
         "--dump-dav-xml",
@@ -1257,10 +1393,19 @@ def main(argv):
         "--no-strict",
         action="store_false",
         dest="strict",
-        help="Enable workarounds for buggy CalDAV/CardDAV client " "implementations.",
+        help=("Enable workarounds for buggy CalDAV/CardDAV client "
+              "implementations."),
         default=True,
     )
-    options = parser.parse_args(argv[1:])
+    parser.add_argument(
+        '--debug', action='store_true',
+        help='Print debug messages')
+    # Hidden arguments. These may change without notice in between releases,
+    # and are generally just meant for developers.
+    parser.add_argument('--paranoid', action='store_true',
+                        help=argparse.SUPPRESS)
+    parser.add_argument('--index-threshold', type=int, help=argparse.SUPPRESS)
+    options = parser.parse_args(argv)
 
     if options.directory is None:
         parser.print_usage()
@@ -1271,9 +1416,19 @@ def main(argv):
         # os.environ.
         os.environ["XANDIKOS_DUMP_DAV_XML"] = "1"
 
-    logging.basicConfig(level=logging.INFO)
+    if not options.route_prefix.endswith('/'):
+        options.route_prefix += '/'
 
-    backend = XandikosBackend(options.directory)
+    if options.debug:
+        loglevel = logging.DEBUG
+    else:
+        loglevel = logging.INFO
+
+    logging.basicConfig(level=loglevel, format='%(message)s')
+
+    backend = XandikosBackend(
+        os.path.abspath(options.directory), paranoid=options.paranoid,
+        index_threshold=options.index_threshold)
     backend._mark_as_principal(options.current_user_principal)
 
     if options.autocreate or options.defaults:
@@ -1304,29 +1459,50 @@ def main(argv):
     async def xandikos_handler(request):
         return await main_app.aiohttp_handler(request, options.route_prefix)
 
-    if "/" in options.listen_address:
+    if options.detect_systemd and not systemd_imported:
+        parser.error(
+            'systemd detection requested, but unable to find systemd_python')
+
+    if options.detect_systemd and systemd.daemon.booted():
+        listen_socks = get_systemd_listen_sockets()
+        socket_path = None
+        listen_address = None
+        listen_port = None
+        logging.info(
+            "Receiving file descriptors from systemd socket activation")
+    elif "/" in options.listen_address:
         socket_path = options.listen_address
         listen_address = None
-        listen_port = None  # otherwise aiohttp also listens on its default host
+        listen_port = None  # otherwise aiohttp also listens on default host
+        listen_socks = []
         logging.info("Listening on unix domain socket %s", socket_path)
     else:
         listen_address = options.listen_address
         listen_port = options.port
         socket_path = None
+        listen_socks = []
         logging.info("Listening on %s:%s", listen_address, options.port)
 
     from aiohttp import web
 
     app = web.Application()
-    try:
-        from aiohttp_openmetrics import setup_metrics
-    except ModuleNotFoundError:
-        logging.warning("aiohttp-openmetrics not found; /metrics will not be available.")
-    else:
-        setup_metrics(app)
+    if options.metrics_port:
+        metrics_app = web.Application()
+        try:
+            from aiohttp_openmetrics import metrics, metrics_middleware
+        except ModuleNotFoundError:
+            logging.warning(
+                "aiohttp-openmetrics not found; "
+                "/metrics will not be available.")
+        else:
+            app.middlewares.insert(0, metrics_middleware)
+            metrics_app.router.add_get("/metrics", metrics, name="metrics")
 
-    # For now, just always claim everything is okay.
-    app.router.add_get("/health", lambda r: web.Response(text='ok'))
+        # For now, just always claim everything is okay.
+        metrics_app.router.add_get(
+            "/health", lambda r: web.Response(text='ok'))
+    else:
+        metrics_app = None
 
     for path in WELLKNOWN_DAV_PATHS:
         app.router.add_route(
@@ -1351,15 +1527,42 @@ def main(argv):
             import dbus  # noqa: F401
         except ImportError:
             logging.error(
-                "Please install python-avahi and python-dbus for " "avahi support."
+                "Please install python-avahi and python-dbus for "
+                "avahi support."
             )
         else:
             avahi_register(options.port, options.route_prefix)
 
-    web.run_app(app, port=listen_port, host=listen_address, path=socket_path)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    sites = []
+    if metrics_app:
+        metrics_runner = web.AppRunner(metrics_app)
+        await metrics_runner.setup()
+        # TODO(jelmer): Allow different metrics listen addres?
+        sites.append(web.TCPSite(metrics_runner, listen_address,
+                                 options.metrics_port))
+    if listen_socks:
+        sites.extend([web.SockSite(runner, sock) for sock in listen_socks])
+    if socket_path:
+        sites.append(web.UnixSite(runner, socket_path))
+    else:
+        sites.append(web.TCPSite(runner, listen_address, listen_port))
+
+    import signal
+
+    # Set SIGINT to default handler; this appears to be necessary
+    # when running under coverage.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    for site in sites:
+        await site.start()
+
+    while True:
+        await asyncio.sleep(3600)
 
 
 if __name__ == "__main__":
     import sys
 
-    main(sys.argv)
+    sys.exit(asyncio.run(main(sys.argv[1:])))

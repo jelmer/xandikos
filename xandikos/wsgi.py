@@ -17,17 +17,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""WSGI wrapper for xandikos.
-"""
+"""WSGI wrapper for xandikos."""
 
 import logging
 import os
 
-from .web import (
-    XandikosBackend,
-    XandikosApp,
-)
-
+from .web import XandikosApp, XandikosBackend
 
 backend = XandikosBackend(path=os.environ["XANDIKOSPATH"])
 if not os.path.isdir(backend.path):

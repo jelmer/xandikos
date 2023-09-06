@@ -49,21 +49,23 @@ class Filter(object):
 
        This is the naive, slow, fallback implementation.
 
-      :param resource: Resource to check
+       Args:
+         resource: Resource to check
        """
        raise NotImplementedError(self.check_slow)
 
     def check_index(self, values):
        """Check whether this filter applies to a resources based on index values.
 
-      :param values: Dictionary mapping indexes to index values
+       Args:
+         values: Dictionary mapping indexes to index values
        """
        raise NotImplementedError(self.check_index)
 
     def required_indexes(self):
        """Return a list of indexes that this Filter needs to function.
 
-       :return: List of ORed options, similar to a Depends line in Debian
+       Returns: List of ORed options, similar to a Depends line in Debian
        """
        raise NotImplementedError(self.required_indexes)
 

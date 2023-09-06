@@ -1,0 +1,31 @@
+name: Litmus DAV compliance tests
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  litmus:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9", "3.10"]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -U pip pycalendar vobject requests six tzlocal pytz attrs aiohttp aiohttp-wsgi prometheus-client multidict pytest
+        python setup.py develop
+    - name: Run litmus tests
+      run: |
+        make check-litmus
+      if: "matrix.os == 'ubuntu-latest'"

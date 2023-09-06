@@ -24,8 +24,9 @@ See https://www.ietf.org/archive/id/draft-douglass-server-info-03.txt
 
 import hashlib
 
-from xandikos import version_string
-from xandikos import webdav
+from typing import List
+
+from xandikos import version_string, webdav
 
 ET = webdav.ET
 
@@ -34,13 +35,13 @@ FEATURE = "server-info"
 SERVER_INFO_MIME_TYPE = "application/server-info+xml"
 
 
-class ServerInfo(object):
+class ServerInfo:
     """Server info."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._token = None
-        self._features = []
-        self._applications = []
+        self._features: List[str] = []
+        self._applications: List[str] = []
 
     def add_feature(self, feature):
         self._features.append(feature)
@@ -49,7 +50,7 @@ class ServerInfo(object):
     @property
     def token(self):
         if self._token is None:
-            h = hashlib.sha1sum()
+            h = hashlib.sha1()
             h.update(version_string.encode("utf-8"))
             for z in self._features + self._applications:
                 h.update(z.encode("utf-8"))

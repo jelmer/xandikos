@@ -17,9 +17,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Inf-It properties.
-"""
-from xandikos import webdav, carddav
+"""Inf-It properties."""
+from xandikos import carddav, webdav
 
 
 class SettingsProperty(webdav.Property):

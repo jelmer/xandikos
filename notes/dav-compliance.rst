@@ -326,3 +326,12 @@ SabreDAV.
 
 Experimental support for WebDAV Mount is available in the 'mount' branch, but
 won't be merged without a good use case.
+
+Managed Attachments
+-------------------
+
+Apple extension:
+
+https://datatracker.ietf.org/doc/html/draft-ietf-calext-caldav-attachments-04
+
+Currently unsupported.

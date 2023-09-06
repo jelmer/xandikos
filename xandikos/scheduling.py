@@ -24,7 +24,6 @@ See https://tools.ietf.org/html/rfc6638
 
 from xandikos import caldav, webdav
 
-
 SCHEDULE_INBOX_RESOURCE_TYPE = "{%s}schedule-inbox" % caldav.NAMESPACE
 SCHEDULE_OUTBOX_RESOURCE_TYPE = "{%s}schedule-outbox" % caldav.NAMESPACE
 
@@ -48,7 +47,8 @@ CALENDAR_USER_TYPES = (
 
 class ScheduleInbox(webdav.Collection):
 
-    resource_types = webdav.Collection.resource_types + [SCHEDULE_INBOX_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [
+        SCHEDULE_INBOX_RESOURCE_TYPE]
 
     def get_calendar_user_type(self):
         # Default, per section 2.4.2
@@ -73,14 +73,14 @@ class ScheduleInbox(webdav.Collection):
     def get_supported_calendar_components(self):
         """Return set of supported calendar components in this calendar.
 
-        :return: iterable over component names
+        Returns: iterable over component names
         """
         raise NotImplementedError(self.get_supported_calendar_components)
 
     def get_supported_calendar_data_types(self):
         """Return supported calendar data types.
 
-        :return: iterable over (content_type, version) tuples
+        Returns: iterable over (content_type, version) tuples
         """
         raise NotImplementedError(self.get_supported_calendar_data_types)
 
@@ -114,19 +114,20 @@ class ScheduleInbox(webdav.Collection):
 
 class ScheduleOutbox(webdav.Collection):
 
-    resource_types = webdav.Collection.resource_types + [SCHEDULE_OUTBOX_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [
+        SCHEDULE_OUTBOX_RESOURCE_TYPE]
 
     def get_supported_calendar_components(self):
         """Return set of supported calendar components in this calendar.
 
-        :return: iterable over component names
+        Returns: iterable over component names
         """
         raise NotImplementedError(self.get_supported_calendar_components)
 
     def get_supported_calendar_data_types(self):
         """Return supported calendar data types.
 
-        :return: iterable over (content_type, version) tuples
+        Returns: iterable over (content_type, version) tuples
         """
         raise NotImplementedError(self.get_supported_calendar_data_types)
 
@@ -176,7 +177,7 @@ class ScheduleOutboxURLProperty(webdav.Property):
 
 
 class CalendarUserAddressSetProperty(webdav.Property):
-    """calendar-user-address-set property
+    """calendar-user-address-set property.
 
     See https://tools.ietf.org/html/rfc6638, section 2.4.1
     """
@@ -191,7 +192,7 @@ class CalendarUserAddressSetProperty(webdav.Property):
 
 
 class ScheduleTagProperty(webdav.Property):
-    """schedule-tag property
+    """schedule-tag property.
 
     See https://tools.ietf.org/html/rfc6638, section 3.2.10
     """
@@ -207,7 +208,7 @@ class ScheduleTagProperty(webdav.Property):
 
 
 class CalendarUserTypeProperty(webdav.Property):
-    """calendar-user-type property
+    """calendar-user-type property.
 
     See https://tools.ietf.org/html/rfc6638, section 2.4.2
     """

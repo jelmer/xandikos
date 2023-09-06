@@ -17,51 +17,32 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Git store.
-"""
+"""Git store."""
 
 import configparser
 import errno
-from io import BytesIO, StringIO
 import logging
 import os
 import shutil
 import stat
 import uuid
+from io import BytesIO, StringIO
+from typing import Optional, Iterable
 
-from . import (
-    DEFAULT_MIME_TYPE,
-    MIMETYPES,
-    Store,
-    DuplicateUidError,
-    InvalidETag,
-    InvalidFileContents,
-    NoSuchItem,
-    NotStoreError,
-    OutOfSpaceError,
-    LockedError,
-    VALID_STORE_TYPES,
-    open_by_content_type,
-    open_by_extension,
-)
-from .config import (
-    FILENAME as CONFIG_FILENAME,
-    CollectionMetadata,
-    FileBasedCollectionMetadata,
-)
-from .index import MemoryIndex
-
-
-from dulwich.file import GitFile, FileLocked
-from dulwich.index import (
-    Index,
-    IndexEntry,
-    index_entry_from_stat,
-    write_index_dict,
-)
+import dulwich.repo
+from dulwich.file import FileLocked, GitFile
+from dulwich.index import (Index, index_entry_from_stat,
+                           write_index_dict)
 from dulwich.objects import Blob, Tree
 from dulwich.pack import SHA1Writer
-import dulwich.repo
+
+from . import (DEFAULT_MIME_TYPE, MIMETYPES, VALID_STORE_TYPES,
+               DuplicateUidError, InvalidCTag, InvalidETag,
+               InvalidFileContents, LockedError, NoSuchItem, NotStoreError,
+               OutOfSpaceError, Store, open_by_content_type, open_by_extension)
+from .config import FILENAME as CONFIG_FILENAME
+from .config import CollectionMetadata, FileBasedCollectionMetadata
+from .index import MemoryIndex
 
 DEFAULT_ENCODING = "utf-8"
 
@@ -70,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 class RepoCollectionMetadata(CollectionMetadata):
-    def __init__(self, repo):
+    def __init__(self, repo) -> None:
         self._repo = repo
 
     @classmethod
@@ -156,7 +137,8 @@ class RepoCollectionMetadata(CollectionMetadata):
     def set_comment(self, comment):
         config = self._repo.get_config()
         if comment is not None:
-            config.set(b"xandikos", b"comment", comment.encode(DEFAULT_ENCODING))
+            config.set(
+                b"xandikos", b"comment", comment.encode(DEFAULT_ENCODING))
         else:
             # TODO(jelmer): Add and use config.remove()
             config.set(b"xandikos", b"comment", b"")
@@ -172,7 +154,8 @@ class RepoCollectionMetadata(CollectionMetadata):
         store_type = config.get(b"xandikos", b"type")
         store_type = store_type.decode(DEFAULT_ENCODING)
         if store_type not in VALID_STORE_TYPES:
-            logging.warning("Invalid store type %s set for %r.", store_type, self._repo)
+            logging.warning(
+                "Invalid store type %s set for %r.", store_type, self._repo)
         return store_type
 
     def get_order(self):
@@ -190,8 +173,8 @@ class RepoCollectionMetadata(CollectionMetadata):
         self._write_config(config)
 
 
-class locked_index(object):
-    def __init__(self, path):
+class locked_index:
+    def __init__(self, path) -> None:
         self._path = path
 
     def __enter__(self):
@@ -215,15 +198,25 @@ class locked_index(object):
 class GitStore(Store):
     """A Store backed by a Git Repository."""
 
-    def __init__(self, repo, ref=b"refs/heads/master", check_for_duplicate_uids=True):
-        super(GitStore, self).__init__(MemoryIndex())
+    def __init__(self, repo, *, ref: bytes = b"refs/heads/master",
+                 check_for_duplicate_uids=True,
+                 **kwargs) -> None:
+        super().__init__(MemoryIndex(), **kwargs)
         self.ref = ref
         self.repo = repo
         # Maps uids to (sha, fname)
-        self._uid_to_fname = {}
+        self._uid_to_fname: dict[str, tuple[bytes, str]] = {}
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
-        self._fname_to_uid = {}
+        self._fname_to_uid: dict[str, tuple[str, str]] = {}
+
+    def _get_etag(self, name: str) -> str:
+        raise NotImplementedError(self._get_etag)
+
+    def _import_one(
+            self, name: str, data: Iterable[bytes], message: str,
+            author: Optional[str] = None):
+        raise NotImplementedError(self._import_one)
 
     @property
     def config(self):
@@ -248,8 +241,8 @@ class GitStore(Store):
 
             return FileBasedCollectionMetadata(cp, save=save_config)
 
-    def __repr__(self):
-        return "%s(%r, ref=%r)" % (type(self).__name__, self.repo, self.ref)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.repo!r}, ref={self.ref!r})"
 
     @property
     def path(self):
@@ -276,30 +269,32 @@ class GitStore(Store):
 
     def import_one(
         self,
-        name,
-        content_type,
-        data,
-        message=None,
-        author=None,
-        replace_etag=None,
-    ):
+        name: str,
+        content_type: str,
+        data: Iterable[bytes],
+        message: Optional[str] = None,
+        author: Optional[str] = None,
+        replace_etag: Optional[str] = None,
+    ) -> tuple[str, str]:
         """Import a single object.
 
-        :param name: name of the object
-        :param content_type: Content type
-        :param data: serialized object as list of bytes
-        :param message: Commit message
-        :param author: Optional author
-        :param replace_etag: optional etag of object to replace
-        :raise InvalidETag: when the name already exists but with different
-                            etag
-        :raise DuplicateUidError: when the uid already exists
-        :return: etag
+        Args:
+          name: name of the object
+          content_type: Content type
+          data: serialized object as list of bytes
+          message: Commit message
+          author: Optional author
+          replace_etag: optional etag of object to replace
+        Raises:
+          InvalidETag: when the name already exists but with different etag
+          DuplicateUidError: when the uid already exists
+        Returns: etag
         """
         if content_type is None:
             fi = open_by_extension(data, name, self.extra_file_handlers)
         else:
-            fi = open_by_content_type(data, content_type, self.extra_file_handlers)
+            fi = open_by_content_type(
+                data, content_type, self.extra_file_handlers)
         if name is None:
             name = str(uuid.uuid4())
             extension = MIMETYPES.guess_extension(content_type)
@@ -323,9 +318,10 @@ class GitStore(Store):
     def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
 
-        :param name: Name of the item
-        :param etag: Optional etag
-        :return: raw contents as chunks
+        Args:
+          name: Name of the item
+          etag: Optional etag
+        Returns: raw contents as chunks
         """
         if etag is None:
             etag = self._get_etag(name)
@@ -338,10 +334,12 @@ class GitStore(Store):
             etag = sha.decode("ascii")
             if name in removed:
                 removed.remove(name)
-            if name in self._fname_to_uid and self._fname_to_uid[name][0] == etag:
+            if (name in self._fname_to_uid
+                    and self._fname_to_uid[name][0] == etag):
                 continue
             blob = self.repo.object_store[sha]
-            fi = open_by_extension(blob.chunked, name, self.extra_file_handlers)
+            fi = open_by_extension(
+                blob.chunked, name, self.extra_file_handlers)
             try:
                 uid = fi.get_uid()
             except KeyError:
@@ -368,8 +366,9 @@ class GitStore(Store):
     def iter_with_etag(self, ctag=None):
         """Iterate over all items in the store with etag.
 
-        :param ctag: Ctag to iterate for
-        :yield: (name, content_type, etag) tuples
+        Args:
+          ctag: Ctag to iterate for
+        Returns: iterator over (name, content_type, etag) tuples
         """
         for (name, mode, sha) in self._iterblobs(ctag):
             (mime_type, _) = MIMETYPES.guess_type(name)
@@ -381,38 +380,40 @@ class GitStore(Store):
     def create(cls, path):
         """Create a new store backed by a Git repository on disk.
 
-        :return: A `GitStore`
+        Returns: A `GitStore`
         """
         raise NotImplementedError(cls.create)
 
     @classmethod
-    def open_from_path(cls, path):
+    def open_from_path(cls, path, **kwargs):
         """Open a GitStore from a path.
 
-        :param path: Path
-        :return: A `GitStore`
+        Args:
+          path: Path
+        Returns: A `GitStore`
         """
         try:
-            return cls.open(dulwich.repo.Repo(path))
+            return cls.open(dulwich.repo.Repo(path), **kwargs)
         except dulwich.repo.NotGitRepository:
             raise NotStoreError(path)
 
     @classmethod
-    def open(cls, repo):
+    def open(cls, repo, **kwargs):
         """Open a GitStore given a Repo object.
 
-        :param repo: A Dulwich `Repo`
-        :return: A `GitStore`
+        Args:
+          repo: A Dulwich `Repo`
+        Returns: A `GitStore`
         """
         if repo.has_index():
-            return TreeGitStore(repo)
+            return TreeGitStore(repo, **kwargs)
         else:
-            return BareGitStore(repo)
+            return BareGitStore(repo, **kwargs)
 
     def get_description(self):
         """Get extended description.
 
-        :return: repository description as string
+        Returns: repository description as string
         """
         try:
             return self.config.get_description()
@@ -422,21 +423,23 @@ class GitStore(Store):
     def set_description(self, description):
         """Set extended description.
 
-        :param description: repository description as string
+        Args:
+          description: repository description as string
         """
         self.config.set_description(description)
 
     def set_comment(self, comment):
         """Set comment.
 
-        :param comment: Comment
+        Args:
+          comment: Comment
         """
         self.config.set_comment(comment)
 
     def get_comment(self):
         """Get comment.
 
-        :return: Comment
+        Returns: Comment
         """
         try:
             return self.config.get_comment()
@@ -446,7 +449,7 @@ class GitStore(Store):
     def get_color(self):
         """Get color.
 
-        :return: A Color code, or None
+        Returns: A Color code, or None
         """
         try:
             return self.config.get_color()
@@ -471,7 +474,7 @@ class GitStore(Store):
     def get_displayname(self):
         """Get display name.
 
-        :return: The display name, or None if not set
+        Returns: The display name, or None if not set
         """
         try:
             return self.config.get_displayname()
@@ -481,14 +484,16 @@ class GitStore(Store):
     def set_displayname(self, displayname):
         """Set the display name.
 
-        :param displayname: New display name
+        Args:
+          displayname: New display name
         """
         self.config.set_displayname(displayname)
 
     def set_type(self, store_type):
         """Set store type.
 
-        :param store_type: New store type (one of VALID_STORE_TYPES)
+        Args:
+          store_type: New store type (one of VALID_STORE_TYPES)
         """
         self.config.set_type(store_type)
 
@@ -500,14 +505,15 @@ class GitStore(Store):
         try:
             return self.config.get_type()
         except KeyError:
-            return super(GitStore, self).get_type()
+            return super().get_type()
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.
 
-        :param old_ctag: Old ctag (None for empty Store)
-        :param new_ctag: New ctag
-        :return: Iterator over (name, content_type, old_etag, new_etag)
+        Args:
+          old_ctag: Old ctag (None for empty Store)
+          new_ctag: New ctag
+        Returns: Iterator over (name, content_type, old_etag, new_etag)
         """
         if old_ctag is None:
             t = Tree()
@@ -517,7 +523,8 @@ class GitStore(Store):
             name: (content_type, etag)
             for (name, content_type, etag) in self.iter_with_etag(old_ctag)
         }
-        for (name, new_content_type, new_etag) in self.iter_with_etag(new_ctag):
+        for (name, new_content_type, new_etag) in self.iter_with_etag(
+                new_ctag):
             try:
                 (old_content_type, old_etag) = previous[name]
             except KeyError:
@@ -562,7 +569,10 @@ class BareGitStore(GitStore):
         if ctag is None:
             tree = self._get_current_tree()
         else:
-            tree = self.repo.object_store[ctag.encode("ascii")]
+            try:
+                tree = self.repo.object_store[ctag.encode("ascii")]
+            except KeyError as exc:
+                raise InvalidCTag(ctag) from exc
         for (name, mode, sha) in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
             if name == CONFIG_FILENAME:
@@ -570,10 +580,10 @@ class BareGitStore(GitStore):
             yield (name, mode, sha)
 
     @classmethod
-    def create_memory(cls):
+    def create_memory(cls) -> "GitStore":
         """Create a new store backed by a memory repository.
 
-        :return: A `GitStore`
+        Returns: A `GitStore`
         """
         return cls(dulwich.repo.MemoryRepo())
 
@@ -582,14 +592,16 @@ class BareGitStore(GitStore):
             message=message, tree=tree_id, ref=self.ref, author=author
         )
 
-    def _import_one(self, name, data, message, author=None):
+    def _import_one(self, name: str, data: Iterable[bytes], message: str,
+                    author: Optional[str] = None) -> bytes:
         """Import a single object.
 
-        :param name: Optional name of the object
-        :param data: serialized object as bytes
-        :param message: optional commit message
-        :param author: optional author
-        :return: etag
+        Args:
+          name: Optional name of the object
+          data: serialized object as bytes
+          message: optional commit message
+          author: optional author
+        Returns: etag
         """
         b = Blob()
         b.chunked = data
@@ -599,25 +611,28 @@ class BareGitStore(GitStore):
         tree[name_enc] = (0o644 | stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ""), (b, name_enc)])
         if tree.id != old_tree_id:
-            self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING), author=author)
+            self._commit_tree(
+                tree.id, message.encode(DEFAULT_ENCODING), author=author)
         return b.id
 
     def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
 
-        :param name: Filename to delete
-        :param message; Commit message
-        :param author: Optional author to store
-        :param etag: Optional mandatory etag of object to remove
-        :raise NoSuchItem: when the item doesn't exist
-        :raise InvalidETag: If the specified ETag doesn't match the curren
+        Args:
+          name: Filename to delete
+          message; Commit message
+          author: Optional author to store
+          etag: Optional mandatory etag of object to remove
+        Raises:
+          NoSuchItem: when the item doesn't exist
+          InvalidETag: If the specified ETag doesn't match the curren
         """
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
         try:
             current_sha = tree[name_enc][1]
-        except KeyError:
-            raise NoSuchItem(name)
+        except KeyError as exc:
+            raise NoSuchItem(name) from exc
         if etag is not None and current_sha != etag.encode("ascii"):
             raise InvalidETag(name, etag, current_sha.decode("ascii"))
         del tree[name_enc]
@@ -629,13 +644,14 @@ class BareGitStore(GitStore):
                 self.extra_file_handlers,
             )
             message = "Delete " + fi.describe(name)
-        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING), author=author)
+        self._commit_tree(
+            tree.id, message.encode(DEFAULT_ENCODING), author=author)
 
     @classmethod
     def create(cls, path):
         """Create a new store backed by a Git repository on disk.
 
-        :return: A `GitStore`
+        Returns: A `GitStore`
         """
         os.mkdir(path)
         return cls(dulwich.repo.Repo.init_bare(path))
@@ -643,7 +659,7 @@ class BareGitStore(GitStore):
     def subdirectories(self):
         """Returns subdirectories to probe for other stores.
 
-        :return: List of names
+        Returns: List of names
         """
         # Or perhaps just return all subdirectories but filter out
         # Git-owned ones?
@@ -657,7 +673,7 @@ class TreeGitStore(GitStore):
     def create(cls, path, bare=True):
         """Create a new store backed by a Git repository on disk.
 
-        :return: A `GitStore`
+        Returns: A `GitStore`
         """
         os.mkdir(path)
         return cls(dulwich.repo.Repo.init(path))
@@ -671,14 +687,15 @@ class TreeGitStore(GitStore):
         tree = index.commit(self.repo.object_store)
         return self.repo.do_commit(message=message, author=author, tree=tree)
 
-    def _import_one(self, name, data, message, author=None):
+    def _import_one(self, name: str, data: Iterable[bytes], message: str, author: Optional[str] = None) -> bytes:
         """Import a single object.
 
-        :param name: name of the object
-        :param data: serialized object as list of bytes
-        :param message: Commit message
-        :param author: Optional author
-        :return: etag
+        Args:
+          name: name of the object
+          data: serialized object as list of bytes
+          message: Commit message
+          author: Optional author
+        Returns: etag
         """
         try:
             with locked_index(self.repo.index_path()) as index:
@@ -688,38 +705,44 @@ class TreeGitStore(GitStore):
                 st = os.lstat(p)
                 blob = Blob.from_string(b"".join(data))
                 encoded_name = name.encode(DEFAULT_ENCODING)
-                if encoded_name not in index or blob.id != index[encoded_name].sha:
+                if (encoded_name not in index
+                        or blob.id != index[encoded_name].sha):
                     self.repo.object_store.add_object(blob)
-                    index[encoded_name] = IndexEntry(
-                        *index_entry_from_stat(st, blob.id, 0)
-                    )
+                    index[encoded_name] = index_entry_from_stat(st, blob.id)
                     self._commit_tree(
                         index, message.encode(DEFAULT_ENCODING), author=author
                     )
                 return blob.id
-        except OSError as e:
-            if e.errno == errno.ENOSPC:
-                raise OutOfSpaceError()
+        except FileLocked as exc:
+            raise LockedError(name) from exc
+        except OSError as exc:
+            if exc.errno == errno.ENOSPC:
+                raise OutOfSpaceError() from exc
             raise
 
     def delete_one(self, name, message=None, author=None, etag=None):
         """Delete an item.
 
-        :param name: Filename to delete
-        :param message: Commit message
-        :param author: Optional author
-        :param etag: Optional mandatory etag of object to remove
-        :raise NoSuchItem: when the item doesn't exist
-        :raise InvalidETag: If the specified ETag doesn't match the curren
+        Args:
+          name: Filename to delete
+          message: Commit message
+          author: Optional author
+          etag: Optional mandatory etag of object to remove
+        Raise:
+          NoSuchItem: when the item doesn't exist
+          InvalidETag: If the specified ETag doesn't match the curren
         """
         p = os.path.join(self.repo.path, name)
         try:
             with open(p, "rb") as f:
                 current_blob = Blob.from_string(f.read())
-        except IOError:
-            raise NoSuchItem(name)
+        except FileNotFoundError as exc:
+            raise NoSuchItem(name) from exc
+        except IsADirectoryError as exc:
+            raise NoSuchItem(name) from exc
         if message is None:
-            fi = open_by_extension(current_blob.chunked, name, self.extra_file_handlers)
+            fi = open_by_extension(
+                current_blob.chunked, name, self.extra_file_handlers)
             message = "Delete " + fi.describe(name)
         if etag is not None:
             with open(p, "rb") as f:
@@ -747,7 +770,10 @@ class TreeGitStore(GitStore):
         :yield: (name, etag) tuples
         """
         if ctag is not None:
-            tree = self.repo.object_store[ctag.encode("ascii")]
+            try:
+                tree = self.repo.object_store[ctag.encode("ascii")]
+            except KeyError as exc:
+                raise InvalidCTag(ctag) from exc
             for (name, mode, sha) in tree.iteritems():
                 name = name.decode(DEFAULT_ENCODING)
                 if name == CONFIG_FILENAME:
@@ -764,7 +790,7 @@ class TreeGitStore(GitStore):
     def subdirectories(self):
         """Returns subdirectories to probe for other stores.
 
-        :return: List of names
+        Returns: List of names
         """
         ret = []
         for name in os.listdir(self.path):
