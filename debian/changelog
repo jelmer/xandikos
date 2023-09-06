@@ -3,6 +3,7 @@ xandikos (0.2.10-1) UNRELEASED; urgency=medium
   * Ignore .egg-info changes during build. Closes: #1046990
   * New upstream release.
   * Set upstream metadata fields: Bug-Database.
+  * Update standards version to 4.6.2, no changes needed.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Wed, 06 Sep 2023 10:15:13 -0000
 
