@@ -1541,9 +1541,11 @@ async def main(argv=None):  # noqa: C901
         # TODO(jelmer): Allow different metrics listen addres?
         sites.append(web.TCPSite(metrics_runner, listen_address,
                                  options.metrics_port))
+    # Use systemd sockets first and only if not present use the socket path or
+    # address from --listen-address.
     if listen_socks:
         sites.extend([web.SockSite(runner, sock) for sock in listen_socks])
-    if socket_path:
+    elif socket_path:
         sites.append(web.UnixSite(runner, socket_path))
     else:
         sites.append(web.TCPSite(runner, listen_address, listen_port))
