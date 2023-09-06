@@ -1,0 +1,20 @@
+[package]
+name = "xandikos"
+version = "0.2.10"
+authors = [ "Jelmer Vernooij <jelmer@jelmer.uk>",]
+edition = "2021"
+license = "GPL-3.0+"
+description = "Lightweight CalDAV/CardDAV server"
+repository = "https://github.com/jelmer/xandikos.git"
+homepage = "https://github.com/jelmer/xandikos"
+
+[dependencies]
+clap = "<=4.2"
+
+[dependencies.pyo3]
+version = "0.18"
+features = [ "auto-initialize",]
+
+[dependencies.tokio]
+version = "1"
+features = [ "full",]

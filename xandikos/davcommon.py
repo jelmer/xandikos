@@ -30,11 +30,12 @@ class SubbedProperty(webdav.Property):
     async def get_value_ext(self, href, resource, el, environ, requested):
         """Get the value of a data property.
 
-        :param href: Resource href
-        :param resource: Resource to get value for
-        :param el: Element to fill in
-        :param environ: WSGI environ dict
-        :param requested: Requested property (including subelements)
+        Args:
+          href: Resource href
+          resource: Resource to get value for
+          el: Element to fill in
+          environ: WSGI environ dict
+          requested: Requested property (including subelements)
         """
         raise NotImplementedError(self.get_value_ext)
 
@@ -68,6 +69,7 @@ class MultiGetReporter(webdav.Reporter):
         base_href,
         resource,
         depth,
+        strict
     ):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an the right resource type
@@ -79,9 +81,14 @@ class MultiGetReporter(webdav.Reporter):
             elif el.tag == "{DAV:}href":
                 hrefs.append(webdav.read_href_element(el))
             else:
-                raise webdav.BadRequestError(
-                    "Unknown tag %s in report %s" % (el.tag, self.name)
-                )
+                webdav.nonfatal_bad_request(
+                    f"Unknown tag {el.tag} in report {self.name}",
+                    strict)
+        if requested is None:
+            # The CalDAV RFC says that behaviour mimicks that of PROPFIND,
+            # and the WebDAV RFC says that no body implies {DAV}allprop
+            # This isn't exactly an empty body, but close enough.
+            requested = ET.Element('{DAV:}allprop')
         for (href, resource) in resources_by_hrefs(hrefs):
             if resource is None:
                 yield webdav.Status(href, "404 Not Found", propstat=[])

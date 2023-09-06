@@ -17,36 +17,42 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-"""Indexing.
-"""
+"""Indexing."""
 
 import collections
 import logging
+from collections.abc import Iterable, Iterator
+from typing import Optional, Union, Dict, Set
+
+IndexKey = str
+IndexValue = list[Union[bytes, bool]]
+IndexValueIterator = Iterator[Union[bytes, bool]]
+IndexDict = dict[IndexKey, IndexValue]
 
 
-INDEXING_THRESHOLD = 5
+DEFAULT_INDEXING_THRESHOLD = 5
 
 
-class Index(object):
+class Index:
     """Index management."""
 
-    def available_keys(self):
+    def available_keys(self) -> Iterable[IndexKey]:
         """Return list of available index keys."""
-        raise NotImplementedError(self.available_indexes)
+        raise NotImplementedError(self.available_keys)
 
-    def get_values(self, name, etag, keys):
+    def get_values(self, name: str, etag: str, keys: list[IndexKey]):
         """Get the values for specified keys for a name."""
         raise NotImplementedError(self.get_values)
 
-    def iter_etags(self):
+    def iter_etags(self) -> Iterator[str]:
         """Return all the etags covered by this index."""
         raise NotImplementedError(self.iter_etags)
 
 
 class MemoryIndex(Index):
-    def __init__(self):
-        self._indexes = {}
-        self._in_index = set()
+    def __init__(self) -> None:
+        self._indexes: Dict[IndexKey, Dict[str, IndexValue]] = {}
+        self._in_index: Set[str] = set()
 
     def available_keys(self):
         return self._indexes.keys()
@@ -81,16 +87,20 @@ class MemoryIndex(Index):
             self._indexes[key] = {}
 
 
-class IndexManager(object):
-    def __init__(self, index, threshold=INDEXING_THRESHOLD):
+class AutoIndexManager:
+    def __init__(self, index, threshold: Optional[int] = None) -> None:
         self.index = index
-        self.desired = collections.defaultdict(lambda: 0)
+        self.desired: dict[IndexKey, int] = collections.defaultdict(lambda: 0)
+        if threshold is None:
+            threshold = DEFAULT_INDEXING_THRESHOLD
         self.indexing_threshold = threshold
 
-    def find_present_keys(self, necessary_keys):
+    def find_present_keys(
+            self, necessary_keys: Iterable[IndexKey]) -> Optional[
+                Iterable[IndexKey]]:
         available_keys = self.index.available_keys()
         needed_keys = []
-        missing_keys = []
+        missing_keys: list[IndexKey] = []
         new_index_keys = set()
         for keys in necessary_keys:
             found = False

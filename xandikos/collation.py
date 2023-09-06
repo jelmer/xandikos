@@ -23,28 +23,49 @@ from typing import Callable
 
 
 class UnknownCollation(Exception):
-    def __init__(self, collation: str):
-        super(UnknownCollation, self).__init__(
-            "Collation %r is not supported" % collation
+    def __init__(self, collation: str) -> None:
+        super().__init__(
+            f"Collation {collation!r} is not supported"
         )
         self.collation = collation
 
 
-collations = {
-    "i;ascii-casemap": lambda a, b: (
-        a.decode("ascii").upper() == b.decode("ascii").upper()
+def _match(a, b, k):
+    if k == "equals":
+        return a == b
+    elif k == "contains":
+        return b in a
+    elif k == "starts-with":
+        return a.startswith(b)
+    elif k == "ends-with":
+        return b.endswith(b)
+    else:
+        raise NotImplementedError
+
+
+collations: dict[str, Callable[[str, str, str], bool]] = {
+    "i;ascii-casemap": lambda a, b, k: _match(
+        a.encode("ascii").upper(), b.encode("ascii").upper(), k
     ),
-    "i;octet": lambda a, b: a == b,
+    "i;octet": lambda a, b, k: _match(a, b, k),
+    # TODO(jelmer): Follow all rules as specified in
+    # https://datatracker.ietf.org/doc/html/rfc5051
+    "i;unicode-casemap": lambda a, b, k: _match(
+        a.encode('utf-8', 'surrogateescape').upper(),
+        b.encode('utf-8', 'surrogateescape').upper(),
+        k),
 }
 
 
-def get_collation(name: str) -> Callable[[str, str], bool]:
+def get_collation(name: str) -> Callable[[str, str, str], bool]:
     """Get a collation by name.
 
-    :param name: Collation name
-    :raises UnknownCollation: If the collation is not supported
+    Args:
+      name: Collation name
+    Raises:
+      UnknownCollation: If the collation is not supported
     """
     try:
         return collations[name]
-    except KeyError:
-        raise UnknownCollation(name)
+    except KeyError as exc:
+        raise UnknownCollation(name) from exc

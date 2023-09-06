@@ -17,23 +17,24 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-from io import BytesIO
 import logging
 import unittest
+from io import BytesIO
 from wsgiref.util import setup_testing_defaults
 
 from xandikos import webdav
-from xandikos.webdav import Collection, ET, Property, Resource, WebDAVApp
+
+from ..webdav import ET, Collection, Property, Resource, WebDAVApp
 
 
 class WebTestCase(unittest.TestCase):
     def setUp(self):
-        super(WebTestCase, self).setUp()
+        super().setUp()
         logging.disable(logging.WARNING)
         self.addCleanup(logging.disable, logging.NOTSET)
 
     def makeApp(self, resources, properties):
-        class Backend(object):
+        class Backend:
             get_resource = resources.get
 
         app = WebDAVApp(Backend())
@@ -166,7 +167,7 @@ class WebTests(WebTestCase):
         new_body = []
 
         class TestResource(Resource):
-            def set_body(self, body, replace_etag=None):
+            async def set_body(self, body, replace_etag=None):
                 new_body.extend(body)
 
             async def get_etag(self):
@@ -194,7 +195,7 @@ class WebTests(WebTestCase):
         self.assertEqual(b"", contents)
 
     def test_mkcol_ok(self):
-        class Backend(object):
+        class Backend:
             def create_collection(self, relpath):
                 pass
 
@@ -207,7 +208,8 @@ class WebTests(WebTestCase):
         self.assertEqual(b"", contents)
 
     def test_mkcol_exists(self):
-        app = self.makeApp({"/resource": Resource(), "/resource/bla": Resource()}, [])
+        app = self.makeApp(
+            {"/resource": Resource(), "/resource/bla": Resource()}, [])
         code, headers, contents = self.mkcol(app, "/resource/bla")
         self.assertEqual("405 Method Not Allowed", code)
         self.assertEqual(b"", contents)
@@ -220,7 +222,8 @@ class WebTests(WebTestCase):
             def delete_member(unused_self, name, etag=None):
                 self.assertEqual(name, "resource")
 
-        app = self.makeApp({"/": TestResource(), "/resource": TestResource()}, [])
+        app = self.makeApp(
+            {"/": TestResource(), "/resource": TestResource()}, [])
         code, headers, contents = self.delete(app, "/resource")
         self.assertEqual("204 No Content", code)
         self.assertEqual(b"", contents)
@@ -417,7 +420,7 @@ class PickContentTypesTests(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            set(["text/plain", "text/html"]),
+            {"text/plain", "text/html"},
             set(
                 webdav.pick_content_types(
                     [("text/*", {"q": "0.4"}), ("text/plain", {"q": "0.3"})],
@@ -468,7 +471,8 @@ class PropstatByStatusTests(unittest.TestCase):
     def test_one(self):
         self.assertEqual(
             {("200 OK", None): ["foo"]},
-            webdav.propstat_by_status([webdav.PropStatus("200 OK", None, "foo")]),
+            webdav.propstat_by_status(
+                [webdav.PropStatus("200 OK", None, "foo")]),
         )
 
     def test_multiple(self):
@@ -515,5 +519,6 @@ class PathFromEnvironTests(unittest.TestCase):
     def test_recode(self):
         self.assertEqual(
             "/blü",
-            webdav.path_from_environ({"PATH_INFO": "/bl\xc3\xbc"}, "PATH_INFO"),
+            webdav.path_from_environ(
+                {"PATH_INFO": "/bl\xc3\xbc"}, "PATH_INFO"),
         )

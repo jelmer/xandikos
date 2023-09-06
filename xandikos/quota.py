@@ -23,12 +23,11 @@ See https://tools.ietf.org/html/rfc4331
 """
 from xandikos import webdav
 
-
 FEATURE: str = "quota"
 
 
 class QuotaAvailableBytesProperty(webdav.Property):
-    """quota-available-bytes"""
+    """quota-available-bytes."""
 
     name = "{DAV:}quota-available-bytes"
     resource_type = None
@@ -40,7 +39,7 @@ class QuotaAvailableBytesProperty(webdav.Property):
 
 
 class QuotaUsedBytesProperty(webdav.Property):
-    """quota-used-bytes"""
+    """quota-used-bytes."""
 
     name = "{DAV:}quota-used-bytes"
     resource_type = None

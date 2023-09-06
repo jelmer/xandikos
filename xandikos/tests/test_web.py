@@ -27,11 +27,7 @@ import unittest
 from .. import caldav
 from ..icalendar import ICalendarFile
 from ..store.vdir import VdirStore
-from ..web import (
-    XandikosBackend,
-    CalendarCollection,
-)
-
+from ..web import CalendarCollection, XandikosBackend
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -51,7 +47,7 @@ END:VCALENDAR
 
 class CalendarCollectionTests(unittest.TestCase):
     def setUp(self):
-        super(CalendarCollectionTests, self).setUp()
+        super().setUp()
         self.tempdir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tempdir)
 
@@ -97,7 +93,7 @@ class CalendarCollectionTests(unittest.TestCase):
             f.filter_subcomponent("VCALENDAR").filter_subcomponent(
                 "VTODO"
             ).filter_property("UID").filter_text_match(
-                b"bdc22720-b9e1-42c9-89c2-a85405d8fbff"
+                "bdc22720-b9e1-42c9-89c2-a85405d8fbff"
             )
             return f
 

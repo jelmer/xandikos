@@ -24,9 +24,11 @@ def test_suite():
     names = [
         "api",
         "caldav",
+        "carddav",
         "config",
         "icalendar",
         "store",
+        "vcard",
         "webdav",
         "web",
         "wsgi",

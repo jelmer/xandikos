@@ -34,25 +34,27 @@ WebDAV implementation
     def get_body(self):
       """Returns the body of the resource.
 
-      :return: bytes representing contents
+      Returns: bytes representing contents
       """
 
     def set_body(self, body):
       """Set the body of the resource.
 
-      :param body: body (as bytes)
+      Args:
+        body: body (as bytes)
       """
 
     def proplist(self):
       """Return list of properties.
 
-      :return: List of property names
+      Returns: List of property names
       """
 
     def propupdate(self, updates):
       """Update properties.
 
-      :param updates: Dictionary mapping names to new values
+      Args:
+        updates: Dictionary mapping names to new values
       """
 
     def lock(self):
@@ -62,7 +64,7 @@ WebDAV implementation
     def members(self):
       """List members.
 
-      :return: List tuples of (name, DAVResource)
+      Returns: List tuples of (name, DAVResource)
       """
 
     # TODO(jelmer): COPY

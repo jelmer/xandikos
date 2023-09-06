@@ -22,13 +22,12 @@ caldav_servers = [
     {'url': 'http://localhost:5233/',
      # Until recurring support is added in xandikos.
      # See https://github.com/jelmer/xandikos/issues/102
-     'norecurring': True,
-     'noexpand': True,
+     'incompatibilities': ['no_expand', 'no_recurring', 'no_scheduling', 'text_search_not_working'],
     }
 ]
 EOF
 
-run_xandikos 5233 --defaults
+run_xandikos 5233 5234 --defaults
 
 pushd $(dirname $0)/pycaldav
 ${PYTHON:-python3} -m pytest tests "$@"

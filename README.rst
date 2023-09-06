@@ -3,6 +3,8 @@ Xandikos is a lightweight yet complete CardDAV/CalDAV server that backs onto a G
 Xandikos (Ξανδικός or Ξανθικός) takes its name from the name of the March month
 in the ancient Macedonian calendar, used in Macedon in the first millennium BC.
 
+Extended documentation can be found `on the home page <https://www.xandikos.org/docs/>`_.
+
 Implemented standards
 =====================
 
@@ -61,8 +63,8 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 Dependencies
 ============
 
-At the moment, Xandikos supports Python 3.4 and higher as well as Pypy 3. It
-also uses `Dulwich <https://github.com/dulwich/dulwich>`_,
+At the moment, Xandikos supports Python 3 (see pyproject.toml for specific version)
+as well as Pypy 3. It also uses `Dulwich <https://github.com/dulwich/dulwich>`_,
 `Jinja2 <http://jinja.pocoo.org/>`_,
 `icalendar <https://github.com/collective/icalendar>`_, and
 `defusedxml <https://github.com/tiran/defusedxml>`_.
@@ -84,7 +86,9 @@ Docker
 
 A Dockerfile is also provided; see the comments on the top of the file for
 configuration instructions. The docker image is regularly built and
-published at ``ghcr.io/jelmer/xandikos``.
+published at ``ghcr.io/jelmer/xandikos``. See 
+``examples/docker-compose.yml`` and the 
+`man page <https://www.xandikos.org/manpage.html>`_ for more info.
 
 Running
 =======

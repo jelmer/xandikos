@@ -20,10 +20,10 @@
 """Tests for xandikos.store.config."""
 
 from io import StringIO
-
 from unittest import TestCase
 
 import dulwich.repo
+
 from ..store.config import FileBasedCollectionMetadata
 from ..store.git import RepoCollectionMetadata
 
@@ -90,7 +90,7 @@ displayname = DISPLAY-NAME
         self.assertRaises(KeyError, cc.get_displayname)
 
 
-class MetadataTests(object):
+class MetadataTests:
     def test_color(self):
         self.assertRaises(KeyError, self._config.get_color)
         self._config.set_color("#ffffff")
@@ -115,7 +115,8 @@ class MetadataTests(object):
     def test_description(self):
         self.assertRaises(KeyError, self._config.get_description)
         self._config.set_description("this is a description")
-        self.assertEqual("this is a description", self._config.get_description())
+        self.assertEqual(
+            "this is a description", self._config.get_description())
         self._config.set_description(None)
         self.assertRaises(KeyError, self._config.get_description)
 
@@ -129,12 +130,12 @@ class MetadataTests(object):
 
 class FileMetadataTests(TestCase, MetadataTests):
     def setUp(self):
-        super(FileMetadataTests, self).setUp()
+        super().setUp()
         self._config = FileBasedCollectionMetadata()
 
 
 class RepoMetadataTests(TestCase, MetadataTests):
     def setUp(self):
-        super(RepoMetadataTests, self).setUp()
+        super().setUp()
         self._repo = dulwich.repo.MemoryRepo()
         self._config = RepoCollectionMetadata(self._repo)

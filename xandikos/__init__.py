@@ -1,4 +1,3 @@
-# encoding: utf-8
 #
 # Xandikos
 # Copyright (C) 2016-2017 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
@@ -21,7 +20,7 @@
 
 """CalDAV/CardDAV server."""
 
-__version__ = (0, 2, 8)
+__version__ = (0, 2, 10)
 version_string = ".".join(map(str, __version__))
 
 import defusedxml.ElementTree  # noqa: This does some monkey-patching on-load

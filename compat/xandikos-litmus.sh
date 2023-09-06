@@ -7,7 +7,7 @@ TESTS="$1"
 
 set -e
 
-run_xandikos 5233 --autocreate
+run_xandikos 5233 5234 --autocreate
 
 if which litmus >/dev/null; then
 	LITMUS=litmus
