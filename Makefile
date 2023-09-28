@@ -14,7 +14,7 @@ check:
 
 style:
 	$(PYTHON) -m flake8
-	isort --check .
+	$(PYTHON) -m isort --check .
 
 typing:
 	$(PYTHON) -m mypy xandikos
