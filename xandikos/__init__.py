@@ -20,7 +20,8 @@
 
 """CalDAV/CardDAV server."""
 
+import defusedxml.ElementTree  # noqa: F401: This does some monkey-patching on-load
+
 __version__ = (0, 2, 10)
 version_string = ".".join(map(str, __version__))
 
-import defusedxml.ElementTree  # noqa: This does some monkey-patching on-load
