@@ -138,6 +138,7 @@ def pick_content_types(accepted_content_types, available_content_types):
 
     Args:
       accepted_content_types: Accept variable (as name, params tuples)
+
     Raises:
       NotAcceptableError: If there are no overlapping content types
     """
@@ -605,6 +606,7 @@ class Property:
           href: Resource href
           resource: Resource to modify
           el: Element to get new value from (None to remove property)
+
         Raises:
           NotImplementedError: to indicate this property can not be set
             (i.e. is protected)

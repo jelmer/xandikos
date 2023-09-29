@@ -105,6 +105,7 @@ class File:
         Args:
           name: File name
           previous: Previous file to compare to.
+
         Raises:
           InvalidFileContents: If the file is misformatted
         Returns: List of strings describing change
