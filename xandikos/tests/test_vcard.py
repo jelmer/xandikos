@@ -36,7 +36,6 @@ END:VCARD
 
 
 class ParseVcardTests(unittest.TestCase):
-
     def test_validate(self):
         fi = VCardFile([EXAMPLE_VCARD1], "text/vcard")
         fi.validate()

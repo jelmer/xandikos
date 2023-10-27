@@ -52,11 +52,14 @@ else:
     def get_systemd_listen_sockets() -> list[socket.socket]:
         socks = []
         for fd in systemd.daemon.listen_fds():
-            for family in (socket.AF_UNIX,  # type: ignore
-                           socket.AF_INET, socket.AF_INET6):
-                if systemd.daemon.is_socket(fd, family=family,
-                                            type=socket.SOCK_STREAM,
-                                            listening=True):
+            for family in (
+                socket.AF_UNIX,  # type: ignore
+                socket.AF_INET,
+                socket.AF_INET6,
+            ):
+                if systemd.daemon.is_socket(
+                    fd, family=family, type=socket.SOCK_STREAM, listening=True
+                ):
                     sock = socket.fromfd(fd, family, socket.SOCK_STREAM)
                     socks.append(sock)
                     break
@@ -67,16 +70,39 @@ else:
                 )
         return socks
 
+
 from xandikos import __version__ as xandikos_version
-from xandikos import (access, apache, caldav, carddav, infit, quota,
-                      scheduling, sync, timezones, webdav, xmpp)
-from xandikos.store import (STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR,
-                            STORE_TYPE_OTHER, STORE_TYPE_PRINCIPAL,
-                            STORE_TYPE_SCHEDULE_INBOX,
-                            STORE_TYPE_SCHEDULE_OUTBOX,
-                            STORE_TYPE_SUBSCRIPTION, DuplicateUidError, File,
-                            InvalidCTag, InvalidFileContents, LockedError,
-                            NoSuchItem, NotStoreError, OutOfSpaceError, Store)
+from xandikos import (
+    access,
+    apache,
+    caldav,
+    carddav,
+    infit,
+    quota,
+    scheduling,
+    sync,
+    timezones,
+    webdav,
+    xmpp,
+)
+from xandikos.store import (
+    STORE_TYPE_ADDRESSBOOK,
+    STORE_TYPE_CALENDAR,
+    STORE_TYPE_OTHER,
+    STORE_TYPE_PRINCIPAL,
+    STORE_TYPE_SCHEDULE_INBOX,
+    STORE_TYPE_SCHEDULE_OUTBOX,
+    STORE_TYPE_SUBSCRIPTION,
+    DuplicateUidError,
+    File,
+    InvalidCTag,
+    InvalidFileContents,
+    LockedError,
+    NoSuchItem,
+    NotStoreError,
+    OutOfSpaceError,
+    Store,
+)
 
 from .icalendar import CalendarFilter, ICalendarFile
 from .store.git import GitStore, TreeGitStore
@@ -183,7 +209,8 @@ class ObjectResource(webdav.Resource):
     async def get_file(self) -> File:
         if self._file is None:
             self._file = await to_thread(
-                self.store.get_file, self.name, self.content_type, self.etag)
+                self.store.get_file, self.name, self.content_type, self.etag
+            )
             assert self._file is not None
         return self._file
 
@@ -198,7 +225,8 @@ class ObjectResource(webdav.Resource):
                 self.name,
                 self.content_type,
                 data,
-                replace_etag=extract_strong_etag(replace_etag))
+                replace_etag=extract_strong_etag(replace_etag),
+            )
         except InvalidFileContents as exc:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(
@@ -341,10 +369,10 @@ class StoreBasedCollection:
         return create_strong_etag(self.store.get_ctag())
 
     def members(self) -> Iterator[tuple[str, webdav.Resource]]:
-        for (name, content_type, etag) in self.store.iter_with_etag():
+        for name, content_type, etag in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
             yield (name, resource)
-        for (name, resource) in self.subcollections():
+        for name, resource in self.subcollections():
             yield (name, resource)
 
     def subcollections(self):
@@ -353,7 +381,7 @@ class StoreBasedCollection:
 
     def get_member(self, name):
         assert name != ""
-        for (fname, content_type, fetag) in self.store.iter_with_etag():
+        for fname, content_type, fetag in self.store.iter_with_etag():
             if name == fname:
                 return self._get_resource(name, content_type, fetag)
         if name in self.store.subdirectories():
@@ -392,8 +420,7 @@ class StoreBasedCollection:
 
     def iter_differences_since(
         self, old_token: str, new_token: str
-    ) -> Iterator[
-            tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
+    ) -> Iterator[tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
         old_resource: Optional[webdav.Resource]
         new_resource: Optional[webdav.Resource]
         try:
@@ -404,13 +431,11 @@ class StoreBasedCollection:
                 new_etag,
             ) in self.store.iter_changes(old_token, new_token):
                 if old_etag is not None:
-                    old_resource = self._get_resource(
-                        name, content_type, old_etag)
+                    old_resource = self._get_resource(name, content_type, old_etag)
                 else:
                     old_resource = None
                 if new_etag is not None:
-                    new_resource = self._get_resource(
-                        name, content_type, new_etag)
+                    new_resource = self._get_resource(name, content_type, new_etag)
                 else:
                     new_resource = None
                 yield (name, old_resource, new_resource)
@@ -462,8 +487,7 @@ class StoreBasedCollection:
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(
-            accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "collection.html",
@@ -603,9 +627,8 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
     def calendar_query(self, create_filter_fn):
         filter = create_filter_fn(CalendarFilter)
-        for (name, file, etag) in self.store.iter_with_filter(filter=filter):
-            resource = self._get_resource(
-                name, file.content_type, etag, file=file)
+        for name, file, etag in self.store.iter_with_filter(filter=filter):
+            resource = self._get_resource(name, file.content_type, etag, file=file)
             yield (name, resource)
 
     def get_xmpp_heartbeat(self):
@@ -737,8 +760,7 @@ class CollectionSetResource(webdav.Collection):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(
-            accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "root.html", accepted_content_languages, self_url=self_url
@@ -768,10 +790,8 @@ class RootPage(webdav.Resource):
     def __init__(self, backend) -> None:
         self.backend = backend
 
-    def render(self, self_url, accepted_content_types,
-               accepted_content_languages):
-        content_types = webdav.pick_content_types(
-            accepted_content_types, ["text/html"])
+    def render(self, self_url, accepted_content_types, accepted_content_languages):
+        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return render_jinja_page(
             "root.html",
@@ -915,8 +935,7 @@ class PrincipalBare(CollectionSetResource, Principal):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        content_types = webdav.pick_content_types(
-            accepted_content_types, ["text/html"])
+        content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
         return await render_jinja_page(
             "principal.html",
@@ -933,8 +952,7 @@ class PrincipalBare(CollectionSetResource, Principal):
 class PrincipalCollection(Collection, Principal):
     """Principal user resource."""
 
-    resource_types = webdav.Collection.resource_types + [
-        webdav.PRINCIPAL_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [webdav.PRINCIPAL_RESOURCE_TYPE]
 
     @classmethod
     def create(cls, backend, relpath):
@@ -960,8 +978,9 @@ def open_store_from_path(path: str, **kwargs):
 
 
 class XandikosBackend(webdav.Backend):
-    def __init__(self, path, *, paranoid: bool = False,
-                 index_threshold: Optional[int] = None) -> None:
+    def __init__(
+        self, path, *, paranoid: bool = False, index_threshold: Optional[int] = None
+    ) -> None:
         self.path = path
         self._user_principals: set[str] = set()
         self.paranoid = paranoid
@@ -999,8 +1018,10 @@ class XandikosBackend(webdav.Backend):
         if os.path.isdir(p):
             try:
                 store = open_store_from_path(
-                    p, double_check_indexes=self.paranoid,
-                    index_threshold=self.index_threshold)
+                    p,
+                    double_check_indexes=self.paranoid,
+                    index_threshold=self.index_threshold,
+                )
             except NotStoreError:
                 if relpath in self._user_principals:
                     return PrincipalBare(self, relpath)
@@ -1044,8 +1065,7 @@ class XandikosApp(webdav.WebDAVApp):
         self.register_properties(
             [
                 webdav.ResourceTypeProperty(),
-                webdav.CurrentUserPrincipalProperty(
-                    get_current_user_principal),
+                webdav.CurrentUserPrincipalProperty(get_current_user_principal),
                 webdav.PrincipalURLProperty(),
                 webdav.DisplayNameProperty(),
                 webdav.GetETagProperty(),
@@ -1106,7 +1126,7 @@ class XandikosApp(webdav.WebDAVApp):
                 webdav.RefreshRateProperty(),
                 xmpp.XmppUriProperty(),
                 xmpp.XmppServerProperty(),
-                xmpp.XmppHeartbeatProperty()
+                xmpp.XmppHeartbeatProperty(),
             ]
         )
         self.register_reporters(
@@ -1215,15 +1235,16 @@ def avahi_register(port: int, path: str):
 
 
 def run_simple_server(
-        directory: str,
-        current_user_principal: str,
-        autocreate: bool = False,
-        defaults: bool = False,
-        strict: bool = True,
-        route_prefix: str = "/",
-        listen_address: Optional[str] = "::",
-        port: Optional[int] = 8080,
-        socket_path: Optional[str] = None) -> None:
+    directory: str,
+    current_user_principal: str,
+    autocreate: bool = False,
+    defaults: bool = False,
+    strict: bool = True,
+    route_prefix: str = "/",
+    listen_address: Optional[str] = "::",
+    port: Optional[int] = 8080,
+    socket_path: Optional[str] = None,
+) -> None:
     """Simple function to run a Xandikos server.
 
     This function is meant to be used by external code. We'll try our best
@@ -1247,9 +1268,7 @@ def run_simple_server(
     if autocreate or defaults:
         if not os.path.isdir(directory):
             os.makedirs(directory)
-        backend.create_principal(
-            current_user_principal, create_defaults=defaults
-        )
+        backend.create_principal(current_user_principal, create_defaults=defaults)
 
     if not os.path.isdir(directory):
         logging.warning(
@@ -1281,9 +1300,7 @@ def run_simple_server(
 
     app = web.Application()
     for path in WELLKNOWN_DAV_PATHS:
-        app.router.add_route(
-            "*", path, RedirectDavHandler(route_prefix).__call__
-        )
+        app.router.add_route("*", path, RedirectDavHandler(route_prefix).__call__)
 
     if route_prefix.strip("/"):
         xandikos_app = web.Application()
@@ -1306,8 +1323,7 @@ async def main(argv=None):  # noqa: C901
 
     from xandikos import __version__
 
-    parser = argparse.ArgumentParser(
-        usage="%(prog)s -d ROOT-DIR [OPTIONS]")
+    parser = argparse.ArgumentParser(usage="%(prog)s -d ROOT-DIR [OPTIONS]")
 
     parser.add_argument(
         "--version",
@@ -1321,7 +1337,7 @@ async def main(argv=None):  # noqa: C901
         action="store_false",
         dest="detect_systemd",
         help="Disable systemd detection and socket activation.",
-        default=systemd_imported
+        default=systemd_imported,
     )
     access_group.add_argument(
         "-l",
@@ -1345,7 +1361,8 @@ async def main(argv=None):  # noqa: C901
         "--metrics-port",
         dest="metrics_port",
         default=8081,
-        help="Port to listen on for metrics. [%(default)s]")
+        help="Port to listen on for metrics. [%(default)s]",
+    )
     access_group.add_argument(
         "--route-prefix",
         default="/",
@@ -1377,8 +1394,7 @@ async def main(argv=None):  # noqa: C901
         "--defaults",
         action="store_true",
         dest="defaults",
-        help=("Create initial calendar and address book. "
-              "Implies --autocreate."),
+        help=("Create initial calendar and address book. " "Implies --autocreate."),
     )
     parser.add_argument(
         "--dump-dav-xml",
@@ -1393,18 +1409,14 @@ async def main(argv=None):  # noqa: C901
         "--no-strict",
         action="store_false",
         dest="strict",
-        help=("Enable workarounds for buggy CalDAV/CardDAV client "
-              "implementations."),
+        help=("Enable workarounds for buggy CalDAV/CardDAV client " "implementations."),
         default=True,
     )
-    parser.add_argument(
-        '--debug', action='store_true',
-        help='Print debug messages')
+    parser.add_argument("--debug", action="store_true", help="Print debug messages")
     # Hidden arguments. These may change without notice in between releases,
     # and are generally just meant for developers.
-    parser.add_argument('--paranoid', action='store_true',
-                        help=argparse.SUPPRESS)
-    parser.add_argument('--index-threshold', type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--paranoid", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--index-threshold", type=int, help=argparse.SUPPRESS)
     options = parser.parse_args(argv)
 
     if options.directory is None:
@@ -1416,19 +1428,21 @@ async def main(argv=None):  # noqa: C901
         # os.environ.
         os.environ["XANDIKOS_DUMP_DAV_XML"] = "1"
 
-    if not options.route_prefix.endswith('/'):
-        options.route_prefix += '/'
+    if not options.route_prefix.endswith("/"):
+        options.route_prefix += "/"
 
     if options.debug:
         loglevel = logging.DEBUG
     else:
         loglevel = logging.INFO
 
-    logging.basicConfig(level=loglevel, format='%(message)s')
+    logging.basicConfig(level=loglevel, format="%(message)s")
 
     backend = XandikosBackend(
-        os.path.abspath(options.directory), paranoid=options.paranoid,
-        index_threshold=options.index_threshold)
+        os.path.abspath(options.directory),
+        paranoid=options.paranoid,
+        index_threshold=options.index_threshold,
+    )
     backend._mark_as_principal(options.current_user_principal)
 
     if options.autocreate or options.defaults:
@@ -1460,16 +1474,14 @@ async def main(argv=None):  # noqa: C901
         return await main_app.aiohttp_handler(request, options.route_prefix)
 
     if options.detect_systemd and not systemd_imported:
-        parser.error(
-            'systemd detection requested, but unable to find systemd_python')
+        parser.error("systemd detection requested, but unable to find systemd_python")
 
     if options.detect_systemd and systemd.daemon.booted():
         listen_socks = get_systemd_listen_sockets()
         socket_path = None
         listen_address = None
         listen_port = None
-        logging.info(
-            "Receiving file descriptors from systemd socket activation")
+        logging.info("Receiving file descriptors from systemd socket activation")
     elif "/" in options.listen_address:
         socket_path = options.listen_address
         listen_address = None
@@ -1492,15 +1504,14 @@ async def main(argv=None):  # noqa: C901
             from aiohttp_openmetrics import metrics, metrics_middleware
         except ModuleNotFoundError:
             logging.warning(
-                "aiohttp-openmetrics not found; "
-                "/metrics will not be available.")
+                "aiohttp-openmetrics not found; " "/metrics will not be available."
+            )
         else:
             app.middlewares.insert(0, metrics_middleware)
             metrics_app.router.add_get("/metrics", metrics, name="metrics")
 
         # For now, just always claim everything is okay.
-        metrics_app.router.add_get(
-            "/health", lambda r: web.Response(text='ok'))
+        metrics_app.router.add_get("/health", lambda r: web.Response(text="ok"))
     else:
         metrics_app = None
 
@@ -1527,8 +1538,7 @@ async def main(argv=None):  # noqa: C901
             import dbus  # noqa: F401
         except ImportError:
             logging.error(
-                "Please install python-avahi and python-dbus for "
-                "avahi support."
+                "Please install python-avahi and python-dbus for " "avahi support."
             )
         else:
             avahi_register(options.port, options.route_prefix)
@@ -1540,8 +1550,7 @@ async def main(argv=None):  # noqa: C901
         metrics_runner = web.AppRunner(metrics_app)
         await metrics_runner.setup()
         # TODO(jelmer): Allow different metrics listen addres?
-        sites.append(web.TCPSite(metrics_runner, listen_address,
-                                 options.metrics_port))
+        sites.append(web.TCPSite(metrics_runner, listen_address, options.metrics_port))
     # Use systemd sockets first and only if not present use the socket path or
     # address from --listen-address.
     if listen_socks:

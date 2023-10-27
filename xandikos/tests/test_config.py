@@ -115,8 +115,7 @@ class MetadataTests:
     def test_description(self):
         self.assertRaises(KeyError, self._config.get_description)
         self._config.set_description("this is a description")
-        self.assertEqual(
-            "this is a description", self._config.get_description())
+        self.assertEqual("this is a description", self._config.get_description())
         self._config.set_description(None)
         self.assertRaises(KeyError, self._config.get_description)
 

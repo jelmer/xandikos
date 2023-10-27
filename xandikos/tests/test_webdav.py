@@ -208,8 +208,7 @@ class WebTests(WebTestCase):
         self.assertEqual(b"", contents)
 
     def test_mkcol_exists(self):
-        app = self.makeApp(
-            {"/resource": Resource(), "/resource/bla": Resource()}, [])
+        app = self.makeApp({"/resource": Resource(), "/resource/bla": Resource()}, [])
         code, headers, contents = self.mkcol(app, "/resource/bla")
         self.assertEqual("405 Method Not Allowed", code)
         self.assertEqual(b"", contents)
@@ -222,8 +221,7 @@ class WebTests(WebTestCase):
             def delete_member(unused_self, name, etag=None):
                 self.assertEqual(name, "resource")
 
-        app = self.makeApp(
-            {"/": TestResource(), "/resource": TestResource()}, [])
+        app = self.makeApp({"/": TestResource(), "/resource": TestResource()}, [])
         code, headers, contents = self.delete(app, "/resource")
         self.assertEqual("204 No Content", code)
         self.assertEqual(b"", contents)
@@ -471,8 +469,7 @@ class PropstatByStatusTests(unittest.TestCase):
     def test_one(self):
         self.assertEqual(
             {("200 OK", None): ["foo"]},
-            webdav.propstat_by_status(
-                [webdav.PropStatus("200 OK", None, "foo")]),
+            webdav.propstat_by_status([webdav.PropStatus("200 OK", None, "foo")]),
         )
 
     def test_multiple(self):
@@ -519,6 +516,5 @@ class PathFromEnvironTests(unittest.TestCase):
     def test_recode(self):
         self.assertEqual(
             "/blü",
-            webdav.path_from_environ(
-                {"PATH_INFO": "/bl\xc3\xbc"}, "PATH_INFO"),
+            webdav.path_from_environ({"PATH_INFO": "/bl\xc3\xbc"}, "PATH_INFO"),
         )
