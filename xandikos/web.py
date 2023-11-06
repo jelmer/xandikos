@@ -1497,6 +1497,9 @@ async def main(argv=None):  # noqa: C901
 
     from aiohttp import web
 
+    if options.metrics_port == options.port:
+        parser.error("Metrics port cannot be the same as the main port")
+
     app = web.Application()
     if options.metrics_port:
         metrics_app = web.Application()
