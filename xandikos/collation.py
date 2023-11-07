@@ -24,9 +24,7 @@ from typing import Callable
 
 class UnknownCollation(Exception):
     def __init__(self, collation: str) -> None:
-        super().__init__(
-            f"Collation {collation!r} is not supported"
-        )
+        super().__init__(f"Collation {collation!r} is not supported")
         self.collation = collation
 
 
@@ -51,9 +49,10 @@ collations: dict[str, Callable[[str, str, str], bool]] = {
     # TODO(jelmer): Follow all rules as specified in
     # https://datatracker.ietf.org/doc/html/rfc5051
     "i;unicode-casemap": lambda a, b, k: _match(
-        a.encode('utf-8', 'surrogateescape').upper(),
-        b.encode('utf-8', 'surrogateescape').upper(),
-        k),
+        a.encode("utf-8", "surrogateescape").upper(),
+        b.encode("utf-8", "surrogateescape").upper(),
+        k,
+    ),
 }
 
 

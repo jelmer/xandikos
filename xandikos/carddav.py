@@ -90,16 +90,13 @@ class AddressbookDescriptionProperty(webdav.Property):
 
 
 class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
-
     name = "{%s}addressbook-multiget" % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     data_property = AddressDataProperty()
 
 
 class Addressbook(webdav.Collection):
-
-    resource_types = webdav.Collection.resource_types + [
-        ADDRESSBOOK_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [ADDRESSBOOK_RESOURCE_TYPE]
 
     def get_addressbook_description(self) -> str:
         raise NotImplementedError(self.get_addressbook_description)
@@ -229,8 +226,7 @@ def apply_text_match(el: ET.Element, value: str) -> bool:
     collation = el.get("collation", "i;ascii-casemap")
     negate_condition = el.get("negate-condition", "no")
     match_type = el.get("match-type", "contains")
-    matches = _mod_collation.collations[collation](
-        value, el.text or '', match_type)
+    matches = _mod_collation.collations[collation](value, el.text or "", match_type)
 
     if negate_condition == "yes":
         return not matches
@@ -240,8 +236,7 @@ def apply_text_match(el: ET.Element, value: str) -> bool:
 
 def apply_param_filter(el, prop):
     name = el.get("name")
-    if (len(el) == 1
-            and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined"):
+    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
         return name not in prop.params
 
     try:
@@ -266,8 +261,7 @@ def apply_prop_filter(el, ab):
     # The CARDDAV:prop-filter XML element contains a CARDDAV:is-not-defined XML
     # element and no property of the type specified by the "name" attribute
     # exists in the enclosing calendar component;
-    if (len(el) == 1
-            and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined"):
+    if len(el) == 1 and el[0].tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
         return name not in ab
 
     try:
@@ -305,7 +299,6 @@ async def apply_filter(el, resource):
 
 
 class AddressbookQueryReporter(webdav.Reporter):
-
     name = "{%s}addressbook-query" % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     data_property = AddressDataProperty()
@@ -320,7 +313,7 @@ class AddressbookQueryReporter(webdav.Reporter):
         base_href,
         base_resource,
         depth,
-        strict
+        strict,
     ):
         requested = None
         filter_el = None
@@ -334,32 +327,32 @@ class AddressbookQueryReporter(webdav.Reporter):
                 limit = el
             else:
                 webdav.nonfatal_bad_request(
-                    f"Unknown tag {el.tag} in report {self.name}",
-                    strict)
+                    f"Unknown tag {el.tag} in report {self.name}", strict
+                )
         if requested is None:
             # The CardDAV RFC says that behaviour mimicks that of PROPFIND,
             # and the WebDAV RFC says that no body implies {DAV}allprop
             # This isn't exactly an empty body, but close enough.
-            requested = ET.Element('{DAV:}allprop')
+            requested = ET.Element("{DAV:}allprop")
         if limit is not None:
             try:
                 [nresults_el] = list(limit)
             except ValueError:
                 webdav.nonfatal_bad_request(
-                    "Invalid number of subelements in limit", strict)
+                    "Invalid number of subelements in limit", strict
+                )
                 nresults = None
             else:
                 try:
                     nresults = int(nresults_el.text)
                 except ValueError:
-                    webdav.nonfatal_bad_request(
-                        "nresults not a number", strict)
+                    webdav.nonfatal_bad_request("nresults not a number", strict)
                     nresults = None
         else:
             nresults = None
 
         i = 0
-        async for (href, resource) in webdav.traverse_resource(
+        async for href, resource in webdav.traverse_resource(
             base_resource, base_href, depth
         ):
             if not await apply_filter(filter_el, resource):
@@ -374,6 +367,5 @@ class AddressbookQueryReporter(webdav.Reporter):
                 environ,
                 requested,
             )
-            yield webdav.Status(
-                href, "200 OK", propstat=[s async for s in propstat])
+            yield webdav.Status(href, "200 OK", propstat=[s async for s in propstat])
             i += 1

@@ -27,7 +27,6 @@ from .test_vcard import EXAMPLE_VCARD1
 
 
 class TestApplyFilter(unittest.TestCase):
-
     async def get_file(self):
         return VCardFile([EXAMPLE_VCARD1], "text/vcard")
 

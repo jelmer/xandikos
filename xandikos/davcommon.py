@@ -69,7 +69,7 @@ class MultiGetReporter(webdav.Reporter):
         base_href,
         resource,
         depth,
-        strict
+        strict,
     ):
         # TODO(jelmer): Verify that depth == "0"
         # TODO(jelmer): Verify that resource is an the right resource type
@@ -82,14 +82,14 @@ class MultiGetReporter(webdav.Reporter):
                 hrefs.append(webdav.read_href_element(el))
             else:
                 webdav.nonfatal_bad_request(
-                    f"Unknown tag {el.tag} in report {self.name}",
-                    strict)
+                    f"Unknown tag {el.tag} in report {self.name}", strict
+                )
         if requested is None:
             # The CalDAV RFC says that behaviour mimicks that of PROPFIND,
             # and the WebDAV RFC says that no body implies {DAV}allprop
             # This isn't exactly an empty body, but close enough.
-            requested = ET.Element('{DAV:}allprop')
-        for (href, resource) in resources_by_hrefs(hrefs):
+            requested = ET.Element("{DAV:}allprop")
+        for href, resource in resources_by_hrefs(hrefs):
             if resource is None:
                 yield webdav.Status(href, "404 Not Found", propstat=[])
             else:

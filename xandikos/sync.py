@@ -70,7 +70,7 @@ class SyncCollectionReporter(webdav.Reporter):
         href,
         resource,
         depth,
-        strict
+        strict,
     ):
         old_token = None
         sync_level = None
@@ -86,18 +86,15 @@ class SyncCollectionReporter(webdav.Reporter):
             elif el.tag == "{DAV:}prop":
                 requested = list(el)
             else:
-                webdav.nonfatal_bad_request(
-                    f"unknown tag {el.tag}", strict)
+                webdav.nonfatal_bad_request(f"unknown tag {el.tag}", strict)
         # TODO(jelmer): Implement sync_level infinite
         if sync_level not in ("1",):
-            raise webdav.BadRequestError(
-                f"sync level {sync_level!r} unsupported")
+            raise webdav.BadRequestError(f"sync level {sync_level!r} unsupported")
 
         new_token = resource.get_sync_token()
         try:
             try:
-                diff_iter = resource.iter_differences_since(
-                    old_token, new_token)
+                diff_iter = resource.iter_differences_since(old_token, new_token)
             except NotImplementedError:
                 yield webdav.Status(
                     href,
@@ -111,30 +108,27 @@ class SyncCollectionReporter(webdav.Reporter):
                     [nresults_el] = list(limit)
                 except ValueError:
                     webdav.nonfatal_bad_request(
-                        "Invalid number of subelements in limit",
-                        strict)
+                        "Invalid number of subelements in limit", strict
+                    )
                 else:
                     try:
                         nresults = int(nresults_el.text)
                     except ValueError:
-                        webdav.nonfatal_bad_request(
-                            "nresults not a number", strict)
+                        webdav.nonfatal_bad_request("nresults not a number", strict)
                     else:
                         diff_iter = itertools.islice(diff_iter, nresults)
 
-            for (name, old_resource, new_resource) in diff_iter:
-                subhref = urllib.parse.urljoin(
-                    webdav.ensure_trailing_slash(href), name)
+            for name, old_resource, new_resource in diff_iter:
+                subhref = urllib.parse.urljoin(webdav.ensure_trailing_slash(href), name)
                 if new_resource is None:
                     yield webdav.Status(subhref, status="404 Not Found")
                 else:
                     propstat = []
                     for prop in requested:
                         if old_resource is not None:
-                            old_propstat = (
-                                await webdav.get_property_from_element(
-                                    href, old_resource, properties, environ,
-                                    prop))
+                            old_propstat = await webdav.get_property_from_element(
+                                href, old_resource, properties, environ, prop
+                            )
                         else:
                             old_propstat = None
                         new_propstat = await webdav.get_property_from_element(
@@ -145,8 +139,8 @@ class SyncCollectionReporter(webdav.Reporter):
                     yield webdav.Status(subhref, propstat=propstat)
         except InvalidToken as exc:
             raise webdav.PreconditionFailure(
-                '{DAV:}valid-sync-token',
-                f"Requested sync token {exc.token} is invalid") from exc
+                "{DAV:}valid-sync-token", f"Requested sync token {exc.token} is invalid"
+            ) from exc
         yield SyncToken(new_token)
 
 

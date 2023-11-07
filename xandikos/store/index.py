@@ -96,8 +96,8 @@ class AutoIndexManager:
         self.indexing_threshold = threshold
 
     def find_present_keys(
-            self, necessary_keys: Iterable[IndexKey]) -> Optional[
-                Iterable[IndexKey]]:
+        self, necessary_keys: Iterable[IndexKey]
+    ) -> Optional[Iterable[IndexKey]]:
         available_keys = self.index.available_keys()
         needed_keys = []
         missing_keys: list[IndexKey] = []

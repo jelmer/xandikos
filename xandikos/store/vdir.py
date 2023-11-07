@@ -30,8 +30,16 @@ import shutil
 from typing import Dict
 import uuid
 
-from . import (MIMETYPES, DuplicateUidError, InvalidETag, InvalidFileContents,
-               NoSuchItem, Store, open_by_content_type, open_by_extension)
+from . import (
+    MIMETYPES,
+    DuplicateUidError,
+    InvalidETag,
+    InvalidFileContents,
+    NoSuchItem,
+    Store,
+    open_by_content_type,
+    open_by_extension,
+)
 from .config import FILENAME as CONFIG_FILENAME
 from .config import FileBasedCollectionMetadata
 from .index import MemoryIndex
@@ -97,11 +105,10 @@ class VdirStore(Store):
 
     def _scan_uids(self):
         removed = set(self._fname_to_uid.keys())
-        for (name, content_type, etag) in self.iter_with_etag():
+        for name, content_type, etag in self.iter_with_etag():
             if name in removed:
                 removed.remove(name)
-            if (name in self._fname_to_uid
-                    and self._fname_to_uid[name][0] == etag):
+            if name in self._fname_to_uid and self._fname_to_uid[name][0] == etag:
                 continue
             fi = open_by_extension(
                 self._get_raw(name, etag), name, self.extra_file_handlers
@@ -171,8 +178,7 @@ class VdirStore(Store):
         if content_type is None:
             fi = open_by_extension(data, name, self.extra_file_handlers)
         else:
-            fi = open_by_content_type(
-                data, content_type, self.extra_file_handlers)
+            fi = open_by_content_type(data, content_type, self.extra_file_handlers)
         if name is None:
             name = str(uuid.uuid4())
             extension = MIMETYPES.guess_extension(content_type)

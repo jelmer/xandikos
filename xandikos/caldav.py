@@ -30,8 +30,7 @@ from icalendar.cal import Component, FreeBusy, component_factory
 from icalendar.prop import LocalTimezone, vDDDTypes, vPeriod
 
 from . import davcommon, webdav
-from .icalendar import (apply_time_range_vevent, as_tz_aware_ts,
-                        expand_calendar_rrule)
+from .icalendar import apply_time_range_vevent, as_tz_aware_ts, expand_calendar_rrule
 
 ET = webdav.ET
 
@@ -58,9 +57,7 @@ TRANSPARENCY_OPAQUE = "opaque"
 
 
 class Calendar(webdav.Collection):
-
-    resource_types = webdav.Collection.resource_types + [
-        CALENDAR_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self) -> str:
         """Return the calendar description."""
@@ -171,9 +168,7 @@ class Calendar(webdav.Collection):
 
 
 class Subscription:
-
-    resource_types = webdav.Collection.resource_types + [
-        SUBSCRIPTION_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [SUBSCRIPTION_RESOURCE_TYPE]
 
     def get_source_url(self):
         """Get the source URL for this calendar."""
@@ -261,8 +256,7 @@ class CalendarDescriptionProperty(webdav.Property):
         raise NotImplementedError
 
 
-def _extract_from_component(
-        incomp: Component, outcomp: Component, requested) -> None:
+def _extract_from_component(incomp: Component, outcomp: Component, requested) -> None:
     """Extract specific properties from a calendar event.
 
     Args:
@@ -310,12 +304,10 @@ def extract_from_calendar(incal, requested):
             incal = expand_calendar_rrule(incal, start, end)
         elif tag.tag == ("{%s}limit-recurrence-set" % NAMESPACE):
             # TODO(jelmer): https://github.com/jelmer/xandikos/issues/103
-            raise NotImplementedError(
-                "limit-recurrence-set is not yet implemented")
+            raise NotImplementedError("limit-recurrence-set is not yet implemented")
         elif tag.tag == ("{%s}limit-freebusy-set" % NAMESPACE):
             # TODO(jelmer): https://github.com/jelmer/xandikos/issues/104
-            raise NotImplementedError(
-                "limit-freebusy-set is not yet implemented")
+            raise NotImplementedError("limit-freebusy-set is not yet implemented")
         else:
             raise AssertionError(f"invalid element {tag!r}")
     return incal
@@ -363,7 +355,6 @@ class CalendarOrderProperty(webdav.Property):
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
-
     name = "{%s}calendar-multiget" % NAMESPACE
     resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     data_property = CalendarDataProperty()
@@ -506,7 +497,6 @@ def get_calendar_timezone(resource):
 
 
 class CalendarQueryReporter(webdav.Reporter):
-
     name = "{%s}calendar-query" % NAMESPACE
     resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     data_property = CalendarDataProperty()
@@ -521,7 +511,7 @@ class CalendarQueryReporter(webdav.Reporter):
         base_href,
         base_resource,
         depth,
-        strict
+        strict,
     ):
         # TODO(jelmer): Verify that resource is a calendar
         requested = None
@@ -536,14 +526,13 @@ class CalendarQueryReporter(webdav.Reporter):
                 tztext = el.text
             else:
                 webdav.nonfatal_bad_request(
-                    f"Unknown tag {el.tag} in report {self.name}",
-                    strict
+                    f"Unknown tag {el.tag} in report {self.name}", strict
                 )
         if requested is None:
             # The CalDAV RFC says that behaviour mimicks that of PROPFIND,
             # and the WebDAV RFC says that no body implies {DAV}allprop
             # This isn't exactly an empty body, but close enough.
-            requested = ET.Element('{DAV:}allprop')
+            requested = ET.Element("{DAV:}allprop")
         if tztext is not None:
             tz = get_pytz_from_text(tztext)
         else:
@@ -558,7 +547,7 @@ class CalendarQueryReporter(webdav.Reporter):
                 collection.subcollections(),
             )
 
-        async for (href, resource) in webdav.traverse_resource(
+        async for href, resource in webdav.traverse_resource(
             base_resource, base_href, depth, members=members
         ):
             # Ideally traverse_resource would only return the right things.
@@ -635,8 +624,7 @@ class SupportedCalendarDataProperty(webdav.Property):
             content_type,
             version,
         ) in resource.get_supported_calendar_data_types():
-            subel = ET.SubElement(
-                el, "{urn:ietf:params:xml:ns:caldav}calendar-data")
+            subel = ET.SubElement(el, "{urn:ietf:params:xml:ns:caldav}calendar-data")
             subel.set("content-type", content_type)
             subel.set("version", version)
 
@@ -909,7 +897,7 @@ def extract_freebusy(comp, tzify):
 
 
 async def iter_freebusy(resources, start, end, tzify):
-    async for (href, resource) in resources:
+    async for href, resource in resources:
         c = await calendar_from_resource(resource)
         if c is None:
             continue
@@ -941,7 +929,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
         base_href,
         base_resource,
         depth,
-        strict
+        strict,
     ):
         requested = None
         for el in body:
@@ -1005,8 +993,7 @@ class MkcalendarMethod(webdav.Method):
             href, resource, el, environ
         )
         ET.SubElement(el, "{urn:ietf:params:xml:ns:caldav}calendar")
-        await app.properties["{DAV:}resourcetype"].set_value(
-            href, resource, el)
+        await app.properties["{DAV:}resourcetype"].set_value(href, resource, el)
         if base_content_type in ("text/xml", "application/xml"):
             et = await webdav._readXmlBody(
                 request,
@@ -1017,8 +1004,8 @@ class MkcalendarMethod(webdav.Method):
             for el in et:
                 if el.tag != "{DAV:}set":
                     webdav.nonfatal_bad_request(
-                        f"Unknown tag {el.tag} in mkcalendar",
-                        app.strict)
+                        f"Unknown tag {el.tag} in mkcalendar", app.strict
+                    )
                     continue
                 propstat.extend(
                     [
@@ -1028,8 +1015,7 @@ class MkcalendarMethod(webdav.Method):
                         )
                     ]
                 )
-                ret = ET.Element(
-                    "{urn:ietf:params:xml:ns:carldav:}mkcalendar-response")
+                ret = ET.Element("{urn:ietf:params:xml:ns:carldav:}mkcalendar-response")
             for propstat_el in webdav.propstat_as_xml(propstat):
                 ret.append(propstat_el)
             return webdav._send_xml_response(

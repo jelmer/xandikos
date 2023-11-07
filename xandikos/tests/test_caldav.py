@@ -118,8 +118,7 @@ END:VCALENDAR
         )
 
     def test_comp_nested(self):
-        vcal_comp = ET.SubElement(
-            self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
         vcal_comp.set("name", "VCALENDAR")
         vtodo_comp = ET.SubElement(vcal_comp, "{%s}comp" % caldav.NAMESPACE)
         vtodo_comp.set("name", "VTODO")
@@ -155,13 +154,11 @@ END:VCALENDAR
         )
 
     def test_prop(self):
-        vcal_comp = ET.SubElement(
-            self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
         vcal_comp.set("name", "VCALENDAR")
         vtodo_comp = ET.SubElement(vcal_comp, "{%s}comp" % caldav.NAMESPACE)
         vtodo_comp.set("name", "VTODO")
-        completed_prop = ET.SubElement(
-            vtodo_comp, "{%s}prop" % caldav.NAMESPACE)
+        completed_prop = ET.SubElement(vtodo_comp, "{%s}prop" % caldav.NAMESPACE)
         completed_prop.set("name", "COMPLETED")
         self.extractEqual(
             """\
@@ -195,8 +192,7 @@ END:VCALENDAR
         )
 
     def test_allprop(self):
-        vcal_comp = ET.SubElement(
-            self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
         vcal_comp.set("name", "VCALENDAR")
         vtodo_comp = ET.SubElement(vcal_comp, "{%s}comp" % caldav.NAMESPACE)
         vtodo_comp.set("name", "VTODO")
@@ -221,8 +217,7 @@ END:VCALENDAR
         )
 
     def test_allcomp(self):
-        vcal_comp = ET.SubElement(
-            self.requested, "{%s}comp" % caldav.NAMESPACE)
+        vcal_comp = ET.SubElement(self.requested, "{%s}comp" % caldav.NAMESPACE)
         vcal_comp.set("name", "VCALENDAR")
         ET.SubElement(vcal_comp, "{%s}allcomp" % caldav.NAMESPACE)
         self.extractEqual(

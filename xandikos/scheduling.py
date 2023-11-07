@@ -46,9 +46,7 @@ CALENDAR_USER_TYPES = (
 
 
 class ScheduleInbox(webdav.Collection):
-
-    resource_types = webdav.Collection.resource_types + [
-        SCHEDULE_INBOX_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [SCHEDULE_INBOX_RESOURCE_TYPE]
 
     def get_calendar_user_type(self):
         # Default, per section 2.4.2
@@ -113,9 +111,7 @@ class ScheduleInbox(webdav.Collection):
 
 
 class ScheduleOutbox(webdav.Collection):
-
-    resource_types = webdav.Collection.resource_types + [
-        SCHEDULE_OUTBOX_RESOURCE_TYPE]
+    resource_types = webdav.Collection.resource_types + [SCHEDULE_OUTBOX_RESOURCE_TYPE]
 
     def get_supported_calendar_components(self):
         """Return set of supported calendar components in this calendar.

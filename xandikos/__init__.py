@@ -24,4 +24,3 @@ import defusedxml.ElementTree  # noqa: F401: This does some monkey-patching on-l
 
 __version__ = (0, 2, 10)
 version_string = ".".join(map(str, __version__))
-

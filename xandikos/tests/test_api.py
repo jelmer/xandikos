@@ -25,7 +25,6 @@ from ..web import XandikosApp, XandikosBackend
 
 
 class WebTests(unittest.TestCase):
-
     # When changing this API, please update notes/api-stability.rst and inform
     # vdirsyncer, who rely on this API.
 

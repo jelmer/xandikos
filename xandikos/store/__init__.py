@@ -98,8 +98,7 @@ class File:
         """
         raise NotImplementedError(self.get_uid)
 
-    def describe_delta(
-            self, name: str, previous: Optional["File"]) -> Iterator[str]:
+    def describe_delta(self, name: str, previous: Optional["File"]) -> Iterator[str]:
         """Describe the important difference between this and previous one.
 
         Args:
@@ -272,20 +271,24 @@ class Store:
 
     extra_file_handlers: dict[str, type[File]]
 
-    def __init__(self, index, *, double_check_indexes: bool = False,
-                 index_threshold: Optional[int] = None) -> None:
+    def __init__(
+        self,
+        index,
+        *,
+        double_check_indexes: bool = False,
+        index_threshold: Optional[int] = None,
+    ) -> None:
         self.extra_file_handlers = {}
         self.index = index
-        self.index_manager = AutoIndexManager(
-            self.index, threshold=index_threshold)
+        self.index_manager = AutoIndexManager(self.index, threshold=index_threshold)
         self.double_check_indexes = double_check_indexes
 
     def load_extra_file_handler(self, file_handler: type[File]) -> None:
         self.extra_file_handlers[file_handler.content_type] = file_handler
 
     def iter_with_etag(
-            self, ctag: Optional[str] = None) -> Iterator[
-                tuple[str, str, str]]:
+        self, ctag: Optional[str] = None
+    ) -> Iterator[tuple[str, str, str]]:
         """Iterate over all items in the store with etag.
 
         Args:
@@ -294,8 +297,7 @@ class Store:
         """
         raise NotImplementedError(self.iter_with_etag)
 
-    def iter_with_filter(
-            self, filter: Filter) -> Iterator[tuple[str, File, str]]:
+    def iter_with_filter(self, filter: Filter) -> Iterator[tuple[str, File, str]]:
         """Iterate over all items in the store that match a particular filter.
 
         Args:
@@ -308,8 +310,7 @@ class Store:
             except NotImplementedError:
                 pass
             else:
-                present_keys = self.index_manager.find_present_keys(
-                    necessary_keys)
+                present_keys = self.index_manager.find_present_keys(necessary_keys)
                 if present_keys is not None:
                     return self._iter_with_filter_indexes(filter, present_keys)
         return self._iter_with_filter_naive(filter)
@@ -317,7 +318,7 @@ class Store:
     def _iter_with_filter_naive(
         self, filter: Filter
     ) -> Iterator[tuple[str, File, str]]:
-        for (name, content_type, etag) in self.iter_with_etag():
+        for name, content_type, etag in self.iter_with_etag():
             if not filter.content_type == content_type:
                 continue
             file = self.get_file(name, content_type, etag)
@@ -330,7 +331,7 @@ class Store:
     def _iter_with_filter_indexes(
         self, filter: Filter, keys
     ) -> Iterator[tuple[str, File, str]]:
-        for (name, content_type, etag) in self.iter_with_etag():
+        for name, content_type, etag in self.iter_with_etag():
             if not filter.content_type == content_type:
                 continue
             try:
@@ -355,13 +356,16 @@ class Store:
                 if self.double_check_indexes:
                     if file_values != file.get_indexes(keys):
                         raise AssertionError(
-                            f"{file_values!r} != {file.get_indexes(keys)!r}")
-                    if (filter.check_from_indexes(name, file_values)
-                            != filter.check(name, file)):
+                            f"{file_values!r} != {file.get_indexes(keys)!r}"
+                        )
+                    if filter.check_from_indexes(name, file_values) != filter.check(
+                        name, file
+                    ):
                         raise AssertionError(
                             f"index based filter {filter} "
                             f"(values: {file_values}) not matching "
-                            "real file filter")
+                            "real file filter"
+                        )
                 if filter.check_from_indexes(name, file_values):
                     file = self.get_file(name, content_type, etag)
                     yield (name, file, etag)
@@ -389,8 +393,7 @@ class Store:
                 extra_file_handlers=self.extra_file_handlers,
             )
 
-    def _get_raw(
-            self, name: str, etag: Optional[str] = None) -> Iterable[bytes]:
+    def _get_raw(self, name: str, etag: Optional[str] = None) -> Iterable[bytes]:
         """Get the raw contents of an object.
 
         Args:
@@ -463,7 +466,7 @@ class Store:
         Returns: one of VALID_STORE_TYPES
         """
         ret = STORE_TYPE_OTHER
-        for (name, content_type, etag) in self.iter_with_etag():
+        for name, content_type, etag in self.iter_with_etag():
             if content_type == "text/calendar":
                 ret = STORE_TYPE_CALENDAR
             elif content_type == "text/vcard":

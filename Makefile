@@ -64,4 +64,4 @@ docker:
 	buildah push ghcr.io/jelmer/xandikos
 
 reformat:
-	isort .
+	ruff format .
