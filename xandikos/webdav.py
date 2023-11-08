@@ -1214,7 +1214,7 @@ async def traverse_resource(
             raise AssertionError(f"invalid depth {depth!r}")
         if COLLECTION_RESOURCE_TYPE in resource.resource_types:
             for child_name, child_resource in members_fn(resource):
-                child_href = urllib.parse.urljoin(href, child_name)
+                child_href = ensure_trailing_slash(href) + child_name
                 todo.append((child_href, child_resource, nextdepth))
 
 
@@ -1485,7 +1485,7 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
     script_name = environ["SCRIPT_NAME"]
     # TODO(jelmer): Bulk query hrefs in a more efficient manner
     for href in hrefs:
-        if not href.startswith(script_name):
+        if not href or not href.startswith(script_name):
             resource = None
         else:
             path = href[len(script_name) :]
