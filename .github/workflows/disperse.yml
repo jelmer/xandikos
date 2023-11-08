@@ -5,7 +5,7 @@ name: Disperse configuration
   - push
 
 jobs:
-  build:
+  disperse:
 
     runs-on: ubuntu-latest
 
