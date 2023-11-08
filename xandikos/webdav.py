@@ -1485,7 +1485,7 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
     script_name = environ["SCRIPT_NAME"]
     # TODO(jelmer): Bulk query hrefs in a more efficient manner
     for href in hrefs:
-        if not href.startswith(script_name):
+        if not href or not href.startswith(script_name):
             resource = None
         else:
             path = href[len(script_name) :]
