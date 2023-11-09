@@ -1469,11 +1469,26 @@ class Backend:
         """
         raise NotImplementedError(self.create_collection)
 
-    def get_resource(self, relpath):
+    def get_resource(self, relpath: str) -> Optional[Resource]:
         raise NotImplementedError(self.get_resource)
 
+    def get_resources(self, relpaths) -> Iterator[tuple[str, Optional[Resource]]]:
+        for relpath in relpaths:
+            yield relpath, self.get_resource(relpath)
 
-def _get_resources_by_hrefs(backend, environ, hrefs):
+
+def href_to_path(environ, href) -> Optional[str]:
+    script_name = environ["SCRIPT_NAME"]
+    if not href or not href.startswith(script_name):
+        return None
+    else:
+        path = href[len(script_name) :]
+        if not path.startswith("/"):
+            path = "/" + path
+        return path
+
+
+def _get_resources_by_hrefs(backend, environ, hrefs) -> Iterator[tuple[str, Optional[Resource]]]:
     """Retrieve multiple resources by href.
 
     Args:
@@ -1482,16 +1497,16 @@ def _get_resources_by_hrefs(backend, environ, hrefs):
       hrefs: List of hrefs to resolve
     Returns: iterator over (href, resource) tuples
     """
-    script_name = environ["SCRIPT_NAME"]
-    # TODO(jelmer): Bulk query hrefs in a more efficient manner
+    paths: dict[str, str] = {}
     for href in hrefs:
-        if not href or not href.startswith(script_name):
-            resource = None
+        path = href_to_path(environ, href)
+        if path is not None:
+            paths[path] = href
         else:
-            path = href[len(script_name) :]
-            if not path.startswith("/"):
-                path = "/" + path
-            resource = backend.get_resource(path)
+            yield (href, None)
+
+    for (relpath, resource) in backend.get_resources(paths):
+        href = paths[relpath]
         yield (href, resource)
 
 
