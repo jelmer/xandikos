@@ -119,7 +119,7 @@ class SyncCollectionReporter(webdav.Reporter):
                         diff_iter = itertools.islice(diff_iter, nresults)
 
             for name, old_resource, new_resource in diff_iter:
-                subhref = urllib.parse.urljoin(webdav.ensure_trailing_slash(href), name)
+                subhref = urllib.parse.urljoin(webdav.ensure_trailing_slash(href), urllib.parse.quote(name))
                 if new_resource is None:
                     yield webdav.Status(subhref, status="404 Not Found")
                 else:
