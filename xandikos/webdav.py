@@ -1478,7 +1478,7 @@ class Backend:
 
 
 def href_to_path(environ, href) -> Optional[str]:
-    script_name = environ["SCRIPT_NAME"]
+    script_name = environ["SCRIPT_NAME"].rstrip('/')
     if not href or not href.startswith(script_name):
         return None
     else:
