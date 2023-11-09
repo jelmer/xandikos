@@ -1214,7 +1214,7 @@ async def traverse_resource(
             raise AssertionError(f"invalid depth {depth!r}")
         if COLLECTION_RESOURCE_TYPE in resource.resource_types:
             for child_name, child_resource in members_fn(resource):
-                child_href = urllib.parse.urljoin(href, child_name)
+                child_href = urllib.parse.urljoin(href, urllib.parse.quote(child_name))
                 todo.append((child_href, child_resource, nextdepth))
 
 
@@ -1680,7 +1680,7 @@ class PostMethod(Method):
         except ResourceLocked:
             return Response(status=423, reason="Resource Locked")
         href = environ["SCRIPT_NAME"] + urllib.parse.urljoin(
-            ensure_trailing_slash(path), name
+            ensure_trailing_slash(path), urllib.parse.quote(name)
         )
         return Response(headers={"Location": href})
 
