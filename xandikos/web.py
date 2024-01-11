@@ -1078,6 +1078,8 @@ class XandikosApp(webdav.WebDAVApp):
                 caldav.CalendarDescriptionProperty(),
                 caldav.CalendarColorProperty(),
                 caldav.CalendarOrderProperty(),
+                caldav.CreatedByProperty(),
+                caldav.UpdatedByProperty(),
                 caldav.SupportedCalendarComponentSetProperty(),
                 carddav.AddressbookDescriptionProperty(),
                 carddav.PrincipalAddressProperty(),
