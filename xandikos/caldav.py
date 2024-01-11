@@ -166,6 +166,12 @@ class Calendar(webdav.Collection):
     def get_xmpp_uri(self):
         raise NotImplementedError(self.get_xmpp_uri)
 
+    def get_created_by(self):
+        raise NotImplementedError(self.get_created_by)
+
+    def get_updated_by(self):
+        raise NotImplementedError(self.get_updated_by)
+
 
 class Subscription:
     resource_types = webdav.Collection.resource_types + [SUBSCRIPTION_RESOURCE_TYPE]
@@ -579,6 +585,30 @@ class CalendarColorProperty(webdav.Property):
 
     async def set_value(self, href, resource, el):
         resource.set_calendar_color(el.text)
+
+
+class CreatedByProperty(webdav.Property):
+    """created-by property.
+    """
+
+    name = "{http://calendarserver.org/ns/}created-by"
+    resource_type = (
+        CALENDAR_RESOURCE_TYPE)
+
+    async def get_value(self, href, resource, el, environ):
+        el.text = resource.get_created_by()
+
+
+class UpdatedByProperty(webdav.Property):
+    """updated-by property.
+    """
+
+    name = "{http://calendarserver.org/ns/}updated-by"
+    resource_type = (
+        CALENDAR_RESOURCE_TYPE)
+
+    async def get_value(self, href, resource, el, environ):
+        el.text = resource.get_updated_by()
 
 
 class SupportedCalendarComponentSetProperty(webdav.Property):
