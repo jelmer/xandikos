@@ -11,6 +11,5 @@ ExecStart=/usr/local/bin/xandikos \
 User=xandikos
 Group=www-data
 Restart=on-failure
-KillSignal=SIGQUIT
 Type=simple
 NotifyAccess=all
