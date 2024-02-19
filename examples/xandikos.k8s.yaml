@@ -26,7 +26,7 @@ spec:
           - "python3"
           - "-m"
           - "xandikos.web"
-          - "--port=8081"
+          - "--port=8080"
           - "-d/data"
           - "--defaults"
           - "--listen-address=0.0.0.0"
@@ -66,7 +66,7 @@ metadata:
     app: xandikos
 spec:
   ports:
-    - port: 8081
+    - port: 8080
       name: web
   selector:
     app: xandikos
