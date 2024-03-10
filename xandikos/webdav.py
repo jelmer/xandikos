@@ -1214,7 +1214,7 @@ async def traverse_resource(
             raise AssertionError(f"invalid depth {depth!r}")
         if COLLECTION_RESOURCE_TYPE in resource.resource_types:
             for child_name, child_resource in members_fn(resource):
-                child_href = urllib.parse.urljoin(href, urllib.parse.quote(child_name))
+                child_href = urllib.parse.urljoin(href, child_name)
                 todo.append((child_href, child_resource, nextdepth))
 
 
