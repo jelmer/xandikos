@@ -29,12 +29,10 @@ jobs:
         sudo apt -y update
         sudo apt -y install libsystemd-dev
         python -m pip install -e ".[systemd,prometheus]"
-        python setup.py develop
       if: "matrix.os == 'ubuntu-latest'"
     - name: Install dependencies (non-linux)
       run: |
         python -m pip install -e ".[prometheus]"
-        python setup.py develop
       if: "matrix.os != 'ubuntu-latest'"
     - name: Style checks
       run: |
