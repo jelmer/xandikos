@@ -5,12 +5,14 @@ set -e
 . $(dirname $0)/common.sh
 
 BRANCH=master
+PYCALDAV_REF=v1.2.1
 
 if [ ! -d $(dirname $0)/pycaldav ]; then
-    git clone https://github.com/python-caldav/caldav $(dirname $0)/pycaldav
+    git clone --branch $PYCALDAV_REF https://github.com/python-caldav/caldav $(dirname $0)/pycaldav
 else
     pushd $(dirname $0)/pycaldav
-    git pull --ff-only origin $BRANCH
+    git fetch origin
+    git reset --hard $PYCALDAV_REF
     popd
 fi
 
