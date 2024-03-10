@@ -1,13 +1,14 @@
-# Keep GitHub Actions up to date with GitHub's Dependabot...
-# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/keeping-your-actions-up-to-date-with-dependabot
-# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#package-ecosystem
+# Please see the documentation for all configuration options:
+# https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
 version: 2
 updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    rebase-strategy: "disabled"
   - package-ecosystem: "github-actions"
     directory: "/"
-    groups:
-      GitHub_Actions:
-        patterns:
-          - "*"  # Group all Actions updates into a single larger pull request
     schedule:
       interval: weekly
