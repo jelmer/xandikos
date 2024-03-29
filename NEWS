@@ -1,4 +1,12 @@
-0.2.11	UNRELEASED
+0.2.11	2024-03-29
+
+ * Various build cleanups/fixes. (Jelmer Vernooĳ)
+
+ * Add multi-arch docker builds. (Maya)
+
+ * do not listen on default address if systemd sockets (schnusch)
+
+ * Use correct port in kubernetes to not conflict with the metrics port (Marcel, #286)
 
 0.2.10	2023-09-04
 

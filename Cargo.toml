@@ -1,6 +1,6 @@
 [package]
 name = "xandikos"
-version = "0.2.10"
+version = "0.2.11"
 authors = [ "Jelmer Vernooij <jelmer@jelmer.uk>",]
 edition = "2021"
 license = "GPL-3.0+"
@@ -9,7 +9,7 @@ repository = "https://github.com/jelmer/xandikos.git"
 homepage = "https://github.com/jelmer/xandikos"
 
 [dependencies]
-clap = "<=4.2"
+clap = ">=4,<4.5"
 
 [dependencies.pyo3]
 version = "0.20"
