@@ -131,11 +131,10 @@ Some clients can automatically discover the calendars and addressbook URLs from
 a DAV server (if they support RFC:`5397`). For such clients you can simply
 provide the base URL to Xandikos during setup.
 
-Clients that lack such automated discovery (e.g. Thunderbird Lightning) require
-the direct URL to a calendar or addressbook. In this case you
-should provide the full URL to the calendar or addressbook; if you initialized
-Xandikos using the ``--defaults`` argument mentioned in the previous section,
-these URLs will look something like this::
+Clients that lack such automated discovery require the direct URL to a calendar
+or addressbook. In this case you should provide the full URL to the calendar or
+addressbook; if you initialized Xandikos using the ``--defaults`` argument
+mentioned in the previous section, these URLs will look something like this::
 
   http://dav.example.com/user/calendars/calendar
 
