@@ -33,7 +33,7 @@ jobs:
         name: release-dists
         path: dist/
 
-   pypi-publish:
+  pypi-publish:
     runs-on: ubuntu-latest
     needs:
       - release-build
