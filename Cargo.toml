@@ -9,7 +9,7 @@ repository = "https://github.com/jelmer/xandikos.git"
 homepage = "https://github.com/jelmer/xandikos"
 
 [dependencies]
-clap = ">=4,<4.5"
+clap = ">=4, <4.6"
 
 [dependencies.pyo3]
 version = "0.21"
