@@ -1466,6 +1466,8 @@ async def main(argv=None):  # noqa: C901
             options.current_user_principal,
         )
 
+    logging.info("Xandikos %s", ".".join(map(str, xandikos_version)))
+
     main_app = XandikosApp(
         backend,
         current_user_principal=options.current_user_principal,
