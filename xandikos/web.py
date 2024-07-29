@@ -1362,7 +1362,7 @@ async def main(argv=None):  # noqa: C901
     access_group.add_argument(
         "--metrics-port",
         dest="metrics_port",
-        default=8081,
+        default=None,
         help="Port to listen on for metrics. [%(default)s]",
     )
     access_group.add_argument(
@@ -1466,6 +1466,8 @@ async def main(argv=None):  # noqa: C901
             options.current_user_principal,
         )
 
+    logging.info("Xandikos %s", ".".join(map(str, xandikos_version)))
+
     main_app = XandikosApp(
         backend,
         current_user_principal=options.current_user_principal,
@@ -1503,7 +1505,7 @@ async def main(argv=None):  # noqa: C901
         parser.error("Metrics port cannot be the same as the main port")
 
     app = web.Application()
-    if options.metrics_port:
+    if options.metrics_port is not None:
         metrics_app = web.Application()
         try:
             from aiohttp_openmetrics import metrics, metrics_middleware
