@@ -36,6 +36,9 @@ import urllib.parse
 from collections.abc import Iterable, Iterator
 from email.utils import parseaddr
 from typing import Optional
+from dulwich.web import make_wsgi_chain
+from dulwich.server import DictBackend
+from itertools import takewhile
 
 import jinja2
 
@@ -130,6 +133,7 @@ STORE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
 CALENDAR_HOME_SET = ["calendars"]
 ADDRESSBOOK_HOME_SET = ["contacts"]
+GIT_PATH = ".git"
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 jinja_env = jinja2.Environment(
@@ -1147,6 +1151,28 @@ class XandikosApp(webdav.WebDAVApp):
                 caldav.MkcalendarMethod(),
             ]
         )
+
+    async def _handle_request(self, request, environ, start_response=None):
+        # don't look any deeper than /user/calendars/foobar/.git
+        path_search_prefix = request.path.split(posixpath.sep)[:5]
+
+        if start_response and GIT_PATH in path_search_prefix:
+            return self._handle_git_request(request,
+                                            environ["ORIGINAL_ENVIRON"],
+                                            takewhile(lambda x: x != GIT_PATH, path_search_prefix),
+                                            start_response)
+        else:
+            return await super()._handle_request(request, environ)
+
+    def _handle_git_request(self, request, environ, path, start_response):
+        resource_path = posixpath.join("/", *path)
+        resource = self.backend.get_resource(resource_path)
+        if not isinstance(resource, StoreBasedCollection) or not isinstance(resource.store, GitStore):
+            return webdav._send_not_found(request)
+
+        prefix = posixpath.join(resource_path, GIT_PATH)
+        chain = make_wsgi_chain(DictBackend({prefix: resource.store.repo}), dumb=True)
+        return chain(environ, start_response)
 
 
 def create_principal_defaults(backend, principal):
