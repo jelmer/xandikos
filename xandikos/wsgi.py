@@ -24,19 +24,34 @@ import os
 
 from .web import XandikosApp, XandikosBackend
 
+create_defaults = False
+
+autocreate_str = os.getenv("AUTOCREATE")
+if autocreate_str == "defaults":
+    logging.warning("Creating default collections.")
+    create_defaults = True
+    autocreate = True
+elif autocreate_str in ("empty", "yes"):
+    autocreate = True
+elif autocreate_str in (None, "no"):
+    autocreate = False
+else:
+    logging.warning("Unknown value for AUTOCREATE: %r", autocreate_str)
+    autocreate = False
+
 backend = XandikosBackend(path=os.environ["XANDIKOSPATH"])
 if not os.path.isdir(backend.path):
-    if os.getenv("AUTOCREATE"):
+    if autocreate:
         os.makedirs(os.environ["XANDIKOSPATH"])
     else:
         logging.warning("%r does not exist.", backend.path)
 
 current_user_principal = os.environ.get("CURRENT_USER_PRINCIPAL", "/user/")
 if not backend.get_resource(current_user_principal):
-    if os.getenv("AUTOCREATE"):
+    if autocreate:
         backend.create_principal(
             current_user_principal,
-            create_defaults=os.environ["AUTOCREATE"] == "defaults",
+            create_defaults=create_defaults
         )
     else:
         logging.warning(
