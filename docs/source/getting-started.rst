@@ -40,9 +40,7 @@ To run in docker interactively, try something like:
 The following environment variables are supported by the docker image:
 
  * ``CURRENT_USER_PRINCIPAL``: path to current user principal; defaults to "/$USER"
- * ``AUTOCREATE``: whether to automatically create missing directories ("yes" or "no")
- * ``DEFAULTS``: whether to create a default directory hierarch with one
-     calendar and one addressbook ("yes" or "no")
+ * ``AUTOCREATE``: whether to automatically create missing directories ("defaults", "empty")
  * ``ROUTE_PREFIX``: HTTP prefix under which Xandikos should run
 
 Running from kubernetes
