@@ -26,7 +26,7 @@ import unittest
 
 from .. import caldav
 from ..icalendar import ICalendarFile
-from ..store.vdir import VdirStore
+from ..store.git import TreeGitStore
 from ..web import CalendarCollection, XandikosBackend
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -51,7 +51,7 @@ class CalendarCollectionTests(unittest.TestCase):
         self.tempdir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tempdir)
 
-        self.store = VdirStore.create(os.path.join(self.tempdir, "c"))
+        self.store = TreeGitStore.create(os.path.join(self.tempdir, "c"))
         self.store.load_extra_file_handler(ICalendarFile)
         self.backend = XandikosBackend(self.tempdir)
 
@@ -148,3 +148,26 @@ class CalendarCollectionTests(unittest.TestCase):
             caldav.TRANSPARENCY_OPAQUE,
             self.cal.get_schedule_calendar_transparency(),
         )
+
+    def test_git_refs(self):
+        from ..web import XandikosApp
+        from wsgiref.util import setup_testing_defaults
+
+        self.store.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        app = XandikosApp(self.backend, "user")
+
+        default_branch = b"refs/heads/master"
+        commit_hash = self.store.repo.refs[default_branch]
+
+        environ = {"PATH_INFO": "/c/.git/info/refs", "REQUEST_METHOD": "GET", "QUERY_STRING": ""}
+        setup_testing_defaults(environ)
+
+        codes = []
+
+        def start_response(code, _headers):
+            codes.append(code)
+
+        body = b"".join(app(environ, start_response))
+
+        self.assertEqual(["200 OK"], codes)
+        self.assertEqual(b"".join([commit_hash, b"\t", default_branch, b"\n"]), body)

@@ -2110,7 +2110,7 @@ class WebDAVApp:
                 ret.append(name)
         return ret
 
-    async def _handle_request(self, request, environ):
+    async def _handle_request(self, request, environ, start_response=None):
         try:
             do = self.methods[request.method]
         except KeyError:
@@ -2148,14 +2148,14 @@ class WebDAVApp:
             logging.debug('SCRIPT_NAME not set; assuming "".')
             environ["SCRIPT_NAME"] = ""
         request = WSGIRequest(environ)
-        environ = {"SCRIPT_NAME": environ["SCRIPT_NAME"]}
+        environ = {"SCRIPT_NAME": environ["SCRIPT_NAME"], "ORIGINAL_ENVIRON": environ}
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        response = loop.run_until_complete(self._handle_request(request, environ))
-        return response.for_wsgi(start_response)
+        response = loop.run_until_complete(self._handle_request(request, environ, start_response))
+        return response.for_wsgi(start_response) if isinstance(response, Response) else response
 
     async def aiohttp_handler(self, request, route_prefix="/"):
         environ = {"SCRIPT_NAME": route_prefix}
