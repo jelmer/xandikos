@@ -1153,13 +1153,10 @@ class XandikosApp(webdav.WebDAVApp):
         )
 
     async def _handle_request(self, request, environ, start_response=None):
-        # don't look any deeper than /user/calendars/foobar/.git
-        path_search_prefix = request.path.split(posixpath.sep)[:5]
-
-        if start_response and GIT_PATH in path_search_prefix:
+        if start_response and GIT_PATH in request.path.split(posixpath.sep):
             return self._handle_git_request(request,
                                             environ["ORIGINAL_ENVIRON"],
-                                            takewhile(lambda x: x != GIT_PATH, path_search_prefix),
+                                            takewhile(lambda x: x != GIT_PATH, request.path.split(posixpath.sep)),
                                             start_response)
         else:
             return await super()._handle_request(request, environ)
