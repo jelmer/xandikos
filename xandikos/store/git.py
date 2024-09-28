@@ -211,12 +211,12 @@ class GitStore(Store):
         self,
         repo,
         *,
-        ref: bytes = b"refs/heads/master",
+        ref: bytes = b"HEAD",
         check_for_duplicate_uids=True,
         **kwargs,
     ) -> None:
         super().__init__(MemoryIndex(), **kwargs)
-        self.ref = ref
+        self.ref = repo.refs.follow(ref)[0][-1]
         self.repo = repo
         # Maps uids to (sha, fname)
         self._uid_to_fname: dict[str, tuple[bytes, str]] = {}

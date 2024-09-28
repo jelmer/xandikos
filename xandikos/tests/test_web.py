@@ -156,7 +156,7 @@ class CalendarCollectionTests(unittest.TestCase):
         self.store.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
         app = XandikosApp(self.backend, "user")
 
-        default_branch = b"refs/heads/master"
+        default_branch = self.store.repo.refs.follow(b"HEAD")[0][-1]
         commit_hash = self.store.repo.refs[default_branch]
 
         environ = {"PATH_INFO": "/c/.git/info/refs", "REQUEST_METHOD": "GET", "QUERY_STRING": ""}
