@@ -27,7 +27,7 @@ import itertools
 import pytz
 from icalendar.cal import Calendar as ICalendar
 from icalendar.cal import Component, FreeBusy, component_factory
-from icalendar.prop import LocalTimezone, vDDDTypes, vPeriod
+from icalendar.prop import vDDDTypes, vPeriod
 
 from . import davcommon, webdav
 from .icalendar import apply_time_range_vevent, as_tz_aware_ts, expand_calendar_rrule
@@ -493,11 +493,13 @@ def get_pytz_from_text(tztext):
     return pytz.timezone(tzid)
 
 
-def get_calendar_timezone(resource):
+def get_calendar_timezone(resource: webdav.Resource) -> str:
     try:
         tztext = resource.get_calendar_timezone()
     except KeyError:
-        return LocalTimezone()
+        now = datetime.datetime.now()
+        local_now = now.astimezone()
+        return local_now.tzinfo
     else:
         return get_pytz_from_text(tztext)
 

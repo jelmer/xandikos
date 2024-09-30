@@ -866,9 +866,9 @@ class ICalendarFile(File):
         """Verify that file contents are valid."""
         cal = self.calendar
         # TODO(jelmer): return the list of errors to the caller
-        if cal.is_broken:
+        if cal.errors:
             raise InvalidFileContents(
-                self.content_type, self.content, "Broken calendar file"
+                self.content_type, self.content, "Broken calendar file: " + ", ".join(cal.errors)
             )
         errors = list(validate_calendar(cal, strict=False))
         if errors:

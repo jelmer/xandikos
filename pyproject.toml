@@ -29,6 +29,7 @@ dependencies = [
     "jinja2",
     "multidict",
     "vobject",
+    "pytz",
 ]
 dynamic = ["version"]
 
