@@ -23,8 +23,8 @@ https://tools.ietf.org/html/rfc4791
 """
 import datetime
 import itertools
+from zoneinfo import ZoneInfo
 
-import pytz
 from icalendar.cal import Calendar as ICalendar
 from icalendar.cal import Component, FreeBusy, component_factory
 from icalendar.prop import vDDDTypes, vPeriod
@@ -488,12 +488,12 @@ def extract_tzid(cal):
     return cal.subcomponents[0]["TZID"]
 
 
-def get_pytz_from_text(tztext):
+def get_timezone_from_text(tztext):
     tzid = extract_tzid(ICalendar.from_ical(tztext))
-    return pytz.timezone(tzid)
+    return ZoneInfo(tzid)
 
 
-def get_calendar_timezone(resource: webdav.Resource) -> str:
+def get_calendar_timezone(resource: Calendar):
     try:
         tztext = resource.get_calendar_timezone()
     except KeyError:
@@ -501,7 +501,7 @@ def get_calendar_timezone(resource: webdav.Resource) -> str:
         local_now = now.astimezone()
         return local_now.tzinfo
     else:
-        return get_pytz_from_text(tztext)
+        return get_timezone_from_text(tztext)
 
 
 class CalendarQueryReporter(webdav.Reporter):
@@ -542,7 +542,7 @@ class CalendarQueryReporter(webdav.Reporter):
             # This isn't exactly an empty body, but close enough.
             requested = ET.Element("{DAV:}allprop")
         if tztext is not None:
-            tz = get_pytz_from_text(tztext)
+            tz = get_timezone_from_text(tztext)
         else:
             tz = get_calendar_timezone(base_resource)
 
@@ -973,7 +973,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
         tz = get_calendar_timezone(base_resource)
 
         def tzify(dt):
-            return as_tz_aware_ts(dt, tz).astimezone(pytz.utc)
+            return as_tz_aware_ts(dt, tz).astimezone(ZoneInfo('UTC'))
 
         (start, end) = _parse_time_range(requested)
         ret = ICalendar()
