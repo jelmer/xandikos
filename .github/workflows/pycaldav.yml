@@ -24,7 +24,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -U pip pycalendar vobject requests six tzlocal attrs aiohttp aiohttp-wsgi prometheus-client multidict pytest "recurring-ical-events>=1.1.0b" typing-extensions defusedxml
+        pip install -U pip pycalendar vobject requests six tzlocal pytz attrs aiohttp aiohttp-wsgi prometheus-client multidict pytest "recurring-ical-events>=1.1.0b" typing-extensions defusedxml
         python -m pip install -e .
     - name: Run pycaldav tests
       run: |
