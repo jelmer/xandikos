@@ -21,8 +21,8 @@
 
 import unittest
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
-import pytz
 from icalendar.cal import Event
 from icalendar.prop import vCategory, vText
 
@@ -334,10 +334,10 @@ class CalendarFilterTests(unittest.TestCase):
         self.assertTrue(filter.check("file", self.cal))
 
     def _tzify(self, dt):
-        return as_tz_aware_ts(dt, pytz.utc)
+        return as_tz_aware_ts(dt, ZoneInfo('UTC'))
 
     def test_prop_apply_time_range(self):
-        filter = CalendarFilter(pytz.utc)
+        filter = CalendarFilter(ZoneInfo('UTC'))
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
         ).filter_property("CREATED").filter_time_range(
@@ -376,7 +376,7 @@ class CalendarFilterTests(unittest.TestCase):
             {"C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"]},
         )
 
-        filter = CalendarFilter(pytz.utc)
+        filter = CalendarFilter(ZoneInfo('UTC'))
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
         ).filter_time_range(
@@ -421,7 +421,7 @@ class CalendarFilterTests(unittest.TestCase):
             )
         )
         self.assertFalse(filter.check("file", self.cal))
-        filter = CalendarFilter(pytz.utc)
+        filter = CalendarFilter(ZoneInfo('UTC'))
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
         ).filter_time_range(

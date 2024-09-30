@@ -23,9 +23,9 @@ import logging
 from collections.abc import Iterable
 from datetime import datetime, time, timedelta, timezone
 from typing import Callable, Optional, Union
+from zoneinfo import ZoneInfo
 
 import dateutil.rrule
-import pytz
 from icalendar.cal import Calendar, Component, component_factory
 from icalendar.prop import TypesFactory, vCategory, vDatetime, vDDDTypes, vText
 
@@ -1036,4 +1036,4 @@ def expand_calendar_rrule(incal: Calendar, start: datetime, end: datetime) -> Ca
 
 
 def asutc(dt):
-    return dt.astimezone(pytz.utc).replace(tzinfo=None)
+    return dt.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
