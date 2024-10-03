@@ -35,7 +35,7 @@ To run in docker interactively, try something like:
 .. code-block:: shell
 
    mkdir /tmp/xandikos
-   docker -it run ghcr.io/jelmer/xandikos -v /tmp/xandikos:/data
+   docker run -it -v /tmp/xandikos:/data -p8000:8000 ghcr.io/jelmer/xandikos
 
 The following environment variables are supported by the docker image:
 
