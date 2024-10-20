@@ -1344,7 +1344,6 @@ def run_simple_server(
 
 async def main(argv=None):  # noqa: C901
     import argparse
-    import sys
 
     from xandikos import __version__
 
@@ -1402,6 +1401,7 @@ async def main(argv=None):  # noqa: C901
         "--directory",
         dest="directory",
         default=None,
+        required=True,
         help="Directory to serve from.",
     )
     parser.add_argument(
@@ -1443,10 +1443,6 @@ async def main(argv=None):  # noqa: C901
     parser.add_argument("--paranoid", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--index-threshold", type=int, help=argparse.SUPPRESS)
     options = parser.parse_args(argv)
-
-    if options.directory is None:
-        parser.print_usage()
-        sys.exit(1)
 
     if options.dump_dav_xml:
         # TODO(jelmer): Find a way to propagate this without abusing
