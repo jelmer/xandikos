@@ -1340,18 +1340,8 @@ def run_simple_server(
     web.run_app(app, port=port, host=listen_address, path=socket_path)
 
 
-async def main(argv=None):  # noqa: C901
+def add_parser(parser):
     import argparse
-
-    from xandikos import __version__
-
-    parser = argparse.ArgumentParser(usage="%(prog)s -d ROOT-DIR [OPTIONS]")
-
-    parser.add_argument(
-        "--version",
-        action="version",
-        version="%(prog)s " + ".".join(map(str, __version__)),
-    )
 
     access_group = parser.add_argument_group(title="Access Options")
     access_group.add_argument(
@@ -1440,8 +1430,9 @@ async def main(argv=None):  # noqa: C901
     # and are generally just meant for developers.
     parser.add_argument("--paranoid", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--index-threshold", type=int, help=argparse.SUPPRESS)
-    options = parser.parse_args(argv)
 
+
+async def main(options, parser):
     if options.dump_dav_xml:
         # TODO(jelmer): Find a way to propagate this without abusing
         # os.environ.
@@ -1600,4 +1591,10 @@ async def main(argv=None):  # noqa: C901
 if __name__ == "__main__":
     import sys
 
-    sys.exit(asyncio.run(main(sys.argv[1:])))
+    import argparse
+
+    parser = argparse.ArgumentParser(usage="%(prog)s [options]")
+    add_parser(parser)
+    args = parser.parse_args(sys.argv[1:])
+
+    sys.exit(asyncio.run(main(args, parser)))
