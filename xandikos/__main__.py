@@ -19,17 +19,55 @@
 
 """Xandikos command-line handling."""
 
+import argparse
 import asyncio
+import sys
+from . import __version__
 
 
-def main(argv=None):
+# If no subparser is given, default to 'serve'
+def set_default_subparser(self, argv, name):
+    subparser_found = False
+    for arg in argv:
+        if arg in ['-h', '--help', '--version']:
+            break
+    else:
+        for x in self._subparsers._actions:
+            if not isinstance(x, argparse._SubParsersAction):
+                continue
+            for sp_name in x._name_parser_map.keys():
+                if sp_name in argv:
+                    subparser_found = True
+        if not subparser_found:
+            argv.insert(0, name)
+
+
+async def main(argv):
     # For now, just invoke xandikos.web
-    from .web import main
+    from . import web
 
-    return asyncio.run(main(argv))
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s " + ".".join(map(str, __version__)),
+    )
+
+    subparsers = parser.add_subparsers(help='Subcommands', dest='subcommand')
+    web.add_parser(subparsers)
+
+    set_default_subparser(parser, argv, 'serve')
+    args = parser.parse_args(argv)
+
+    if args.subcommand == 'serve':
+        return await web.main(args)
+    else:
+        parser.print_help()
+        return 1
 
 
 if __name__ == "__main__":
     import sys
 
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(asyncio.run(main(sys.argv[1:])))
