@@ -1340,10 +1340,8 @@ def run_simple_server(
     web.run_app(app, port=port, host=listen_address, path=socket_path)
 
 
-def add_parser(subparsers):
+def add_parser(parser):
     import argparse
-    parser = subparsers.add_parser(
-        'serve', usage="%(prog)s -d ROOT-DIR [OPTIONS]", help="Run a Xandikos server")
 
     access_group = parser.add_argument_group(title="Access Options")
     access_group.add_argument(
@@ -1434,10 +1432,7 @@ def add_parser(subparsers):
     parser.add_argument("--index-threshold", type=int, help=argparse.SUPPRESS)
 
 
-
-async def main(options):
-    import sys
-
+async def main(options, parser):
     if options.dump_dav_xml:
         # TODO(jelmer): Find a way to propagate this without abusing
         # os.environ.
@@ -1596,4 +1591,10 @@ async def main(options):
 if __name__ == "__main__":
     import sys
 
-    sys.exit(asyncio.run(main(sys.argv[1:])))
+    import argparse
+
+    parser = argparse.ArgumentParser(usage="%(prog)s [options]")
+    add_parser(parser)
+    args = parser.parse_args(sys.argv[1:])
+
+    sys.exit(asyncio.run(main(args, parser)))

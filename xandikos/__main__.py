@@ -29,7 +29,7 @@ from . import __version__
 def set_default_subparser(self, argv, name):
     subparser_found = False
     for arg in argv:
-        if arg in ['-h', '--help', '--version']:
+        if arg in ["-h", "--help", "--version"]:
             break
     else:
         for x in self._subparsers._actions:
@@ -39,6 +39,7 @@ def set_default_subparser(self, argv, name):
                 if sp_name in argv:
                     subparser_found = True
         if not subparser_found:
+            print('No subcommand given, defaulting to "%s"' % name)
             argv.insert(0, name)
 
 
@@ -54,14 +55,17 @@ async def main(argv):
         version="%(prog)s " + ".".join(map(str, __version__)),
     )
 
-    subparsers = parser.add_subparsers(help='Subcommands', dest='subcommand')
-    web.add_parser(subparsers)
+    subparsers = parser.add_subparsers(help="Subcommands", dest="subcommand")
+    web_parser = subparsers.add_parser(
+        "serve", usage="%(prog)s -d ROOT-DIR [OPTIONS]", help="Run a Xandikos server"
+    )
+    web.add_parser(web_parser)
 
-    set_default_subparser(parser, argv, 'serve')
+    set_default_subparser(parser, argv, "serve")
     args = parser.parse_args(argv)
 
-    if args.subcommand == 'serve':
-        return await web.main(args)
+    if args.subcommand == "serve":
+        return await web.main(args, parser)
     else:
         parser.print_help()
         return 1
