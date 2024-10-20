@@ -88,6 +88,10 @@ ignore = [
     "D403",
     "D417",
     "E501",
+    # f-strings aren't actually more readable for some expressions, especially things like:
+    # "{%s}blah" % caldav.NAMESPACE
+    # where escaping the braces is a pain
+    "UP031",
 ]
 
 [tool.ruff.lint.pydocstyle]

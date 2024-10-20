@@ -202,13 +202,7 @@ class ObjectResource(webdav.Resource):
         self._file = file
 
     def __repr__(self) -> str:
-        return "{}({!r}, {!r}, {!r}, {!r})".format(
-            type(self).__name__,
-            self.store,
-            self.name,
-            self.etag,
-            self.get_content_type(),
-        )
+        return f"{type(self).__name__}({self.store!r}, {self.name!r}, {self.etag!r}, {self.get_content_type()!r})"
 
     async def get_file(self) -> File:
         if self._file is None:

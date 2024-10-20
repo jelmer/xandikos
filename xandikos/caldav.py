@@ -590,8 +590,7 @@ class CalendarColorProperty(webdav.Property):
 
 
 class CreatedByProperty(webdav.Property):
-    """created-by property.
-    """
+    """created-by property."""
 
     name = "{http://calendarserver.org/ns/}created-by"
     resource_type = (
@@ -602,8 +601,7 @@ class CreatedByProperty(webdav.Property):
 
 
 class UpdatedByProperty(webdav.Property):
-    """updated-by property.
-    """
+    """updated-by property."""
 
     name = "{http://calendarserver.org/ns/}updated-by"
     resource_type = (
