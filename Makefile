@@ -13,8 +13,7 @@ check:
 	$(PYTHON) -m unittest $(TESTSUITE)
 
 style:
-	$(PYTHON) -m flake8
-	$(PYTHON) -m isort --check .
+	$(PYTHON) -m ruff check .
 
 typing:
 	$(PYTHON) -m mypy xandikos
