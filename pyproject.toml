@@ -35,6 +35,10 @@ dynamic = ["version"]
 [project.optional-dependencies]
 prometheus = ["aiohttp_openmetrics"]
 systemd = ["systemd_python"]
+dev = [
+   "ruff==0.7.0",
+   "pytest",
+]
 
 [project.scripts]
 xandikos = "xandikos.__main__:main"

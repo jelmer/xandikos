@@ -23,7 +23,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools
-        pip install -U pip pycalendar vobject requests six tzlocal attrs aiohttp aiohttp-wsgi prometheus-client multidict pytest
+        pip install -U pip pycalendar vobject requests attrs aiohttp aiohttp-wsgi prometheus-client multidict pytest
         python setup.py develop
     - name: Run litmus tests
       run: |
