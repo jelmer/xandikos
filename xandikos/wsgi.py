@@ -50,8 +50,7 @@ current_user_principal = os.environ.get("CURRENT_USER_PRINCIPAL", "/user/")
 if not backend.get_resource(current_user_principal):
     if autocreate:
         backend.create_principal(
-            current_user_principal,
-            create_defaults=create_defaults
+            current_user_principal, create_defaults=create_defaults
         )
     else:
         logging.warning(

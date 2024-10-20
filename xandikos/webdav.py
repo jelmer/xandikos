@@ -35,7 +35,7 @@ import posixpath
 import urllib.parse
 from collections.abc import AsyncIterable, Iterable, Iterator, Sequence
 from datetime import datetime
-from typing import Callable, Optional, Union, Dict, Type
+from typing import Callable, Optional, Union
 from wsgiref.util import request_uri
 
 # Hmm, defusedxml doesn't have XML generation functions? :(
@@ -298,12 +298,7 @@ class Status:
         self.responsedescription = responsedescription
 
     def __repr__(self) -> str:
-        return "<{}({!r}, {!r}, {!r})>".format(
-            type(self).__name__,
-            self.href,
-            self.status,
-            self.responsedescription,
-        )
+        return f"<{type(self).__name__}({self.href!r}, {self.status!r}, {self.responsedescription!r})>"
 
     def get_single_body(self, encoding):
         if self.propstat and len(propstat_by_status(self.propstat)) > 1:
@@ -1478,7 +1473,7 @@ class Backend:
 
 
 def href_to_path(environ, href) -> Optional[str]:
-    script_name = environ["SCRIPT_NAME"].rstrip('/')
+    script_name = environ["SCRIPT_NAME"].rstrip("/")
     if not href or not href.startswith(script_name):
         return None
     else:
@@ -1488,7 +1483,9 @@ def href_to_path(environ, href) -> Optional[str]:
         return path
 
 
-def _get_resources_by_hrefs(backend, environ, hrefs) -> Iterator[tuple[str, Optional[Resource]]]:
+def _get_resources_by_hrefs(
+    backend, environ, hrefs
+) -> Iterator[tuple[str, Optional[Resource]]]:
     """Retrieve multiple resources by href.
 
     Args:
@@ -1505,7 +1502,7 @@ def _get_resources_by_hrefs(backend, environ, hrefs) -> Iterator[tuple[str, Opti
         else:
             yield (href, None)
 
-    for (relpath, resource) in backend.get_resources(paths):
+    for relpath, resource in backend.get_resources(paths):
         href = paths[relpath]
         yield (href, resource)
 
@@ -2049,9 +2046,9 @@ class WebDAVApp:
 
     def __init__(self, backend, strict=True) -> None:
         self.backend = backend
-        self.properties: Dict[str, Type[Property]] = {}
-        self.reporters: Dict[str, Type[Reporter]] = {}
-        self.methods: Dict[str, Type[Method]] = {}
+        self.properties: dict[str, type[Property]] = {}
+        self.reporters: dict[str, type[Reporter]] = {}
+        self.methods: dict[str, type[Method]] = {}
         self.strict = strict
         self.register_methods(
             [
@@ -2154,8 +2151,14 @@ class WebDAVApp:
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        response = loop.run_until_complete(self._handle_request(request, environ, start_response))
-        return response.for_wsgi(start_response) if isinstance(response, Response) else response
+        response = loop.run_until_complete(
+            self._handle_request(request, environ, start_response)
+        )
+        return (
+            response.for_wsgi(start_response)
+            if isinstance(response, Response)
+            else response
+        )
 
     async def aiohttp_handler(self, request, route_prefix="/"):
         environ = {"SCRIPT_NAME": route_prefix}

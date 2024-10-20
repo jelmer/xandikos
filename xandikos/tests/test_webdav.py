@@ -521,17 +521,16 @@ class PathFromEnvironTests(unittest.TestCase):
 
 
 class HrefToPathTests(unittest.TestCase):
-
     def test_outside(self):
-        self.assertIs(None, href_to_path({'SCRIPT_NAME': '/dav'}, '/bar'))
+        self.assertIs(None, href_to_path({"SCRIPT_NAME": "/dav"}, "/bar"))
 
     def test_root(self):
-        self.assertEqual('/', href_to_path({'SCRIPT_NAME': '/dav'}, '/dav'))
-        self.assertEqual('/', href_to_path({'SCRIPT_NAME': '/dav/'}, '/dav'))
-        self.assertEqual('/', href_to_path({'SCRIPT_NAME': '/dav/'}, '/dav/'))
-        self.assertEqual('/', href_to_path({'SCRIPT_NAME': '/dav'}, '/dav/'))
+        self.assertEqual("/", href_to_path({"SCRIPT_NAME": "/dav"}, "/dav"))
+        self.assertEqual("/", href_to_path({"SCRIPT_NAME": "/dav/"}, "/dav"))
+        self.assertEqual("/", href_to_path({"SCRIPT_NAME": "/dav/"}, "/dav/"))
+        self.assertEqual("/", href_to_path({"SCRIPT_NAME": "/dav"}, "/dav/"))
 
     def test_relpath(self):
-        self.assertEqual('/foo', href_to_path({'SCRIPT_NAME': '/dav'}, '/dav/foo'))
-        self.assertEqual('/foo', href_to_path({'SCRIPT_NAME': '/dav/'}, '/dav/foo'))
-        self.assertEqual('/foo/', href_to_path({'SCRIPT_NAME': '/dav/'}, '/dav/foo/'))
+        self.assertEqual("/foo", href_to_path({"SCRIPT_NAME": "/dav"}, "/dav/foo"))
+        self.assertEqual("/foo", href_to_path({"SCRIPT_NAME": "/dav/"}, "/dav/foo"))
+        self.assertEqual("/foo/", href_to_path({"SCRIPT_NAME": "/dav/"}, "/dav/foo/"))

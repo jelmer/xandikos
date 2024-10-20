@@ -213,10 +213,7 @@ def describe_calendar_delta(old_cal, new_cal):
                         "COMPLETED": "complete",
                         "CANCELLED": "cancelled",
                     }
-                    yield "{} marked as {}".format(
-                        description,
-                        human_readable.get(new_value.upper(), new_value),
-                    )
+                    yield f"{description} marked as {human_readable.get(new_value.upper(), new_value)}"
             elif field.upper() == "DESCRIPTION":
                 yield f"changed description of {description}"
             elif field.upper() == "SUMMARY":
@@ -407,12 +404,7 @@ class ComponentTimeRangeMatcher:
 
     def __repr__(self) -> str:
         if self.comp is not None:
-            return "{}({!r}, {!r}, comp={!r})".format(
-                self.__class__.__name__,
-                self.start,
-                self.end,
-                self.comp,
-            )
+            return f"{self.__class__.__name__}({self.start!r}, {self.end!r}, comp={self.comp!r})"
         else:
             return f"{self.__class__.__name__}({self.start!r}, {self.end!r})"
 
@@ -485,13 +477,7 @@ class TextMatcher:
         self.negate_condition = negate_condition
 
     def __repr__(self) -> str:
-        return "{}({!r}, {!r}, collation={!r}, negate_condition={!r})".format(
-            self.__class__.__name__,
-            self.name,
-            self.text,
-            self.collation,
-            self.negate_condition,
-        )
+        return f"{self.__class__.__name__}({self.name!r}, {self.text!r}, collation={self.collation!r}, negate_condition={self.negate_condition!r})"
 
     def match_indexes(self, indexes: SubIndexDict):
         return any(
@@ -529,13 +515,7 @@ class ComponentFilter:
         self.children = children or []
 
     def __repr__(self) -> str:
-        return "{}({!r}, children={!r}, is_not_defined={!r}, time_range={!r})".format(
-            self.__class__.__name__,
-            self.name,
-            self.children,
-            self.is_not_defined,
-            self.time_range,
-        )
+        return f"{self.__class__.__name__}({self.name!r}, children={self.children!r}, is_not_defined={self.is_not_defined!r}, time_range={self.time_range!r})"
 
     def filter_subcomponent(
         self,
@@ -651,13 +631,7 @@ class PropertyFilter:
         self.time_range = time_range
 
     def __repr__(self) -> str:
-        return "{}({!r}, children={!r}, is_not_defined={!r}, time_range={!r})".format(
-            self.__class__.__name__,
-            self.name,
-            self.children,
-            self.is_not_defined,
-            self.time_range,
-        )
+        return f"{self.__class__.__name__}({self.name!r}, children={self.children!r}, is_not_defined={self.is_not_defined!r}, time_range={self.time_range!r})"
 
     def filter_parameter(
         self, name: str, is_not_defined: bool = False
@@ -868,7 +842,9 @@ class ICalendarFile(File):
         # TODO(jelmer): return the list of errors to the caller
         if cal.errors:
             raise InvalidFileContents(
-                self.content_type, self.content, "Broken calendar file: " + ", ".join(cal.errors)
+                self.content_type,
+                self.content,
+                "Broken calendar file: " + ", ".join(cal.errors),
             )
         errors = list(validate_calendar(cal, strict=False))
         if errors:
@@ -1036,4 +1012,4 @@ def expand_calendar_rrule(incal: Calendar, start: datetime, end: datetime) -> Ca
 
 
 def asutc(dt):
-    return dt.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
+    return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)

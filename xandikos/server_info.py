@@ -24,7 +24,6 @@ See https://www.ietf.org/archive/id/draft-douglass-server-info-03.txt
 
 import hashlib
 
-from typing import List
 
 from xandikos import version_string, webdav
 
@@ -40,8 +39,8 @@ class ServerInfo:
 
     def __init__(self) -> None:
         self._token = None
-        self._features: List[str] = []
-        self._applications: List[str] = []
+        self._features: list[str] = []
+        self._applications: list[str] = []
 
     def add_feature(self, feature):
         self._features.append(feature)

@@ -27,7 +27,8 @@ import shutil
 import stat
 import uuid
 from io import BytesIO, StringIO
-from typing import Optional, Iterable
+from typing import Optional
+from collections.abc import Iterable
 
 import dulwich.repo
 from dulwich.file import FileLocked, GitFile
