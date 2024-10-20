@@ -1473,7 +1473,7 @@ class Backend:
 
 
 def href_to_path(environ, href) -> Optional[str]:
-    script_name = environ["SCRIPT_NAME"].rstrip('/')
+    script_name = environ["SCRIPT_NAME"].rstrip("/")
     if not href or not href.startswith(script_name):
         return None
     else:
@@ -1483,7 +1483,9 @@ def href_to_path(environ, href) -> Optional[str]:
         return path
 
 
-def _get_resources_by_hrefs(backend, environ, hrefs) -> Iterator[tuple[str, Optional[Resource]]]:
+def _get_resources_by_hrefs(
+    backend, environ, hrefs
+) -> Iterator[tuple[str, Optional[Resource]]]:
     """Retrieve multiple resources by href.
 
     Args:
@@ -1500,7 +1502,7 @@ def _get_resources_by_hrefs(backend, environ, hrefs) -> Iterator[tuple[str, Opti
         else:
             yield (href, None)
 
-    for (relpath, resource) in backend.get_resources(paths):
+    for relpath, resource in backend.get_resources(paths):
         href = paths[relpath]
         yield (href, resource)
 
@@ -2149,8 +2151,14 @@ class WebDAVApp:
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        response = loop.run_until_complete(self._handle_request(request, environ, start_response))
-        return response.for_wsgi(start_response) if isinstance(response, Response) else response
+        response = loop.run_until_complete(
+            self._handle_request(request, environ, start_response)
+        )
+        return (
+            response.for_wsgi(start_response)
+            if isinstance(response, Response)
+            else response
+        )
 
     async def aiohttp_handler(self, request, route_prefix="/"):
         environ = {"SCRIPT_NAME": route_prefix}

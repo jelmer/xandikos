@@ -159,7 +159,11 @@ class CalendarCollectionTests(unittest.TestCase):
         default_branch = self.store.repo.refs.follow(b"HEAD")[0][-1]
         commit_hash = self.store.repo.refs[default_branch]
 
-        environ = {"PATH_INFO": "/c/.git/info/refs", "REQUEST_METHOD": "GET", "QUERY_STRING": ""}
+        environ = {
+            "PATH_INFO": "/c/.git/info/refs",
+            "REQUEST_METHOD": "GET",
+            "QUERY_STRING": "",
+        }
         setup_testing_defaults(environ)
 
         codes = []

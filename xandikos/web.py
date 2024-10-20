@@ -1148,17 +1148,21 @@ class XandikosApp(webdav.WebDAVApp):
 
     async def _handle_request(self, request, environ, start_response=None):
         if start_response and GIT_PATH in request.path.split(posixpath.sep):
-            return self._handle_git_request(request,
-                                            environ["ORIGINAL_ENVIRON"],
-                                            takewhile(lambda x: x != GIT_PATH, request.path.split(posixpath.sep)),
-                                            start_response)
+            return self._handle_git_request(
+                request,
+                environ["ORIGINAL_ENVIRON"],
+                takewhile(lambda x: x != GIT_PATH, request.path.split(posixpath.sep)),
+                start_response,
+            )
         else:
             return await super()._handle_request(request, environ)
 
     def _handle_git_request(self, request, environ, path, start_response):
         resource_path = posixpath.join("/", *path)
         resource = self.backend.get_resource(resource_path)
-        if not isinstance(resource, StoreBasedCollection) or not isinstance(resource.store, GitStore):
+        if not isinstance(resource, StoreBasedCollection) or not isinstance(
+            resource.store, GitStore
+        ):
             return webdav._send_not_found(request)
 
         prefix = posixpath.join(resource_path, GIT_PATH)

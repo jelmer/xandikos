@@ -842,7 +842,9 @@ class ICalendarFile(File):
         # TODO(jelmer): return the list of errors to the caller
         if cal.errors:
             raise InvalidFileContents(
-                self.content_type, self.content, "Broken calendar file: " + ", ".join(cal.errors)
+                self.content_type,
+                self.content,
+                "Broken calendar file: " + ", ".join(cal.errors),
             )
         errors = list(validate_calendar(cal, strict=False))
         if errors:
@@ -1010,4 +1012,4 @@ def expand_calendar_rrule(incal: Calendar, start: datetime, end: datetime) -> Ca
 
 
 def asutc(dt):
-    return dt.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
+    return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)

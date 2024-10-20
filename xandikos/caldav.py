@@ -21,6 +21,7 @@
 
 https://tools.ietf.org/html/rfc4791
 """
+
 import datetime
 import itertools
 from zoneinfo import ZoneInfo
@@ -593,8 +594,7 @@ class CreatedByProperty(webdav.Property):
     """created-by property."""
 
     name = "{http://calendarserver.org/ns/}created-by"
-    resource_type = (
-        CALENDAR_RESOURCE_TYPE)
+    resource_type = CALENDAR_RESOURCE_TYPE
 
     async def get_value(self, href, resource, el, environ):
         el.text = resource.get_created_by()
@@ -604,8 +604,7 @@ class UpdatedByProperty(webdav.Property):
     """updated-by property."""
 
     name = "{http://calendarserver.org/ns/}updated-by"
-    resource_type = (
-        CALENDAR_RESOURCE_TYPE)
+    resource_type = CALENDAR_RESOURCE_TYPE
 
     async def get_value(self, href, resource, el, environ):
         el.text = resource.get_updated_by()
@@ -971,7 +970,7 @@ class FreeBusyQueryReporter(webdav.Reporter):
         tz = get_calendar_timezone(base_resource)
 
         def tzify(dt):
-            return as_tz_aware_ts(dt, tz).astimezone(ZoneInfo('UTC'))
+            return as_tz_aware_ts(dt, tz).astimezone(ZoneInfo("UTC"))
 
         (start, end) = _parse_time_range(requested)
         ret = ICalendar()
