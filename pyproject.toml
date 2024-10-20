@@ -60,7 +60,7 @@ ignore_missing_imports = true
 [tool.distutils.bdist_wheel]
 universal = 1
 
-[tool.ruff]
+[tool.ruff.lint]
 select = [
     "ANN",
     "D",
@@ -89,7 +89,6 @@ ignore = [
     "D417",
     "E501",
 ]
-target-version = "py37"
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
