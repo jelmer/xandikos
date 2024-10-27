@@ -10,6 +10,7 @@ homepage = "https://github.com/jelmer/xandikos"
 
 [dependencies]
 clap = ">=4, <4.6"
+glob = "0.3.1"
 
 [dependencies.pyo3]
 version = "0.22"

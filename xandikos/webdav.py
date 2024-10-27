@@ -132,6 +132,7 @@ class Response:
         )
 
 
+# migrated
 def pick_content_types(accepted_content_types, available_content_types):
     """Pick best content types for a client.
 
@@ -159,6 +160,7 @@ def pick_content_types(accepted_content_types, available_content_types):
     raise NotAcceptableError(available_content_types, accepted_content_types)
 
 
+# migrated
 def parse_type(content_type):
     """Parse a content-type style header.
 
@@ -178,6 +180,7 @@ def parse_type(content_type):
     return (ct, params)
 
 
+# migrated
 def parse_accept_header(accept):
     """Parse a HTTP Accept or Accept-Language header.
 
