@@ -87,6 +87,29 @@ pub fn pick_content_types(
         })
 }
 
+/// Check if an etag matches an If-Matches condition.
+///
+/// # Arguments
+/// * `condition` - Condition (e.g. "*", "\"foo\"" or "\"foo\", \"bar\"")
+/// * `actual_etag` - ETag to compare to. None nonexistant
+///
+/// # Returns
+/// bool indicating whether condition matches
+pub fn etag_matches(condition: Option<&str>, actual_etag: Option<&str>) -> bool {
+    if actual_etag.is_none() && condition.is_some() {
+        return false;
+    }
+    for etag in condition.unwrap_or_default().split(",") {
+        if etag.trim_matches(' ') == "*" {
+            return true;
+        }
+        if etag.trim_matches(' ') == actual_etag.unwrap_or_default() {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,5 +203,15 @@ mod tests {
                 "text/x-dvi".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn test_etag_matches() {
+        assert!(etag_matches(None, None));
+        assert!(!etag_matches(Some("*"), None));
+        assert!(etag_matches(Some("*"), Some("foo")));
+        assert!(etag_matches(Some("foo"), Some("foo")));
+        assert!(etag_matches(Some("foo, bar"), Some("foo")));
+        assert!(!etag_matches(Some("foo"), Some("bar")));
     }
 }
