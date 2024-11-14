@@ -14,7 +14,7 @@ Select "CardDAV" (address books) or "CalDAV" (calendars) as the type when
 adding a new account.
 
 Simplify provide the root URL of your Xandikos instance. Hit the "Find
-Addressbooks" or "Find Calenders" button and Evolution will prompt for
+Addressbooks" or "Find Calendars" button and Evolution will prompt for
 credentials and show you a list of all relevant calendars or addressbooks.
 
 DAVx5

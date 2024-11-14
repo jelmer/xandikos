@@ -351,7 +351,7 @@ class VdirStore(Store):
           etag: Optional mandatory etag of object to remove
         Raises:
           NoSuchItem: when the item doesn't exist
-          InvalidETag: If the specified ETag doesn't match the curren
+          InvalidETag: If the specified ETag doesn't match the current
         """
         path = os.path.join(self.path, name)
         if etag is not None:

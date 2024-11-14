@@ -3,7 +3,7 @@ Subcommands
 
 At the moment, the Xandikos command just supports running a
 (debug) webserver. In various situations it would also be useful
-to have subcommands for adminstrative operations.
+to have subcommands for administrative operations.
 
 Propose subcommands:
 
