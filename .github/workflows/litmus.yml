@@ -1,8 +1,8 @@
 name: Litmus DAV compliance tests
 
 on:
-  - push
-  - pull_request
+- push
+- pull_request
 
 jobs:
   litmus:
@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", '3.9', '3.13']
       fail-fast: false
 
     steps:
