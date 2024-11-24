@@ -23,11 +23,18 @@ This module contains an abstract WebDAV server. All caldav/carddav specific
 functionality should live in xandikos.caldav/xandikos.carddav respectively.
 """
 
+__all__ = [
+    "pick_content_types",
+    "NotAcceptableError",
+    "parse_type",
+    "parse_accept_header",
+    "etag_matches",
+]
+
 # TODO(jelmer): Add authorization support
 
 import asyncio
 import collections
-import fnmatch
 import functools
 import logging
 import os
@@ -42,6 +49,15 @@ from wsgiref.util import request_uri
 from xml.etree import ElementTree as ET
 
 from defusedxml.ElementTree import fromstring as xmlparse
+
+from ._xandikos_rs import (
+    pick_content_types,
+    NotAcceptableError,
+    parse_type,
+    parse_accept_header,
+    etag_matches,
+)
+
 
 DEFAULT_ENCODING = "utf-8"
 COLLECTION_RESOURCE_TYPE = "{DAV:}collection"
@@ -65,17 +81,6 @@ def nonfatal_bad_request(message, strict=False):
     if strict:
         raise BadRequestError(message)
     logging.debug("Bad request: %s", message)
-
-
-class NotAcceptableError(Exception):
-    """Base class for not acceptable errors."""
-
-    def __init__(self, available_content_types, acceptable_content_types) -> None:
-        super().__init__(
-            f"Unable to convert from content types {available_content_types!r} to one of {acceptable_content_types!r}"
-        )
-        self.available_content_types = available_content_types
-        self.acceptable_content_types = acceptable_content_types
 
 
 class UnsupportedMediaType(Exception):
@@ -132,71 +137,6 @@ class Response:
         )
 
 
-# migrated
-def pick_content_types(accepted_content_types, available_content_types):
-    """Pick best content types for a client.
-
-    Args:
-      accepted_content_types: Accept variable (as name, params tuples)
-
-    Raises:
-      NotAcceptableError: If there are no overlapping content types
-    """
-    available_content_types = set(available_content_types)
-    acceptable_by_q = {}
-    for ct, params in accepted_content_types:
-        acceptable_by_q.setdefault(float(params.get("q", "1")), []).append(ct)
-    if 0 in acceptable_by_q:
-        # Items with q=0 are not acceptable
-        for pat in acceptable_by_q[0]:
-            available_content_types -= set(fnmatch.filter(available_content_types, pat))
-        del acceptable_by_q[0]
-    for q, pats in sorted(acceptable_by_q.items(), reverse=True):
-        ret = []
-        for pat in pats:
-            ret.extend(fnmatch.filter(available_content_types, pat))
-        if ret:
-            return ret
-    raise NotAcceptableError(available_content_types, accepted_content_types)
-
-
-# migrated
-def parse_type(content_type):
-    """Parse a content-type style header.
-
-    Args:
-      content_type: type to parse
-    Returns: Tuple with base name and dict with params
-    """
-    params = {}
-    try:
-        (ct, rest) = content_type.split(";", 1)
-    except ValueError:
-        ct = content_type
-    else:
-        for param in rest.split(";"):
-            (key, val) = param.split("=")
-            params[key.strip()] = val.strip()
-    return (ct, params)
-
-
-# migrated
-def parse_accept_header(accept):
-    """Parse a HTTP Accept or Accept-Language header.
-
-    Args:
-      accept: Accept header contents
-    Returns: List of (content_type, params) tuples
-    """
-    ret = []
-    for part in accept.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        ret.append(parse_type(part))
-    return ret
-
-
 class PreconditionFailure(Exception):
     """A precondition failed."""
 
@@ -211,24 +151,6 @@ class InsufficientStorage(Exception):
 
 class ResourceLocked(Exception):
     """Resource locked."""
-
-
-def etag_matches(condition, actual_etag):
-    """Check if an etag matches an If-Matches condition.
-
-    Args:
-      condition: Condition (e.g. '*', '"foo"' or '"foo", "bar"'
-      actual_etag: ETag to compare to. None nonexistant
-    Returns: bool indicating whether condition matches
-    """
-    if actual_etag is None and condition:
-        return False
-    for etag in condition.split(","):
-        if etag.strip(" ") == "*":
-            return True
-        if etag.strip(" ") == actual_etag:
-            return True
-    return False
 
 
 class NeedsMultiStatus(Exception):

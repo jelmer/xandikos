@@ -1,0 +1,11 @@
+[package]
+name = "xandikos-rs"
+version = { workspace = true }
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { workspace = true, features = ["extension-module"]}
+xandikos = { version = "0.2.12", path = ".." }

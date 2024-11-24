@@ -567,3 +567,11 @@ dependencies = [
  "pyo3",
  "tokio",
 ]
+
+[[package]]
+name = "xandikos-rs"
+version = "0.2.12"
+dependencies = [
+ "pyo3",
+ "xandikos",
+]

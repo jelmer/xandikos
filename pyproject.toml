@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.2"]
+requires = ["setuptools>=61.2", "setuptools_rust"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -100,3 +100,8 @@ ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[[tool.setuptools-rust.ext-modules]]
+target = "xandikos._xandikos_rs"
+path = "xandikos-rs/Cargo.toml"
+binding = "PyO3"

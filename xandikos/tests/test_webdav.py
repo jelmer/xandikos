@@ -386,14 +386,14 @@ class PickContentTypesTests(unittest.TestCase):
 
     def test_highest_q(self):
         self.assertEqual(
-            ["text/plain"],
+            ["text/plain", "text/html"],
             webdav.pick_content_types(
                 [("text/html", {"q": "0.3"}), ("text/plain", {"q": "0.4"})],
                 ["text/plain", "text/html"],
             ),
         )
         self.assertEqual(
-            ["text/html", "text/plain"],
+            ["text/plain", "text/html"],
             webdav.pick_content_types(
                 [("text/html", {}), ("text/plain", {"q": "1"})],
                 ["text/plain", "text/html"],
@@ -402,7 +402,7 @@ class PickContentTypesTests(unittest.TestCase):
 
     def test_no_q(self):
         self.assertEqual(
-            ["text/html", "text/plain"],
+            ["text/plain", "text/html"],
             webdav.pick_content_types(
                 [("text/html", {}), ("text/plain", {})],
                 ["text/plain", "text/html"],
@@ -411,7 +411,7 @@ class PickContentTypesTests(unittest.TestCase):
 
     def test_wildcard(self):
         self.assertEqual(
-            ["text/plain"],
+            ["text/plain", "text/html"],
             webdav.pick_content_types(
                 [("text/*", {"q": "0.3"}), ("text/plain", {"q": "0.4"})],
                 ["text/plain", "text/html"],
@@ -427,7 +427,7 @@ class PickContentTypesTests(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            ["application/html"],
+            ["application/html", "text/plain"],
             webdav.pick_content_types(
                 [
                     ("application/*", {"q": "0.4"}),

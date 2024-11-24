@@ -1,6 +1,6 @@
 [package]
 name = "xandikos"
-version = "0.2.12"
+version = { workspace = true }
 authors = [ "Jelmer Vernooij <jelmer@jelmer.uk>",]
 edition = "2021"
 license = "GPL-3.0+"
@@ -8,11 +8,18 @@ description = "Lightweight CalDAV/CardDAV server"
 repository = "https://github.com/jelmer/xandikos.git"
 homepage = "https://github.com/jelmer/xandikos"
 
+[workspace]
+members = ["xandikos-rs"]
+
+[workspace.package]
+version = "0.2.12"
+
 [dependencies]
 clap = ">=4, <4.6"
 glob = "0.3.1"
+pyo3 = { workspace = true }
 
-[dependencies.pyo3]
+[workspace.dependencies.pyo3]
 version = "0.22"
 features = [ "auto-initialize",]
 
