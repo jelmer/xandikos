@@ -1564,7 +1564,7 @@ async def main(options, parser):
     if metrics_app:
         metrics_runner = web.AppRunner(metrics_app)
         await metrics_runner.setup()
-        # TODO(jelmer): Allow different metrics listen addres?
+        # TODO(jelmer): Allow different metrics listen address?
         sites.append(web.TCPSite(metrics_runner, listen_address, options.metrics_port))
     # Use systemd sockets first and only if not present use the socket path or
     # address from --listen-address.

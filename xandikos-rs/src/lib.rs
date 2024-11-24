@@ -70,9 +70,6 @@ fn _xandikos_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_type, m)?)?;
     m.add_function(wrap_pyfunction!(parse_accept_header, m)?)?;
     m.add_function(wrap_pyfunction!(etag_matches, m)?)?;
-    m.add(
-        "NotAcceptableError",
-        py.get_type_bound::<NotAcceptableError>(),
-    )?;
+    m.add("NotAcceptableError", py.get_type::<NotAcceptableError>())?;
     Ok(())
 }

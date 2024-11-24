@@ -644,7 +644,7 @@ class BareGitStore(GitStore):
           etag: Optional mandatory etag of object to remove
         Raises:
           NoSuchItem: when the item doesn't exist
-          InvalidETag: If the specified ETag doesn't match the curren
+          InvalidETag: If the specified ETag doesn't match the current
         """
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
@@ -753,7 +753,7 @@ class TreeGitStore(GitStore):
           etag: Optional mandatory etag of object to remove
         Raise:
           NoSuchItem: when the item doesn't exist
-          InvalidETag: If the specified ETag doesn't match the curren
+          InvalidETag: If the specified ETag doesn't match the current
         """
         p = os.path.join(self.repo.path, name)
         try:
