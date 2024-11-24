@@ -15,3 +15,4 @@ debug.log
 .mypy_cache
 .stestr
 target
+xandikos/_xandikos_rs.cpython-312-x86_64-linux-gnu.so

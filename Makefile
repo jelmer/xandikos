@@ -9,7 +9,10 @@ CALDAVTESTER_TESTS ?= CalDAV/delete.xml \
 		      CalDAV/vtodos.xml
 XANDIKOS_COVERAGE ?= $(COVERAGE_RUN) -a --rcfile=$(shell pwd)/.coveragerc --source=xandikos -m xandikos.web
 
-check:
+build-ext:
+	$(PYTHON) setup.py build_ext --inplace
+
+check: build-ext
 	$(PYTHON) -m unittest $(TESTSUITE)
 
 style:
