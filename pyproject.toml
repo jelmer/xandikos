@@ -34,7 +34,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-prometheus = ["aiohttp_openmetrics"]
+prometheus = ["aiohttp-openmetrics"]
 systemd = ["systemd_python"]
 dev = [
    "ruff==0.7.0",
