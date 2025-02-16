@@ -1,4 +1,27 @@
-0.2.12	UNRELEASED
+0.2.12	2024-10-07
+
+ * Migrate from pytz to zoneinfo (#353, Jelmer Vernooĳ)
+
+ * Fix compatibility with newer icalendar. (#351, Jelmer Vernooĳ)
+
+ * Fix docker command. (Artur Neumann)
+
+ * web: Don't assume particular directory layout. (Jelmer Vernooĳ)
+
+ * git: don't assume default branch is named 'master'.
+   (Jelmer Vernooĳ)
+
+ * Add git clone support for WSGI (Daniel Hőxtermann)
+
+ * Document the valid settings for AUTOCREATE in the WSGI app
+   (Jelmer Vernooĳ, #342)
+
+ * Disable metrics port by default. (Jelmer Vernooĳ)
+
+ * docs: Drop mention that Thunderbird doesn't support discovery,
+   which is no longer true. (Jelmer Vernooĳ)
+
+ * Update requirements to add vobject dependency (Wilco Baan Hofman)
 
 0.2.11	2024-03-29
 
