@@ -59,6 +59,8 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `CardBook <https://gitlab.com/cardbook/cardbook/>`_
 - Apple's iOS
 - `homeassistant's CalDAV integration <https://www.home-assistant.io/integrations/caldav/>`_
+- `pimsync <https://pimsync.whynothugo.nl/>`_
+- `davcli <https://git.sr.ht/~whynothugo/davcli>`_
 
 Dependencies
 ============
