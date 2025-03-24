@@ -50,17 +50,17 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 
 - `Vdirsyncer <https://github.com/pimutils/vdirsyncer>`_
 - `caldavzap <https://www.inf-it.com/open-source/clients/caldavzap/>`_/`carddavmate <https://www.inf-it.com/open-source/clients/carddavmate/>`_
-- `evolution <https://wiki.gnome.org/Apps/Evolution>`_
+- `evolution <https://gitlab.gnome.org/GNOME/evolution/-/wikis/home>`_
 - `DAVx5 <https://www.davx5.com/>`_ (formerly DAVDroid)
-- `sogo connector for Icedove/Thunderbird <http://v2.sogo.nu/english/downloads/frontends.html>`_
-- `aCALdav syncer for Android <https://play.google.com/store/apps/details?id=de.we.acaldav&hl=en>`_
+- `sogo connector for Icedove/Thunderbird <https://www.sogo.nu/download.html#/frontends>`_
+- aCALdav syncer for Android
 - `pycardsyncer <https://github.com/geier/pycarddav>`_
 - `akonadi <https://community.kde.org/KDE_PIM/Akonadi>`_
 - `CalDAV-Sync <https://dmfs.org/caldav/>`_
 - `CardDAV-Sync <https://dmfs.org/carddav/>`_
 - `Calendarsync <https://play.google.com/store/apps/details?id=com.icalparse>`_
-- `Tasks <https://github.com/tasks/tasks/tree/main/app/src/main/java/org/tasks/caldav>`_
-- `AgendaV <http://agendav.org/>`_
+- `Tasks <https://tasks.org/>`_
+- `AgendaV <https://github.com/agendav/agendav>`_
 - `CardBook <https://gitlab.com/cardbook/cardbook/>`_
 - Apple's iOS
 - `homeassistant's CalDAV integration <https://www.home-assistant.io/integrations/caldav/>`_
