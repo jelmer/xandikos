@@ -5,6 +5,7 @@
 set -e
 
 readonly BRANCH=master
+VENV_DIR=$(dirname $0)/vdirsyncer-venv
 
 run_xandikos 5001 --autocreate
 
@@ -20,13 +21,15 @@ else
     git pull --ff-only origin $BRANCH
     popd
 fi
-cd vdirsyncer
-if [ -z "${VIRTUAL_ENV}" ]; then
-    virtualenv venv -p${PYTHON}
-    source venv/bin/activate
-    export PYTHONPATH=${REPO_DIR}
-    pushd ${REPO_DIR} && ${PYTHON} setup.py develop && popd
+
+# Always use our own virtual environment for better isolation
+if [ ! -d "${VENV_DIR}" ]; then
+    echo "Creating virtual environment for vdirsyncer"
+    ${PYTHON} -m venv "${VENV_DIR}"
 fi
+source "${VENV_DIR}/bin/activate"
+
+cd vdirsyncer
 
 if [ -z "${CARGO_HOME}" ]; then
     export CARGO_HOME="$(readlink -f .)/cargo"
