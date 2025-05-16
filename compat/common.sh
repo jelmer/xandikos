@@ -11,10 +11,11 @@ fi
 set -e
 
 xandikos_cleanup() {
-	[ -z ${XANDIKOS_PID} ] || kill -INT ${XANDIKOS_PID}
-	rm --preserve-root -rf ${SERVEDIR}
+	[ -z ${XANDIKOS_PID} ] || kill -INT ${XANDIKOS_PID} 2>/dev/null || true
+	rm -rf ${SERVEDIR}
+	mkdir -p ${SERVEDIR}
 	cat ${DAEMON_LOG}
-	wait ${XANDIKOS_PID} || true
+	wait ${XANDIKOS_PID} 2>/dev/null || true
 }
 
 run_xandikos()
