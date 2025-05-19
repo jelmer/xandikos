@@ -12,7 +12,7 @@ homepage = "https://github.com/jelmer/xandikos"
 clap = ">=4, <4.6"
 
 [dependencies.pyo3]
-version = "0.24"
+version = "0.25"
 features = [ "auto-initialize",]
 
 [dependencies.tokio]
