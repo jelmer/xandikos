@@ -10,10 +10,6 @@ path = "xandikos/__init__.py"
 match = "^__version__ = ((.*))$"
 new-line = "__version__ = $TUPLED_VERSION"
 
-[[update_version]]
-path = "Cargo.toml"
-match = '^version = "(.*)"$'
-new-line = 'version = "$VERSION"'
 
 [github]
 url = "https://github.com/jelmer/xandikos"
