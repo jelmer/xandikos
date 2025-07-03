@@ -16,3 +16,4 @@ debug.log
 .stestr
 target
 .claude/settings.local.json
+CLAUDE.local.md
