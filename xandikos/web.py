@@ -1300,8 +1300,7 @@ def run_simple_server(
         )
     if not backend.get_resource(current_user_principal):
         logging.warning(
-            "default user principal %s does not exist. "
-            "Run xandikos with --autocreate?",
+            "default user principal %s does not exist. Run xandikos with --autocreate?",
             current_user_principal,
         )
 
@@ -1357,8 +1356,7 @@ def add_parser(parser):
         dest="listen_address",
         default="localhost",
         help=(
-            "Bind to this address. "
-            "Pass in path for unix domain socket. [%(default)s]"
+            "Bind to this address. Pass in path for unix domain socket. [%(default)s]"
         ),
     )
     access_group.add_argument(
@@ -1407,7 +1405,7 @@ def add_parser(parser):
         "--defaults",
         action="store_true",
         dest="defaults",
-        help=("Create initial calendar and address book. " "Implies --autocreate."),
+        help=("Create initial calendar and address book. Implies --autocreate."),
     )
     parser.add_argument(
         "--dump-dav-xml",
@@ -1422,7 +1420,7 @@ def add_parser(parser):
         "--no-strict",
         action="store_false",
         dest="strict",
-        help=("Enable workarounds for buggy CalDAV/CardDAV client " "implementations."),
+        help=("Enable workarounds for buggy CalDAV/CardDAV client implementations."),
         default=True,
     )
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
@@ -1469,8 +1467,7 @@ async def main(options, parser):
         )
     if not backend.get_resource(options.current_user_principal):
         logging.warning(
-            "default user principal %s does not exist. "
-            "Run xandikos with --autocreate?",
+            "default user principal %s does not exist. Run xandikos with --autocreate?",
             options.current_user_principal,
         )
 
@@ -1519,7 +1516,7 @@ async def main(options, parser):
             from aiohttp_openmetrics import metrics, metrics_middleware
         except ModuleNotFoundError:
             logging.warning(
-                "aiohttp-openmetrics not found; " "/metrics will not be available."
+                "aiohttp-openmetrics not found; /metrics will not be available."
             )
         else:
             app.middlewares.insert(0, metrics_middleware)
@@ -1553,7 +1550,7 @@ async def main(options, parser):
             import dbus  # noqa: F401
         except ImportError:
             logging.error(
-                "Please install python-avahi and python-dbus for " "avahi support."
+                "Please install python-avahi and python-dbus for avahi support."
             )
         else:
             avahi_register(options.port, options.route_prefix)
