@@ -373,7 +373,9 @@ class PropertyTimeRangeMatcher:
         )
 
 
-TimeRangeFilter = Callable[[datetime, datetime, Component, TzifyFunction], bool]
+TimeRangeFilter = Callable[
+    [datetime, datetime, Union[Component, dict], TzifyFunction], bool
+]
 
 
 class ComponentTimeRangeMatcher:
@@ -409,6 +411,8 @@ class ComponentTimeRangeMatcher:
             return f"{self.__class__.__name__}({self.start!r}, {self.end!r})"
 
     def match(self, comp: Component, tzify: TzifyFunction):
+        if comp.name is None:
+            raise ValueError("Component has no name in time-range filter")
         try:
             component_handler = self.component_handlers[comp.name]
         except KeyError:
@@ -417,7 +421,7 @@ class ComponentTimeRangeMatcher:
         return component_handler(self.start, self.end, comp, tzify)
 
     def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
-        vs: dict[str, vDDDTypes] = {}
+        vs: dict[str, list[vDDDTypes]] = {}
         for name, values in indexes.items():
             if not name:
                 continue
@@ -439,7 +443,7 @@ class ComponentTimeRangeMatcher:
             self.start,
             self.end,
             # TODO(jelmer): What to do if there is more than one value?
-            {k: vs[0] for (k, vs) in vs.items()},
+            {k: values[0] for (k, values) in vs.items() if values},
             tzify,
         )
 

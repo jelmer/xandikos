@@ -24,7 +24,7 @@ urls = {Homepage = "https://www.xandikos.org/"}
 requires-python = ">=3.9"
 dependencies = [
     "aiohttp",
-    "icalendar>=5.0.4",
+    "icalendar>=5.0.4,<7.0",
     "dulwich>=0.21.6",
     "defusedxml",
     "jinja2",
