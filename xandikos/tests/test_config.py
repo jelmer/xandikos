@@ -137,4 +137,5 @@ class RepoMetadataTests(TestCase, MetadataTests):
     def setUp(self):
         super().setUp()
         self._repo = dulwich.repo.MemoryRepo()
+        self._repo._autogc_disabled = True
         self._config = RepoCollectionMetadata(self._repo)

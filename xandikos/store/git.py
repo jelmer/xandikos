@@ -219,6 +219,8 @@ class GitStore(Store):
         super().__init__(MemoryIndex(), **kwargs)
         self.ref = repo.refs.follow(ref)[0][-1]
         self.repo = repo
+        # Disable automatic garbage collection
+        self.repo._autogc_disabled = True
         # Maps uids to (sha, fname)
         self._uid_to_fname: dict[str, tuple[bytes, str]] = {}
         self._check_for_duplicate_uids = check_for_duplicate_uids
@@ -409,7 +411,9 @@ class GitStore(Store):
         Returns: A `GitStore`
         """
         try:
-            return cls.open(dulwich.repo.Repo(path), **kwargs)
+            repo = dulwich.repo.Repo(path)
+            repo._autogc_disabled = True
+            return cls.open(repo, **kwargs)
         except dulwich.repo.NotGitRepository:
             raise NotStoreError(path)
 
@@ -600,7 +604,8 @@ class BareGitStore(GitStore):
 
         Returns: A `GitStore`
         """
-        return cls(dulwich.repo.MemoryRepo())
+        repo = dulwich.repo.MemoryRepo()
+        return cls(repo)
 
     def _commit_tree(self, tree_id, message, author=None):
         return self.repo.do_commit(
@@ -672,7 +677,9 @@ class BareGitStore(GitStore):
         Returns: A `GitStore`
         """
         os.mkdir(path)
-        return cls(dulwich.repo.Repo.init_bare(path))
+        repo = dulwich.repo.Repo.init_bare(path)
+        repo._autogc_disabled = True
+        return cls(repo)
 
     def subdirectories(self):
         """Returns subdirectories to probe for other stores.
@@ -694,7 +701,9 @@ class TreeGitStore(GitStore):
         Returns: A `GitStore`
         """
         os.mkdir(path)
-        return cls(dulwich.repo.Repo.init(path))
+        repo = dulwich.repo.Repo.init(path)
+        repo._autogc_disabled = True
+        return cls(repo)
 
     def _get_etag(self, name):
         index = self.repo.open_index()
