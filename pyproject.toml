@@ -37,7 +37,7 @@ dynamic = ["version"]
 prometheus = ["aiohttp-openmetrics"]
 systemd = ["systemd_python"]
 dev = [
-   "ruff==0.7.0",
+   "ruff==0.12.2",
    "pytest",
 ]
 typing = [
