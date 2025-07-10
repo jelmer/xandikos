@@ -20,7 +20,7 @@
 import asyncio
 import unittest
 
-from ..carddav import NAMESPACE, apply_filter
+from ..carddav import NAMESPACE, AddressDataProperty, apply_filter
 from ..vcard import VCardFile
 from ..webdav import ET
 from .test_vcard import EXAMPLE_VCARD1
@@ -44,3 +44,36 @@ class TestApplyFilter(unittest.TestCase):
         tm.text = "Jeffrey"
         loop = asyncio.get_event_loop()
         self.assertTrue(loop.run_until_complete(apply_filter(el, self)))
+
+
+class TestAddressDataProperty(unittest.TestCase):
+    def test_supported_on_with_vcard(self):
+        """Test that supported_on returns True for vcard resources."""
+        prop = AddressDataProperty()
+
+        class VCardResource:
+            def get_content_type(self):
+                return "text/vcard"
+
+        self.assertTrue(prop.supported_on(VCardResource()))
+
+    def test_supported_on_with_non_vcard(self):
+        """Test that supported_on returns False for non-vcard resources."""
+        prop = AddressDataProperty()
+
+        class NonVCardResource:
+            def get_content_type(self):
+                return "text/plain"
+
+        self.assertFalse(prop.supported_on(NonVCardResource()))
+
+    def test_supported_on_with_missing_content_type(self):
+        """Test that supported_on handles resources without content type gracefully."""
+        prop = AddressDataProperty()
+
+        class ResourceWithoutContentType:
+            def get_content_type(self):
+                raise KeyError("No content type")
+
+        # This should not raise an exception, but return False
+        self.assertFalse(prop.supported_on(ResourceWithoutContentType()))
