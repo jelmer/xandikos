@@ -280,6 +280,39 @@ def path_from_environ(environ, name):
     return posixpath.normpath(path)
 
 
+def split_path_preserving_encoding(request, environ):
+    """Split a path into container and item parts, preserving percent-encoded slashes.
+
+    This function uses the raw_path to split the path before decoding, which ensures
+    that percent-encoded slashes (%2F) are not incorrectly interpreted as path separators.
+
+    Args:
+        request: The request object (must have raw_path attribute)
+        environ: The environ dict containing SCRIPT_NAME
+
+    Returns:
+        tuple: (decoded_container_path, decoded_item_name)
+
+    See: https://github.com/jelmer/xandikos/issues/384
+    """
+    script_name = environ.get("SCRIPT_NAME", "")
+    raw_path_for_split = request.raw_path
+    if raw_path_for_split.startswith(script_name):
+        raw_path_for_split = raw_path_for_split[len(script_name) :]
+    container_path_raw, item_name_raw = posixpath.split(raw_path_for_split.rstrip("/"))
+    # Decode the components after splitting
+    container_path = urllib.parse.unquote(
+        container_path_raw, encoding="utf-8", errors="strict"
+    )
+    item_name = urllib.parse.unquote(item_name_raw, encoding="utf-8", errors="strict")
+    # Ensure container path starts with /
+    if not container_path:
+        container_path = "/"
+    elif not container_path.startswith("/"):
+        container_path = "/" + container_path
+    return container_path, item_name
+
+
 class Status:
     """A DAV response that can be used in multi-status."""
 
@@ -1668,7 +1701,7 @@ class DeleteMethod(Method):
         unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is None:
             return _send_not_found(request)
-        container_path, item_name = posixpath.split(path.rstrip("/"))
+        container_path, item_name = split_path_preserving_encoding(request, environ)
         pr = app.backend.get_resource(container_path)
         if pr is None:
             return _send_not_found(request)
@@ -1741,7 +1774,7 @@ class PutMethod(Method):
             else:
                 return Response(status="204 No Content", headers=[("ETag", new_etag)])
         content_type = request.content_type
-        container_path, name = posixpath.split(path)
+        container_path, name = split_path_preserving_encoding(request, environ)
         r = app.backend.get_resource(container_path)
         if r is None:
             return _send_not_found(request)
@@ -2035,7 +2068,12 @@ class WSGIRequest:
                     return self._stream.read(size)
 
         self.content = StreamWrapper(self._environ["wsgi.input"])
-        self.match_info = {"path_info": environ["PATH_INFO"]}
+        # Decode the path_info to match aiohttp behavior
+        # This ensures consistent handling of percent-encoded paths
+        decoded_path_info = urllib.parse.unquote(
+            environ["PATH_INFO"], encoding="utf-8", errors="strict"
+        )
+        self.match_info = {"path_info": decoded_path_info}
 
     @property
     def can_read_body(self):
