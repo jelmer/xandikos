@@ -21,13 +21,13 @@
 
 import logging
 from collections.abc import Iterable
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Callable, Optional, Union
 from zoneinfo import ZoneInfo
 
 import dateutil.rrule
 from icalendar.cal import Calendar, Component, component_factory
-from icalendar.prop import TypesFactory, vCategory, vDatetime, vDDDTypes, vText
+from icalendar.prop import TypesFactory, vCategory, vDate, vDatetime, vDDDTypes, vText
 
 from xandikos.store import File, Filter, InvalidFileContents
 
@@ -974,19 +974,34 @@ def _expand_rrule_component(
     if "RRULE" not in incomp:
         return
     rs = rruleset_from_comp(incomp)
+
+    # Check if original DTSTART is date-only
+    original_dtstart = incomp["DTSTART"]
+    is_date_only = isinstance(original_dtstart.dt, date) and not isinstance(
+        original_dtstart.dt, datetime
+    )
+
     for field in ["RRULE", "EXRULE", "UNTIL", "RDATE", "EXDATE"]:
         if field in incomp:
             del incomp[field]
     # Work our magic
-    for ts in rs.between(start, end):
-        utcts = asutc(ts)
+    for ts in rs.between(start, end, inc=True):
+        # For date-only events, convert rrule's datetime back to date
+        if is_date_only:
+            ts_normalized = ts.date()
+        else:
+            ts_normalized = asutc(ts)
+
         try:
-            outcomp = existing.pop(utcts)
-            outcomp["DTSTART"] = vDatetime(asutc(outcomp["DTSTART"].dt))
+            outcomp = existing.pop(ts_normalized)
+            # Preserve the original DTSTART value and type from the exception
+            # It's already the correct type
         except KeyError:
             outcomp = incomp.copy()
-            outcomp["DTSTART"] = vDatetime(utcts)
-        outcomp["RECURRENCE-ID"] = vDatetime(utcts)
+            outcomp["DTSTART"] = create_prop_from_date_or_datetime(ts_normalized)
+
+        # Set RECURRENCE-ID with appropriate type
+        outcomp["RECURRENCE-ID"] = create_prop_from_date_or_datetime(ts_normalized)
         yield outcomp
 
 
@@ -1016,4 +1031,15 @@ def expand_calendar_rrule(incal: Calendar, start: datetime, end: datetime) -> Ca
 
 
 def asutc(dt):
+    if isinstance(dt, date) and not isinstance(dt, datetime):
+        # Return date as-is - dates are timezone-agnostic
+        return dt
     return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+
+def create_prop_from_date_or_datetime(dt):
+    """Create appropriate vDate or vDatetime property based on input type."""
+    if isinstance(dt, date) and not isinstance(dt, datetime):
+        return vDate(dt)
+    else:
+        return vDatetime(dt)
