@@ -24,7 +24,15 @@ from wsgiref.util import setup_testing_defaults
 
 from xandikos import webdav
 
-from ..webdav import ET, Collection, Property, Resource, WebDAVApp, href_to_path
+from ..webdav import (
+    ET,
+    Collection,
+    Property,
+    Resource,
+    WebDAVApp,
+    href_to_path,
+    split_path_preserving_encoding,
+)
 
 
 class WebTestCase(unittest.TestCase):
@@ -234,6 +242,51 @@ class WebTests(WebTestCase):
         code, headers, contents = self.delete(app, "/resource")
         self.assertEqual("404 Not Found", code)
         self.assertTrue(contents.endswith(b"/resource not found."))
+
+    def test_delete_percent_encoded_slash(self):
+        """Test DELETE with percent-encoded slash in filename."""
+        deleted_items = []
+
+        class TestResource(Collection):
+            async def get_etag(self):
+                return '"foo"'
+
+            def delete_member(unused_self, name, etag=None):
+                deleted_items.append(name)
+
+        # Create resources for the test
+        # /collection/itemwith%2fslash.ics should be treated as a single filename
+        # The backend expects decoded paths as keys
+        app = self.makeApp(
+            {
+                "/collection": TestResource(),
+                "/collection/itemwith/slash.ics": TestResource(),
+            },
+            [],
+        )
+        code, headers, contents = self.delete(app, "/collection/itemwith%2fslash.ics")
+        self.assertEqual("204 No Content", code)
+        self.assertEqual(b"", contents)
+        # Verify that the correct item name was passed to delete_member
+        self.assertEqual(["itemwith/slash.ics"], deleted_items)
+
+    def test_put_percent_encoded_slash(self):
+        """Test PUT with percent-encoded slash in filename."""
+        created_items = []
+
+        class TestResource(Collection):
+            async def create_member(unused_self, name, contents, content_type):
+                created_items.append((name, contents))
+                return (name, '"new-etag"')
+
+        # Create resources for the test
+        app = self.makeApp({"/collection": TestResource()}, [])
+        code, headers = self.put(app, "/collection/itemwith%2fslash.ics", b"test data")
+        self.assertEqual("201 Created", code)
+        # Verify that the correct item name was passed to create_member
+        self.assertEqual(1, len(created_items))
+        self.assertEqual("itemwith/slash.ics", created_items[0][0])
+        self.assertEqual([b"test data"], created_items[0][1])
 
     def test_propfind_prop_does_not_exist(self):
         app = self.makeApp({"/resource": Resource()}, [])
@@ -607,3 +660,112 @@ class PropertyRemovalTests(unittest.TestCase):
         self.assertEqual(len(propstat_list), 1)
         self.assertEqual(propstat_list[0].statuscode, "200 OK")
         self.assertEqual(resource.resource_types, [])
+
+
+class SplitPathPreservingEncodingTests(unittest.TestCase):
+    def test_normal_path(self):
+        """Test splitting a normal path without encoded slashes."""
+
+        class MockRequest:
+            raw_path = "/collection/item.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/collection", container)
+        self.assertEqual("item.ics", item)
+
+    def test_percent_encoded_slash(self):
+        """Test splitting a path with percent-encoded slash."""
+
+        class MockRequest:
+            raw_path = "/collection/itemwith%2Fslash.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/collection", container)
+        self.assertEqual("itemwith/slash.ics", item)
+
+    def test_with_script_name(self):
+        """Test splitting a path with SCRIPT_NAME prefix."""
+
+        class MockRequest:
+            raw_path = "/dav/collection/itemwith%2Fslash.ics"
+
+        environ = {"SCRIPT_NAME": "/dav"}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/collection", container)
+        self.assertEqual("itemwith/slash.ics", item)
+
+    def test_multiple_encoded_slashes(self):
+        """Test splitting a path with multiple percent-encoded slashes."""
+
+        class MockRequest:
+            raw_path = "/collection/item%2Fwith%2Fslashes.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/collection", container)
+        self.assertEqual("item/with/slashes.ics", item)
+
+    def test_encoded_slash_in_container(self):
+        """Test splitting a path with percent-encoded slash in container name.
+
+        According to RFC 3986, the path should be split BEFORE decoding.
+        So /calendars/cal%2Fender/item.ics means:
+        - Collection at path: /calendars/cal/ender (after decoding cal%2Fender)
+        - Item: item.ics
+        """
+
+        class MockRequest:
+            raw_path = "/calendars/cal%2Fender/item.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        # After splitting at the last /, we decode each component
+        # cal%2Fender becomes cal/ender, creating a nested path
+        self.assertEqual("/calendars/cal/ender", container)
+        self.assertEqual("item.ics", item)
+
+    def test_encoded_space_in_names(self):
+        """Test that other percent-encoding (like spaces) is properly decoded."""
+
+        class MockRequest:
+            raw_path = "/my%20calendars/my%20file.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/my calendars", container)
+        self.assertEqual("my file.ics", item)
+
+    def test_mixed_encoding(self):
+        """Test path with both encoded slashes and other encoded characters."""
+
+        class MockRequest:
+            raw_path = "/my%20calendars/file%2Fwith%20slash.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/my calendars", container)
+        self.assertEqual("file/with slash.ics", item)
+
+    def test_root_level_item(self):
+        """Test splitting a path for item at root level."""
+
+        class MockRequest:
+            raw_path = "/item.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/", container)
+        self.assertEqual("item.ics", item)
+
+    def test_root_level_item_with_encoded_slash(self):
+        """Test splitting a path for root level item with encoded slash."""
+
+        class MockRequest:
+            raw_path = "/item%2Fwith%2Fslash.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/", container)
+        self.assertEqual("item/with/slash.ics", item)
