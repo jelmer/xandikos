@@ -621,7 +621,10 @@ class ResourceTypeProperty(Property):
             ET.SubElement(el, rt)
 
     async def set_value(self, href, resource, el):
-        resource.set_resource_types([e.tag for e in el])
+        if el is None:
+            resource.set_resource_types([])
+        else:
+            resource.set_resource_types([e.tag for e in el])
 
 
 class DisplayNameProperty(Property):
@@ -637,7 +640,10 @@ class DisplayNameProperty(Property):
         el.text = resource.get_displayname()
 
     async def set_value(self, href, resource, el):
-        resource.set_displayname(el.text)
+        if el is None:
+            resource.set_displayname(None)
+        else:
+            resource.set_displayname(el.text)
 
 
 class GetETagProperty(Property):
@@ -856,7 +862,10 @@ class RefreshRateProperty(Property):
         el.text = resource.get_refreshrate()
 
     async def set_value(self, href, resource, el):
-        resource.set_refreshrate(el.text)
+        if el is None:
+            resource.set_refreshrate(None)
+        else:
+            resource.set_refreshrate(el.text)
 
 
 LOCK_SCOPE_EXCLUSIVE = "{DAV:}exclusive"
@@ -1450,7 +1459,10 @@ class CommentProperty(Property):
         el.text = resource.get_comment()
 
     async def set_value(self, href, resource, el):
-        resource.set_comment(el.text)
+        if el is None:
+            resource.set_comment(None)
+        else:
+            resource.set_comment(el.text)
 
 
 class Backend:

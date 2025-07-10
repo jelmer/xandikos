@@ -534,3 +534,76 @@ class HrefToPathTests(unittest.TestCase):
         self.assertEqual("/foo", href_to_path({"SCRIPT_NAME": "/dav"}, "/dav/foo"))
         self.assertEqual("/foo", href_to_path({"SCRIPT_NAME": "/dav/"}, "/dav/foo"))
         self.assertEqual("/foo/", href_to_path({"SCRIPT_NAME": "/dav/"}, "/dav/foo/"))
+
+
+class PropertyRemovalTests(unittest.TestCase):
+    def test_displayname_removal(self):
+        """Test that removing displayname property works correctly."""
+        import asyncio
+        from ..webdav import DisplayNameProperty, apply_modify_prop
+
+        class TestResource(Resource):
+            def __init__(self):
+                self._displayname = "Test Name"
+
+            def get_displayname(self):
+                return self._displayname
+
+            def set_displayname(self, value):
+                self._displayname = value
+
+        resource = TestResource()
+        prop = DisplayNameProperty()
+        properties = {prop.name: prop}
+
+        # Create a remove element
+        remove_el = ET.Element("{DAV:}remove")
+        prop_el = ET.SubElement(remove_el, "{DAV:}prop")
+        ET.SubElement(prop_el, "{DAV:}displayname")
+
+        # Apply the removal
+        async def run_test():
+            propstat_list = []
+            async for ps in apply_modify_prop(remove_el, "/test", resource, properties):
+                propstat_list.append(ps)
+            return propstat_list
+
+        propstat_list = asyncio.run(run_test())
+
+        self.assertEqual(len(propstat_list), 1)
+        self.assertEqual(propstat_list[0].statuscode, "200 OK")
+        self.assertIsNone(resource._displayname)
+
+    def test_resourcetype_removal(self):
+        """Test that removing resourcetype property works correctly."""
+        import asyncio
+        from ..webdav import ResourceTypeProperty, apply_modify_prop
+
+        class TestResource(Resource):
+            def __init__(self):
+                self.resource_types = ["{DAV:}collection"]
+
+            def set_resource_types(self, types):
+                self.resource_types = types
+
+        resource = TestResource()
+        prop = ResourceTypeProperty()
+        properties = {prop.name: prop}
+
+        # Create a remove element
+        remove_el = ET.Element("{DAV:}remove")
+        prop_el = ET.SubElement(remove_el, "{DAV:}prop")
+        ET.SubElement(prop_el, "{DAV:}resourcetype")
+
+        # Apply the removal
+        async def run_test():
+            propstat_list = []
+            async for ps in apply_modify_prop(remove_el, "/test", resource, properties):
+                propstat_list.append(ps)
+            return propstat_list
+
+        propstat_list = asyncio.run(run_test())
+
+        self.assertEqual(len(propstat_list), 1)
+        self.assertEqual(propstat_list[0].statuscode, "200 OK")
+        self.assertEqual(resource.resource_types, [])
