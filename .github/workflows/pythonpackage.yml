@@ -1,6 +1,7 @@
+---
 name: Python package
 
-on:
+"on":
 - push
 - pull_request
 
@@ -15,37 +16,37 @@ jobs:
       fail-fast: false
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install ".[dev,prometheus]"
-    - name: Install dependencies (linux)
-      run: |
-        sudo apt -y update
-        sudo apt -y install libsystemd-dev
-        python -m pip install -e ".[systemd,prometheus]"
-      if: "matrix.os == 'ubuntu-latest'"
-    - name: Install dependencies (non-linux)
-      run: |
-        python -m pip install -e ".[prometheus]"
-      if: "matrix.os != 'ubuntu-latest'"
-    - name: Lint checks
-      run: |
-        python -m ruff check .
-    - name: Formatting checks
-      run: |
-        python -m ruff format --check .
-    - name: Typing checks
-      run: |
-        pip install -U mypy types-python-dateutil
-        python -m mypy xandikos
-    - name: Test suite run
-      run: |
-        python -m unittest xandikos.tests.test_suite
-      env:
-        PYTHONHASHSEED: random
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[dev,prometheus]"
+      - name: Install dependencies (linux)
+        run: |
+          sudo apt -y update
+          sudo apt -y install libsystemd-dev
+          python -m pip install -e ".[systemd,prometheus]"
+        if: "matrix.os == 'ubuntu-latest'"
+      - name: Install dependencies (non-linux)
+        run: |
+          python -m pip install -e ".[prometheus]"
+        if: "matrix.os != 'ubuntu-latest'"
+      - name: Lint checks
+        run: |
+          python -m ruff check .
+      - name: Formatting checks
+        run: |
+          python -m ruff format --check .
+      - name: Typing checks
+        run: |
+          pip install -U ".[typing]"
+          python -m mypy xandikos
+      - name: Test suite run
+        run: |
+          python -m unittest xandikos.tests.test_suite
+        env:
+          PYTHONHASHSEED: random

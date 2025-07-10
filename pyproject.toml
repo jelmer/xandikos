@@ -40,6 +40,10 @@ dev = [
    "ruff==0.7.0",
    "pytest",
 ]
+typing = [
+   "mypy==1.16.0",
+   "types-python-dateutil"
+]
 
 [project.scripts]
 xandikos = "xandikos.__main__:main"
