@@ -36,6 +36,7 @@ from ..icalendar import (
     TextMatcher,
     apply_time_range_vevent,
     as_tz_aware_ts,
+    expand_calendar_rrule,
     validate_calendar,
 )
 
@@ -509,3 +510,54 @@ class ApplyTimeRangeVeventTests(unittest.TestCase):
             ev,
             self._tzify,
         )
+
+
+class ExpandCalendarRRuleTests(unittest.TestCase):
+    def test_expand_recurring_date_only_with_exception(self):
+        """Test expansion of recurring events with date-only values and exceptions.
+
+        This test reproduces issue #365 where expanding recurring all-day events
+        with exceptions would fail due to date vs datetime type mismatch.
+        """
+        from icalendar import Calendar
+
+        # Create a calendar with a bi-weekly recurring event and an exception
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-recurring-event@example.com
+DTSTART;VALUE=DATE:20240101
+SUMMARY:Bi-weekly event
+RRULE:FREQ=WEEKLY;INTERVAL=2
+END:VEVENT
+BEGIN:VEVENT
+UID:test-recurring-event@example.com
+RECURRENCE-ID;VALUE=DATE:20240115
+DTSTART;VALUE=DATE:20240116
+SUMMARY:Bi-weekly event (moved)
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+
+        # Expand the calendar
+        start = datetime(2024, 1, 1)
+        end = datetime(2024, 2, 1)
+
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Verify we got the expected events
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 3)  # Jan 1, Jan 15 (moved to 16), Jan 29
+
+        # Check that the exception was properly handled
+        dates = sorted([ev["DTSTART"].dt for ev in events])
+        from datetime import date
+
+        expected_dates = [
+            date(2024, 1, 1),
+            date(2024, 1, 16),  # Moved from Jan 15
+            date(2024, 1, 29),
+        ]
+        self.assertEqual(dates, expected_dates)

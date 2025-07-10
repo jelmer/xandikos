@@ -21,13 +21,13 @@
 
 import logging
 from collections.abc import Iterable
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Callable, Optional, Union
 from zoneinfo import ZoneInfo
 
 import dateutil.rrule
 from icalendar.cal import Calendar, Component, component_factory
-from icalendar.prop import TypesFactory, vCategory, vDatetime, vDDDTypes, vText
+from icalendar.prop import TypesFactory, vCategory, vDate, vDatetime, vDDDTypes, vText
 
 from xandikos.store import File, Filter, InvalidFileContents
 
@@ -974,19 +974,50 @@ def _expand_rrule_component(
     if "RRULE" not in incomp:
         return
     rs = rruleset_from_comp(incomp)
+
+    original_dtstart = incomp["DTSTART"]
+
     for field in ["RRULE", "EXRULE", "UNTIL", "RDATE", "EXDATE"]:
         if field in incomp:
             del incomp[field]
     # Work our magic
-    for ts in rs.between(start, end):
-        utcts = asutc(ts)
+    # Handle timezone-aware vs naive datetime comparison
+    if isinstance(original_dtstart.dt, datetime) and original_dtstart.dt.tzinfo is None:
+        # Floating time - make start/end naive for comparison
+        start_for_between = (
+            start.replace(tzinfo=None) if isinstance(start, datetime) else start
+        )
+        end_for_between = end.replace(tzinfo=None) if isinstance(end, datetime) else end
+    else:
+        start_for_between = start
+        end_for_between = end
+
+    for ts in rs.between(start_for_between, end_for_between, inc=True):
+        # For date-only events, convert rrule's datetime back to date
+        if isinstance(original_dtstart.dt, date) and not isinstance(
+            original_dtstart.dt, datetime
+        ):
+            ts_normalized = ts.date()
+            ts_for_dtstart = ts.date()
+        else:
+            ts_normalized = asutc(ts)
+            ts_for_dtstart = ts  # Keep original timezone
+
         try:
-            outcomp = existing.pop(utcts)
-            outcomp["DTSTART"] = vDatetime(asutc(outcomp["DTSTART"].dt))
+            outcomp = existing.pop(ts_normalized)
+            # Exception events already have correct DTSTART, no need to modify
         except KeyError:
             outcomp = incomp.copy()
-            outcomp["DTSTART"] = vDatetime(utcts)
-        outcomp["RECURRENCE-ID"] = vDatetime(utcts)
+            # Create new DTSTART preserving timezone info
+            new_dtstart = create_prop_from_date_or_datetime(ts_for_dtstart)
+            # Copy timezone and other parameters from original DTSTART
+            if hasattr(original_dtstart, "params") and original_dtstart.params:
+                new_dtstart.params = original_dtstart.params.copy()
+            outcomp["DTSTART"] = new_dtstart
+
+        # Set RECURRENCE-ID with appropriate type
+        # RECURRENCE-ID should always be in UTC for consistency in identifying instances
+        outcomp["RECURRENCE-ID"] = create_prop_from_date_or_datetime(ts_normalized)
         yield outcomp
 
 
@@ -1002,6 +1033,12 @@ def expand_calendar_rrule(incal: Calendar, start: datetime, end: datetime) -> Ca
             ts = insub["RECURRENCE-ID"].dt
             utcts = asutc(ts)
             known[utcts] = insub
+    # First, add all VTIMEZONE components to preserve timezone definitions
+    for insub in incal.subcomponents:
+        if insub.name == "VTIMEZONE":
+            outcal.add_component(insub)
+
+    # Then process other components
     for insub in incal.subcomponents:
         if insub.name == "VTIMEZONE":
             continue
@@ -1016,4 +1053,15 @@ def expand_calendar_rrule(incal: Calendar, start: datetime, end: datetime) -> Ca
 
 
 def asutc(dt):
+    if isinstance(dt, date) and not isinstance(dt, datetime):
+        # Return date as-is - dates are timezone-agnostic
+        return dt
     return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+
+def create_prop_from_date_or_datetime(dt):
+    """Create appropriate vDate or vDatetime property based on input type."""
+    if isinstance(dt, date) and not isinstance(dt, datetime):
+        return vDate(dt)
+    else:
+        return vDatetime(dt)
