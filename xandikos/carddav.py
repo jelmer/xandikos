@@ -65,7 +65,11 @@ class AddressDataProperty(davcommon.SubbedProperty):
     name = "{%s}address-data" % NAMESPACE
 
     def supported_on(self, resource):
-        return resource.get_content_type() == "text/vcard"
+        try:
+            return resource.get_content_type() == "text/vcard"
+        except KeyError:
+            # Resource doesn't have a content type
+            return False
 
     async def get_value_ext(self, href, resource, el, environ, requested):
         # TODO(jelmer): Support subproperties

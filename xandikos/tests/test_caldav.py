@@ -25,6 +25,7 @@ from icalendar.cal import Calendar as ICalendar
 from xandikos import caldav
 from xandikos.tests import test_webdav
 
+from ..caldav import CalendarDataProperty
 from ..webdav import ET, Property, WebDAVApp
 
 
@@ -375,3 +376,36 @@ END:VEVENT
 END:VCALENDAR
 """,
         )
+
+
+class TestCalendarDataProperty(unittest.TestCase):
+    def test_supported_on_with_calendar(self):
+        """Test that supported_on returns True for calendar resources."""
+        prop = CalendarDataProperty()
+
+        class CalendarResource:
+            def get_content_type(self):
+                return "text/calendar"
+
+        self.assertTrue(prop.supported_on(CalendarResource()))
+
+    def test_supported_on_with_non_calendar(self):
+        """Test that supported_on returns False for non-calendar resources."""
+        prop = CalendarDataProperty()
+
+        class NonCalendarResource:
+            def get_content_type(self):
+                return "text/plain"
+
+        self.assertFalse(prop.supported_on(NonCalendarResource()))
+
+    def test_supported_on_with_missing_content_type(self):
+        """Test that supported_on handles resources without content type gracefully."""
+        prop = CalendarDataProperty()
+
+        class ResourceWithoutContentType:
+            def get_content_type(self):
+                raise KeyError("No content type")
+
+        # This should not raise an exception, but return False
+        self.assertFalse(prop.supported_on(ResourceWithoutContentType()))

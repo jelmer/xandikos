@@ -332,7 +332,11 @@ class CalendarDataProperty(davcommon.SubbedProperty):
     name = "{%s}calendar-data" % NAMESPACE
 
     def supported_on(self, resource):
-        return resource.get_content_type() == "text/calendar"
+        try:
+            return resource.get_content_type() == "text/calendar"
+        except KeyError:
+            # Resource doesn't have a content type
+            return False
 
     async def get_value_ext(self, base_href, resource, el, environ, requested):
         if len(requested) == 0:
