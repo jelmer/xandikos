@@ -23,7 +23,7 @@ import unittest
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from icalendar.cal import Event
+from icalendar.cal import Calendar, Event
 from icalendar.prop import vCategory, vText
 
 from xandikos import collation as _mod_collation
@@ -562,6 +562,91 @@ END:VCALENDAR"""
             date(2024, 1, 29),
         ]
         self.assertEqual(dates, expected_dates)
+
+    def test_expand_preserves_vtimezone(self):
+        """Test that VTIMEZONE components are preserved during expansion."""
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VTIMEZONE
+TZID:Europe/London
+BEGIN:STANDARD
+DTSTART:20231029T020000
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0000
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:20240331T010000
+TZOFFSETFROM:+0000
+TZOFFSETTO:+0100
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:tz-test@example.com
+DTSTART;TZID=Europe/London:20240115T100000
+DTEND;TZID=Europe/London:20240115T110000
+SUMMARY:Meeting
+RRULE:FREQ=DAILY;COUNT=3
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+        # Use timezone-aware datetimes for start/end
+        start = datetime(2024, 1, 1, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 2, 1, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Check VTIMEZONE is preserved
+        timezones = [comp for comp in expanded.walk() if comp.name == "VTIMEZONE"]
+        self.assertEqual(len(timezones), 1)
+        self.assertEqual(timezones[0]["TZID"], "Europe/London")
+
+        # Check events still reference the timezone
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 3)
+        for event in events:
+            # Check that DTSTART has timezone parameter
+            self.assertIn("TZID", event["DTSTART"].params)
+
+    def test_expand_boundary_conditions(self):
+        """Test expansion at exact boundaries of the time range."""
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:boundary-test@example.com
+DTSTART:20240115T100000Z
+DTEND:20240115T110000Z
+SUMMARY:Boundary Event
+RRULE:FREQ=DAILY;COUNT=3
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+
+        # Test with event exactly at start boundary
+        start = datetime(2024, 1, 15, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 1, 18, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 3)
+
+        # Test with event exactly at end boundary
+        start = datetime(2024, 1, 15, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 1, 16, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        # Should include only event on 15th (16th is at boundary and may or may not be included)
+        self.assertGreaterEqual(len(events), 1)
+        self.assertLessEqual(len(events), 2)
 
 
 class ApplyTimeRangeValarmTests(unittest.TestCase):

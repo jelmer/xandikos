@@ -409,3 +409,146 @@ class TestCalendarDataProperty(unittest.TestCase):
 
         # This should not raise an exception, but return False
         self.assertFalse(prop.supported_on(ResourceWithoutContentType()))
+
+
+class ExtractFromCalendarExpandTests(unittest.TestCase):
+    """Comprehensive tests for calendar-data expand functionality."""
+
+    def setUp(self):
+        self.requested = ET.Element("{%s}calendar-data" % caldav.NAMESPACE)
+
+    def test_expand_with_timezone_aware_events(self):
+        """Test expansion of recurring events with timezone information."""
+        expand = ET.SubElement(self.requested, "{%s}expand" % caldav.NAMESPACE)
+        expand.set("start", "20240115T000000Z")
+        expand.set("end", "20240120T000000Z")
+
+        incal = ICalendar.from_ical(b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VTIMEZONE
+TZID:America/New_York
+BEGIN:STANDARD
+DTSTART:20231105T020000
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:20240310T020000
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:timezone-event@example.com
+DTSTART;TZID=America/New_York:20240115T100000
+DTEND;TZID=America/New_York:20240115T110000
+SUMMARY:Daily Meeting
+RRULE:FREQ=DAILY;COUNT=5
+END:VEVENT
+END:VCALENDAR
+""")
+
+        result = caldav.extract_from_calendar(incal, self.requested)
+        events = [comp for comp in result.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 5)
+
+        # Verify timezone is preserved
+        for event in events:
+            # Check that DTSTART has timezone parameter
+            self.assertIn("TZID", event["DTSTART"].params)
+
+    def test_expand_no_recurrence(self):
+        """Test that expand works correctly with non-recurring events."""
+        expand = ET.SubElement(self.requested, "{%s}expand" % caldav.NAMESPACE)
+        expand.set("start", "20240101T000000Z")
+        expand.set("end", "20240131T000000Z")
+
+        incal = ICalendar.from_ical(b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:single-event@example.com
+DTSTART:20240115T140000Z
+DTEND:20240115T150000Z
+SUMMARY:Single Event
+END:VEVENT
+END:VCALENDAR
+""")
+
+        result = caldav.extract_from_calendar(incal, self.requested)
+        events = [comp for comp in result.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["SUMMARY"], "Single Event")
+
+    def test_expand_with_recurrence_override(self):
+        """Test expansion with RECURRENCE-ID overrides."""
+        expand = ET.SubElement(self.requested, "{%s}expand" % caldav.NAMESPACE)
+        expand.set("start", "20240101T000000Z")
+        expand.set("end", "20240110T000000Z")
+
+        incal = ICalendar.from_ical(b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:override-event@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+SUMMARY:Daily Event
+RRULE:FREQ=DAILY;COUNT=5
+END:VEVENT
+BEGIN:VEVENT
+UID:override-event@example.com
+RECURRENCE-ID:20240103T100000Z
+DTSTART:20240103T140000Z
+DTEND:20240103T150000Z
+SUMMARY:Daily Event (Rescheduled)
+LOCATION:Different Room
+END:VEVENT
+END:VCALENDAR
+""")
+
+        result = caldav.extract_from_calendar(incal, self.requested)
+        events = [comp for comp in result.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 5)
+
+        # Find the overridden event
+        overridden = None
+        for event in events:
+            if event.get("LOCATION") == "Different Room":
+                overridden = event
+                break
+
+        self.assertIsNotNone(overridden)
+        self.assertEqual(overridden["SUMMARY"], "Daily Event (Rescheduled)")
+        # Verify time was changed
+        self.assertEqual(overridden["DTSTART"].dt.hour, 14)  # Changed from 10 to 14
+
+    def test_expand_invalid_time_range(self):
+        """Test expansion with invalid time range raises assertion."""
+        expand = ET.SubElement(self.requested, "{%s}expand" % caldav.NAMESPACE)
+        expand.set("start", "20240101T000000Z")
+        expand.set("end", "20240101T000000Z")  # Same as start - invalid
+
+        incal = ICalendar.from_ical(b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-event@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+SUMMARY:Event
+RRULE:FREQ=DAILY;COUNT=10
+END:VEVENT
+END:VCALENDAR
+""")
+
+        # Should raise AssertionError for invalid time range
+        with self.assertRaises(AssertionError):
+            caldav.extract_from_calendar(incal, self.requested)
