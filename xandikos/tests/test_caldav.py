@@ -377,6 +377,76 @@ END:VCALENDAR
 """,
         )
 
+    def test_limit_recurrence_set(self):
+        """Test limit-recurrence-set element."""
+        limit = ET.SubElement(
+            self.requested, "{%s}limit-recurrence-set" % caldav.NAMESPACE
+        )
+        limit.set("start", "20060201T000000Z")
+        limit.set("end", "20060301T000000Z")
+        self.extractEqual(
+            """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+DTSTART:20060101T120000Z
+DURATION:PT1H
+RRULE:FREQ=WEEKLY
+DTSTAMP:20060101T120000Z
+SUMMARY:Weekly meeting
+UID:weekly-meeting@example.com
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20060115T140000Z
+DURATION:PT2H
+RECURRENCE-ID:20060115T120000Z
+DTSTAMP:20060101T120000Z
+SUMMARY:Weekly meeting (extended)
+UID:weekly-meeting@example.com
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20060212T120000Z
+DURATION:PT1H
+RECURRENCE-ID:20060212T120000Z
+DTSTAMP:20060101T120000Z
+SUMMARY:Weekly meeting (February)
+UID:weekly-meeting@example.com
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20060312T120000Z
+DURATION:PT1H
+RECURRENCE-ID:20060312T120000Z
+DTSTAMP:20060101T120000Z
+SUMMARY:Weekly meeting (March)
+UID:weekly-meeting@example.com
+END:VEVENT
+END:VCALENDAR
+""",
+            """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+DTSTART:20060101T120000Z
+DURATION:PT1H
+RRULE:FREQ=WEEKLY
+DTSTAMP:20060101T120000Z
+SUMMARY:Weekly meeting
+UID:weekly-meeting@example.com
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20060212T120000Z
+DURATION:PT1H
+RECURRENCE-ID:20060212T120000Z
+DTSTAMP:20060101T120000Z
+SUMMARY:Weekly meeting (February)
+UID:weekly-meeting@example.com
+END:VEVENT
+END:VCALENDAR
+""",
+        )
+
 
 class TestCalendarDataProperty(unittest.TestCase):
     def test_supported_on_with_calendar(self):

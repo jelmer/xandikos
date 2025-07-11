@@ -1177,6 +1177,142 @@ def expand_calendar_rrule(incal: Calendar, start: datetime, end: datetime) -> Ca
     return outcal
 
 
+def limit_calendar_recurrence_set(
+    incal: Calendar, start: datetime, end: datetime
+) -> Calendar:
+    """Limit recurrence set to a specified time range.
+
+    Unlike expand_calendar_rrule, this preserves the master component with RRULE intact
+    and only includes overridden instances (RECURRENCE-ID) that fall within or affect
+    the specified time range.
+
+    Args:
+        incal: Input calendar
+        start: Start of time range (UTC)
+        end: End of time range (UTC)
+
+    Returns:
+        Calendar with master component and relevant overridden instances
+    """
+    outcal = Calendar()
+    if incal.name != "VCALENDAR":
+        raise AssertionError(f"called on file with root component {incal.name}")
+
+    # Copy calendar properties
+    for field in incal:
+        outcal[field] = incal[field]
+
+    # Normalize start/end to naive UTC for comparison
+    start_utc = asutc(start) if isinstance(start, datetime) else start
+    end_utc = asutc(end) if isinstance(end, datetime) else end
+
+    # First, add all VTIMEZONE components to preserve timezone definitions
+    for insub in incal.subcomponents:
+        if insub.name == "VTIMEZONE":
+            outcal.add_component(insub)
+
+    # Process other components
+    for insub in incal.subcomponents:
+        if insub.name == "VTIMEZONE":
+            continue
+
+        if "RECURRENCE-ID" not in insub:
+            # This is a master component - always include it
+            outcal.add_component(insub)
+        else:
+            # This is an overridden instance - check if it's relevant to the time range
+            recurrence_id = insub["RECURRENCE-ID"].dt
+
+            # Include if the overridden instance falls within the time range
+            # or if it affects instances that would fall within the range
+            # (e.g., THISANDFUTURE modifications)
+
+            # Convert to UTC for comparison if needed
+            if isinstance(recurrence_id, datetime):
+                rec_utc = asutc(recurrence_id)
+            else:
+                rec_utc = recurrence_id
+
+            # Check if this instance should be included
+            include = False
+
+            # 1. Check if the recurrence-id itself is within range
+            # For date comparisons, convert datetime bounds to dates
+            if isinstance(rec_utc, date) and not isinstance(rec_utc, datetime):
+                # Compare dates
+                start_date = (
+                    start_utc.date() if isinstance(start_utc, datetime) else start_utc
+                )
+                end_date = end_utc.date() if isinstance(end_utc, datetime) else end_utc
+                if start_date <= rec_utc <= end_date:
+                    include = True
+            else:
+                # Compare datetimes
+                if start_utc <= rec_utc <= end_utc:
+                    include = True
+
+            # 2. Check if this is a THISANDFUTURE modification that affects the range
+            range_param = insub.get("RECURRENCE-ID").params.get("RANGE")
+            if range_param and range_param.upper() == "THISANDFUTURE":
+                # This modification affects all instances from recurrence_id onwards
+                if isinstance(rec_utc, date) and not isinstance(rec_utc, datetime):
+                    end_date = (
+                        end_utc.date() if isinstance(end_utc, datetime) else end_utc
+                    )
+                    if rec_utc <= end_date:
+                        include = True
+                else:
+                    if rec_utc <= end_utc:
+                        include = True
+
+            # 3. Check if the actual instance times overlap the range
+            if not include:
+                # Get the actual start/end times of this instance
+                if "DTSTART" in insub:
+                    dtstart = insub["DTSTART"].dt
+                    if isinstance(dtstart, datetime):
+                        dtstart_utc = asutc(dtstart)
+                    else:
+                        dtstart_utc = dtstart
+
+                    if "DTEND" in insub:
+                        dtend = insub["DTEND"].dt
+                        if isinstance(dtend, datetime):
+                            dtend_utc = asutc(dtend)
+                        else:
+                            dtend_utc = dtend
+                    elif "DURATION" in insub:
+                        duration = insub["DURATION"].dt
+                        dtend_utc = dtstart_utc + duration
+                    else:
+                        # No explicit end time - treat as instant event
+                        dtend_utc = dtstart_utc
+
+                    # Check if the instance overlaps with the requested range
+                    # Handle date vs datetime comparisons
+                    if isinstance(dtstart_utc, date) and not isinstance(
+                        dtstart_utc, datetime
+                    ):
+                        start_date = (
+                            start_utc.date()
+                            if isinstance(start_utc, datetime)
+                            else start_utc
+                        )
+                        end_date = (
+                            end_utc.date() if isinstance(end_utc, datetime) else end_utc
+                        )
+                        if dtstart_utc < end_date and dtend_utc > start_date:
+                            include = True
+                    else:
+                        if dtstart_utc < end_utc and dtend_utc > start_utc:
+                            include = True
+
+            if include:
+                outcal.add_component(insub)
+
+    return outcal
+
+
 def asutc(dt):
     if isinstance(dt, date) and not isinstance(dt, datetime):
         # Return date as-is - dates are timezone-agnostic

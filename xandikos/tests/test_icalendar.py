@@ -38,6 +38,7 @@ from ..icalendar import (
     apply_time_range_valarm,
     as_tz_aware_ts,
     expand_calendar_rrule,
+    limit_calendar_recurrence_set,
     validate_calendar,
 )
 
@@ -562,6 +563,147 @@ END:VCALENDAR"""
             date(2024, 1, 29),
         ]
         self.assertEqual(dates, expected_dates)
+
+
+class LimitCalendarRecurrenceSetTests(unittest.TestCase):
+    def test_limit_recurrence_set_basic(self):
+        """Test basic functionality of limit_calendar_recurrence_set."""
+        from icalendar import Calendar
+        from datetime import timezone
+
+        # Create a calendar with a recurring event and some overrides
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-recurring@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+SUMMARY:Weekly Meeting
+RRULE:FREQ=WEEKLY
+END:VEVENT
+BEGIN:VEVENT
+UID:test-recurring@example.com
+RECURRENCE-ID:20240115T100000Z
+DTSTART:20240115T140000Z
+DTEND:20240115T150000Z
+SUMMARY:Weekly Meeting (moved to afternoon)
+END:VEVENT
+BEGIN:VEVENT
+UID:test-recurring@example.com
+RECURRENCE-ID:20240301T100000Z
+DTSTART:20240301T100000Z
+DTEND:20240301T110000Z
+SUMMARY:Weekly Meeting (March override)
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+
+        # Limit to January 2024
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 2, 1, tzinfo=timezone.utc)
+
+        limited = limit_calendar_recurrence_set(cal, start, end)
+
+        events = [comp for comp in limited.walk() if comp.name == "VEVENT"]
+        # Should have: master component + January override (March override excluded)
+        self.assertEqual(len(events), 2)
+
+        # Check we have the master component
+        has_master = any(ev for ev in events if "RECURRENCE-ID" not in ev)
+        self.assertTrue(has_master)
+
+        # Check we have the January override but not March
+        overrides = [ev for ev in events if "RECURRENCE-ID" in ev]
+        self.assertEqual(len(overrides), 1)
+        self.assertEqual(
+            overrides[0]["RECURRENCE-ID"].dt,
+            datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_limit_recurrence_set_thisandfuture(self):
+        """Test handling of THISANDFUTURE modifications."""
+        from icalendar import Calendar
+        from datetime import timezone
+
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-recurring@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+SUMMARY:Daily Meeting
+RRULE:FREQ=DAILY
+END:VEVENT
+BEGIN:VEVENT
+UID:test-recurring@example.com
+RECURRENCE-ID;RANGE=THISANDFUTURE:20240215T100000Z
+DTSTART:20240215T140000Z
+DTEND:20240215T150000Z
+SUMMARY:Daily Meeting (time changed from Feb 15 onwards)
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+
+        # Query for January - should not include the THISANDFUTURE modification
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 2, 1, tzinfo=timezone.utc)
+
+        limited = limit_calendar_recurrence_set(cal, start, end)
+        events = [comp for comp in limited.walk() if comp.name == "VEVENT"]
+        # Should only have master component
+        self.assertEqual(len(events), 1)
+        self.assertNotIn("RECURRENCE-ID", events[0])
+
+        # Query for February - should include the THISANDFUTURE modification
+        start = datetime(2024, 2, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 3, 1, tzinfo=timezone.utc)
+
+        limited = limit_calendar_recurrence_set(cal, start, end)
+        events = [comp for comp in limited.walk() if comp.name == "VEVENT"]
+        # Should have master component + THISANDFUTURE override
+        self.assertEqual(len(events), 2)
+
+    def test_limit_recurrence_set_date_values(self):
+        """Test handling of date-only (all-day) events."""
+        from icalendar import Calendar
+        from datetime import date, timezone
+
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-allday@example.com
+DTSTART;VALUE=DATE:20240101
+SUMMARY:All-day recurring event
+RRULE:FREQ=MONTHLY;BYMONTHDAY=1
+END:VEVENT
+BEGIN:VEVENT
+UID:test-allday@example.com
+RECURRENCE-ID;VALUE=DATE:20240201
+DTSTART;VALUE=DATE:20240202
+SUMMARY:All-day recurring event (moved)
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+
+        # Query for February
+        start = datetime(2024, 2, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 3, 1, tzinfo=timezone.utc)
+
+        limited = limit_calendar_recurrence_set(cal, start, end)
+        events = [comp for comp in limited.walk() if comp.name == "VEVENT"]
+        # Should have master + February override
+        self.assertEqual(len(events), 2)
+
+        # Verify the override is included
+        overrides = [ev for ev in events if "RECURRENCE-ID" in ev]
+        self.assertEqual(len(overrides), 1)
+        self.assertEqual(overrides[0]["RECURRENCE-ID"].dt, date(2024, 2, 1))
 
 
 class ApplyTimeRangeValarmTests(unittest.TestCase):
