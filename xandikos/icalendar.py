@@ -349,8 +349,121 @@ def apply_time_range_vfreebusy(start, end, comp, tzify):
     return False
 
 
+def _create_enriched_valarm(alarm: Component, parent: Component) -> Component:
+    """Create a modified VALARM component with calculated absolute trigger time.
+
+    This creates a new VALARM that converts relative triggers to absolute
+    triggers based on the parent component's timing properties.
+    """
+    from icalendar.cal import Alarm
+
+    # Create a new alarm component
+    enriched = Alarm()
+
+    # Copy all properties from the original alarm except TRIGGER
+    for key in alarm:
+        if key != "TRIGGER":
+            enriched[key] = alarm[key]
+
+    # Copy subcomponents
+    for subcomp in alarm.subcomponents:
+        enriched.add_component(subcomp)
+
+    # Handle TRIGGER conversion
+    trigger = alarm.get("TRIGGER")
+    if trigger and isinstance(trigger.dt, timedelta):
+        # Convert relative trigger to absolute
+        related = trigger.params.get("RELATED", "START")
+
+        if related == "START":
+            base_time = parent.get("DTSTART")
+            if base_time:
+                absolute_time = base_time.dt + trigger.dt
+                # Create new absolute trigger
+                enriched.add("TRIGGER", vDDDTypes(absolute_time))
+        elif related == "END":
+            # For VEVENT, use DTEND or DTSTART + DURATION
+            # For VTODO, use DUE or DTSTART + DURATION
+            if parent.name == "VEVENT":
+                end_time = parent.get("DTEND")
+                if not end_time:
+                    start_time = parent.get("DTSTART")
+                    duration = parent.get("DURATION")
+                    if start_time and duration:
+                        end_time_dt = start_time.dt + duration.dt
+                    else:
+                        # No end time determinable, keep original trigger
+                        enriched["TRIGGER"] = trigger
+                        return enriched
+                else:
+                    end_time_dt = end_time.dt
+            elif parent.name == "VTODO":
+                end_time = parent.get("DUE")
+                if not end_time:
+                    start_time = parent.get("DTSTART")
+                    duration = parent.get("DURATION")
+                    if start_time and duration:
+                        end_time_dt = start_time.dt + duration.dt
+                    else:
+                        # No end time determinable, keep original trigger
+                        enriched["TRIGGER"] = trigger
+                        return enriched
+                else:
+                    end_time_dt = end_time.dt
+            else:
+                # Unknown parent type, keep original trigger
+                enriched["TRIGGER"] = trigger
+                return enriched
+
+            absolute_time = end_time_dt + trigger.dt
+            # Create new absolute trigger
+            enriched.add("TRIGGER", vDDDTypes(absolute_time))
+        else:
+            # Unknown RELATED value, keep original trigger
+            enriched["TRIGGER"] = trigger
+    else:
+        # Already absolute or missing, keep as is
+        if trigger:
+            enriched["TRIGGER"] = trigger
+
+    return enriched
+
+
 def apply_time_range_valarm(start, end, comp, tzify):
-    raise NotImplementedError(apply_time_range_valarm)
+    """Check if VALARM overlaps with the given time range.
+
+    According to RFC 4791, a VALARM is said to overlap a time range if:
+    (start <= trigger-time) AND (end > trigger-time)
+
+    For repeating alarms, it overlaps if any trigger instance overlaps.
+
+    NOTE: This function expects the VALARM to have been enriched with
+    absolute trigger times when it has relative triggers.
+    """
+    # Get the trigger property
+    trigger = comp.get("TRIGGER")
+    if not trigger:
+        return False
+
+    # Get the trigger time
+    trigger_time = tzify(trigger.dt)
+
+    # Check if the trigger time overlaps with the time range
+    if start <= trigger_time and end > trigger_time:
+        return True
+
+    # Check for repeating alarms
+    repeat_count = comp.get("REPEAT")
+    duration = comp.get("DURATION")
+
+    if repeat_count and duration:
+        # Calculate each repetition
+        for i in range(1, int(repeat_count) + 1):
+            repeat_time = trigger_time + (duration.dt * i)
+            if start <= repeat_time and end > repeat_time:
+                return True
+
+    return False
 
 
 class PropertyTimeRangeMatcher:
@@ -457,7 +570,8 @@ class ComponentTimeRangeMatcher:
         elif self.comp == "VFREEBUSY":
             props = ["DTSTART", "DTEND", "FREEBUSY"]
         elif self.comp == "VALARM":
-            raise NotImplementedError
+            # VALARM properties used for time-range calculation
+            props = ["TRIGGER", "DURATION", "REPEAT"]
         else:
             props = self.all_props
         return [["P=" + prop] for prop in props]
@@ -576,7 +690,18 @@ class ComponentFilter:
         # XML elements also match the targeted calendar component;
         for child in self.children:
             if isinstance(child, ComponentFilter):
-                if not any(child.match(c, tzify) for c in comp.subcomponents):
+                # Special handling for VALARM components with time-range
+                if child.name == "VALARM" and child.time_range is not None:
+                    # Create enriched VALARM components with parent info
+                    subcomponents = []
+                    for c in comp.subcomponents:
+                        if c.name == "VALARM":
+                            # Create a copy with parent info attached
+                            enriched = _create_enriched_valarm(c, comp)
+                            subcomponents.append(enriched)
+                else:
+                    subcomponents = comp.subcomponents
+                if not any(child.match(c, tzify) for c in subcomponents):
                     return False
             elif isinstance(child, PropertyFilter):
                 if not child.match(comp, tzify):
