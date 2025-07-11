@@ -36,6 +36,7 @@ dynamic = ["version"]
 [project.optional-dependencies]
 prometheus = ["aiohttp-openmetrics"]
 systemd = ["systemd_python"]
+qrcode = ["qrcode[pil]"]
 dev = [
    "ruff==0.12.2",
    "pytest",

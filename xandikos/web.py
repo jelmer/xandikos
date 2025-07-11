@@ -42,38 +42,6 @@ from itertools import takewhile
 
 import jinja2
 
-try:
-    import systemd.daemon
-except ImportError:
-    systemd_imported = False
-
-    def get_systemd_listen_sockets() -> list[socket.socket]:
-        raise NotImplementedError
-else:
-    systemd_imported = True
-
-    def get_systemd_listen_sockets() -> list[socket.socket]:
-        socks = []
-        for fd in systemd.daemon.listen_fds():
-            for family in (
-                socket.AF_UNIX,  # type: ignore
-                socket.AF_INET,
-                socket.AF_INET6,
-            ):
-                if systemd.daemon.is_socket(
-                    fd, family=family, type=socket.SOCK_STREAM, listening=True
-                ):
-                    sock = socket.fromfd(fd, family, socket.SOCK_STREAM)
-                    socks.append(sock)
-                    break
-            else:
-                raise RuntimeError(
-                    "socket family must be AF_INET, AF_INET6, or AF_UNIX; "
-                    "socket type must be SOCK_STREAM; and it must be listening"
-                )
-        return socks
-
-
 from xandikos import __version__ as xandikos_version
 from xandikos import (
     access,
@@ -110,6 +78,40 @@ from xandikos.store import (
 from .icalendar import CalendarFilter, ICalendarFile
 from .store.git import GitStore, TreeGitStore
 from .vcard import VCardFile
+
+logger = logging.getLogger(__name__)
+
+try:
+    import systemd.daemon
+except ImportError:
+    systemd_imported = False
+
+    def get_systemd_listen_sockets() -> list[socket.socket]:
+        raise NotImplementedError
+else:
+    systemd_imported = True
+
+    def get_systemd_listen_sockets() -> list[socket.socket]:
+        socks = []
+        for fd in systemd.daemon.listen_fds():
+            for family in (
+                socket.AF_UNIX,  # type: ignore
+                socket.AF_INET,
+                socket.AF_INET6,
+            ):
+                if systemd.daemon.is_socket(
+                    fd, family=family, type=socket.SOCK_STREAM, listening=True
+                ):
+                    sock = socket.fromfd(fd, family, socket.SOCK_STREAM)
+                    socks.append(sock)
+                    break
+            else:
+                raise RuntimeError(
+                    "socket family must be AF_INET, AF_INET6, or AF_UNIX; "
+                    "socket type must be SOCK_STREAM; and it must be listening"
+                )
+        return socks
+
 
 try:
     from asyncio import to_thread  # type: ignore
@@ -791,11 +793,68 @@ class RootPage(webdav.Resource):
     def render(self, self_url, accepted_content_types, accepted_content_languages):
         content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
+
+        # Generate CalDAV/CardDAV URLs
+        from urllib.parse import urlparse, urlunparse
+
+        parsed = urlparse(self_url)
+
+        # Determine if we're using HTTPS
+        is_secure = parsed.scheme == "https"
+
+        # Create URLs with different schemes, preserving the full path
+        caldav_url = urlunparse(
+            (
+                "caldavs" if is_secure else "caldav",
+                parsed.netloc,
+                parsed.path,
+                "",
+                "",
+                "",
+            )
+        )
+        carddav_url = urlunparse(
+            (
+                "carddavs" if is_secure else "carddav",
+                parsed.netloc,
+                parsed.path,
+                "",
+                "",
+                "",
+            )
+        )
+
+        # Generate DAV×5 URL for QR code
+        davx5_url = urlunparse(("davx5", parsed.netloc, parsed.path, "", "", ""))
+
+        # Try to generate QR code if qrcode is available
+        qr_code_data = None
+        try:
+            import qrcode
+        except ImportError:
+            logger.warning("qrcode package not installed; QR code generation disabled")
+        else:
+            import io
+            import base64
+
+            qr = qrcode.QRCode(version=1, box_size=10, border=4)
+            qr.add_data(davx5_url)
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color="black", back_color="white")
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            qr_code_data = base64.b64encode(buffer.getvalue()).decode()
+
         return render_jinja_page(
             "root.html",
             accepted_content_languages,
             principals=self.backend.find_principals(),
             self_url=self_url,
+            caldav_url=caldav_url,
+            carddav_url=carddav_url,
+            davx5_url=davx5_url,
+            qr_code_data=qr_code_data,
         )
 
     async def get_body(self):
