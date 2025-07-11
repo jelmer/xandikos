@@ -17,23 +17,17 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
-import asyncio
 import unittest
 
-from ..carddav import NAMESPACE, AddressDataProperty, apply_filter
-from ..vcard import VCardFile
+from ..carddav import NAMESPACE, AddressDataProperty
+from ..vcard import VCardFile, CardDAVFilter, parse_filter
 from ..webdav import ET
 from .test_vcard import EXAMPLE_VCARD1
 
 
 class TestApplyFilter(unittest.TestCase):
-    async def get_file(self):
-        return VCardFile([EXAMPLE_VCARD1], "text/vcard")
-
-    def get_content_type(self):
-        return "text/vcard"
-
-    def test_apply_filter(self):
+    def test_parse_filter(self):
+        """Test parsing filter XML into CardDAVFilter object."""
         el = ET.Element("{%s}filter" % NAMESPACE)
         el.set("test", "anyof")
         pf = ET.SubElement(el, "{%s}prop-filter" % NAMESPACE)
@@ -42,8 +36,23 @@ class TestApplyFilter(unittest.TestCase):
         tm.set("collation", "i;unicode-casemap")
         tm.set("match-type", "contains")
         tm.text = "Jeffrey"
-        loop = asyncio.get_event_loop()
-        self.assertTrue(loop.run_until_complete(apply_filter(el, self)))
+
+        # Parse the filter
+        filter_obj = parse_filter(el, CardDAVFilter())
+
+        # Test that it was parsed correctly
+        self.assertEqual(filter_obj.test, any)
+        self.assertEqual(len(filter_obj.property_filters), 1)
+        prop_filter = filter_obj.property_filters[0]
+        self.assertEqual(prop_filter.name, "FN")
+        self.assertEqual(len(prop_filter.text_matches), 1)
+        text_match = prop_filter.text_matches[0]
+        self.assertEqual(text_match.text, "Jeffrey")
+        self.assertEqual(text_match.match_type, "contains")
+
+        # Test that it actually filters correctly
+        fi = VCardFile([EXAMPLE_VCARD1], "text/vcard")
+        self.assertTrue(filter_obj.check("test.vcf", fi))
 
 
 class TestAddressDataProperty(unittest.TestCase):

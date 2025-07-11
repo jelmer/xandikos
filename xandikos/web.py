@@ -663,6 +663,14 @@ class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
     def set_addressbook_color(self, color):
         self.store.set_color(color)
 
+    def addressbook_query(self, create_filter_fn):
+        from .vcard import CardDAVFilter
+
+        filter = create_filter_fn(CardDAVFilter)
+        for name, file, etag in self.store.iter_with_filter(filter=filter):
+            resource = self._get_resource(name, file.content_type, etag, file=file)
+            yield (name, resource)
+
     def get_addressbook_color(self):
         color = self.store.get_color()
         if not color:

@@ -22,6 +22,8 @@
 https://tools.ietf.org/html/rfc6352
 """
 
+import itertools
+
 from . import collation as _mod_collation
 from . import davcommon, webdav
 
@@ -289,6 +291,47 @@ def apply_prop_filter(el, ab):
     return False
 
 
+def parse_filter(filter_el, cls):
+    """Parse a CardDAV filter element and build a filter object."""
+    if filter_el is None:
+        return cls
+
+    test_name = filter_el.get("test", "anyof")
+    cls.test = {"allof": all, "anyof": any}[test_name]
+
+    for prop_el in filter_el:
+        if prop_el.tag == "{urn:ietf:params:xml:ns:carddav}prop-filter":
+            parse_prop_filter(prop_el, cls)
+        else:
+            raise AssertionError(f"unknown filter tag {prop_el.tag!r}")
+
+    return cls
+
+
+def parse_prop_filter(prop_el, filter_obj):
+    """Parse a prop-filter element and add it to the filter."""
+    name = prop_el.get("name")
+    text_match = None
+    param_filters = []
+    is_not_defined = False
+
+    for subel in prop_el:
+        if subel.tag == "{urn:ietf:params:xml:ns:carddav}is-not-defined":
+            is_not_defined = True
+        elif subel.tag == "{urn:ietf:params:xml:ns:carddav}text-match":
+            text_match = {
+                "text": subel.text or "",
+                "collation": subel.get("collation", "i;unicode-casemap"),
+                "negate_condition": subel.get("negate-condition", "no") == "yes",
+                "match_type": subel.get("match-type", "contains"),
+            }
+        elif subel.tag == "{urn:ietf:params:xml:ns:carddav}param-filter":
+            # TODO: implement param-filter parsing
+            pass
+
+    filter_obj.add_prop_filter(name, text_match, param_filters, is_not_defined)
+
+
 async def apply_filter(el, resource):
     """Compile a filter element into a Python function."""
     if el is None or not list(el):
@@ -355,21 +398,32 @@ class AddressbookQueryReporter(webdav.Reporter):
         else:
             nresults = None
 
+        def filter_fn(cls):
+            return parse_filter(filter_el, cls())
+
+        def members(collection):
+            return itertools.chain(
+                collection.addressbook_query(filter_fn),
+                collection.subcollections(),
+            )
+
         i = 0
         async for href, resource in webdav.traverse_resource(
-            base_resource, base_href, depth
+            base_resource, base_href, depth, members=members
         ):
-            if not await apply_filter(filter_el, resource):
-                continue
-            if nresults is not None and i >= nresults:
-                break
-            propstat = davcommon.get_properties_with_data(
-                self.data_property,
-                href,
-                resource,
-                properties,
-                environ,
-                requested,
-            )
-            yield webdav.Status(href, "200 OK", propstat=[s async for s in propstat])
-            i += 1
+            # Ideally traverse_resource would only return the right things.
+            if getattr(resource, "content_type", None) == "text/vcard":
+                if nresults is not None and i >= nresults:
+                    break
+                propstat = davcommon.get_properties_with_data(
+                    self.data_property,
+                    href,
+                    resource,
+                    properties,
+                    environ,
+                    requested,
+                )
+                yield webdav.Status(
+                    href, "200 OK", propstat=[s async for s in propstat]
+                )
+                i += 1
