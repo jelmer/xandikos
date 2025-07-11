@@ -41,7 +41,7 @@ dev = [
    "pytest",
 ]
 typing = [
-   "mypy==1.16.0",
+   "mypy==1.16.1",
    "types-python-dateutil"
 ]
 
