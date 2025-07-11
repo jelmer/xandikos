@@ -13,6 +13,21 @@
       </ul>
     </p>
 
+    <h2>DAV Client Configuration</h2>
+    <p>Configure your CalDAV/CardDAV client with these URLs:</p>
+    <ul>
+        <li>CalDAV: <code>{{ caldav_url }}</code></li>
+        <li>CardDAV: <code>{{ carddav_url }}</code></li>
+    </ul>
+
+    {% if qr_code_data %}
+    <p>For DAVx⁵ on Android, scan this QR code:</p>
+    <img src="data:image/png;base64,{{ qr_code_data }}" alt="DAVx⁵ QR Code" style="max-width: 300px;">
+    <p><small>DAVx⁵ URL: <code>{{ davx5_url }}</code></small></p>
+    {% else %}
+    <!-- QR code not available -->
+    {% endif %}
+
     <p>For more information about Xandikos, see <a
     href="https://www.xandikos.org/">https://www.xandikos.org/</a>
     or <a href="https://github.com/jelmer/xandikos">https://github.com/jelmer/xandikos</a>.
