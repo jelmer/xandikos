@@ -20,7 +20,7 @@
 """Tests for xandikos.icalendar."""
 
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from icalendar.cal import Event
@@ -35,6 +35,7 @@ from ..icalendar import (
     MissingProperty,
     TextMatcher,
     apply_time_range_vevent,
+    apply_time_range_valarm,
     as_tz_aware_ts,
     expand_calendar_rrule,
     validate_calendar,
@@ -498,7 +499,7 @@ class TextMatchTest(unittest.TestCase):
 
 class ApplyTimeRangeVeventTests(unittest.TestCase):
     def _tzify(self, dt):
-        return as_tz_aware_ts(dt, "UTC")
+        return as_tz_aware_ts(dt, ZoneInfo("UTC"))
 
     def test_missing_dtstart(self):
         ev = Event()
@@ -561,3 +562,206 @@ END:VCALENDAR"""
             date(2024, 1, 29),
         ]
         self.assertEqual(dates, expected_dates)
+
+
+class ApplyTimeRangeValarmTests(unittest.TestCase):
+    def _tzify(self, dt):
+        return as_tz_aware_ts(dt, ZoneInfo("UTC"))
+
+    def test_relative_trigger_from_start(self):
+        """Test VALARM with relative trigger from DTSTART."""
+        from icalendar import Calendar, Event, Alarm
+        from icalendar.prop import vDuration
+        from ..icalendar import _create_enriched_valarm
+
+        cal = Calendar()
+        event = Event()
+        event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
+        event.add("summary", "Test Event")
+
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add(
+            "trigger", vDuration(timedelta(minutes=-15))
+        )  # 15 minutes before start
+        alarm.add("description", "Event reminder")
+
+        event.add_component(alarm)
+        cal.add_component(event)
+
+        # Create enriched alarm
+        enriched_alarm = _create_enriched_valarm(alarm, event)
+
+        # Time range includes the trigger time (9:45)
+        start = self._tzify(datetime(2024, 1, 15, 9, 30, 0))
+        end = self._tzify(datetime(2024, 1, 15, 10, 0, 0))
+
+        self.assertTrue(
+            apply_time_range_valarm(start, end, enriched_alarm, self._tzify)
+        )
+
+        # Time range does not include the trigger time
+        start = self._tzify(datetime(2024, 1, 15, 10, 0, 0))
+        end = self._tzify(datetime(2024, 1, 15, 11, 0, 0))
+
+        self.assertFalse(
+            apply_time_range_valarm(start, end, enriched_alarm, self._tzify)
+        )
+
+    def test_relative_trigger_from_end(self):
+        """Test VALARM with relative trigger from DTEND."""
+        from icalendar import Calendar, Event, Alarm
+        from icalendar.prop import vDuration
+        from ..icalendar import _create_enriched_valarm
+
+        cal = Calendar()
+        event = Event()
+        event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
+        event.add("dtend", datetime(2024, 1, 15, 11, 0, 0))
+        event.add("summary", "Test Event")
+
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        trigger = vDuration(timedelta(minutes=-5))  # 5 minutes before end
+        trigger.params["RELATED"] = "END"
+        alarm.add("trigger", trigger)
+        alarm.add("description", "Event reminder")
+
+        event.add_component(alarm)
+        cal.add_component(event)
+
+        # Create enriched alarm
+        enriched_alarm = _create_enriched_valarm(alarm, event)
+
+        # Time range includes the trigger time (10:55)
+        start = self._tzify(datetime(2024, 1, 15, 10, 50, 0))
+        end = self._tzify(datetime(2024, 1, 15, 11, 0, 0))
+
+        self.assertTrue(
+            apply_time_range_valarm(start, end, enriched_alarm, self._tzify)
+        )
+
+    def test_absolute_trigger(self):
+        """Test VALARM with absolute trigger time."""
+        from icalendar import Calendar, Event, Alarm
+        from icalendar.prop import vDDDTypes
+        from ..icalendar import _create_enriched_valarm
+
+        cal = Calendar()
+        event = Event()
+        event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
+        event.add("summary", "Test Event")
+
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add("trigger", vDDDTypes(datetime(2024, 1, 15, 9, 30, 0)))
+        alarm.add("description", "Event reminder")
+
+        event.add_component(alarm)
+        cal.add_component(event)
+
+        # Create enriched alarm (for absolute triggers, it's unchanged)
+        enriched_alarm = _create_enriched_valarm(alarm, event)
+
+        # Time range includes the trigger time
+        start = self._tzify(datetime(2024, 1, 15, 9, 0, 0))
+        end = self._tzify(datetime(2024, 1, 15, 10, 0, 0))
+
+        self.assertTrue(
+            apply_time_range_valarm(start, end, enriched_alarm, self._tzify)
+        )
+
+    def test_repeating_alarm(self):
+        """Test VALARM with repeat and duration."""
+        from icalendar import Calendar, Event, Alarm
+        from icalendar.prop import vDuration
+        from ..icalendar import _create_enriched_valarm
+
+        cal = Calendar()
+        event = Event()
+        event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
+        event.add("summary", "Test Event")
+
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add(
+            "trigger", vDuration(timedelta(minutes=-30))
+        )  # 30 minutes before start
+        alarm.add("duration", vDuration(timedelta(minutes=5)))  # 5 minute intervals
+        alarm.add("repeat", 3)  # Repeat 3 times
+        alarm.add("description", "Event reminder")
+
+        event.add_component(alarm)
+        cal.add_component(event)
+
+        # Create enriched alarm
+        enriched_alarm = _create_enriched_valarm(alarm, event)
+
+        # Time range includes one of the repetitions (9:40 - second repeat)
+        start = self._tzify(datetime(2024, 1, 15, 9, 35, 0))
+        end = self._tzify(datetime(2024, 1, 15, 9, 45, 0))
+
+        self.assertTrue(
+            apply_time_range_valarm(start, end, enriched_alarm, self._tzify)
+        )
+
+    def test_todo_alarm(self):
+        """Test VALARM on VTODO with DUE."""
+        from icalendar import Calendar, Todo, Alarm
+        from icalendar.prop import vDuration
+        from ..icalendar import _create_enriched_valarm
+
+        cal = Calendar()
+        todo = Todo()
+        todo.add("dtstart", datetime(2024, 1, 15, 9, 0, 0))
+        todo.add("due", datetime(2024, 1, 15, 17, 0, 0))
+        todo.add("summary", "Test Task")
+
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        trigger = vDuration(timedelta(hours=-1))  # 1 hour before due
+        trigger.params["RELATED"] = "END"
+        alarm.add("trigger", trigger)
+        alarm.add("description", "Task reminder")
+
+        todo.add_component(alarm)
+        cal.add_component(todo)
+
+        # Create enriched alarm
+        enriched_alarm = _create_enriched_valarm(alarm, todo)
+
+        # Time range includes the trigger time (16:00)
+        start = self._tzify(datetime(2024, 1, 15, 15, 30, 0))
+        end = self._tzify(datetime(2024, 1, 15, 16, 30, 0))
+
+        self.assertTrue(
+            apply_time_range_valarm(start, end, enriched_alarm, self._tzify)
+        )
+
+    def test_no_trigger(self):
+        """Test VALARM without TRIGGER property."""
+        from icalendar import Calendar, Event, Alarm
+        from ..icalendar import _create_enriched_valarm
+
+        cal = Calendar()
+        event = Event()
+        event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
+        event.add("summary", "Test Event")
+
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add("description", "Event reminder")
+        # No trigger property
+
+        event.add_component(alarm)
+        cal.add_component(event)
+
+        # Create enriched alarm (no change without trigger)
+        enriched_alarm = _create_enriched_valarm(alarm, event)
+
+        start = self._tzify(datetime(2024, 1, 15, 9, 0, 0))
+        end = self._tzify(datetime(2024, 1, 15, 11, 0, 0))
+
+        self.assertFalse(
+            apply_time_range_valarm(start, end, enriched_alarm, self._tzify)
+        )
