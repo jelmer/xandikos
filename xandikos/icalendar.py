@@ -352,8 +352,17 @@ def apply_time_range_vfreebusy(start, end, comp, tzify):
 def _create_enriched_valarm(alarm: Component, parent: Component) -> Component:
     """Create a modified VALARM component with calculated absolute trigger time.
 
-    This creates a new VALARM that converts relative triggers to absolute
-    triggers based on the parent component's timing properties.
+    This creates a new VALARM that converts relative triggers (e.g., "-PT15M")
+    to absolute trigger times based on the parent component's DTSTART/DUE properties.
+    This enrichment is necessary for time-range filtering to work correctly with
+    relative triggers, and must be applied consistently in both filtering and indexing.
+
+    Args:
+        alarm: The VALARM component to enrich
+        parent: The parent component (VEVENT/VTODO) containing timing information
+
+    Returns:
+        A new VALARM component with absolute TRIGGER if applicable, otherwise unchanged
     """
     from icalendar.cal import Alarm
 
@@ -690,17 +699,7 @@ class ComponentFilter:
         # XML elements also match the targeted calendar component;
         for child in self.children:
             if isinstance(child, ComponentFilter):
-                # Special handling for VALARM components with time-range
-                if child.name == "VALARM" and child.time_range is not None:
-                    # Create enriched VALARM components with parent info
-                    subcomponents = []
-                    for c in comp.subcomponents:
-                        if c.name == "VALARM":
-                            # Create a copy with parent info attached
-                            enriched = _create_enriched_valarm(c, comp)
-                            subcomponents.append(enriched)
-                else:
-                    subcomponents = comp.subcomponents
+                subcomponents = self._get_subcomponents_for_matching(child, comp)
                 if not any(child.match(c, tzify) for c in subcomponents):
                     return False
             elif isinstance(child, PropertyFilter):
@@ -710,6 +709,25 @@ class ComponentFilter:
                 raise TypeError(child)
 
         return True
+
+    def _get_subcomponents_for_matching(
+        self, child_filter: "ComponentFilter", parent_comp: Component
+    ) -> list[Component]:
+        """Get subcomponents for matching, with special handling for VALARM.
+
+        When filtering VALARM components with time-range, we need to enrich them
+        by converting relative TRIGGER values to absolute times based on the parent
+        component's timing properties.
+        """
+        if child_filter.name == "VALARM" and child_filter.time_range is not None:
+            # Create enriched VALARM components with absolute trigger times
+            return [
+                _create_enriched_valarm(c, parent_comp)
+                for c in parent_comp.subcomponents
+                if c.name == "VALARM"
+            ]
+        else:
+            return parent_comp.subcomponents
 
     def _implicitly_defined(self):
         return any(
@@ -1037,30 +1055,49 @@ class ICalendarFile(File):
         raise KeyError
 
     def _get_index(self, key: IndexKey) -> IndexValueIterator:
-        todo = [(self.calendar, key.split("/"))]
-        rest = []
+        # Track parent component for VALARM enrichment
+        todo: list[tuple[Component, list[str], Optional[Component]]] = [
+            (self.calendar, key.split("/"), None)
+        ]
+        rest: list[tuple[Component, list[str], Optional[Component]]] = []
         c: Component
         while todo:
-            (c, segments) = todo.pop(0)
+            (c, segments, parent) = todo.pop(0)
             if segments and segments[0].startswith("C="):
                 if c.name == segments[0][2:]:
                     if len(segments) > 1 and segments[1].startswith("C="):
-                        todo.extend((comp, segments[1:]) for comp in c.subcomponents)
+                        # Pass current component as parent for subcomponents
+                        todo.extend((comp, segments[1:], c) for comp in c.subcomponents)
                     else:
-                        rest.append((c, segments[1:]))
+                        rest.append((c, segments[1:], parent))
 
-        for c, segments in rest:
+        for c, segments, parent in rest:
             if not segments:
                 yield True
             elif segments[0].startswith("P="):
                 assert len(segments) == 1
+                prop_name = segments[0][2:]
                 try:
-                    p = c[segments[0][2:]]
+                    p = c[prop_name]
                 except KeyError:
                     pass
                 else:
                     if p is not None:
-                        yield p.to_ical()
+                        ical = p.to_ical()
+                        # Special handling for VALARM TRIGGER property
+                        if (
+                            c.name == "VALARM"
+                            and prop_name == "TRIGGER"
+                            and parent is not None
+                            and isinstance(p.dt, timedelta)
+                        ):
+                            # Create enriched VALARM to get absolute trigger time.
+                            # This ensures index values match what the filter will see,
+                            # preventing "index based filter not matching real file filter" errors.
+                            enriched = _create_enriched_valarm(c, parent)
+                            if "TRIGGER" in enriched:
+                                ical = enriched["TRIGGER"].to_ical()
+                        yield ical
             else:
                 raise AssertionError(f"segments: {segments!r}")
 
@@ -1133,11 +1170,25 @@ def _expand_rrule_component(
             # Exception events already have correct DTSTART, no need to modify
         except KeyError:
             outcomp = incomp.copy()
-            # Create new DTSTART preserving timezone info
-            new_dtstart = create_prop_from_date_or_datetime(ts_for_dtstart)
-            # Copy timezone and other parameters from original DTSTART
-            if hasattr(original_dtstart, "params") and original_dtstart.params:
+            # Create new DTSTART preserving original timezone handling
+            # If original had TZID parameter, preserve it
+            if (
+                hasattr(original_dtstart, "params")
+                and "TZID" in original_dtstart.params
+            ):
+                # Create datetime without timezone, as TZID will handle it
+                ts_naive = (
+                    ts_for_dtstart.replace(tzinfo=None)
+                    if hasattr(ts_for_dtstart, "tzinfo")
+                    else ts_for_dtstart
+                )
+                new_dtstart = create_prop_from_date_or_datetime(ts_naive)
                 new_dtstart.params = original_dtstart.params.copy()
+            else:
+                # No TZID parameter, use the timezone-aware datetime
+                new_dtstart = create_prop_from_date_or_datetime(ts_for_dtstart)
+                if hasattr(original_dtstart, "params") and original_dtstart.params:
+                    new_dtstart.params = original_dtstart.params.copy()
             outcomp["DTSTART"] = new_dtstart
 
         # Set RECURRENCE-ID with appropriate type
