@@ -158,7 +158,7 @@ class Filter:
         """
         raise NotImplementedError(self.check)
 
-    def index_keys(self) -> list[IndexKey]:
+    def index_keys(self) -> list[list[IndexKey]]:
         """Returns a list of indexes that could be used to apply this filter.
 
         Returns: AND-list of OR-options
