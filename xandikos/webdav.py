@@ -1014,6 +1014,45 @@ class Collection(Resource):
         # Delete source from this collection only after successful creation
         self.delete_member(name, etag)
 
+    async def copy_member(
+        self,
+        name: str,
+        destination: "Collection",
+        destination_name: str,
+        overwrite: bool = True,
+    ) -> None:
+        """Copy a member from this collection to a different collection.
+
+        This is a default implementation that uses get_member and create_member.
+        Subclasses may override this for more efficient implementations.
+
+        Args:
+          name: Source member name in this collection
+          destination: Destination collection
+          destination_name: Name in destination collection
+          overwrite: Whether to overwrite if destination exists
+        Raises:
+          KeyError: when the source item doesn't exist
+          FileExistsError: when destination exists and overwrite is False
+        """
+        # Get the source member from this collection
+        source_member = self.get_member(name)
+
+        # Read content from source
+        body_chunks = await source_member.get_body()
+        body = b"".join(body_chunks)
+        content_type = source_member.get_content_type()
+
+        # Try to create at destination
+        try:
+            await destination.create_member(destination_name, [body], content_type)
+        except FileExistsError:
+            if not overwrite:
+                raise
+            # Delete existing and retry
+            destination.delete_member(destination_name)
+            await destination.create_member(destination_name, [body], content_type)
+
     def get_sync_token(self) -> str:
         """Get sync-token for the current state of this collection."""
         raise NotImplementedError(self.get_sync_token)
@@ -1995,6 +2034,147 @@ class MoveMethod(Method):
             return Response(status=403, reason="Forbidden")
 
 
+class CopyMethod(Method):
+    async def handle(self, request, environ, app):
+        # See RFC 4918, section 9.8
+
+        # Get source resource
+        unused_href, source_path, source_resource = app._get_resource_from_environ(
+            request, environ
+        )
+        if source_resource is None:
+            return _send_not_found(request)
+
+        # Get Destination header
+        destination_header = request.headers.get("Destination")
+        if not destination_header:
+            return Response(
+                status=400,
+                reason="Bad Request",
+                body=[b"Destination header required for COPY"],
+            )
+
+        # Parse destination URL
+        parsed_dest = urllib.parse.urlparse(destination_header)
+
+        # Check if destination is on same server
+        request_host = request.headers.get("Host", "")
+        dest_host = parsed_dest.netloc or request_host
+
+        if dest_host != request_host:
+            return Response(
+                status=502,
+                reason="Bad Gateway",
+                body=[b"Cross-server COPY not supported"],
+            )
+
+        # Extract destination path
+        dest_path = parsed_dest.path
+        if not dest_path:
+            return Response(
+                status=400, reason="Bad Request", body=[b"Invalid Destination header"]
+            )
+
+        # Remove any script name prefix from destination path
+        script_name = environ.get("SCRIPT_NAME", "")
+        if script_name and dest_path.startswith(script_name):
+            dest_path = dest_path[len(script_name) :]
+
+        # Ensure destination path starts with /
+        if not dest_path.startswith("/"):
+            dest_path = "/" + dest_path
+
+        # Check if source and destination are the same
+        if source_path == dest_path:
+            return Response(
+                status=403,
+                reason="Forbidden",
+                body=[b"Source and destination cannot be the same"],
+            )
+
+        # Check if source is a collection
+        is_collection = COLLECTION_RESOURCE_TYPE in source_resource.resource_types
+
+        # For collections, Depth must be infinity (RFC 4918 9.8.3)
+        if is_collection:
+            depth = request.headers.get("Depth", "infinity")
+            if depth != "infinity":
+                return Response(
+                    status=400,
+                    reason="Bad Request",
+                    body=[b"Depth must be infinity for COPY on collection"],
+                )
+            # Collections are not supported as members currently
+            return Response(
+                status=501,
+                reason="Not Implemented",
+                body=[b"COPY for collections not implemented"],
+            )
+
+        # Get parent containers
+        source_container_path, source_name = split_path_preserving_encoding(
+            request, environ
+        )
+        source_container = app.backend.get_resource(source_container_path)
+        if source_container is None:
+            return _send_not_found(request)
+
+        dest_container_path, dest_name = posixpath.split(dest_path.rstrip("/"))
+        if not dest_container_path:
+            dest_container_path = "/"
+        dest_container = app.backend.get_resource(dest_container_path)
+        if dest_container is None:
+            return Response(
+                status=409,
+                reason="Conflict",
+                body=[b"Destination container does not exist"],
+            )
+
+        # Check if destination container is a collection
+        if COLLECTION_RESOURCE_TYPE not in dest_container.resource_types:
+            return Response(
+                status=409,
+                reason="Conflict",
+                body=[b"Destination container is not a collection"],
+            )
+
+        # Handle Overwrite header
+        overwrite_header = request.headers.get("Overwrite", "T")
+        overwrite = overwrite_header.upper() != "F"
+
+        try:
+            # Use the copy_member method
+            await source_container.copy_member(
+                source_name, dest_container, dest_name, overwrite
+            )
+
+            # If we get here, copy succeeded. Return 201 Created
+            # (we can't easily determine if destination existed before)
+            return Response(status=201, reason="Created")
+
+        except KeyError:
+            return _send_not_found(request)
+        except FileExistsError:
+            return Response(
+                status=412,
+                reason="Precondition Failed",
+                body=[b"Destination exists and Overwrite is False"],
+            )
+        except PreconditionFailure as e:
+            return _send_simple_dav_error(
+                request,
+                "412 Precondition Failed",
+                error=ET.Element(e.precondition),
+                description=e.description,
+            )
+        except ResourceLocked:
+            return Response(status=423, reason="Locked")
+        except InsufficientStorage:
+            return Response(status=507, reason="Insufficient Storage")
+        except PermissionError:
+            return Response(status=403, reason="Forbidden")
+
+
 class ReportMethod(Method):
     async def handle(self, request, environ, app):
         # See https://tools.ietf.org/html/rfc3253, section 3.6
@@ -2303,6 +2483,7 @@ class WebDAVApp:
                 PostMethod(),
                 PutMethod(),
                 MoveMethod(),
+                CopyMethod(),
                 ReportMethod(),
                 PropfindMethod(),
                 ProppatchMethod(),

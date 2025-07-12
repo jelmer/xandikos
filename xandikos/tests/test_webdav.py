@@ -148,6 +148,28 @@ class WebTests(WebTestCase):
         contents = b"".join(app(environ, start_response))
         return _code[0], _headers, contents
 
+    def copy(self, app, path, destination, overwrite=None):
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": "COPY",
+        }
+        if destination is not None:
+            environ["HTTP_DESTINATION"] = destination
+        if overwrite is not None:
+            environ["HTTP_OVERWRITE"] = "T" if overwrite else "F"
+        setup_testing_defaults(environ)
+        # Add HTTP_HOST for proper destination parsing
+        environ["HTTP_HOST"] = "localhost"
+        _code = []
+        _headers = []
+
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+
+        contents = b"".join(app(environ, start_response))
+        return _code[0], _headers, contents
+
     def propfind(self, app, path, body):
         environ = {
             "PATH_INFO": path,
@@ -216,7 +238,7 @@ class WebTests(WebTestCase):
             (
                 "Allow",
                 (
-                    "DELETE, GET, HEAD, MKCOL, MOVE, OPTIONS, "
+                    "COPY, DELETE, GET, HEAD, MKCOL, MOVE, OPTIONS, "
                     "POST, PROPFIND, PROPPATCH, PUT, REPORT"
                 ),
             ),
@@ -573,6 +595,80 @@ class WebTests(WebTestCase):
         )
         self.assertEqual("501 Not Implemented", code)
         self.assertIn(b"MOVE for collections not implemented", contents)
+
+    def test_copy_success(self):
+        """Test successful COPY operation."""
+        copied_items = []
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag"'
+
+            async def get_body(self):
+                yield b"test content"
+
+            def get_content_type(self):
+                return "text/plain"
+
+        class TestCollection(Collection):
+            def get_member(self, name):
+                if name == "source.txt":
+                    return TestResource()
+                raise KeyError(name)
+
+            async def copy_member(self, name, destination, dest_name, overwrite=True):
+                copied_items.append((name, destination, dest_name, overwrite))
+
+        source_collection = TestCollection()
+        dest_collection = TestCollection()
+        app = self.makeApp(
+            {
+                "/": source_collection,
+                "/source.txt": TestResource(),
+                "/dest": dest_collection,
+            },
+            [],
+        )
+        code, headers, contents = self.copy(
+            app, "/source.txt", "http://localhost/dest/target.txt"
+        )
+        self.assertEqual("201 Created", code)
+        self.assertEqual(b"", contents)
+        self.assertEqual(
+            [("source.txt", dest_collection, "target.txt", True)], copied_items
+        )
+
+    def test_copy_no_destination_header(self):
+        """Test COPY without Destination header."""
+        app = self.makeApp({"/source.txt": Resource()}, [])
+        # Manually create the request without Destination header
+        environ = {
+            "PATH_INFO": "/source.txt",
+            "REQUEST_METHOD": "COPY",
+        }
+        setup_testing_defaults(environ)
+        environ["HTTP_HOST"] = "localhost"
+        _code = []
+
+        def start_response(code, headers):
+            _code.append(code)
+
+        contents = b"".join(app(environ, start_response))
+        self.assertEqual("400 Bad Request", _code[0])
+        self.assertIn(b"Destination header required for COPY", contents)
+
+    def test_copy_collection_not_implemented(self):
+        """Test COPY on a collection (not implemented)."""
+
+        class TestCollection(Collection):
+            resource_types = Collection.resource_types
+
+        app = self.makeApp({"/collection/": TestCollection()}, [])
+        code, headers, contents = self.copy(
+            app, "/collection/", "http://localhost/newcollection/"
+        )
+        self.assertEqual("501 Not Implemented", code)
+        self.assertIn(b"COPY for collections not implemented", contents)
 
 
 class PickContentTypesTests(unittest.TestCase):
@@ -1026,6 +1122,106 @@ class CollectionMoveMemberTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 await source.move_member(
                     "file.txt", dest, "existing.txt", overwrite=False
+                )
+
+        asyncio.run(run_test())
+
+
+class CollectionCopyMemberTests(unittest.TestCase):
+    """Test the Collection.copy_member method."""
+
+    def test_copy_member_success(self):
+        """Test successful copy_member operation."""
+        import asyncio
+
+        class TestResource(Resource):
+            def __init__(self, content, content_type="text/plain"):
+                self.content = content
+                self.content_type = content_type
+
+            async def get_etag(self):
+                return '"test-etag"'
+
+            async def get_body(self):
+                return [self.content]
+
+            def get_content_type(self):
+                return self.content_type
+
+        class TestCollection(Collection):
+            def __init__(self):
+                self.members = {}
+                self.created = []
+
+            def get_member(self, name):
+                if name in self.members:
+                    return self.members[name]
+                raise KeyError(name)
+
+            async def create_member(self, name, contents, content_type, requester=None):
+                body = b"".join(contents)
+                self.members[name] = TestResource(body, content_type)
+                self.created.append((name, body, content_type))
+                return (name, '"new-etag"')
+
+        async def run_test():
+            source = TestCollection()
+            dest = TestCollection()
+            source.members["file.txt"] = TestResource(b"Hello, World!")
+
+            # Test copy without affecting source
+            await source.copy_member("file.txt", dest, "newfile.txt")
+
+            # Check source NOT deleted (key difference from move)
+            self.assertIn("file.txt", source.members)
+
+            # Check destination created
+            self.assertEqual(
+                [("newfile.txt", b"Hello, World!", "text/plain")], dest.created
+            )
+            self.assertIn("newfile.txt", dest.members)
+
+        asyncio.run(run_test())
+
+    def test_copy_member_overwrite_false_exists(self):
+        """Test copy_member with overwrite=False when destination exists."""
+        import asyncio
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag"'
+
+            async def get_body(self):
+                return [b"content"]
+
+            def get_content_type(self):
+                return "text/plain"
+
+        class TestCollection(Collection):
+            def __init__(self):
+                self.members = {}
+
+            def get_member(self, name):
+                if name in self.members:
+                    return self.members[name]
+                raise KeyError(name)
+
+            async def create_member(self, name, contents, content_type, requester=None):
+                if name in self.members:
+                    raise FileExistsError(f"Member {name} already exists")
+                self.members[name] = TestResource()
+                return (name, '"new-etag"')
+
+        async def run_test():
+            source = TestCollection()
+            dest = TestCollection()
+            source.members["source.txt"] = TestResource()
+            dest.members["dest.txt"] = TestResource()
+
+            # Test copy with overwrite=False when destination exists
+            with self.assertRaises(FileExistsError):
+                await source.copy_member(
+                    "source.txt", dest, "dest.txt", overwrite=False
                 )
 
         asyncio.run(run_test())
