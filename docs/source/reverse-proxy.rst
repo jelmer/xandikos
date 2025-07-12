@@ -33,3 +33,49 @@ the ``my-htpasswd`` secret being present and having a htpasswd like file in it.
 
 .. literalinclude:: ../../examples/xandikos-ingress.k8s.yaml
    :language: yaml
+
+Example: nginx reverse proxy
+-----------------------------
+
+.. code-block:: nginx
+
+   server {
+       listen 443 ssl;
+       server_name dav.example.com;
+
+       ssl_certificate /path/to/cert.pem;
+       ssl_certificate_key /path/to/key.pem;
+
+       location / {
+           auth_basic "CalDAV/CardDAV";
+           auth_basic_user_file /etc/nginx/htpasswd;
+
+           proxy_pass http://localhost:8080;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_set_header Host $host;
+       }
+   }
+
+Example: Apache reverse proxy
+-----------------------------
+
+.. code-block:: apache
+
+   <VirtualHost *:443>
+       ServerName dav.example.com
+
+       SSLEngine on
+       SSLCertificateFile /path/to/cert.pem
+       SSLCertificateKeyFile /path/to/key.pem
+
+       <Location />
+           AuthType Digest
+           AuthName "CalDAV/CardDAV"
+           AuthUserFile /etc/apache2/htdigest
+           Require valid-user
+
+           ProxyPass http://localhost:8080/
+           ProxyPassReverse http://localhost:8080/
+       </Location>
+   </VirtualHost>
