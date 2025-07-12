@@ -18,11 +18,16 @@
 # MA  02110-1301, USA.
 
 import asyncio
+import os
+import tempfile
 import unittest
 
 from xandikos.carddav import NAMESPACE, AddressDataProperty
+from xandikos.store.git import TreeGitStore
 from xandikos.vcard import VCardFile, CardDAVFilter, parse_filter
-from xandikos.webdav import ET
+from xandikos.web import AddressbookCollection, SingleUserFilesystemBackend
+from xandikos import webdav
+from xandikos.webdav import ET, PreconditionFailure
 from .test_vcard import EXAMPLE_VCARD1
 
 
@@ -162,3 +167,55 @@ class AddressbookMultigetReporterTests(unittest.TestCase):
                 self.assertEqual(response.status, 207)
 
         asyncio.run(run_test())
+
+
+class TestAddressbookValidation(unittest.TestCase):
+    """Test that addressbook collections only accept vCard files."""
+
+    def test_addressbook_create_member_validation(self):
+        """Test that AddressbookCollection.create_member validates content types."""
+        with tempfile.TemporaryDirectory() as tempdir:
+            store_path = os.path.join(tempdir, "store")
+            store = TreeGitStore.create(store_path)
+            store.load_extra_file_handler(VCardFile)
+            backend = SingleUserFilesystemBackend(tempdir)
+            addressbook = AddressbookCollection(backend, "/addressbook", store)
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                # Test that non-vCard content types are rejected
+                with self.assertRaises(PreconditionFailure) as context:
+                    loop.run_until_complete(
+                        addressbook.create_member(
+                            "test.ics", [b"data"], "text/calendar"
+                        )
+                    )
+                self.assertEqual(
+                    "{%s}supported-address-data" % NAMESPACE,
+                    context.exception.precondition,
+                )
+                self.assertIn("vCard", str(context.exception.description))
+                self.assertIn("text/calendar", str(context.exception.description))
+
+                # Test other non-vCard types
+                with self.assertRaises(PreconditionFailure):
+                    loop.run_until_complete(
+                        addressbook.create_member("test.txt", [b"data"], "text/plain")
+                    )
+
+                # Test that vCard content types are accepted
+                for i, content_type in enumerate(
+                    ("text/vcard", "text/x-vcard", "text/directory")
+                ):
+                    name, etag = loop.run_until_complete(
+                        addressbook.create_member(
+                            f"test{i}.vcf", [EXAMPLE_VCARD1], content_type
+                        )
+                    )
+                    self.assertTrue(name.endswith(".vcf"))
+                    self.assertIsNotNone(etag)
+
+            finally:
+                loop.close()
