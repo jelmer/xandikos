@@ -275,7 +275,9 @@ class WebTests(WebTestCase):
         created_items = []
 
         class TestResource(Collection):
-            async def create_member(unused_self, name, contents, content_type):
+            async def create_member(
+                unused_self, name, contents, content_type, requester=None
+            ):
                 created_items.append((name, contents))
                 return (name, '"new-etag"')
 
