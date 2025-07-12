@@ -126,6 +126,28 @@ class WebTests(WebTestCase):
         list(app(environ, start_response))
         return _code[0], _headers
 
+    def move(self, app, path, destination, overwrite=None):
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": "MOVE",
+        }
+        if destination is not None:
+            environ["HTTP_DESTINATION"] = destination
+        if overwrite is not None:
+            environ["HTTP_OVERWRITE"] = "T" if overwrite else "F"
+        setup_testing_defaults(environ)
+        # Add HTTP_HOST for proper destination parsing
+        environ["HTTP_HOST"] = "localhost"
+        _code = []
+        _headers = []
+
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+
+        contents = b"".join(app(environ, start_response))
+        return _code[0], _headers, contents
+
     def propfind(self, app, path, body):
         environ = {
             "PATH_INFO": path,
@@ -194,7 +216,7 @@ class WebTests(WebTestCase):
             (
                 "Allow",
                 (
-                    "DELETE, GET, HEAD, MKCOL, OPTIONS, "
+                    "DELETE, GET, HEAD, MKCOL, MOVE, OPTIONS, "
                     "POST, PROPFIND, PROPPATCH, PUT, REPORT"
                 ),
             ),
@@ -422,6 +444,135 @@ class WebTests(WebTestCase):
 </ns0:response>\
 </ns0:multistatus>""",
         )
+
+    def test_move_success(self):
+        """Test successful MOVE operation."""
+        moved_items = []
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag"'
+
+            async def get_body(self):
+                yield b"test content"
+
+            def get_content_type(self):
+                return "text/plain"
+
+        class TestCollection(Collection):
+            def get_member(self, name):
+                if name == "source.txt":
+                    return TestResource()
+                raise KeyError(name)
+
+            async def move_member(self, name, destination, dest_name, overwrite=True):
+                moved_items.append((name, destination, dest_name, overwrite))
+
+        source_collection = TestCollection()
+        dest_collection = TestCollection()
+        app = self.makeApp(
+            {
+                "/": source_collection,
+                "/source.txt": TestResource(),
+                "/dest": dest_collection,
+            },
+            [],
+        )
+        code, headers, contents = self.move(
+            app, "/source.txt", "http://localhost/dest/target.txt"
+        )
+        self.assertEqual("201 Created", code)
+        self.assertEqual(b"", contents)
+        self.assertEqual(
+            [("source.txt", dest_collection, "target.txt", True)], moved_items
+        )
+
+    def test_move_no_destination_header(self):
+        """Test MOVE without Destination header."""
+        app = self.makeApp({"/source.txt": Resource()}, [])
+        # Manually create the request without Destination header
+        environ = {
+            "PATH_INFO": "/source.txt",
+            "REQUEST_METHOD": "MOVE",
+        }
+        setup_testing_defaults(environ)
+        _code = []
+        _headers = []
+
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+
+        contents = b"".join(app(environ, start_response))
+        self.assertEqual("400 Bad Request", _code[0])
+        self.assertIn(b"Destination header required", contents)
+
+    def test_move_source_not_found(self):
+        """Test MOVE with non-existent source."""
+        app = self.makeApp({}, [])
+        code, headers, contents = self.move(
+            app, "/nonexistent.txt", "http://localhost/dest.txt"
+        )
+        self.assertEqual("404 Not Found", code)
+
+    def test_move_overwrite_false_destination_exists(self):
+        """Test MOVE with Overwrite: F when destination exists."""
+
+        class TestCollection(Collection):
+            def get_member(self, name):
+                if name in ("source.txt", "dest.txt"):
+                    return Resource()
+                raise KeyError(name)
+
+            async def move_member(self, name, destination, dest_name, overwrite=True):
+                if not overwrite:
+                    raise FileExistsError(f"Destination {dest_name} already exists")
+
+        collection = TestCollection()
+        app = self.makeApp(
+            {
+                "/": collection,
+                "/source.txt": Resource(),
+                "/dest.txt": Resource(),
+            },
+            [],
+        )
+        code, headers, contents = self.move(
+            app, "/source.txt", "http://localhost/dest.txt", overwrite=False
+        )
+        self.assertEqual("412 Precondition Failed", code)
+        self.assertIn(b"Destination exists", contents)
+
+    def test_move_same_source_and_destination(self):
+        """Test MOVE with same source and destination."""
+        app = self.makeApp({"/file.txt": Resource()}, [])
+        code, headers, contents = self.move(
+            app, "/file.txt", "http://localhost/file.txt"
+        )
+        self.assertEqual("403 Forbidden", code)
+        self.assertIn(b"Source and destination cannot be the same", contents)
+
+    def test_move_destination_container_not_found(self):
+        """Test MOVE when destination container doesn't exist."""
+        app = self.makeApp({"/": Collection(), "/source.txt": Resource()}, [])
+        code, headers, contents = self.move(
+            app, "/source.txt", "http://localhost/nonexistent/dest.txt"
+        )
+        self.assertEqual("409 Conflict", code)
+        self.assertIn(b"Destination container does not exist", contents)
+
+    def test_move_collection_not_implemented(self):
+        """Test MOVE on a collection (not implemented)."""
+
+        class TestCollection(Collection):
+            resource_types = Collection.resource_types
+
+        app = self.makeApp({"/collection/": TestCollection()}, [])
+        code, headers, contents = self.move(
+            app, "/collection/", "http://localhost/newcollection/"
+        )
+        self.assertEqual("501 Not Implemented", code)
+        self.assertIn(b"MOVE for collections not implemented", contents)
 
 
 class PickContentTypesTests(unittest.TestCase):
@@ -771,3 +922,110 @@ class SplitPathPreservingEncodingTests(unittest.TestCase):
         container, item = split_path_preserving_encoding(MockRequest(), environ)
         self.assertEqual("/", container)
         self.assertEqual("item/with/slash.ics", item)
+
+
+class CollectionMoveMemberTests(unittest.TestCase):
+    """Test the Collection.move_member method."""
+
+    def test_move_member_success(self):
+        """Test successful move_member operation."""
+        import asyncio
+
+        class TestResource(Resource):
+            def __init__(self, content, content_type="text/plain"):
+                self.content = content
+                self.content_type = content_type
+
+            async def get_etag(self):
+                return '"test-etag"'
+
+            async def get_body(self):
+                return [self.content]
+
+            def get_content_type(self):
+                return self.content_type
+
+        class TestCollection(Collection):
+            def __init__(self):
+                self.members = {}
+                self.deleted = []
+                self.created = []
+
+            def get_member(self, name):
+                if name in self.members:
+                    return self.members[name]
+                raise KeyError(name)
+
+            def delete_member(self, name, etag=None):
+                if name not in self.members:
+                    raise KeyError(name)
+                del self.members[name]
+                self.deleted.append((name, etag))
+
+            async def create_member(self, name, contents, content_type, requester=None):
+                body = b"".join(contents)
+                self.members[name] = TestResource(body, content_type)
+                self.created.append((name, body, content_type))
+                return (name, '"new-etag"')
+
+        async def run_test():
+            source = TestCollection()
+            dest = TestCollection()
+            source.members["file.txt"] = TestResource(b"Hello, World!")
+
+            # Test move without overwrite
+            await source.move_member("file.txt", dest, "newfile.txt")
+
+            # Check source deleted
+            self.assertEqual([("file.txt", '"test-etag"')], source.deleted)
+            self.assertNotIn("file.txt", source.members)
+
+            # Check destination created
+            self.assertEqual(
+                [("newfile.txt", b"Hello, World!", "text/plain")], dest.created
+            )
+            self.assertIn("newfile.txt", dest.members)
+
+        asyncio.run(run_test())
+
+    def test_move_member_overwrite_false_exists(self):
+        """Test move_member with overwrite=False when destination exists."""
+        import asyncio
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag"'
+
+            async def get_body(self):
+                return [b"content"]
+
+            def get_content_type(self):
+                return "text/plain"
+
+        class TestCollection(Collection):
+            def __init__(self):
+                self.members = {}
+
+            def get_member(self, name):
+                if name in self.members:
+                    return self.members[name]
+                raise KeyError(name)
+
+            async def create_member(self, name, contents, content_type, requester=None):
+                if name in self.members:
+                    raise FileExistsError(f"{name} already exists")
+                return (name, '"new-etag"')
+
+        async def run_test():
+            source = TestCollection()
+            dest = TestCollection()
+            source.members["file.txt"] = TestResource()
+            dest.members["existing.txt"] = TestResource()
+
+            # Test move with overwrite=False when destination exists
+            with self.assertRaises(FileExistsError):
+                await source.move_member(
+                    "file.txt", dest, "existing.txt", overwrite=False
+                )
+
+        asyncio.run(run_test())
