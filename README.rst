@@ -15,7 +15,7 @@ Implemented standards
 
 The following standards are implemented:
 
-- :RFC:`4918`/:RFC:`2518` (Core WebDAV) - *implemented, except for COPY/MOVE/LOCK operations*
+- :RFC:`4918`/:RFC:`2518` (Core WebDAV) - *implemented, except for LOCK operations (COPY/MOVE implemented for non-collections)*
 - :RFC:`4791` (CalDAV) - *fully implemented*
 - :RFC:`6352` (CardDAV) - *fully implemented*
 - :RFC:`5397` (Current Principal) - *fully implemented*
