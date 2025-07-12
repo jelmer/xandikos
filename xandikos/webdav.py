@@ -658,6 +658,13 @@ class Resource:
         """
         raise NotImplementedError(self.get_quota_available_bytes)
 
+    def supports_managed_attachments(self) -> bool:
+        """Return True if this resource supports CalDAV managed attachments.
+
+        Returns: False by default, overridden by calendar collections that support it.
+        """
+        return False
+
 
 class Property:
     """Handler for listing, retrieving and updating DAV Properties."""
@@ -3262,6 +3269,16 @@ class WebDAVApp:
             "quota",
         ]
         features.extend(self.extra_features)
+        return features
+
+        # Add managed attachments feature if supported by the resource
+        if resource.supports_managed_attachments():
+            features.append("calendar-managed-attachments")
+        else:
+            collection = getattr(resource, "collection", None)
+            if collection is not None and collection.supports_managed_attachments():
+                features.append("calendar-managed-attachments")
+
         return features
 
     async def _get_allowed_methods(self, request, environ):
