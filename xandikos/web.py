@@ -557,6 +557,17 @@ class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
 
 
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
+    async def create_member(
+        self, name: str, contents: Iterable[bytes], content_type: str
+    ) -> tuple[str, str]:
+        """Create a new member with validation for calendar collections."""
+        if content_type != "text/calendar":
+            raise webdav.PreconditionFailure(
+                "{%s}valid-calendar-data" % caldav.NAMESPACE,
+                f"Calendar collections only support calendar files. Got: {content_type}",
+            )
+        return await super().create_member(name, contents, content_type)
+
     def get_calendar_description(self):
         return self.store.get_description()
 
@@ -645,6 +656,23 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
+    async def create_member(
+        self, name: str, contents: Iterable[bytes], content_type: str
+    ) -> tuple[str, str]:
+        """Create a new member with validation for addressbook collections.
+
+        RFC 6352 Section 5.1: Address object resources contained in address book
+        collections MUST contain a single vCard component only.
+        """
+        # RFC 6350: text/vcard is the standard, but we also support deprecated formats
+        # that might exist in repositories: text/x-vcard and text/directory
+        if content_type not in ("text/vcard", "text/x-vcard", "text/directory"):
+            raise webdav.PreconditionFailure(
+                "{%s}supported-address-data" % carddav.NAMESPACE,
+                f"Addressbook collections only support vCard files. Got: {content_type}",
+            )
+        return await super().create_member(name, contents, content_type)
+
     def get_addressbook_description(self):
         return self.store.get_description()
 
