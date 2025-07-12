@@ -26,8 +26,8 @@ HTTP Headers
 
 - (9.1) Dav [supported]
 - (9.2) Depth ['0, '1' and 'infinity' are supported]
-- (9.3) Destination [supported, used with COPY/MOVE]
-- (9.4) If [not supported]
+- (9.3) Destination [only used with COPY/MOVE, which are not supported]
+- (9.4) If [partially supported - If-Match and If-None-Match headers are supported]
 - (9.5) Lock-Token [not supported]
 - (9.6) Overwrite [supported, used with COPY/MOVE]
 - (9.7) Status-URI [not supported]
@@ -43,9 +43,9 @@ DAV Properties
 - (15.5) getcontenttype [supported]
 - (15.6) getetag [supported]
 - (15.7) getlastmodified [supported]
-- (15.8) lockdiscovery [supported]
+- (15.8) lockdiscovery [supported - returns empty, no actual locking]
 - (15.9) resourcetype [supported]
-- (15.10) supportedlock [supported]
+- (15.10) supportedlock [supported - returns empty, no actual locking]
 - (RFC2518 ONLY - 13.10) source [not supported]
 
 rfc3253.txt (Versioning Extensions)
@@ -161,12 +161,12 @@ DAV Properties
 HTTP Methods
 ^^^^^^^^^^^^
 
-- MKCALENDAR [not supported]
+- MKCALENDAR [supported]
 
 DAV Reports
 ^^^^^^^^^^^
 
-- CALDAV:calendar-query [supported]
+- CALDAV:calendar-query [supported - includes limit-recurrence-set support]
 - CALDAV:calendar-multiget [supported]
 - CALDAV:free-busy-query [supported]
 
@@ -309,8 +309,8 @@ rfc7529.txt (WebDAV Quota)
 DAV properties
 ^^^^^^^^^^^^^^
 
-- {DAV:}quote-available-bytes [supported]
-- {DAV:}quote-used-bytes [supported]
+- {DAV:}quota-available-bytes [supported]
+- {DAV:}quota-used-bytes [supported]
 
 rfc4709 (WebDAV Mount)
 ----------------------
@@ -326,6 +326,48 @@ SabreDAV.
 
 Experimental support for WebDAV Mount is available in the 'mount' branch, but
 won't be merged without a good use case.
+
+rfc6578.txt (WebDAV Sync)
+-------------------------
+
+Fully supported.
+
+DAV Properties
+^^^^^^^^^^^^^^
+
+- {DAV:}sync-token [supported]
+
+DAV Reports
+^^^^^^^^^^^
+
+- {DAV:}sync-collection [supported]
+
+rfc4790.txt (Internet Application Protocol Collation Registry)
+--------------------------------------------------------------
+
+Used for text-match operations in CalDAV and CardDAV queries.
+
+Supported collations:
+- i;ascii-casemap (case-insensitive ASCII)
+- i;octet (exact octet-by-octet matching)
+
+Other Notable Specifications
+----------------------------
+
+rfc5842.txt (WebDAV BIND)
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Not supported.
+
+- BIND method [not supported]
+- UNBIND method [not supported]
+- REBIND method [not supported]
+
+rfc8144.txt (Prefer Header)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Not supported. The Prefer header would allow clients to indicate preferences
+for server behavior (e.g., return=minimal for reduced response verbosity).
 
 Managed Attachments
 -------------------
