@@ -31,7 +31,12 @@ from icalendar.cal import Component, FreeBusy, component_factory
 from icalendar.prop import vDDDTypes, vPeriod
 
 from . import davcommon, webdav
-from .icalendar import apply_time_range_vevent, as_tz_aware_ts, expand_calendar_rrule
+from .icalendar import (
+    apply_time_range_vevent,
+    as_tz_aware_ts,
+    expand_calendar_rrule,
+    limit_calendar_recurrence_set,
+)
 
 ET = webdav.ET
 
@@ -310,8 +315,8 @@ def extract_from_calendar(incal, requested):
             (start, end) = _parse_time_range(tag)
             incal = expand_calendar_rrule(incal, start, end)
         elif tag.tag == ("{%s}limit-recurrence-set" % NAMESPACE):
-            # TODO(jelmer): https://github.com/jelmer/xandikos/issues/103
-            raise NotImplementedError("limit-recurrence-set is not yet implemented")
+            (start, end) = _parse_time_range(tag)
+            incal = limit_calendar_recurrence_set(incal, start, end)
         elif tag.tag == ("{%s}limit-freebusy-set" % NAMESPACE):
             # TODO(jelmer): https://github.com/jelmer/xandikos/issues/104
             raise NotImplementedError("limit-freebusy-set is not yet implemented")
