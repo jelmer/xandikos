@@ -328,13 +328,13 @@ class CardDAVFilter(Filter):
 
         return self.test(results) if results else True
 
-    def index_keys(self) -> list[str]:
+    def index_keys(self) -> list[list[str]]:
         """Return the index keys needed for this filter."""
-        keys = []
+        result = []
         for prop_filter in self.property_filters:
             if not prop_filter.is_not_defined:
-                keys.append(f"P={prop_filter.name}")
-        return keys
+                result.append([f"P={prop_filter.name}"])
+        return result
 
 
 def parse_filter(filter_el, cls):

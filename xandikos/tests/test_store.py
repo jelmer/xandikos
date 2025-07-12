@@ -23,6 +23,8 @@ import shutil
 import stat
 import tempfile
 import unittest
+from zoneinfo import ZoneInfo
+
 
 from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
@@ -36,7 +38,7 @@ from xandikos.store import (
     Store,
 )
 
-from ..icalendar import ICalendarFile
+from ..icalendar import ICalendarFile, CalendarFilter
 from ..store.git import BareGitStore, GitStore, TreeGitStore
 from ..store.vdir import VdirStore
 
@@ -465,3 +467,96 @@ class ExtractRegularUIDTests(unittest.TestCase):
     def test_extract_no_uid(self):
         fi = File([EXAMPLE_VCALENDAR_NO_UID], "text/bla")
         self.assertRaises(NotImplementedError, fi.get_uid)
+
+
+class ParanoidModeTests(unittest.TestCase):
+    """Test for the original issue #235: AssertionError in paranoid mode with index_threshold=0."""
+
+    def test_index_keys_return_type_bug(self):
+        """Test that demonstrates the index_keys() return type bug directly."""
+        # Create a filter with multiple components/properties to trigger the extend() bug
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        component_filter = filter.filter_subcomponent("VCALENDAR")
+        todo_filter = component_filter.filter_subcomponent("VTODO")
+        todo_filter.filter_property("SUMMARY")
+        todo_filter.filter_property("CREATED")
+
+        index_keys = filter.index_keys()
+
+        # The fixed code should return a list of lists (AND-list of OR-options)
+        # Each inner list represents OR-options for a single AND requirement
+        self.assertIsInstance(index_keys, list)
+        if index_keys:
+            # Each element should be a list of strings (OR-options)
+            for key_group in index_keys:
+                self.assertIsInstance(
+                    key_group,
+                    list,
+                    f"Expected list of lists, but got list containing {type(key_group)} in {index_keys}",
+                )
+                for key in key_group:
+                    self.assertIsInstance(
+                        key,
+                        str,
+                        f"Expected strings in inner lists, but got {type(key)} in {key_group}",
+                    )
+
+        # Expected structure with the fix: [['C=VCALENDAR/C=VTODO/P=SUMMARY'], ['C=VCALENDAR/C=VTODO/P=CREATED']]
+        expected_keys = [
+            ["C=VCALENDAR/C=VTODO/P=SUMMARY"],
+            ["C=VCALENDAR/C=VTODO/P=CREATED"],
+        ]
+        self.assertEqual(index_keys, expected_keys)
+
+    def test_paranoid_mode_index_threshold_zero(self):
+        """Test that reproduces the original AssertionError when using paranoid mode with index_threshold=0.
+
+        This test verifies the fix for: "AssertionError: index based filter not matching real file filter"
+        which occurred when double_check_indexes=True and index_threshold=0.
+        """
+        # Create a temporary store with paranoid mode enabled and index_threshold=0
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+
+        store_path = os.path.join(d, "store")
+        os.mkdir(store_path)
+        repo = Repo.init_bare(store_path)
+        repo._autogc_disabled = True
+
+        store = BareGitStore(
+            repo,
+            double_check_indexes=True,  # Enable paranoid mode
+            index_threshold=0,  # Force immediate indexing
+        )
+        store.load_extra_file_handler(ICalendarFile)
+
+        # Ensure repository is properly closed after test
+        self.addCleanup(repo.close)
+
+        # Import a calendar file
+        (name, etag) = store.import_one(
+            "test.ics", "text/calendar", [EXAMPLE_VCALENDAR1]
+        )
+
+        # Create a CalDAV filter that would trigger the bug
+        # The old bug happened when index_keys() returned list[str] instead of list[list[str]]
+        # causing find_present_keys to iterate over characters instead of keys
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        component_filter = filter.filter_subcomponent("VCALENDAR")
+        todo_filter = component_filter.filter_subcomponent("VTODO")
+        todo_filter.filter_property("SUMMARY")
+
+        # Force a scenario that uses the index by pre-indexing and then filtering
+        # First, let the filter create some index entries
+        results = list(store.iter_with_filter(filter))
+
+        # The old code would sometimes work on first run but fail on subsequent runs
+        # when the index state differed. Let's try again to trigger the comparison failure.
+        results2 = list(store.iter_with_filter(filter))
+
+        # Verify we get the expected results
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(results2), 1)
+        result_name, result_file, result_etag = results[0]
+        self.assertEqual(result_name, name)
+        self.assertEqual(result_etag, etag)

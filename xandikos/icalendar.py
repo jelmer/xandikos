@@ -946,11 +946,11 @@ class CalendarFilter(Filter):
                 return False
         return True
 
-    def index_keys(self) -> list[str]:
-        subindexes = []
+    def index_keys(self) -> list[list[str]]:
+        result = []
         for child in self.children:
-            subindexes.extend(child.index_keys())
-        return subindexes
+            result.extend(child.index_keys())
+        return result
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.children!r})"
