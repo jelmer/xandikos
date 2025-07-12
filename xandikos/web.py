@@ -398,10 +398,16 @@ class StoreBasedCollection:
             shutil.rmtree(os.path.join(self.store.path, name))
 
     async def create_member(
-        self, name: str, contents: Iterable[bytes], content_type: str
+        self,
+        name: str,
+        contents: Iterable[bytes],
+        content_type: str,
+        requester: Optional[str] = None,
     ) -> tuple[str, str]:
         try:
-            (name, etag) = self.store.import_one(name, content_type, contents)
+            (name, etag) = self.store.import_one(
+                name, content_type, contents, requester=requester
+            )
         except InvalidFileContents as exc:
             # TODO(jelmer): Not every invalid file is a calendar file..
             raise webdav.PreconditionFailure(

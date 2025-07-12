@@ -415,6 +415,7 @@ class Store:
         message: Optional[str] = None,
         author: Optional[str] = None,
         replace_etag: Optional[str] = None,
+        requester: Optional[str] = None,
     ) -> tuple[str, str]:
         """Import a single object.
 
@@ -425,6 +426,7 @@ class Store:
           message: Commit message
           author: Optional author
           replace_etag: Etag to replace
+          requester: Optional User-Agent or client information
         Raise:
           NameExists: when the name already exists
           DuplicateUidError: when the uid already exists
