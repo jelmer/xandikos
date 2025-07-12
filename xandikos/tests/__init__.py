@@ -29,6 +29,7 @@ def test_suite():
         "config",
         "davcommon",
         "icalendar",
+        "main",
         "store",
         "sync",
         "vcard",
