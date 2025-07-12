@@ -2403,6 +2403,7 @@ async def _do_get(request, environ, app, send_body):
     try:
         last_modified = r.get_last_modified()
     except KeyError:
+        # Resource does not have a last modified time
         pass
     else:
         headers.append(("Last-Modified", last_modified))

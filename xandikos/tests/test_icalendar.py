@@ -20,11 +20,11 @@
 """Tests for xandikos.icalendar."""
 
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from icalendar.cal import Calendar, Event
-from icalendar.prop import vCategory, vText
+from icalendar.cal import Calendar, Event, Alarm, Todo
+from icalendar.prop import vCategory, vText, vDuration, vDDDTypes
 
 from xandikos import collation as _mod_collation
 from xandikos.store import InvalidFileContents
@@ -34,6 +34,8 @@ from ..icalendar import (
     ICalendarFile,
     MissingProperty,
     TextMatcher,
+    _create_enriched_valarm,
+    _event_overlaps_range,
     apply_time_range_vevent,
     apply_time_range_valarm,
     as_tz_aware_ts,
@@ -375,7 +377,7 @@ class CalendarFilterTests(unittest.TestCase):
             )
         )
         self.assertFalse(filter.check("file", self.cal))
-        filter = CalendarFilter(pytz.utc)
+        filter = CalendarFilter(ZoneInfo("UTC"))
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VTODO"
         ).filter_property("CREATED").filter_time_range(
@@ -467,15 +469,21 @@ class CalendarFilterTests(unittest.TestCase):
 
         self.assertEqual(
             self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DTSTART"]),
-            {'C=VCALENDAR/C=VEVENT/P=DTSTART': [
-                b'20150527T221952', b'20160527T221952', b'20170527T221952']})
+            {
+                "C=VCALENDAR/C=VEVENT/P=DTSTART": [
+                    b"20150527T221952Z",
+                    b"20160527T221952Z",
+                    b"20170527T221952Z",
+                ]
+            },
+        )
 
         self.assertEqual(
             self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DURATION"]),
-            {'C=VCALENDAR/C=VEVENT/P=DURATION': [
-                b'P1D', b'P1D', b'P1D']})
+            {"C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"]},
+        )
 
-        filter = CalendarFilter(pytz.utc)
+        filter = CalendarFilter(ZoneInfo("UTC"))
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VEVENT"
         ).filter_time_range(
@@ -498,12 +506,12 @@ class CalendarFilterTests(unittest.TestCase):
                     "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20140314T223512Z"],
                     "C=VCALENDAR/C=VEVENT": True,
                     "C=VCALENDAR/C=VEVENT/P=DTEND": [],
-                    "C=VCALENDAR/C=VEVENT/P=DURATION": [b'P1D'],
+                    "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"],
                 },
             )
         )
         self.assertTrue(filter.check("file", self.cal))
-        filter = CalendarFilter(pytz.utc)
+        filter = CalendarFilter(ZoneInfo("UTC"))
         filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
             "VEVENT"
         ).filter_time_range(
@@ -514,17 +522,477 @@ class CalendarFilterTests(unittest.TestCase):
             filter.check_from_indexes(
                 "file",
                 {
-                    'C=VCALENDAR/C=VEVENT/P=DTSTART': [
-                        b'20150527T221952', b'20160527T221952',
-                        b'20170527T221952'],
+                    "C=VCALENDAR/C=VEVENT/P=DTSTART": [
+                        b"20150527T221952Z",
+                        b"20160527T221952Z",
+                        b"20170527T221952Z",
+                    ],
                     "C=VCALENDAR/C=VEVENT/P=DTEND": [],
-                    'C=VCALENDAR/C=VEVENT/P=DURATION':
-                        [b'P1D', b'P1D', b'P1D'],
+                    "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
                     "C=VCALENDAR/C=VEVENT": True,
                 },
             )
         )
         self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_exact_match(self):
+        """Test that rrule filtering works correctly when one recurrence exactly matches the time range."""
+        self.cal = ICalendarFile([EXAMPLE_VCALENDAR_RRULE], "text/calendar")
+
+        # Filter for a time range that should match the second occurrence (2016)
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2016, 5, 26, 0, 0, 0)),
+            end=self._tzify(datetime(2016, 5, 28, 0, 0, 0)),
+        )
+
+        # Test with indexes - should match because 2016-05-27 falls within range
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [
+                b"20150527T221952Z",
+                b"20160527T221952Z",
+                b"20170527T221952Z",
+            ],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertTrue(filter.check_from_indexes("file", indexes))
+
+        # Also test with the actual calendar
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_no_match(self):
+        """Test that rrule filtering correctly returns False when no recurrences match."""
+        self.cal = ICalendarFile([EXAMPLE_VCALENDAR_RRULE], "text/calendar")
+
+        # Filter for a time range that should not match any occurrences
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2014, 1, 1, 0, 0, 0)),
+            end=self._tzify(datetime(2014, 12, 31, 0, 0, 0)),
+        )
+
+        # Test with indexes - should not match because no events in 2014
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [
+                b"20150527T221952Z",
+                b"20160527T221952Z",
+                b"20170527T221952Z",
+            ],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertFalse(filter.check_from_indexes("file", indexes))
+
+        # Also test with the actual calendar
+        self.assertFalse(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_partial_overlap(self):
+        """Test rrule filtering when time range partially overlaps with events."""
+        self.cal = ICalendarFile([EXAMPLE_VCALENDAR_RRULE], "text/calendar")
+
+        # Filter for a time range that overlaps with the event duration (P1D = 1 day)
+        # Event starts 2015-05-27 22:19:52Z and lasts 1 day
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2015, 5, 28, 12, 0, 0)),  # During the event
+            end=self._tzify(datetime(2015, 5, 29, 12, 0, 0)),  # After the event
+        )
+
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [
+                b"20150527T221952Z",
+                b"20160527T221952Z",
+                b"20170527T221952Z",
+            ],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertTrue(filter.check_from_indexes("file", indexes))
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_multiple_matches(self):
+        """Test rrule filtering when multiple recurrences match the time range."""
+        self.cal = ICalendarFile([EXAMPLE_VCALENDAR_RRULE], "text/calendar")
+
+        # Filter for a wide time range that includes multiple occurrences
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2015, 1, 1, 0, 0, 0)),
+            end=self._tzify(datetime(2017, 12, 31, 0, 0, 0)),
+        )
+
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [
+                b"20150527T221952Z",
+                b"20160527T221952Z",
+                b"20170527T221952Z",
+            ],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertTrue(filter.check_from_indexes("file", indexes))
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_edge_case_boundaries(self):
+        """Test rrule filtering with boundary conditions."""
+        self.cal = ICalendarFile([EXAMPLE_VCALENDAR_RRULE], "text/calendar")
+
+        # Test exact start time boundary
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2016, 5, 27, 22, 19, 52)),  # Exact start time
+            end=self._tzify(datetime(2016, 5, 27, 22, 19, 53)),  # One second later
+        )
+
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [
+                b"20150527T221952Z",
+                b"20160527T221952Z",
+                b"20170527T221952Z",
+            ],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertTrue(filter.check_from_indexes("file", indexes))
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_with_dtend(self):
+        """Test rrule filtering with events that have DTEND instead of DURATION."""
+        # Create a test calendar with DTEND instead of DURATION
+        rrule_with_dtend = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+DTSTART:20150527T100000Z
+DTEND:20150527T120000Z
+RRULE:FREQ=YEARLY;COUNT=3
+SUMMARY:Test event with DTEND
+UID:test-dtend@example.com
+END:VEVENT
+END:VCALENDAR
+"""
+        self.cal = ICalendarFile([rrule_with_dtend], "text/calendar")
+
+        # Check that indexes are generated correctly
+        dtstart_indexes = self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DTSTART"])
+        dtend_indexes = self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DTEND"])
+
+        expected_dtstart = [
+            b"20150527T100000Z",
+            b"20160527T100000Z",
+            b"20170527T100000Z",
+        ]
+        expected_dtend = [b"20150527T120000Z", b"20160527T120000Z", b"20170527T120000Z"]
+
+        self.assertEqual(
+            dtstart_indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"], expected_dtstart
+        )
+        self.assertEqual(dtend_indexes["C=VCALENDAR/C=VEVENT/P=DTEND"], expected_dtend)
+
+        # Test filtering
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2016, 5, 27, 11, 0, 0)),  # During the event
+            end=self._tzify(datetime(2016, 5, 27, 11, 30, 0)),
+        )
+
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": expected_dtstart,
+            "C=VCALENDAR/C=VEVENT/P=DTEND": expected_dtend,
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertTrue(filter.check_from_indexes("file", indexes))
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_with_exceptions(self):
+        """Test rrule filtering with recurring events that have exception instances."""
+        # Create a calendar with a recurring event and an exception
+        rrule_with_exception = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+DTSTART:20150527T100000Z
+DTEND:20150527T120000Z
+RRULE:FREQ=YEARLY;COUNT=3
+SUMMARY:Recurring event
+UID:test-exception@example.com
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20160527T140000Z
+DTEND:20160527T160000Z
+RECURRENCE-ID:20160527T100000Z
+SUMMARY:Exception event (moved)
+UID:test-exception@example.com
+END:VEVENT
+END:VCALENDAR
+"""
+        self.cal = ICalendarFile([rrule_with_exception], "text/calendar")
+
+        # The expanded calendar should have the exception replacement
+        dtstart_indexes = self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DTSTART"])
+        dtend_indexes = self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DTEND"])
+
+        # Should have 3 DTSTART values: original 2015, moved 2016, and original 2017
+        expected_dtstart = [
+            b"20150527T100000Z",
+            b"20160527T140000Z",
+            b"20170527T100000Z",
+        ]
+        expected_dtend = [b"20150527T120000Z", b"20160527T160000Z", b"20170527T120000Z"]
+
+        self.assertEqual(
+            dtstart_indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"], expected_dtstart
+        )
+        self.assertEqual(dtend_indexes["C=VCALENDAR/C=VEVENT/P=DTEND"], expected_dtend)
+
+        # Test filtering for the moved event time
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2016, 5, 27, 14, 30, 0)),  # During moved event
+            end=self._tzify(datetime(2016, 5, 27, 15, 30, 0)),
+        )
+
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": expected_dtstart,
+            "C=VCALENDAR/C=VEVENT/P=DTEND": expected_dtend,
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertTrue(filter.check_from_indexes("file", indexes))
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_date_only_events(self):
+        """Test rrule filtering with all-day (date-only) recurring events."""
+        # Create a calendar with date-only recurring events
+        rrule_date_only = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20150527
+RRULE:FREQ=YEARLY;COUNT=3
+SUMMARY:All-day recurring event
+UID:test-date-only@example.com
+END:VEVENT
+END:VCALENDAR
+"""
+        self.cal = ICalendarFile([rrule_date_only], "text/calendar")
+
+        # Check indexes are generated correctly for date-only events
+        dtstart_indexes = self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DTSTART"])
+        expected_dtstart = [b"20150527", b"20160527", b"20170527"]
+
+        self.assertEqual(
+            dtstart_indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"], expected_dtstart
+        )
+
+        # Test filtering - should match when date falls within range
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2016, 5, 26, 0, 0, 0)),
+            end=self._tzify(datetime(2016, 5, 28, 0, 0, 0)),
+        )
+
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": expected_dtstart,
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertTrue(filter.check_from_indexes("file", indexes))
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_complex_rrule(self):
+        """Test rrule filtering with more complex recurrence rules."""
+        # Create a calendar with a weekly recurring event
+        rrule_weekly = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+DTSTART:20150527T100000Z
+DTEND:20150527T110000Z
+RRULE:FREQ=WEEKLY;COUNT=5;BYDAY=WE
+SUMMARY:Weekly meeting
+UID:test-weekly@example.com
+END:VEVENT
+END:VCALENDAR
+"""
+        self.cal = ICalendarFile([rrule_weekly], "text/calendar")
+
+        # Check that weekly recurrences are generated correctly
+        dtstart_indexes = self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DTSTART"])
+
+        # Should have 5 weekly occurrences starting from 2015-05-27 (Wednesday)
+        expected_dtstart = [
+            b"20150527T100000Z",  # Week 1
+            b"20150603T100000Z",  # Week 2
+            b"20150610T100000Z",  # Week 3
+            b"20150617T100000Z",  # Week 4
+            b"20150624T100000Z",  # Week 5
+        ]
+
+        self.assertEqual(
+            dtstart_indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"], expected_dtstart
+        )
+
+        # Test filtering for a specific week
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2015, 6, 2, 0, 0, 0)),  # Tuesday before week 2
+            end=self._tzify(datetime(2015, 6, 4, 0, 0, 0)),  # Thursday after week 2
+        )
+
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": expected_dtstart,
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [
+                b"20150527T110000Z",
+                b"20150603T110000Z",
+                b"20150610T110000Z",
+                b"20150617T110000Z",
+                b"20150624T110000Z",
+            ],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertTrue(filter.check_from_indexes("file", indexes))
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_empty_indexes(self):
+        """Test rrule filtering behavior with empty or incomplete indexes."""
+        self.cal = ICalendarFile([EXAMPLE_VCALENDAR_RRULE], "text/calendar")
+
+        # Test with completely empty indexes
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2016, 5, 26, 0, 0, 0)),
+            end=self._tzify(datetime(2016, 5, 28, 0, 0, 0)),
+        )
+
+        # Empty indexes should return False
+        empty_indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertFalse(filter.check_from_indexes("file", empty_indexes))
+
+        # Test with partial indexes (missing component marker)
+        missing_component_indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20160527T221952Z"],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"],
+            # Missing "C=VCALENDAR/C=VEVENT": True
+        }
+        try:
+            result = filter.check_from_indexes("file", missing_component_indexes)
+            self.assertFalse(result)  # Should be False or raise an error
+        except KeyError:
+            # KeyError is also acceptable for missing component indexes
+            pass
+
+    def test_rrule_index_based_filtering_mixed_types(self):
+        """Test rrule filtering with mixed datetime and date types in indexes."""
+        # Test with inconsistent data types (should handle gracefully)
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2016, 5, 26, 0, 0, 0)),
+            end=self._tzify(datetime(2016, 5, 28, 0, 0, 0)),
+        )
+
+        # Mix of datetime and date formats (unusual but should not crash)
+        mixed_indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [
+                b"20150527T221952Z",  # datetime
+                b"20160527",  # date
+                b"20170527T221952Z",  # datetime
+            ],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+
+        # Should handle mixed types gracefully and still find matches
+        self.assertTrue(filter.check_from_indexes("file", mixed_indexes))
+
+    def test_unbounded_query_no_infinite_expansion(self):
+        """Test that unbounded queries don't infinitely expand recurring VTODOs.
+
+        This test reproduces the pycaldav testTodoDatesearch failure where
+        xandikos was returning too many todos due to infinite expansion of
+        yearly recurring events in unbounded CalDAV queries.
+        """
+        # Create a calendar with a yearly recurring VTODO
+        yearly_vtodo = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VTODO
+UID:yearly-todo@example.com
+DTSTART:19920415T133000Z
+DUE:19920516T045959Z
+SUMMARY:Yearly Income Tax Preparation
+RRULE:FREQ=YEARLY
+END:VTODO
+END:VCALENDAR
+"""
+        cal_file = ICalendarFile([yearly_vtodo], "text/calendar")
+
+        # Test unbounded query (no time range) - should NOT expand recurring events
+        filter_unbounded = CalendarFilter(ZoneInfo("UTC"))
+        filter_unbounded.filter_subcomponent("VCALENDAR").filter_subcomponent("VTODO")
+
+        # This should return True and complete quickly without infinite expansion
+        result = filter_unbounded.check("test.ics", cal_file)
+        self.assertTrue(result)
+
+        # The original calendar should have only 1 VTODO component
+        self.assertEqual(len(cal_file.calendar.subcomponents), 1)
+
+        # Test bounded query (with time range) - should expand within bounds
+        filter_bounded = CalendarFilter(ZoneInfo("UTC"))
+        filter_bounded.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VTODO"
+        ).filter_time_range(
+            start=self._tzify(datetime(1992, 1, 1, 0, 0, 0)),
+            end=self._tzify(datetime(1995, 12, 31, 23, 59, 59)),
+        )
+
+        # This should also return True and expand only within the time range
+        result_bounded = filter_bounded.check("test.ics", cal_file)
+        self.assertTrue(result_bounded)
 
 
 class TextMatchTest(unittest.TestCase):
@@ -580,11 +1048,7 @@ class TextMatchTest(unittest.TestCase):
 
 class ApplyTimeRangeVeventTests(unittest.TestCase):
     def _tzify(self, dt):
-<<<<<<< HEAD
         return as_tz_aware_ts(dt, ZoneInfo("UTC"))
-=======
-        return as_tz_aware_ts(dt, pytz.utc)
->>>>>>> f7af77c (Support filtering on rrule events.)
 
     def test_missing_dtstart(self):
         ev = Event()
@@ -881,10 +1345,6 @@ class ApplyTimeRangeValarmTests(unittest.TestCase):
 
     def test_relative_trigger_from_start(self):
         """Test VALARM with relative trigger from DTSTART."""
-        from icalendar import Calendar, Event, Alarm
-        from icalendar.prop import vDuration
-        from ..icalendar import _create_enriched_valarm
-
         cal = Calendar()
         event = Event()
         event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
@@ -921,10 +1381,6 @@ class ApplyTimeRangeValarmTests(unittest.TestCase):
 
     def test_relative_trigger_from_end(self):
         """Test VALARM with relative trigger from DTEND."""
-        from icalendar import Calendar, Event, Alarm
-        from icalendar.prop import vDuration
-        from ..icalendar import _create_enriched_valarm
-
         cal = Calendar()
         event = Event()
         event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
@@ -954,10 +1410,6 @@ class ApplyTimeRangeValarmTests(unittest.TestCase):
 
     def test_absolute_trigger(self):
         """Test VALARM with absolute trigger time."""
-        from icalendar import Calendar, Event, Alarm
-        from icalendar.prop import vDDDTypes
-        from ..icalendar import _create_enriched_valarm
-
         cal = Calendar()
         event = Event()
         event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
@@ -984,10 +1436,6 @@ class ApplyTimeRangeValarmTests(unittest.TestCase):
 
     def test_repeating_alarm(self):
         """Test VALARM with repeat and duration."""
-        from icalendar import Calendar, Event, Alarm
-        from icalendar.prop import vDuration
-        from ..icalendar import _create_enriched_valarm
-
         cal = Calendar()
         event = Event()
         event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
@@ -1018,10 +1466,6 @@ class ApplyTimeRangeValarmTests(unittest.TestCase):
 
     def test_todo_alarm(self):
         """Test VALARM on VTODO with DUE."""
-        from icalendar import Calendar, Todo, Alarm
-        from icalendar.prop import vDuration
-        from ..icalendar import _create_enriched_valarm
-
         cal = Calendar()
         todo = Todo()
         todo.add("dtstart", datetime(2024, 1, 15, 9, 0, 0))
@@ -1051,9 +1495,6 @@ class ApplyTimeRangeValarmTests(unittest.TestCase):
 
     def test_no_trigger(self):
         """Test VALARM without TRIGGER property."""
-        from icalendar import Calendar, Event, Alarm
-        from ..icalendar import _create_enriched_valarm
-
         cal = Calendar()
         event = Event()
         event.add("dtstart", datetime(2024, 1, 15, 10, 0, 0))
@@ -1076,3 +1517,436 @@ class ApplyTimeRangeValarmTests(unittest.TestCase):
         self.assertFalse(
             apply_time_range_valarm(start, end, enriched_alarm, self._tzify)
         )
+
+
+class RRuleFilteringEdgeCasesTests(unittest.TestCase):
+    """Additional tests for rrule filtering edge cases and overlap scenarios."""
+
+    def test_event_starts_before_range_extends_into_it(self):
+        """Test filtering catches events that start before the range but extend into it."""
+        cal = Calendar()
+        cal.add("prodid", "-//Test//Test//EN")
+        cal.add("version", "2.0")
+
+        # Event: 9:00-11:00 every day
+        event = Event()
+        event.add("uid", "test-overlap@example.com")
+        event.add("summary", "Morning Meeting")
+        event.add("dtstart", datetime(2024, 1, 1, 9, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event.add("dtend", datetime(2024, 1, 1, 11, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event.add("rrule", {"freq": "daily", "count": 5})
+        cal.add_component(event)
+
+        # Filter: 10:00-12:00 on Jan 3
+        start = datetime(2024, 1, 3, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 1, 3, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+        events = [c for c in expanded.subcomponents if c.name == "VEVENT"]
+
+        # Should include Jan 3 event (9:00-11:00) because it overlaps 10:00-11:00
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0]["DTSTART"].dt,
+            datetime(2024, 1, 3, 9, 0, 0, tzinfo=ZoneInfo("UTC")),
+        )
+        self.assertEqual(
+            events[0]["DTEND"].dt,
+            datetime(2024, 1, 3, 11, 0, 0, tzinfo=ZoneInfo("UTC")),
+        )
+
+    def test_event_spans_entire_range(self):
+        """Test filtering includes events that completely span the filter range."""
+        cal = Calendar()
+        cal.add("prodid", "-//Test//Test//EN")
+        cal.add("version", "2.0")
+
+        # Event: All-day event
+        event = Event()
+        event.add("uid", "test-allday@example.com")
+        event.add("summary", "Conference")
+        event.add("dtstart", datetime(2024, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event.add("dtend", datetime(2024, 1, 1, 23, 59, 59, tzinfo=ZoneInfo("UTC")))
+        event.add("rrule", {"freq": "daily", "count": 5})
+        cal.add_component(event)
+
+        # Filter: Small window within the day
+        start = datetime(2024, 1, 3, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 1, 3, 11, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+        events = [c for c in expanded.subcomponents if c.name == "VEVENT"]
+
+        # Should include Jan 3 all-day event
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["DTSTART"].dt.date(), date(2024, 1, 3))
+
+    def test_event_with_duration_overlap(self):
+        """Test filtering with DURATION property instead of DTEND."""
+        cal = Calendar()
+        cal.add("prodid", "-//Test//Test//EN")
+        cal.add("version", "2.0")
+
+        # Event with 3-hour duration starting at 8:00
+        event = Event()
+        event.add("uid", "test-duration@example.com")
+        event.add("summary", "Workshop")
+        event.add("dtstart", datetime(2024, 1, 1, 8, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event.add("duration", timedelta(hours=3))  # Ends at 11:00
+        event.add("rrule", {"freq": "daily", "count": 5})
+        cal.add_component(event)
+
+        # Filter: 10:00-12:00
+        start = datetime(2024, 1, 3, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 1, 3, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+        events = [c for c in expanded.subcomponents if c.name == "VEVENT"]
+
+        # Should include the event (8:00-11:00 overlaps with 10:00-12:00)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0]["DTSTART"].dt,
+            datetime(2024, 1, 3, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
+        )
+
+    def test_floating_time_overlap(self):
+        """Test filtering with floating time (naive datetime) events."""
+        cal = Calendar()
+        cal.add("prodid", "-//Test//Test//EN")
+        cal.add("version", "2.0")
+
+        # Floating time event (no timezone)
+        event = Event()
+        event.add("uid", "test-floating@example.com")
+        event.add("summary", "Local Meeting")
+        event.add("dtstart", datetime(2024, 1, 1, 9, 0, 0))  # No timezone
+        event.add("dtend", datetime(2024, 1, 1, 11, 0, 0))  # No timezone
+        event.add("rrule", {"freq": "daily", "count": 5})
+        cal.add_component(event)
+
+        # Filter with timezone
+        start = datetime(2024, 1, 3, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 1, 3, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+        events = [c for c in expanded.subcomponents if c.name == "VEVENT"]
+
+        # Should include the event
+        self.assertEqual(len(events), 1)
+        # Event should remain floating (no timezone)
+        self.assertIsNone(events[0]["DTSTART"].dt.tzinfo)
+
+    def test_date_only_event_overlap(self):
+        """Test filtering with date-only (all-day) events."""
+        cal = Calendar()
+        cal.add("prodid", "-//Test//Test//EN")
+        cal.add("version", "2.0")
+
+        # Date-only event (2-day event)
+        event = Event()
+        event.add("uid", "test-dateonly@example.com")
+        event.add("summary", "Two Day Workshop")
+        event.add("dtstart", date(2024, 1, 1))
+        event.add("dtend", date(2024, 1, 3))  # Non-inclusive, so Jan 1-2
+        event.add("rrule", {"freq": "weekly", "count": 3})
+        cal.add_component(event)
+
+        # Filter that overlaps with second day of first occurrence
+        start = datetime(2024, 1, 2, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 1, 2, 14, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+        events = [c for c in expanded.subcomponents if c.name == "VEVENT"]
+
+        # Should include the first occurrence (Jan 1-2)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["DTSTART"].dt, date(2024, 1, 1))
+        self.assertEqual(events[0]["DTEND"].dt, date(2024, 1, 3))
+
+    def test_exception_event_in_range_master_out(self):
+        """Test exception event that falls in range when master occurrence would not."""
+        cal = Calendar()
+        cal.add("prodid", "-//Test//Test//EN")
+        cal.add("version", "2.0")
+
+        # Master event: 9:00-10:00 daily
+        event = Event()
+        event.add("uid", "test-exception@example.com")
+        event.add("summary", "Daily Standup")
+        event.add("dtstart", datetime(2024, 1, 1, 9, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event.add("dtend", datetime(2024, 1, 1, 10, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event.add("rrule", {"freq": "daily", "count": 5})
+        cal.add_component(event)
+
+        # Exception: Jan 3 moved to 14:00-15:00
+        exception = Event()
+        exception.add("uid", "test-exception@example.com")
+        exception.add("summary", "Daily Standup (moved)")
+        exception.add("dtstart", datetime(2024, 1, 3, 14, 0, 0, tzinfo=ZoneInfo("UTC")))
+        exception.add("dtend", datetime(2024, 1, 3, 15, 0, 0, tzinfo=ZoneInfo("UTC")))
+        exception.add(
+            "recurrence-id", datetime(2024, 1, 3, 9, 0, 0, tzinfo=ZoneInfo("UTC"))
+        )
+        cal.add_component(exception)
+
+        # Filter: 13:00-16:00 on Jan 3 (excludes original time, includes exception)
+        start = datetime(2024, 1, 3, 13, 0, 0, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 1, 3, 16, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+        events = [c for c in expanded.subcomponents if c.name == "VEVENT"]
+
+        # Should include only the exception event
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0]["DTSTART"].dt,
+            datetime(2024, 1, 3, 14, 0, 0, tzinfo=ZoneInfo("UTC")),
+        )
+        self.assertEqual(events[0]["SUMMARY"], "Daily Standup (moved)")
+
+    def test_multiple_overlapping_events(self):
+        """Test multiple events with different overlap patterns."""
+        cal = Calendar()
+        cal.add("prodid", "-//Test//Test//EN")
+        cal.add("version", "2.0")
+
+        # Event 1: Starts before, ends in range (8:00-10:30)
+        event1 = Event()
+        event1.add("uid", "test-overlap1@example.com")
+        event1.add("summary", "Morning Session")
+        event1.add("dtstart", datetime(2024, 1, 1, 8, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event1.add("dtend", datetime(2024, 1, 1, 10, 30, 0, tzinfo=ZoneInfo("UTC")))
+        event1.add("rrule", {"freq": "daily", "count": 5})
+        cal.add_component(event1)
+
+        # Event 2: Completely within range (10:00-11:00)
+        event2 = Event()
+        event2.add("uid", "test-overlap2@example.com")
+        event2.add("summary", "Mid Session")
+        event2.add("dtstart", datetime(2024, 1, 1, 10, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event2.add("dtend", datetime(2024, 1, 1, 11, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event2.add("rrule", {"freq": "daily", "count": 5})
+        cal.add_component(event2)
+
+        # Event 3: Starts in range, ends after (11:30-13:00)
+        event3 = Event()
+        event3.add("uid", "test-overlap3@example.com")
+        event3.add("summary", "Late Session")
+        event3.add("dtstart", datetime(2024, 1, 1, 11, 30, 0, tzinfo=ZoneInfo("UTC")))
+        event3.add("dtend", datetime(2024, 1, 1, 13, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event3.add("rrule", {"freq": "daily", "count": 5})
+        cal.add_component(event3)
+
+        # Filter: 10:00-12:00 on Jan 3
+        start = datetime(2024, 1, 3, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2024, 1, 3, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+        expanded = expand_calendar_rrule(cal, start, end)
+        events = [c for c in expanded.subcomponents if c.name == "VEVENT"]
+
+        # Should include all three events for Jan 3
+        self.assertEqual(len(events), 3)
+        summaries = sorted([e["SUMMARY"] for e in events])
+        self.assertEqual(summaries, ["Late Session", "Mid Session", "Morning Session"])
+
+
+class EventOverlapsRangeTests(unittest.TestCase):
+    """Tests for _event_overlaps_range function."""
+
+    def setUp(self):
+        self.start = datetime(2024, 1, 15, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
+        self.end = datetime(2024, 1, 15, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+    def test_vevent_overlaps(self):
+        """Test VEVENT component overlap detection."""
+        event = Event()
+        event.add("uid", "test-vevent@example.com")
+        event.add("dtstart", datetime(2024, 1, 15, 9, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event.add("dtend", datetime(2024, 1, 15, 11, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # Event 9:00-11:00 overlaps with range 10:00-12:00
+        self.assertTrue(_event_overlaps_range(event, self.start, self.end))
+
+    def test_vevent_no_overlap(self):
+        """Test VEVENT component that doesn't overlap."""
+        event = Event()
+        event.add("uid", "test-vevent@example.com")
+        event.add("dtstart", datetime(2024, 1, 15, 13, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event.add("dtend", datetime(2024, 1, 15, 14, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # Event 13:00-14:00 doesn't overlap with range 10:00-12:00
+        self.assertFalse(_event_overlaps_range(event, self.start, self.end))
+
+    def test_vtodo_with_due_overlaps(self):
+        """Test VTODO component with DUE that overlaps."""
+        todo = Todo()
+        todo.add("uid", "test-todo@example.com")
+        todo.add("due", datetime(2024, 1, 15, 11, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # TODO due at 11:00 overlaps with range 10:00-12:00
+        self.assertTrue(_event_overlaps_range(todo, self.start, self.end))
+
+    def test_vtodo_with_due_no_overlap(self):
+        """Test VTODO component with DUE that doesn't overlap."""
+        todo = Todo()
+        todo.add("uid", "test-todo@example.com")
+        todo.add("due", datetime(2024, 1, 15, 9, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # TODO due at 9:00 doesn't overlap with range 10:00-12:00
+        self.assertFalse(_event_overlaps_range(todo, self.start, self.end))
+
+    def test_vtodo_with_dtstart_and_due(self):
+        """Test VTODO component with both DTSTART and DUE."""
+        todo = Todo()
+        todo.add("uid", "test-todo@example.com")
+        todo.add("dtstart", datetime(2024, 1, 15, 9, 0, 0, tzinfo=ZoneInfo("UTC")))
+        todo.add("due", datetime(2024, 1, 15, 11, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # TODO 9:00-11:00 overlaps with range 10:00-12:00
+        self.assertTrue(_event_overlaps_range(todo, self.start, self.end))
+
+    def test_vtodo_no_dates(self):
+        """Test VTODO component with no dates (should match according to RFC)."""
+        todo = Todo()
+        todo.add("uid", "test-todo@example.com")
+        todo.add("summary", "No dates")
+
+        # TODO with no dates should match any range per RFC
+        self.assertTrue(_event_overlaps_range(todo, self.start, self.end))
+
+    def test_vtodo_with_completed(self):
+        """Test VTODO component with COMPLETED date."""
+        todo = Todo()
+        todo.add("uid", "test-todo@example.com")
+        todo.add("completed", datetime(2024, 1, 15, 11, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # TODO completed at 11:00 overlaps with range 10:00-12:00
+        self.assertTrue(_event_overlaps_range(todo, self.start, self.end))
+
+    def test_vjournal_overlaps(self):
+        """Test VJOURNAL component overlap detection."""
+        from icalendar.cal import Journal
+
+        journal = Journal()
+        journal.add("uid", "test-journal@example.com")
+        journal.add("dtstart", datetime(2024, 1, 15, 11, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # Journal at 11:00 overlaps with range 10:00-12:00
+        self.assertTrue(_event_overlaps_range(journal, self.start, self.end))
+
+    def test_vjournal_no_overlap(self):
+        """Test VJOURNAL component that doesn't overlap."""
+        from icalendar.cal import Journal
+
+        journal = Journal()
+        journal.add("uid", "test-journal@example.com")
+        journal.add("dtstart", datetime(2024, 1, 15, 13, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # Journal at 13:00 doesn't overlap with range 10:00-12:00
+        self.assertFalse(_event_overlaps_range(journal, self.start, self.end))
+
+    def test_vfreebusy_overlaps(self):
+        """Test VFREEBUSY component overlap detection."""
+        from icalendar.cal import FreeBusy
+
+        freebusy = FreeBusy()
+        freebusy.add("uid", "test-freebusy@example.com")
+        freebusy.add("dtstart", datetime(2024, 1, 15, 9, 0, 0, tzinfo=ZoneInfo("UTC")))
+        freebusy.add("dtend", datetime(2024, 1, 15, 11, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # FreeBusy 9:00-11:00 overlaps with range 10:00-12:00
+        self.assertTrue(_event_overlaps_range(freebusy, self.start, self.end))
+
+    def test_valarm_overlaps(self):
+        """Test VALARM component overlap detection."""
+        # For VALARM testing, we need to create an enriched alarm with absolute trigger
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add("description", "Reminder")
+        # Use absolute trigger time that falls within our range
+        alarm.add("trigger", datetime(2024, 1, 15, 10, 45, 0, tzinfo=ZoneInfo("UTC")))
+
+        # Test the alarm component directly
+        self.assertTrue(_event_overlaps_range(alarm, self.start, self.end))
+
+    def test_valarm_no_overlap(self):
+        """Test VALARM component that doesn't overlap."""
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add("description", "Reminder")
+        # Use absolute trigger time outside our range
+        alarm.add("trigger", datetime(2024, 1, 15, 13, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # Test the alarm component directly
+        self.assertFalse(_event_overlaps_range(alarm, self.start, self.end))
+
+    def test_valarm_relative_trigger_raises_error(self):
+        """Test VALARM component with relative trigger raises TypeError."""
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add("description", "Reminder")
+        # Use relative trigger time (this should raise an error)
+        alarm.add("trigger", vDuration(-timedelta(minutes=15)))
+
+        # Test the alarm component directly - should raise TypeError
+        with self.assertRaises(TypeError) as cm:
+            _event_overlaps_range(alarm, self.start, self.end)
+
+        self.assertIn("relative trigger", str(cm.exception))
+
+    def test_unknown_component_with_dtstart(self):
+        """Test unknown component type with DTSTART."""
+        from icalendar.cal import Component
+
+        # Create a custom component
+        comp = Component()
+        comp.name = "VCUSTOM"
+        comp.add("uid", "test-custom@example.com")
+        comp.add("dtstart", datetime(2024, 1, 15, 11, 0, 0, tzinfo=ZoneInfo("UTC")))
+
+        # Should use fallback logic
+        self.assertTrue(_event_overlaps_range(comp, self.start, self.end))
+
+    def test_unknown_component_without_dtstart(self):
+        """Test unknown component type without DTSTART."""
+        from icalendar.cal import Component
+
+        # Create a custom component without DTSTART
+        comp = Component()
+        comp.name = "VCUSTOM"
+        comp.add("uid", "test-custom@example.com")
+        comp.add("summary", "No start time")
+
+        # Should return False for unknown components without DTSTART
+        self.assertFalse(_event_overlaps_range(comp, self.start, self.end))
+
+    def test_vevent_with_duration(self):
+        """Test VEVENT with DURATION instead of DTEND."""
+        event = Event()
+        event.add("uid", "test-duration@example.com")
+        event.add("dtstart", datetime(2024, 1, 15, 9, 0, 0, tzinfo=ZoneInfo("UTC")))
+        event.add("duration", vDuration(timedelta(hours=2)))  # 9:00-11:00
+
+        # Event 9:00-11:00 overlaps with range 10:00-12:00
+        self.assertTrue(_event_overlaps_range(event, self.start, self.end))
+
+    def test_all_day_event(self):
+        """Test all-day event (date only)."""
+        event = Event()
+        event.add("uid", "test-allday@example.com")
+        event.add("dtstart", date(2024, 1, 15))
+        event.add("dtend", date(2024, 1, 16))
+
+        # All-day event on Jan 15 should overlap with range 10:00-12:00 on Jan 15
+        self.assertTrue(_event_overlaps_range(event, self.start, self.end))
+
+    def test_all_day_event_no_overlap(self):
+        """Test all-day event that doesn't overlap."""
+        event = Event()
+        event.add("uid", "test-allday@example.com")
+        event.add("dtstart", date(2024, 1, 16))
+        event.add("dtend", date(2024, 1, 17))
+
+        # All-day event on Jan 16 shouldn't overlap with range 10:00-12:00 on Jan 15
+        self.assertFalse(_event_overlaps_range(event, self.start, self.end))

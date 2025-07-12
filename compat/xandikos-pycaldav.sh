@@ -41,9 +41,8 @@ only_private = True
 
 caldav_servers = [
     {'url': 'http://localhost:5233/',
-     # Until recurring support is added in xandikos.
-     # See https://github.com/jelmer/xandikos/issues/102
-     'incompatibilities': ['no_expand', 'no_recurring', 'no_scheduling', 'text_search_not_working'],
+     # no_expand still needed - see https://github.com/jelmer/xandikos/issues/8
+     'incompatibilities': ['no_expand', 'no_scheduling', 'text_search_not_working'],
     }
 ]
 EOF
