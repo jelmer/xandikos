@@ -1337,3 +1337,148 @@ class CalendarMultigetReporterTests(unittest.TestCase):
             reporter.resource_type,
             (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE),
         )
+
+
+class CalendarAttachmentTests(unittest.TestCase):
+    """Tests for CalDAV managed attachments functionality."""
+
+    def setUp(self):
+        super().setUp()
+        import tempfile
+        from xandikos.web import CalendarCollection
+        from xandikos.store.vdir import VdirStore
+
+        # Create a temporary directory for testing
+        self.temp_dir = tempfile.mkdtemp()
+        self.store = VdirStore(self.temp_dir)
+
+        # Mock backend
+        class MockBackend:
+            pass
+
+        backend = MockBackend()
+        self.calendar = CalendarCollection(backend, "/calendar", self.store)
+        self.calendar.href = "/calendar"
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir)
+        super().tearDown()
+
+    def test_supports_managed_attachments(self):
+        """Test that CalendarCollection supports managed attachments."""
+        self.assertTrue(self.calendar.supports_managed_attachments())
+
+    def test_get_managed_attachments_server_url(self):
+        """Test getting the managed attachments server URL."""
+        url = self.calendar.get_managed_attachments_server_url()
+        self.assertEqual(url, "/calendar?action=attachment")
+
+    def test_create_attachment(self):
+        """Test creating a new attachment."""
+        attachment_data = b"test attachment data"
+        content_type = "text/plain"
+        filename = "test.txt"
+
+        managed_id, attachment_url = self.calendar.create_attachment(
+            attachment_data, content_type, filename
+        )
+
+        self.assertIsNotNone(managed_id)
+        self.assertTrue(managed_id)  # Should not be empty
+        self.assertEqual(
+            attachment_url, f"/calendar?action=attachment&managed-id={managed_id}"
+        )
+
+    def test_get_attachment(self):
+        """Test retrieving an attachment."""
+        attachment_data = b"test attachment data"
+        content_type = "text/plain"
+        filename = "test.txt"
+
+        # Create attachment
+        managed_id, _ = self.calendar.create_attachment(
+            attachment_data, content_type, filename
+        )
+
+        # Retrieve attachment
+        retrieved_data, retrieved_content_type, retrieved_filename = (
+            self.calendar.get_attachment(managed_id)
+        )
+
+        self.assertEqual(retrieved_data, attachment_data)
+        self.assertEqual(retrieved_content_type, content_type)
+        self.assertEqual(retrieved_filename, filename)
+
+    def test_get_nonexistent_attachment(self):
+        """Test retrieving a non-existent attachment raises KeyError."""
+        with self.assertRaises(KeyError):
+            self.calendar.get_attachment("nonexistent-id")
+
+    def test_update_attachment(self):
+        """Test updating an existing attachment."""
+        # Create initial attachment
+        initial_data = b"initial data"
+        managed_id, _ = self.calendar.create_attachment(
+            initial_data, "text/plain", "initial.txt"
+        )
+
+        # Update attachment
+        updated_data = b"updated data"
+        updated_content_type = "text/plain"
+        updated_filename = "updated.txt"
+
+        self.calendar.update_attachment(
+            managed_id, updated_data, updated_content_type, updated_filename
+        )
+
+        # Verify update
+        retrieved_data, retrieved_content_type, retrieved_filename = (
+            self.calendar.get_attachment(managed_id)
+        )
+
+        self.assertEqual(retrieved_data, updated_data)
+        self.assertEqual(retrieved_content_type, updated_content_type)
+        self.assertEqual(retrieved_filename, updated_filename)
+
+    def test_update_nonexistent_attachment(self):
+        """Test updating a non-existent attachment raises KeyError."""
+        with self.assertRaises(KeyError):
+            self.calendar.update_attachment("nonexistent-id", b"data", "text/plain")
+
+    def test_delete_attachment(self):
+        """Test deleting an attachment."""
+        # Create attachment
+        managed_id, _ = self.calendar.create_attachment(
+            b"test data", "text/plain", "test.txt"
+        )
+
+        # Delete attachment
+        self.calendar.delete_attachment(managed_id)
+
+        # Verify deletion
+        with self.assertRaises(KeyError):
+            self.calendar.get_attachment(managed_id)
+
+    def test_delete_nonexistent_attachment(self):
+        """Test deleting a non-existent attachment raises KeyError."""
+        with self.assertRaises(KeyError):
+            self.calendar.delete_attachment("nonexistent-id")
+
+    def test_create_attachment_without_filename(self):
+        """Test creating an attachment without a filename."""
+        attachment_data = b"test data"
+        content_type = "application/octet-stream"
+
+        managed_id, _ = self.calendar.create_attachment(
+            attachment_data, content_type, None
+        )
+
+        retrieved_data, retrieved_content_type, retrieved_filename = (
+            self.calendar.get_attachment(managed_id)
+        )
+
+        self.assertEqual(retrieved_data, attachment_data)
+        self.assertEqual(retrieved_content_type, content_type)
+        self.assertIsNone(retrieved_filename)
