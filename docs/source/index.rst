@@ -5,6 +5,7 @@ Xandikos
    :maxdepth: 2
    :caption: Contents:
 
+   installation
    getting-started
    reverse-proxy
    clients
