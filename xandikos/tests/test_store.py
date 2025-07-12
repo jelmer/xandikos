@@ -38,6 +38,7 @@ from xandikos.store import (
 
 from ..icalendar import ICalendarFile
 from ..store.git import BareGitStore, GitStore, TreeGitStore
+from ..store.memory import MemoryStore
 from ..store.vdir import VdirStore
 
 EXAMPLE_VCALENDAR1 = b"""\
@@ -310,6 +311,15 @@ class VdirStoreTest(BaseStoreTest, unittest.TestCase):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
         store = self.kls.create(os.path.join(d, "store"))
+        store.load_extra_file_handler(ICalendarFile)
+        return store
+
+
+class MemoryStoreTest(BaseStoreTest, unittest.TestCase):
+    kls = MemoryStore
+
+    def create_store(self):
+        store = self.kls()
         store.load_extra_file_handler(ICalendarFile)
         return store
 
