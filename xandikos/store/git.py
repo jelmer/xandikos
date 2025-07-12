@@ -296,6 +296,7 @@ class GitStore(Store):
         message: Optional[str] = None,
         author: Optional[str] = None,
         replace_etag: Optional[str] = None,
+        requester: Optional[str] = None,
     ) -> tuple[str, str]:
         """Import a single object.
 
@@ -306,6 +307,7 @@ class GitStore(Store):
           message: Commit message
           author: Optional author
           replace_etag: optional etag of object to replace
+          requester: Optional User-Agent or client information
         Raises:
           InvalidETag: when the name already exists but with different etag
           DuplicateUidError: when the uid already exists
@@ -332,6 +334,11 @@ class GitStore(Store):
             except KeyError:
                 old_fi = None
             message = "\n".join(fi.describe_delta(name, old_fi))
+
+        # Add requester information to commit message in RFC822 style
+        if requester is not None:
+            message = message + "\n\nRequester: " + requester
+
         etag = self._import_one(name, fi.normalized(), message, author=author)
         return (name, etag.decode("ascii"))
 

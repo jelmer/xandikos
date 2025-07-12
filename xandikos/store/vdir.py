@@ -159,6 +159,7 @@ class VdirStore(Store):
         message=None,
         author=None,
         replace_etag=None,
+        requester=None,
     ):
         """Import a single object.
 
@@ -169,6 +170,7 @@ class VdirStore(Store):
           message: Commit message
           author: Optional author
           replace_etag: optional etag of object to replace
+          requester: Optional User-Agent or client information
         Raises:
           InvalidETag: when the name already exists but with different etag
           DuplicateUidError: when the uid already exists

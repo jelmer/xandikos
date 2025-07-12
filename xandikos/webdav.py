@@ -954,14 +954,19 @@ class Collection(Resource):
         raise NotImplementedError(self.delete_member)
 
     async def create_member(
-        self, name: str, contents: Iterable[bytes], content_type: str
+        self,
+        name: str,
+        contents: Iterable[bytes],
+        content_type: str,
+        requester: Optional[str] = None,
     ) -> tuple[str, str]:
         """Create a new member with specified name and contents.
 
         Args:
           name: Member name (can be None)
           contents: Chunked contents
-          etag: Optional required etag
+          content_type: Content type of the member
+          requester: Optional User-Agent or client information
         Returns: (name, etag) for the new member
         """
         raise NotImplementedError(self.create_member)
@@ -1724,7 +1729,12 @@ class PostMethod(Method):
             return _send_method_not_allowed(app._get_allowed_methods(request))
         content_type, params = parse_type(request.content_type)
         try:
-            (name, etag) = await r.create_member(None, new_contents, content_type)
+            (name, etag) = await r.create_member(
+                None,
+                new_contents,
+                content_type,
+                requester=request.headers.get("User-Agent"),
+            )
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 request,
@@ -1782,7 +1792,10 @@ class PutMethod(Method):
             return _send_method_not_allowed(app._get_allowed_methods(request))
         try:
             (new_name, new_etag) = await r.create_member(
-                name, new_contents, content_type
+                name,
+                new_contents,
+                content_type,
+                requester=request.headers.get("User-Agent"),
             )
         except PreconditionFailure as e:
             return _send_simple_dav_error(
