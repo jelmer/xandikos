@@ -27,7 +27,15 @@ from zoneinfo import ZoneInfo
 
 import dateutil.rrule
 from icalendar.cal import Calendar, Component, component_factory
-from icalendar.prop import TypesFactory, vCategory, vDate, vDatetime, vDDDTypes, vText
+from icalendar.prop import (
+    TypesFactory,
+    vCategory,
+    vDate,
+    vDatetime,
+    vDDDTypes,
+    vDuration,
+    vText,
+)
 
 from xandikos.store import File, Filter, InvalidFileContents
 
@@ -445,7 +453,17 @@ def apply_time_range_valarm(start, end, comp, tzify):
     if not trigger:
         return False
 
-    # Get the trigger time
+    # Handle both absolute and relative triggers
+    if isinstance(trigger.dt, timedelta):
+        # This is a relative trigger (timedelta) - we can't determine overlap
+        # without parent component context
+        raise TypeError(
+            "Cannot determine overlap for VALARM with relative trigger "
+            "without parent component context. Use enriched VALARM with "
+            "absolute trigger time instead."
+        )
+
+    # Get the trigger time (absolute)
     trigger_time = tzify(trigger.dt)
 
     # Check if the trigger time overlaps with the time range
@@ -534,31 +552,47 @@ class ComponentTimeRangeMatcher:
         return component_handler(self.start, self.end, comp, tzify)
 
     def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
-        vs: dict[str, list[vDDDTypes]] = {}
-        for name, values in indexes.items():
-            if not name:
-                continue
-            field = name[2:]
-            if field not in self.all_props:
-                continue
-            for value in values:
-                if value and not isinstance(value, bool):
-                    vs.setdefault(field, []).append(
-                        vDDDTypes(vDDDTypes.from_ical(value.decode("utf-8")))
-                    )
+        vs: list[dict[str, Optional[vDDDTypes]]] = []
+        # TODO(jelmer): If the recurring events are a bit odd - e.g.
+        # some have DTEND, some have DURATION, then this may break
+        i = 0
+        while True:
+            d: dict[str, Optional[vDDDTypes]] = {}
+            for name, values in indexes.items():
+                if not name:
+                    continue
+                field = name[2:]
+                if field in self.all_props:
+                    try:
+                        value = values[i]
+                    except IndexError:
+                        continue
+                    else:
+                        if isinstance(value, bool):
+                            continue
+                        if field == "DURATION":
+                            d[field] = vDDDTypes(
+                                vDuration.from_ical(value.decode("utf-8"))
+                            )
+                        else:
+                            d[field] = vDDDTypes(
+                                vDDDTypes.from_ical(value.decode("utf-8"))
+                            )
+            if not d:
+                break
+            vs.append(d)
+            i += 1
 
         try:
             component_handler = self.component_handlers[self.comp]
         except KeyError:
             logging.warning("unknown component %r in time-range filter", self.comp)
             return False
-        return component_handler(
-            self.start,
-            self.end,
-            # TODO(jelmer): What to do if there is more than one value?
-            {k: values[0] for (k, values) in vs.items() if values},
-            tzify,
-        )
+
+        for v in vs:
+            if component_handler(self.start, self.end, v, tzify):
+                return True
+        return False
 
     def index_keys(self) -> list[list[str]]:
         if self.comp == "VEVENT":
@@ -595,7 +629,10 @@ class TextMatcher:
         self.negate_condition = negate_condition
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.name!r}, {self.text!r}, collation={self.collation!r}, negate_condition={self.negate_condition!r})"
+        return (
+            f"{self.__class__.__name__}({self.name!r}, {self.text!r}, "
+            f"collation={self.collation!r}, negate_condition={self.negate_condition!r})"
+        )
 
     def match_indexes(self, indexes: SubIndexDict):
         return any(
@@ -633,7 +670,10 @@ class ComponentFilter:
         self.children = children or []
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.name!r}, children={self.children!r}, is_not_defined={self.is_not_defined!r}, time_range={self.time_range!r})"
+        return (
+            f"{self.__class__.__name__}({self.name!r}, children={self.children!r}, "
+            f"is_not_defined={self.is_not_defined!r}, time_range={self.time_range!r})"
+        )
 
     def filter_subcomponent(
         self,
@@ -662,6 +702,18 @@ class ComponentFilter:
     def filter_time_range(self, start: datetime, end: datetime):
         self.time_range = ComponentTimeRangeMatcher(start, end, comp=self.name)
         return self.time_range
+
+    def _find_time_range(self):
+        """Recursively find the first time range in this filter or its children."""
+        if self.time_range:
+            return self.time_range
+
+        for child in self.children:
+            if isinstance(child, ComponentFilter):
+                nested_range = child._find_time_range()
+                if nested_range:
+                    return nested_range
+        return None
 
     def match(self, comp: Component, tzify: TzifyFunction):
         # From https://tools.ietf.org/html/rfc4791, 9.7.1:
@@ -760,7 +812,10 @@ class PropertyFilter:
         self.time_range = time_range
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.name!r}, children={self.children!r}, is_not_defined={self.is_not_defined!r}, time_range={self.time_range!r})"
+        return (
+            f"{self.__class__.__name__}({self.name!r}, children={self.children!r}, "
+            f"is_not_defined={self.is_not_defined!r}, time_range={self.time_range!r})"
+        )
 
     def filter_parameter(
         self, name: str, is_not_defined: bool = False
@@ -909,17 +964,39 @@ class CalendarFilter(Filter):
         self.children.append(ret)
         return ret
 
+    def _find_time_range(self):
+        """Recursively find the first time range in component filters."""
+        for child in self.children:
+            if isinstance(child, ComponentFilter):
+                if child.time_range:
+                    return child.time_range
+                # Recursively check nested filters
+                nested_range = child._find_time_range()
+                if nested_range:
+                    return nested_range
+        return None
+
     def check(self, name: str, file: File) -> bool:
         if not isinstance(file, ICalendarFile):
             return False
 
-        c = file.calendar
+        # Look for time range in component filters (including nested ones)
+        time_range = self._find_time_range()
+
+        # Expand with time constraints if needed
+        if time_range:
+            c = expand_calendar_rrule(file.calendar, time_range.start, time_range.end)
+        else:
+            # For unbounded queries, use the original calendar without expansion
+            # to avoid infinite expansion of recurring events
+            c = file.calendar
+
         if c is None:
             return False
 
         for child_filter in self.children:
             try:
-                if not child_filter.match(file.calendar, self.tzify):
+                if not child_filter.match(c, self.tzify):
                     return False
             except MissingProperty as e:
                 logging.warning(
@@ -934,7 +1011,7 @@ class CalendarFilter(Filter):
     def check_from_indexes(self, name: str, indexes: IndexDict) -> bool:
         for child_filter in self.children:
             try:
-                if not child_filter.match_indexes(indexes, self.tzify):
+                if not child_filter.match_indexes(indexes, self.tzify):  # type: ignore
                     return False
             except MissingProperty as e:
                 logging.warning(
@@ -964,6 +1041,7 @@ class ICalendarFile(File):
     def __init__(self, content, content_type) -> None:
         super().__init__(content, content_type)
         self._calendar = None
+        self._expanded_calendar = None
 
     def validate(self) -> None:
         """Verify that file contents are valid."""
@@ -996,6 +1074,12 @@ class ICalendarFile(File):
                 ) from exc
         return self._calendar
 
+    @property
+    def expanded_calendar(self):
+        if self._expanded_calendar is None:
+            self._expanded_calendar = expand_calendar_rrule(self.calendar)
+        return self._expanded_calendar
+
     def describe_delta(self, name, previous):
         try:
             lines = list(
@@ -1013,6 +1097,7 @@ class ICalendarFile(File):
         try:
             subcomponents = self.calendar.subcomponents
         except InvalidFileContents:
+            # Calendar has invalid contents, skip description
             pass
         else:
             for component in subcomponents:
@@ -1037,7 +1122,7 @@ class ICalendarFile(File):
         raise KeyError
 
     def _get_index(self, key: IndexKey) -> IndexValueIterator:
-        todo = [(self.calendar, key.split("/"))]
+        todo = [(self.expanded_calendar, key.split("/"))]
         rest = []
         c: Component
         while todo:
@@ -1065,13 +1150,20 @@ class ICalendarFile(File):
                 raise AssertionError(f"segments: {segments!r}")
 
 
-def as_tz_aware_ts(dt, default_timezone: Union[str, timezone]) -> datetime:
+def as_tz_aware_ts(
+    dt: Union[datetime, date], default_timezone: Union[str, timezone]
+) -> datetime:
     if not getattr(dt, "time", None):
-        dt = datetime.combine(dt, time())
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=default_timezone)
-    assert dt.tzinfo
-    return dt
+        _dt = datetime.combine(dt, time())
+    else:
+        _dt = dt  # type: ignore
+    if _dt.tzinfo is None:
+        if isinstance(default_timezone, str):
+            _dt = _dt.replace(tzinfo=ZoneInfo(default_timezone))
+        else:
+            _dt = _dt.replace(tzinfo=default_timezone)
+    assert _dt.tzinfo
+    return _dt
 
 
 def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
@@ -1093,87 +1185,214 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
     return rs
 
 
+def _get_event_duration(comp: Component) -> Optional[timedelta]:
+    """Get the duration of an event component."""
+    if "DURATION" in comp:
+        return comp["DURATION"].dt
+    elif "DTEND" in comp and "DTSTART" in comp:
+        return comp["DTEND"].dt - comp["DTSTART"].dt
+    return None
+
+
+def _normalize_dt_for_rrule(
+    dt: Union[date, datetime], original_dt: Union[date, datetime]
+) -> Union[date, datetime]:
+    """Normalize a datetime for rrule operations based on the original event type.
+
+    The rrule library requires the search bounds to match the type of the original DTSTART:
+    - For date-only events, use date objects or datetime at midnight
+    - For floating time events, use naive datetimes
+    - For timezone-aware events, use aware datetimes
+    """
+    # Handle date-only events
+    if not isinstance(original_dt, datetime):
+        if isinstance(dt, datetime):
+            return datetime.combine(dt.date(), time.min)
+        return dt
+
+    # Handle datetime events (both naive and aware)
+    if isinstance(original_dt, datetime) and isinstance(dt, datetime):
+        # Match the timezone awareness of the original
+        if original_dt.tzinfo is None and dt.tzinfo is not None:
+            return dt.replace(tzinfo=None)
+        elif original_dt.tzinfo is not None and dt.tzinfo is None:
+            # This shouldn't happen with our current code, but handle it gracefully
+            return dt.replace(tzinfo=original_dt.tzinfo)
+
+    return dt
+
+
+def _event_overlaps_range(comp: Component, start, end) -> bool:
+    """Check if a calendar component overlaps with a time range."""
+    # Use UTC as default timezone for consistency with existing code
+    default_tz = timezone.utc
+
+    def tzify(dt):
+        return as_tz_aware_ts(dt, default_tz)
+
+    # Use the appropriate time range filter based on component type
+    component_handlers = {
+        "VEVENT": apply_time_range_vevent,
+        "VTODO": apply_time_range_vtodo,
+        "VJOURNAL": apply_time_range_vjournal,
+        "VFREEBUSY": apply_time_range_vfreebusy,
+        "VALARM": apply_time_range_valarm,
+    }
+
+    if comp.name and comp.name in component_handlers:
+        handler = component_handlers[comp.name]
+        # Normalize start and end to the same timezone as component values
+        start_normalized = tzify(start)
+        end_normalized = tzify(end)
+        return handler(start_normalized, end_normalized, comp, tzify)
+
+    # For unknown component types, require DTSTART
+    if "DTSTART" not in comp:
+        return False
+
+    # Fallback for other component types with DTSTART
+    event_start = tzify(comp["DTSTART"].dt)
+
+    # Calculate event end time
+    if "DTEND" in comp:
+        event_end = tzify(comp["DTEND"].dt)
+    elif "DURATION" in comp:
+        event_end = event_start + comp["DURATION"].dt
+    else:
+        # Default duration
+        if isinstance(comp["DTSTART"].dt, datetime):
+            event_end = event_start
+        else:
+            event_end = event_start + timedelta(days=1)
+
+    # Normalize start and end for comparison
+    start_normalized = tzify(start)
+    end_normalized = tzify(end)
+
+    return event_start < end_normalized and event_end > start_normalized
+
+
 def _expand_rrule_component(
-    incomp: Component, start: datetime, end: datetime, existing: dict[str, Component]
+    incomp: Component,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    existing: dict[Union[str, date, datetime], Component] = {},
 ) -> Iterable[Component]:
     if "RRULE" not in incomp:
         return
-    rs = rruleset_from_comp(incomp)
 
+    rs = rruleset_from_comp(incomp)
     original_dtstart = incomp["DTSTART"]
 
+    # Create base component without recurrence fields
+    base_comp = incomp.copy()
     for field in ["RRULE", "EXRULE", "UNTIL", "RDATE", "EXDATE"]:
-        if field in incomp:
-            del incomp[field]
-    # Work our magic
-    # Handle timezone-aware vs naive datetime comparison
-    if isinstance(original_dtstart.dt, datetime) and original_dtstart.dt.tzinfo is None:
-        # Floating time - make start/end naive for comparison
-        start_for_between = (
-            start.replace(tzinfo=None) if isinstance(start, datetime) else start
-        )
-        end_for_between = end.replace(tzinfo=None) if isinstance(end, datetime) else end
-    else:
-        start_for_between = start
-        end_for_between = end
+        if field in base_comp:
+            del base_comp[field]
 
-    for ts in rs.between(start_for_between, end_for_between, inc=True):
-        # For date-only events, convert rrule's datetime back to date
-        if isinstance(original_dtstart.dt, date) and not isinstance(
-            original_dtstart.dt, datetime
-        ):
+    # Get occurrences from rrule
+    if start is not None and end is not None:
+        # Adjust start backwards by event duration to catch overlapping events
+        duration = _get_event_duration(incomp)
+        adjusted_start = start - duration if duration else start
+
+        # Normalize datetimes for rrule operations
+        start_normalized = _normalize_dt_for_rrule(adjusted_start, original_dtstart.dt)
+        end_normalized = _normalize_dt_for_rrule(end, original_dtstart.dt)
+
+        occurrences = rs.between(start_normalized, end_normalized, inc=True)
+    else:
+        # For unbounded queries, we still need to return a list/iterator
+        occurrences = rs  # type: ignore
+
+    for ts in occurrences:
+        # Normalize timestamp based on original event type
+        if not isinstance(original_dtstart.dt, datetime):
             ts_normalized = ts.date()
             ts_for_dtstart = ts.date()
         else:
             ts_normalized = asutc(ts)
-            ts_for_dtstart = ts  # Keep original timezone
+            ts_for_dtstart = ts
 
+        # Check if this is an exception event
         try:
             outcomp = existing.pop(ts_normalized)
-            # Exception events already have correct DTSTART, no need to modify
         except KeyError:
-            outcomp = incomp.copy()
-            # Create new DTSTART preserving timezone info
+            # Create new occurrence
+            outcomp = base_comp.copy()
+
+            # Set new DTSTART
             new_dtstart = create_prop_from_date_or_datetime(ts_for_dtstart)
-            # Copy timezone and other parameters from original DTSTART
-            if hasattr(original_dtstart, "params") and original_dtstart.params:
-                new_dtstart.params = original_dtstart.params.copy()
+            try:
+                if original_dtstart.params:
+                    new_dtstart.params = original_dtstart.params.copy()
+            except AttributeError:
+                pass
             outcomp["DTSTART"] = new_dtstart
 
-        # Set RECURRENCE-ID with appropriate type
-        # RECURRENCE-ID should always be in UTC for consistency in identifying instances
+            # Update DTEND if present
+            if "DTEND" in outcomp:
+                original_duration = incomp["DTEND"].dt - original_dtstart.dt
+                new_dtend = create_prop_from_date_or_datetime(
+                    ts_for_dtstart + original_duration
+                )
+                try:
+                    if incomp["DTEND"].params:
+                        new_dtend.params = incomp["DTEND"].params.copy()
+                except AttributeError:
+                    pass
+                outcomp["DTEND"] = new_dtend
+
+        # Check if occurrence overlaps with time range
+        if start is not None and end is not None:
+            if not _event_overlaps_range(outcomp, start, end):
+                continue
+
+        # Set RECURRENCE-ID
         outcomp["RECURRENCE-ID"] = create_prop_from_date_or_datetime(ts_normalized)
         yield outcomp
 
 
-def expand_calendar_rrule(incal: Calendar, start: datetime, end: datetime) -> Calendar:
+def expand_calendar_rrule(
+    incal: Calendar, start: Optional[datetime] = None, end: Optional[datetime] = None
+) -> Calendar:
     outcal = Calendar()
     if incal.name != "VCALENDAR":
         raise AssertionError(f"called on file with root component {incal.name}")
+
+    # Copy calendar properties
     for field in incal:
         outcal[field] = incal[field]
-    known = {}
-    for insub in incal.subcomponents:
-        if "RECURRENCE-ID" in insub:
-            ts = insub["RECURRENCE-ID"].dt
-            utcts = asutc(ts)
-            known[utcts] = insub
-    # First, add all VTIMEZONE components to preserve timezone definitions
-    for insub in incal.subcomponents:
-        if insub.name == "VTIMEZONE":
-            outcal.add_component(insub)
 
-    # Then process other components
-    for insub in incal.subcomponents:
-        if insub.name == "VTIMEZONE":
-            continue
-        if "RECURRENCE-ID" in insub:
-            continue
-        if "RRULE" in insub:
-            for outsub in _expand_rrule_component(insub, start, end, known):
-                outcal.add_component(outsub)
+    # Collect exception events (components with RECURRENCE-ID)
+    exceptions = {}
+    for comp in incal.subcomponents:
+        if "RECURRENCE-ID" in comp:
+            ts = asutc(comp["RECURRENCE-ID"].dt)
+            exceptions[ts] = comp
+
+    # Process all components
+    for comp in incal.subcomponents:
+        if comp.name == "VTIMEZONE":
+            # Always include timezone definitions
+            outcal.add_component(comp)
+        elif "RECURRENCE-ID" in comp:
+            # Skip - handled separately
+            pass
+        elif "RRULE" in comp:
+            # Expand recurring events
+            for expanded in _expand_rrule_component(comp, start, end, exceptions):
+                outcal.add_component(expanded)
         else:
-            outcal.add_component(insub)
+            # Include non-recurring events
+            outcal.add_component(comp)
+
+    # Add remaining exception events that fall within the time range
+    if start is not None and end is not None:
+        for exc_comp in exceptions.values():
+            if _event_overlaps_range(exc_comp, start, end):
+                outcal.add_component(exc_comp)
+
     return outcal
 
 
@@ -1317,6 +1536,10 @@ def asutc(dt):
     if isinstance(dt, date) and not isinstance(dt, datetime):
         # Return date as-is - dates are timezone-agnostic
         return dt
+    if dt.tzinfo is None:
+        # Naive datetime - return as-is
+        return dt
+    # Convert to UTC and make naive for consistent comparison
     return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
 
