@@ -1603,6 +1603,36 @@ class Backend:
         for relpath in relpaths:
             yield relpath, self.get_resource(relpath)
 
+    async def copy_collection(
+        self, source_path: str, dest_path: str, overwrite: bool = True
+    ) -> None:
+        """Copy a collection recursively.
+
+        Args:
+          source_path: Source collection path
+          dest_path: Destination collection path
+          overwrite: Whether to overwrite if destination exists
+        Raises:
+          KeyError: when the source collection doesn't exist
+          FileExistsError: when destination exists and overwrite is False
+        """
+        raise NotImplementedError(self.copy_collection)
+
+    async def move_collection(
+        self, source_path: str, dest_path: str, overwrite: bool = True
+    ) -> None:
+        """Move a collection recursively.
+
+        Args:
+          source_path: Source collection path
+          dest_path: Destination collection path
+          overwrite: Whether to overwrite if destination exists
+        Raises:
+          KeyError: when the source collection doesn't exist
+          FileExistsError: when destination exists and overwrite is False
+        """
+        raise NotImplementedError(self.move_collection)
+
 
 def href_to_path(environ, href) -> Optional[str]:
     script_name = environ["SCRIPT_NAME"].rstrip("/")
@@ -1963,12 +1993,41 @@ class MoveMethod(Method):
                     reason="Bad Request",
                     body=[b"Depth must be infinity for MOVE on collection"],
                 )
-            # Collections are not supported as members currently
-            return Response(
-                status=501,
-                reason="Not Implemented",
-                body=[b"MOVE for collections not implemented"],
-            )
+            # Handle Overwrite header
+            overwrite_header = request.headers.get("Overwrite", "T")
+            overwrite = overwrite_header.upper() != "F"
+
+            try:
+                # Use the backend's move_collection method
+                await app.backend.move_collection(source_path, dest_path, overwrite)
+                return Response(status=201, reason="Created")
+            except NotImplementedError:
+                return Response(
+                    status=501,
+                    reason="Not Implemented",
+                    body=[b"MOVE for collections not implemented"],
+                )
+            except KeyError:
+                return _send_not_found(request)
+            except FileExistsError:
+                return Response(
+                    status=412,
+                    reason="Precondition Failed",
+                    body=[b"Destination exists and Overwrite is False"],
+                )
+            except PreconditionFailure as e:
+                return _send_simple_dav_error(
+                    request,
+                    "412 Precondition Failed",
+                    error=ET.Element(e.precondition),
+                    description=e.description,
+                )
+            except ResourceLocked:
+                return Response(status=423, reason="Locked")
+            except InsufficientStorage:
+                return Response(status=507, reason="Insufficient Storage")
+            except PermissionError:
+                return Response(status=403, reason="Forbidden")
 
         # Get parent containers
         source_container_path, source_name = split_path_preserving_encoding(
@@ -2095,21 +2154,80 @@ class CopyMethod(Method):
         # Check if source is a collection
         is_collection = COLLECTION_RESOURCE_TYPE in source_resource.resource_types
 
-        # For collections, Depth must be infinity (RFC 4918 9.8.3)
+        # For collections, handle different depth values (RFC 4918 9.8.3)
         if is_collection:
             depth = request.headers.get("Depth", "infinity")
-            if depth != "infinity":
+            if depth not in ("0", "infinity"):
                 return Response(
                     status=400,
                     reason="Bad Request",
-                    body=[b"Depth must be infinity for COPY on collection"],
+                    body=[b"Depth must be 0 or infinity for COPY on collection"],
                 )
-            # Collections are not supported as members currently
-            return Response(
-                status=501,
-                reason="Not Implemented",
-                body=[b"COPY for collections not implemented"],
-            )
+
+            # Handle Overwrite header
+            overwrite_header = request.headers.get("Overwrite", "T")
+            overwrite = overwrite_header.upper() != "F"
+
+            try:
+                if depth == "0":
+                    # Shallow copy: create empty collection at destination
+                    dest_container_path, dest_name = posixpath.split(
+                        dest_path.rstrip("/")
+                    )
+                    if not dest_container_path:
+                        dest_container_path = "/"
+                    dest_container = app.backend.get_resource(dest_container_path)
+                    if dest_container is None:
+                        return Response(
+                            status=409,
+                            reason="Conflict",
+                            body=[b"Destination container does not exist"],
+                        )
+
+                    # Check if destination exists
+                    if app.backend.get_resource(dest_path) is not None:
+                        if not overwrite:
+                            return Response(
+                                status=412,
+                                reason="Precondition Failed",
+                                body=[b"Destination exists and Overwrite is False"],
+                            )
+
+                    # Create empty collection
+                    app.backend.create_collection(dest_path)
+                    return Response(status=201, reason="Created")
+                else:
+                    # Deep copy: use the backend's copy_collection method
+                    await app.backend.copy_collection(source_path, dest_path, overwrite)
+                    return Response(status=201, reason="Created")
+
+            except NotImplementedError:
+                return Response(
+                    status=501,
+                    reason="Not Implemented",
+                    body=[b"COPY for collections not implemented"],
+                )
+            except KeyError:
+                return _send_not_found(request)
+            except FileExistsError:
+                return Response(
+                    status=412,
+                    reason="Precondition Failed",
+                    body=[b"Destination exists and Overwrite is False"],
+                )
+            except PreconditionFailure as e:
+                return _send_simple_dav_error(
+                    request,
+                    "412 Precondition Failed",
+                    error=ET.Element(e.precondition),
+                    description=e.description,
+                )
+            except ResourceLocked:
+                return Response(status=423, reason="Locked")
+            except InsufficientStorage:
+                return Response(status=507, reason="Insufficient Storage")
+            except PermissionError:
+                return Response(status=403, reason="Forbidden")
 
         # Get parent containers
         source_container_path, source_name = split_path_preserving_encoding(

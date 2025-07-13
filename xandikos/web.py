@@ -404,6 +404,15 @@ class StoreBasedCollection:
         content_type: str,
         requester: Optional[str] = None,
     ) -> tuple[str, str]:
+        # Check if member already exists and raise FileExistsError if it does
+        try:
+            existing_member = self.get_member(name)
+            if existing_member is not None:
+                raise FileExistsError(f"Member '{name}' already exists")
+        except KeyError:
+            # Member doesn't exist, which is what we want for create_member
+            pass
+
         try:
             (name, etag) = self.store.import_one(
                 name, content_type, contents, requester=requester
@@ -1119,6 +1128,64 @@ class XandikosBackend(webdav.Backend):
                 return store.get_member(name)
             except KeyError:
                 return None
+
+    async def copy_collection(
+        self, source_path: str, dest_path: str, overwrite: bool = True
+    ) -> None:
+        """Copy a collection recursively."""
+        import shutil
+
+        source_collection = self.get_resource(source_path)
+        if source_collection is None:
+            raise KeyError(source_path)
+
+        if webdav.COLLECTION_RESOURCE_TYPE not in source_collection.resource_types:
+            raise ValueError(f"Source '{source_path}' is not a collection")
+
+        source_file_path = self._map_to_file_path(source_path)
+        dest_file_path = self._map_to_file_path(dest_path)
+
+        # Check if destination exists
+        if os.path.exists(dest_file_path):
+            if not overwrite:
+                raise FileExistsError(f"Collection '{dest_path}' already exists")
+            # Remove existing destination (file or directory)
+            if os.path.isdir(dest_file_path):
+                shutil.rmtree(dest_file_path)
+            else:
+                os.remove(dest_file_path)
+
+        # Copy the entire directory tree
+        shutil.copytree(source_file_path, dest_file_path)
+
+    async def move_collection(
+        self, source_path: str, dest_path: str, overwrite: bool = True
+    ) -> None:
+        """Move a collection recursively."""
+        import shutil
+
+        source_collection = self.get_resource(source_path)
+        if source_collection is None:
+            raise KeyError(source_path)
+
+        if webdav.COLLECTION_RESOURCE_TYPE not in source_collection.resource_types:
+            raise ValueError(f"Source '{source_path}' is not a collection")
+
+        source_file_path = self._map_to_file_path(source_path)
+        dest_file_path = self._map_to_file_path(dest_path)
+
+        # Check if destination exists
+        if os.path.exists(dest_file_path):
+            if not overwrite:
+                raise FileExistsError(f"Collection '{dest_path}' already exists")
+            # Remove existing destination (file or directory)
+            if os.path.isdir(dest_file_path):
+                shutil.rmtree(dest_file_path)
+            else:
+                os.remove(dest_file_path)
+
+        # Move the entire directory tree
+        shutil.move(source_file_path, dest_file_path)
 
 
 class XandikosApp(webdav.WebDAVApp):
