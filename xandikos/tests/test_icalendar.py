@@ -20,7 +20,7 @@
 """Tests for xandikos.icalendar."""
 
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from icalendar.cal import Calendar, Event
@@ -507,8 +507,8 @@ class ApplyTimeRangeVeventTests(unittest.TestCase):
         self.assertRaises(
             MissingProperty,
             apply_time_range_vevent,
-            datetime.utcnow(),
-            datetime.utcnow(),
+            datetime.now(timezone.utc),
+            datetime.now(timezone.utc),
             ev,
             self._tzify,
         )

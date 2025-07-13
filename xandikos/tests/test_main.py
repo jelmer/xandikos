@@ -20,6 +20,7 @@
 """Tests for xandikos.__main__."""
 
 import asyncio
+import logging
 import os
 import shutil
 import tempfile
@@ -45,8 +46,16 @@ class CreateCollectionTests(unittest.TestCase):
         add_create_collection_parser(parser)
 
         # Test that required arguments are present
-        with self.assertRaises(SystemExit):
-            parser.parse_args([])
+        import sys
+        from io import StringIO
+
+        old_stderr = sys.stderr
+        sys.stderr = StringIO()  # Suppress argparse error output
+        try:
+            with self.assertRaises(SystemExit):
+                parser.parse_args([])
+        finally:
+            sys.stderr = old_stderr
 
         # Test valid arguments
         args = parser.parse_args(
@@ -150,12 +159,10 @@ class CreateCollectionTests(unittest.TestCase):
         self.assertEqual(result, 0)
 
         # Try to create again - should fail
-        with patch("builtins.print") as mock_print:
+        with self.assertLogs("xandikos.__main__", level=logging.ERROR) as cm:
             result = asyncio.run(create_collection_main(args, None))
             self.assertEqual(result, 1)
-            mock_print.assert_called()
-            call_args = str(mock_print.call_args)
-            self.assertIn("already exists", call_args)
+            self.assertIn("already exists", cm.output[0])
 
     def test_create_collection_minimal_args(self):
         """Test creating collection with only required arguments."""
@@ -183,7 +190,7 @@ class MainCommandTests(unittest.TestCase):
     def test_main_create_collection_subcommand(self):
         """Test that the main function recognizes create-collection subcommand."""
         with tempfile.TemporaryDirectory() as test_dir:
-            with patch("builtins.print") as mock_print:
+            with self.assertLogs("xandikos.__main__", level=logging.INFO) as cm:
                 result = asyncio.run(
                     main(
                         [
@@ -198,9 +205,7 @@ class MainCommandTests(unittest.TestCase):
                     )
                 )
                 self.assertEqual(result, 0)
-                mock_print.assert_called()
-                call_args = str(mock_print.call_args)
-                self.assertIn("Successfully created", call_args)
+                self.assertIn("Successfully created", cm.output[0])
 
     def test_main_help_includes_create_collection(self):
         """Test that help includes the create-collection subcommand."""
@@ -227,11 +232,19 @@ class MainCommandTests(unittest.TestCase):
         # Note: Due to the default subparser mechanism, unknown commands
         # get passed to the 'serve' subcommand and cause argument errors.
         # This test verifies that the system exits with an error code.
-        with patch("builtins.print"):
-            with self.assertRaises(SystemExit) as cm:
-                asyncio.run(main(["invalid-command"]))
-            # Expect exit code 2 (argparse error)
-            self.assertEqual(cm.exception.code, 2)
+        import sys
+        from io import StringIO
+
+        old_stderr = sys.stderr
+        sys.stderr = StringIO()  # Suppress argparse error output
+        try:
+            with patch("builtins.print"):
+                with self.assertRaises(SystemExit) as cm:
+                    asyncio.run(main(["invalid-command"]))
+                # Expect exit code 2 (argparse error)
+                self.assertEqual(cm.exception.code, 2)
+        finally:
+            sys.stderr = old_stderr
 
     def test_main_create_collection_help(self):
         """Test create-collection subcommand help."""

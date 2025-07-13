@@ -78,8 +78,8 @@ class GetPropertiesWithDataTests(unittest.TestCase):
         asyncio.run(run_test())
 
 
-class TestMultiGetReporter(davcommon.MultiGetReporter):
-    """Test implementation of MultiGetReporter."""
+class MockMultiGetReporter(davcommon.MultiGetReporter):
+    """Mock implementation of MultiGetReporter for testing."""
 
     name = "test-report"
 
@@ -92,7 +92,7 @@ class MultiGetReporterTests(unittest.TestCase):
     """Tests for MultiGetReporter."""
 
     def setUp(self):
-        self.reporter = TestMultiGetReporter()
+        self.reporter = MockMultiGetReporter()
 
     def test_report_with_hrefs(self):
         """Test report with href elements."""
