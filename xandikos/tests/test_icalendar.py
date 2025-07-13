@@ -1029,12 +1029,14 @@ class TextMatchTest(unittest.TestCase):
         self.assertTrue(tm.match(vCategory(["foobar"])))
         self.assertFalse(tm.match(vCategory(["fobar"])))
         self.assertTrue(tm.match_indexes({None: [b"foobar,blah"]}))
-        self.assertFalse(tm.match_indexes({None: [b"foobarblah"]}))
+        # With substring matching, "foobar" is found in "foobarblah"
+        self.assertTrue(tm.match_indexes({None: [b"foobarblah"]}))
 
     def test_unknown_type(self):
         tm = TextMatcher("dontknow", "foobar")
         self.assertFalse(tm.match(object()))
-        self.assertFalse(tm.match_indexes({None: [b"foobarblah"]}))
+        # With substring matching, "foobar" is found in "foobarblah"
+        self.assertTrue(tm.match_indexes({None: [b"foobarblah"]}))
 
     def test_unknown_collation(self):
         self.assertRaises(
@@ -1044,6 +1046,18 @@ class TextMatchTest(unittest.TestCase):
             "foobar",
             collation="i;blah",
         )
+
+    def test_substring_match(self):
+        # Test that text matching uses substring search as per RFC
+        tm = TextMatcher("summary", "bar")
+        self.assertTrue(tm.match(vText("foobar")))
+        self.assertTrue(tm.match(vText("bar")))
+        self.assertTrue(tm.match(vText("barbaz")))
+        self.assertTrue(tm.match(vText("foobarbaz")))
+        self.assertFalse(tm.match(vText("foo")))
+        self.assertFalse(tm.match(vText("ba")))
+        # Test case insensitive substring match
+        self.assertTrue(tm.match(vText("FOOBAR")))
 
 
 class ApplyTimeRangeVeventTests(unittest.TestCase):
