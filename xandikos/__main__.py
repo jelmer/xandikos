@@ -21,6 +21,7 @@
 
 import argparse
 import asyncio
+import logging
 import sys
 from . import __version__
 from .store import STORE_TYPE_CALENDAR, STORE_TYPE_ADDRESSBOOK
@@ -80,6 +81,8 @@ async def create_collection_main(args, parser):
     """Main function for the create-collection subcommand."""
     from .web import XandikosBackend
 
+    logger = logging.getLogger(__name__)
+
     backend = XandikosBackend(args.directory)
     collection_path = args.name
     collection_type = (
@@ -89,7 +92,7 @@ async def create_collection_main(args, parser):
     try:
         resource = backend.create_collection(collection_path)
     except FileExistsError:
-        print(f"Error: Collection '{collection_path}' already exists", file=sys.stderr)
+        logger.error(f"Collection '{collection_path}' already exists")
         return 1
 
     resource.store.set_type(collection_type)
@@ -103,7 +106,7 @@ async def create_collection_main(args, parser):
     if args.color:
         resource.store.set_color(args.color)
 
-    print(f"Successfully created {args.type} collection: {collection_path}")
+    logger.info(f"Successfully created {args.type} collection: {collection_path}")
     return 0
 
 
@@ -136,6 +139,8 @@ async def main(argv):
     if args.subcommand == "serve":
         return await web.main(args, parser)
     elif args.subcommand == "create-collection":
+        # Configure logging for create-collection subcommand
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
         return await create_collection_main(args, parser)
     else:
         parser.print_help()
@@ -143,6 +148,4 @@ async def main(argv):
 
 
 if __name__ == "__main__":
-    import sys
-
     sys.exit(asyncio.run(main(sys.argv[1:])))
