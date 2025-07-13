@@ -641,9 +641,9 @@ class TextMatcher:
 
     def match(self, prop: Union[vText, vCategory, str]):
         if isinstance(prop, vText):
-            matches = self.collation(self.text, str(prop), "equals")
+            matches = self.collation(str(prop), self.text, "contains")
         elif isinstance(prop, str):
-            matches = self.collation(self.text, prop, "equals")
+            matches = self.collation(prop, self.text, "contains")
         elif isinstance(prop, vCategory):
             matches = any([self.match(cat) for cat in prop.cats])
         else:

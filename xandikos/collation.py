@@ -36,7 +36,7 @@ def _match(a, b, k):
     elif k == "starts-with":
         return a.startswith(b)
     elif k == "ends-with":
-        return b.endswith(b)
+        return a.endswith(b)
     else:
         raise NotImplementedError
 
