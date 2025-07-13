@@ -27,7 +27,12 @@ import unittest
 from xandikos import caldav
 from xandikos.icalendar import ICalendarFile
 from xandikos.store.git import TreeGitStore
-from xandikos.web import CalendarCollection, XandikosBackend, XandikosApp
+from xandikos.web import (
+    CalendarCollection,
+    XandikosBackend,
+    XandikosApp,
+    MultiUserXandikosBackend,
+)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -636,3 +641,92 @@ END:VCALENDAR""")
         self.assertNotIn(".xandikos", all_names)
         self.assertNotIn(".xandikos/config", all_names)
         self.assertNotIn(".xandikos/availability.ics", all_names)
+
+
+class MultiUserXandikosBackendTests(unittest.TestCase):
+    """Tests for MultiUserXandikosBackend."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.d)
+
+    def test_create_principal_default_paths(self):
+        """Test creating a principal with default path format."""
+        backend = MultiUserXandikosBackend(self.d)
+        backend.set_principal("testuser")
+
+        # Check that principal was created with default format
+        principal_path = "/testuser/"
+        resource = backend.get_resource(principal_path)
+        self.assertIsNotNone(resource)
+        # _mark_as_principal normalizes the path, removing trailing slashes
+        self.assertIn("/testuser", backend._user_principals)
+
+        # Check autocreate is enabled
+        self.assertTrue(backend.autocreate)
+
+    def test_create_principal_custom_paths(self):
+        """Test creating a principal with custom path format."""
+        backend = MultiUserXandikosBackend(
+            self.d, principal_path_prefix="/users/", principal_path_suffix="/principal/"
+        )
+        backend.set_principal("customuser")
+
+        # Check that principal was created with custom format
+        principal_path = "/users/customuser/principal/"
+        resource = backend.get_resource(principal_path)
+        self.assertIsNotNone(resource)
+        # _mark_as_principal normalizes the path, removing trailing slashes
+        self.assertIn("/users/customuser/principal", backend._user_principals)
+
+    def test_create_principal_override_paths(self):
+        """Test overriding path format at method level."""
+        backend = MultiUserXandikosBackend(self.d)
+        backend.set_principal(
+            "override",
+            principal_path_prefix="/special/",
+            principal_path_suffix="/user/",
+        )
+
+        # Check that principal was created with overridden format
+        principal_path = "/special/override/user/"
+        resource = backend.get_resource(principal_path)
+        self.assertIsNotNone(resource)
+        # _mark_as_principal normalizes the path, removing trailing slashes
+        self.assertIn("/special/override/user", backend._user_principals)
+
+    def test_multiple_users(self):
+        """Test creating multiple users."""
+        backend = MultiUserXandikosBackend(self.d)
+
+        # Create multiple users
+        users = ["alice", "bob", "charlie"]
+        for user in users:
+            backend.set_principal(user)
+
+        # Verify all users were created
+        for user in users:
+            principal_path = f"/{user}/"
+            resource = backend.get_resource(principal_path)
+            self.assertIsNotNone(resource)
+            # _mark_as_principal normalizes the path, removing trailing slashes
+            self.assertIn(f"/{user}", backend._user_principals)
+
+    def test_idempotent_principal_creation(self):
+        """Test that setting the same principal twice is idempotent."""
+        backend = MultiUserXandikosBackend(self.d)
+
+        # Create principal first time
+        backend.set_principal("testuser")
+        principal_path = "/testuser/"
+        resource1 = backend.get_resource(principal_path)
+
+        # Create same principal again
+        backend.set_principal("testuser")
+        resource2 = backend.get_resource(principal_path)
+
+        # Should be the same resource
+        self.assertIsNotNone(resource1)
+        self.assertIsNotNone(resource2)
