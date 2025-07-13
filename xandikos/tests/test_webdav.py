@@ -45,6 +45,12 @@ class WebTestCase(unittest.TestCase):
         class Backend:
             get_resource = resources.get
 
+            async def copy_collection(self, source_path, dest_path, overwrite=True):
+                raise NotImplementedError()
+
+            async def move_collection(self, source_path, dest_path, overwrite=True):
+                raise NotImplementedError()
+
         app = WebDAVApp(Backend())
         app.register_properties(properties)
         return app
