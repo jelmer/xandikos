@@ -2864,6 +2864,20 @@ class WebDAVApp:
         return ret
 
     async def _handle_request(self, request, environ, start_response=None):
+        # Handle remote user authentication
+        remote_user = None
+        if hasattr(request, "headers"):
+            # aiohttp request
+            remote_user = request.headers.get("X-Remote-User")
+
+        if "ORIGINAL_ENVIRON" in environ:
+            # WSGI request
+            remote_user = environ["ORIGINAL_ENVIRON"].get("HTTP_X_REMOTE_USER")
+
+        if remote_user and hasattr(self.backend, "set_principal"):
+            environ["REMOTE_USER"] = remote_user
+            self.backend.set_principal(remote_user)
+
         try:
             do = self.methods[request.method]
         except KeyError:
