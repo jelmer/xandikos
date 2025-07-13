@@ -2515,7 +2515,7 @@ class WebDAVApp:
 
     def _get_dav_features(self, resource):
         # TODO(jelmer): Support access-control
-        return [
+        features = [
             "1",
             "2",
             "3",
@@ -2527,6 +2527,21 @@ class WebDAVApp:
             "sync-collection",
             "quota",
         ]
+
+        # Add managed attachments feature if supported by the resource
+        supports_attachments = getattr(resource, "supports_managed_attachments", None)
+        if supports_attachments is not None and supports_attachments():
+            features.append("calendar-managed-attachments")
+        else:
+            collection = getattr(resource, "collection", None)
+            if collection is not None:
+                collection_supports = getattr(
+                    collection, "supports_managed_attachments", None
+                )
+                if collection_supports is not None and collection_supports():
+                    features.append("calendar-managed-attachments")
+
+        return features
 
     def _get_allowed_methods(self, request):
         """List of supported methods on this endpoint."""
