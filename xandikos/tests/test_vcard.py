@@ -158,7 +158,7 @@ class CardDAVFilterTests(unittest.TestCase):
         )  # Should not be in index keys
 
         keys = filter.index_keys()
-        self.assertEqual(sorted(keys), ["P=EMAIL", "P=FN"])
+        self.assertEqual(sorted(keys), [["P=EMAIL"], ["P=FN"]])
 
     def test_check_from_indexes(self):
         """Test checking from indexes."""
