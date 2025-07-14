@@ -1127,7 +1127,6 @@ class ICalendarFile(File):
     def validate(self) -> None:
         """Verify that file contents are valid."""
         cal = self.calendar
-        # TODO(jelmer): return the list of errors to the caller
         if cal.errors:
             raise InvalidFileContents(
                 self.content_type,
