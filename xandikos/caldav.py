@@ -484,14 +484,26 @@ def parse_filter(filter_el: ET.Element, cls):
     return cls
 
 
-async def calendar_from_resource(resource):
+async def calendar_from_resource(resource, start=None, end=None):
+    """Get calendar from resource, optionally with expansion.
+
+    Args:
+        resource: Calendar resource
+        start: Start datetime for expansion (optional)
+        end: End datetime for expansion (optional)
+
+    Returns:
+        Calendar object, expanded if start/end provided
+    """
     try:
         if resource.get_content_type() != "text/calendar":
             return None
     except KeyError:
         return None
     file = await resource.get_file()
-    return file.expanded_calendar
+    if start is not None or end is not None:
+        return file.get_expanded_calendar(start, end)
+    return file.calendar
 
 
 def extract_tzid(cal):
@@ -936,7 +948,8 @@ def extract_freebusy(comp, tzify):
 
 async def iter_freebusy(resources, start, end, tzify):
     async for href, resource in resources:
-        c = await calendar_from_resource(resource)
+        # For free/busy queries, expand recurring events within the query range
+        c = await calendar_from_resource(resource, start, end)
         if c is None:
             continue
         if c.name != "VCALENDAR":

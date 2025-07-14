@@ -48,6 +48,13 @@ PropTypes = Union[vText]
 
 TzifyFunction = Callable[[datetime], datetime]
 
+# Default expansion limits for recurring events
+# These match the server's declared min/max date-time properties
+MIN_EXPANSION_TIME = datetime(1, 1, 1, 0, 0, 0, tzinfo=timezone.utc)  # 00010101T000000Z
+MAX_EXPANSION_TIME = datetime(
+    9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc
+)  # 99991231T235959Z
+
 
 # TODO(jelmer): Populate this further based on
 # https://tools.ietf.org/html/rfc5545#3.3.11
@@ -985,7 +992,7 @@ class CalendarFilter(Filter):
 
         # Expand with time constraints if needed
         if time_range:
-            c = expand_calendar_rrule(file.calendar, time_range.start, time_range.end)
+            c = file.get_expanded_calendar(time_range.start, time_range.end)
         else:
             # For unbounded queries, use the original calendar without expansion
             # to avoid infinite expansion of recurring events
@@ -1009,6 +1016,14 @@ class CalendarFilter(Filter):
         return True
 
     def check_from_indexes(self, name: str, indexes: IndexDict) -> bool:
+        # Check if this filter involves time ranges that might affect recurring events
+        time_range = self._find_time_range()
+        if time_range is not None:
+            # For time-range queries, we cannot reliably use indexes alone
+            # since indexes don't contain expanded recurring events.
+            # Fall back to letting the store call the full check() method.
+            return True
+
         for child_filter in self.children:
             try:
                 if not child_filter.match_indexes(indexes, self.tzify):  # type: ignore
@@ -1041,7 +1056,6 @@ class ICalendarFile(File):
     def __init__(self, content, content_type) -> None:
         super().__init__(content, content_type)
         self._calendar = None
-        self._expanded_calendar = None
 
     def validate(self) -> None:
         """Verify that file contents are valid."""
@@ -1074,11 +1088,22 @@ class ICalendarFile(File):
                 ) from exc
         return self._calendar
 
-    @property
-    def expanded_calendar(self):
-        if self._expanded_calendar is None:
-            self._expanded_calendar = expand_calendar_rrule(self.calendar)
-        return self._expanded_calendar
+    def get_expanded_calendar(self, start=None, end=None):
+        """Get calendar with recurring events expanded within the given time range.
+
+        Args:
+            start: Start datetime for expansion (defaults to MIN_EXPANSION_TIME)
+            end: End datetime for expansion (defaults to MAX_EXPANSION_TIME)
+
+        Returns:
+            Calendar with recurring events expanded
+        """
+        if start is None:
+            start = MIN_EXPANSION_TIME
+        if end is None:
+            end = MAX_EXPANSION_TIME
+
+        return expand_calendar_rrule(self.calendar, start, end)
 
     def describe_delta(self, name, previous):
         try:
@@ -1122,7 +1147,11 @@ class ICalendarFile(File):
         raise KeyError
 
     def _get_index(self, key: IndexKey) -> IndexValueIterator:
-        todo = [(self.expanded_calendar, key.split("/"))]
+        # Use the original calendar without expansion for indexing
+        # This prevents infinite expansion of recurring events
+        # Note: This means indexes won't contain expanded recurring event instances
+        # Time-range queries will need to handle expansion at query time
+        todo = [(self.calendar, key.split("/"))]
         rest = []
         c: Component
         while todo:

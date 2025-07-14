@@ -21,6 +21,7 @@
 
 import configparser
 import errno
+import functools
 import logging
 import os
 import shutil
@@ -226,6 +227,37 @@ class GitStore(Store):
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid: dict[str, tuple[str, str]] = {}
+
+        # Cache parsed files by blob SHA - avoids reparsing identical content
+        self._parsed_file_cache = functools.lru_cache(maxsize=100)(
+            self._parse_file_by_sha
+        )
+
+    def _parse_file_by_sha(self, sha: str, content_type: Optional[str], name: str):
+        """Parse a file by its SHA, used for caching."""
+        blob = self.repo.object_store[sha.encode("ascii")]
+        if content_type is None:
+            return open_by_extension(
+                blob.chunked,
+                name,
+                extra_file_handlers=self.extra_file_handlers,
+            )
+        else:
+            return open_by_content_type(
+                blob.chunked,
+                content_type,
+                extra_file_handlers=self.extra_file_handlers,
+            )
+
+    def get_file(
+        self, name: str, content_type: Optional[str] = None, etag: Optional[str] = None
+    ):
+        """Get file with caching based on blob SHA."""
+        if etag is None:
+            etag = self._get_etag(name)
+
+        # Use cached parsing based on blob SHA
+        return self._parsed_file_cache(etag, content_type, name)
 
     def _get_etag(self, name: str) -> str:
         raise NotImplementedError(self._get_etag)
