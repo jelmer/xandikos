@@ -56,9 +56,21 @@ MAX_EXPANSION_TIME = datetime(
 )  # 99991231T235959Z
 
 
-# TODO(jelmer): Populate this further based on
-# https://tools.ietf.org/html/rfc5545#3.3.11
-_INVALID_CONTROL_CHARACTERS = ["\x0c", "\x01"]
+# Based on RFC5545 section 3.3.11, CONTROL = %x00-08 / %x0A-1F / %x7F
+# All control characters except HTAB (\x09) are forbidden
+_INVALID_CONTROL_CHARACTERS = (
+    [
+        chr(i)
+        for i in range(0x00, 0x09)  # \x00-\x08
+    ]
+    + [
+        chr(i)
+        for i in range(0x0A, 0x20)  # \x0A-\x1F
+    ]
+    + [
+        chr(0x7F)  # DEL character
+    ]
+)
 
 
 class MissingProperty(Exception):
