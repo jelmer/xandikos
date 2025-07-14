@@ -37,7 +37,7 @@ from icalendar.prop import (
     vText,
 )
 
-from xandikos.store import File, Filter, InvalidFileContents
+from xandikos.store import File, Filter, InvalidFileContents, InsufficientIndexDataError
 
 from . import collation as _mod_collation
 from .store.index import IndexDict, IndexKey, IndexValue, IndexValueIterator
@@ -621,11 +621,21 @@ class ComponentTimeRangeMatcher:
         return component_handler(self.start, self.end, comp, tzify)
 
     def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
+        # Check if we have RRULE - if so, expand and test occurrences
+        rrule_values = indexes.get("P=RRULE")
+        if rrule_values and rrule_values[0]:
+            return self._match_indexes_with_rrule(indexes, tzify)
+
+        # Original logic for non-recurring events
         vs: list[dict[str, Optional[vDDDTypes]]] = []
-        # TODO(jelmer): If the recurring events are a bit odd - e.g.
-        # some have DTEND, some have DURATION, then this may break
-        i = 0
-        while True:
+        # Handle edge case where recurring events have inconsistent DTEND/DURATION properties
+        # by finding the maximum number of occurrences across all properties
+        max_occurrences = 0
+        for name, values in indexes.items():
+            if name and name.startswith("P=") and name[2:] in self.all_props:
+                max_occurrences = max(max_occurrences, len(values))
+
+        for i in range(max_occurrences):
             d: dict[str, Optional[vDDDTypes]] = {}
             for name, values in indexes.items():
                 if not name:
@@ -635,6 +645,8 @@ class ComponentTimeRangeMatcher:
                     try:
                         value = values[i]
                     except IndexError:
+                        # This property doesn't have a value at this index
+                        # This is expected when events have inconsistent properties
                         continue
                     else:
                         if isinstance(value, bool):
@@ -647,10 +659,9 @@ class ComponentTimeRangeMatcher:
                             d[field] = vDDDTypes(
                                 vDDDTypes.from_ical(value.decode("utf-8"))
                             )
-            if not d:
-                break
-            vs.append(d)
-            i += 1
+            # Include any entry that has time properties
+            if d:
+                vs.append(d)
 
         try:
             component_handler = self.component_handlers[self.comp]
@@ -658,14 +669,165 @@ class ComponentTimeRangeMatcher:
             logging.warning("unknown component %r in time-range filter", self.comp)
             return False
 
+        # If we have no valid entries from indexes, raise exception to indicate
+        # that we cannot determine the result from index data alone
+        if not vs:
+            raise InsufficientIndexDataError(
+                "No valid index entries found for time-range filtering"
+            )
+
         for v in vs:
             if component_handler(self.start, self.end, v, tzify):
                 return True
         return False
 
+    def _match_indexes_with_rrule(self, indexes: SubIndexDict, tzify: TzifyFunction):
+        """Handle time-range matching for recurring events using RRULE expansion."""
+        # Extract and validate RRULE and DTSTART from indexes
+        rrule_values = indexes.get("P=RRULE", [])
+        dtstart_values = indexes.get("P=DTSTART", [])
+
+        if (
+            not rrule_values
+            or not dtstart_values
+            or not rrule_values[0]
+            or not dtstart_values[0]
+        ):
+            return False
+
+        def decode_bytes(value: bytes, field_name: str) -> str:
+            if not isinstance(value, bytes):
+                raise TypeError(f"Expected bytes for {field_name}, got {type(value)}")
+            return value.decode("utf-8")
+
+        # Type narrowing: we've checked these are not None/False above
+        rrule_value = rrule_values[0]
+        dtstart_value = dtstart_values[0]
+        assert isinstance(rrule_value, bytes)
+        assert isinstance(dtstart_value, bytes)
+
+        try:
+            rrule_str = decode_bytes(rrule_value, "RRULE")
+            dtstart_str = decode_bytes(dtstart_value, "DTSTART")
+
+            # Parse DTSTART and create rrule
+            dtstart_parsed = vDDDTypes.from_ical(dtstart_str)
+            rrule = dateutil.rrule.rrulestr(rrule_str, dtstart=dtstart_parsed)
+        except (TypeError, ValueError) as e:
+            # If RRULE parsing fails, log and return False
+            logging.warning("Failed to parse RRULE in time-range filter: %s", e)
+            return False
+
+        # Get component handler for testing occurrences
+        try:
+            component_handler = self.component_handlers[self.comp]
+        except KeyError:
+            logging.warning("unknown component %r in time-range filter", self.comp)
+            return False
+
+        # Calculate event duration for boundary adjustment
+        event_duration = self._calculate_event_duration(
+            indexes, dtstart_parsed, decode_bytes
+        )
+
+        # Generate occurrences within the time range
+        query_start = self.start - (event_duration or timedelta(0))
+        occurrences = self._get_occurrences_in_range(
+            rrule, dtstart_parsed, query_start, self.end
+        )
+
+        # Test each occurrence against the time range
+        return self._test_occurrences(
+            occurrences,
+            indexes,
+            event_duration,
+            component_handler,
+            tzify,
+            decode_bytes,
+        )
+
+    def _calculate_event_duration(
+        self, indexes: SubIndexDict, dtstart_parsed, decode_bytes
+    ):
+        """Calculate event duration from DURATION or DTEND properties."""
+        duration_values = indexes.get("P=DURATION", [])
+        dtend_values = indexes.get("P=DTEND", [])
+
+        if duration_values and duration_values[0]:
+            duration_value = duration_values[0]
+            if isinstance(duration_value, bytes):
+                duration_str = decode_bytes(duration_value, "DURATION")
+                return vDuration.from_ical(duration_str)
+        elif dtend_values and dtend_values[0]:
+            dtend_value = dtend_values[0]
+            if isinstance(dtend_value, bytes):
+                dtend_str = decode_bytes(dtend_value, "DTEND")
+                dtend_parsed_val = vDDDTypes.from_ical(dtend_str)
+                if isinstance(dtstart_parsed, datetime) and isinstance(
+                    dtend_parsed_val, datetime
+                ):
+                    return dtend_parsed_val - dtstart_parsed
+        return None
+
+    def _get_occurrences_in_range(self, rrule, dtstart_parsed, query_start, query_end):
+        """Generate RRULE occurrences within the specified time range."""
+        if isinstance(dtstart_parsed, date) and not isinstance(
+            dtstart_parsed, datetime
+        ):
+            # For date-only events, convert query bounds to datetime at midnight
+            query_start_dt = datetime.combine(query_start.date(), time())
+            query_end_dt = datetime.combine(query_end.date(), time()) + timedelta(
+                days=1
+            )
+            return list(rrule.between(query_start_dt, query_end_dt, inc=True))
+        else:
+            return list(rrule.between(query_start, query_end, inc=True))
+
+    def _test_occurrences(
+        self,
+        occurrences,
+        indexes,
+        event_duration,
+        component_handler,
+        tzify,
+        decode_bytes,
+    ):
+        """Test each occurrence against the time range filter."""
+
+        class MockProperty:
+            def __init__(self, dt_value):
+                self.dt = dt_value
+
+        duration_values = indexes.get("P=DURATION", [])
+
+        for occurrence in occurrences:
+            # Create occurrence dictionary for component handler
+            if isinstance(occurrence, date) and not isinstance(occurrence, datetime):
+                occurrence_dt = datetime.combine(occurrence, time()).replace(
+                    tzinfo=timezone.utc
+                )
+                occurrence_dict = {"DTSTART": MockProperty(occurrence_dt)}
+            else:
+                occurrence_dict = {"DTSTART": MockProperty(occurrence)}
+
+            # Add DTEND or DURATION to the occurrence
+            if duration_values and duration_values[0]:
+                duration_value = duration_values[0]
+                if isinstance(duration_value, bytes):
+                    duration_str = decode_bytes(duration_value, "DURATION")
+                    duration_obj = vDuration.from_ical(duration_str)
+                    occurrence_dict["DURATION"] = MockProperty(duration_obj)
+            elif event_duration:
+                occurrence_dict["DTEND"] = MockProperty(occurrence + event_duration)
+
+            # Test this occurrence against the time range
+            if component_handler(self.start, self.end, occurrence_dict, tzify):
+                return True
+        return False
+
     def index_keys(self) -> list[list[str]]:
         if self.comp == "VEVENT":
-            props = ["DTSTART", "DTEND", "DURATION"]
+            props = ["DTSTART", "DTEND", "DURATION", "RRULE"]
         elif self.comp == "VTODO":
             props = ["DTSTART", "DUE", "DURATION", "CREATED", "COMPLETED"]
         elif self.comp == "VJOURNAL":
@@ -854,6 +1016,8 @@ class ComponentFilter:
                 return False
 
         if not self._implicitly_defined():
+            if myindex not in indexes:
+                raise InsufficientIndexDataError(f"Missing component index: {myindex}")
             return bool(indexes[myindex])
 
         return True
@@ -1078,14 +1242,6 @@ class CalendarFilter(Filter):
         return True
 
     def check_from_indexes(self, name: str, indexes: IndexDict) -> bool:
-        # Check if this filter involves time ranges that might affect recurring events
-        time_range = self._find_time_range()
-        if time_range is not None:
-            # For time-range queries, we cannot reliably use indexes alone
-            # since indexes don't contain expanded recurring events.
-            # Fall back to letting the store call the full check() method.
-            return True
-
         for child_filter in self.children:
             try:
                 if not child_filter.match_indexes(indexes, self.tzify):  # type: ignore
@@ -1122,7 +1278,6 @@ class ICalendarFile(File):
     def validate(self) -> None:
         """Verify that file contents are valid."""
         cal = self.calendar
-        # TODO(jelmer): return the list of errors to the caller
         if cal.errors:
             raise InvalidFileContents(
                 self.content_type,
@@ -1210,9 +1365,7 @@ class ICalendarFile(File):
 
     def _get_index(self, key: IndexKey) -> IndexValueIterator:
         # Use the original calendar without expansion for indexing
-        # This prevents infinite expansion of recurring events
-        # Note: This means indexes won't contain expanded recurring event instances
-        # Time-range queries will need to handle expansion at query time
+        # RRULE expansion will be handled at query time in match_indexes()
         todo = [(self.calendar, key.split("/"))]
         rest = []
         c: Component
@@ -1224,7 +1377,6 @@ class ICalendarFile(File):
                         todo.extend((comp, segments[1:]) for comp in c.subcomponents)
                     else:
                         rest.append((c, segments[1:]))
-
         for c, segments in rest:
             if not segments:
                 yield True

@@ -252,6 +252,16 @@ class InvalidFileContents(Exception):
         self.error = error
 
 
+class InsufficientIndexDataError(Exception):
+    """Raised when index data is insufficient for filtering.
+
+    This indicates that the filter cannot determine whether a resource matches
+    based solely on index data, and a full file check is required.
+    """
+
+    pass
+
+
 class OutOfSpaceError(Exception):
     """Out of disk space."""
 
@@ -347,8 +357,13 @@ class Store:
                     )
                     file_values = {}
                 self.index.add_values(name, etag, file_values)
-                if filter.check_from_indexes(name, file_values):
-                    yield (name, file, etag)
+                try:
+                    if filter.check_from_indexes(name, file_values):
+                        yield (name, file, etag)
+                except InsufficientIndexDataError:
+                    # Fallback to full file check when index data is insufficient
+                    if filter.check(name, file):
+                        yield (name, file, etag)
             else:
                 if file_values is None:
                     continue
@@ -358,17 +373,26 @@ class Store:
                         raise AssertionError(
                             f"{file_values!r} != {file.get_indexes(keys)!r}"
                         )
-                    if filter.check_from_indexes(name, file_values) != filter.check(
-                        name, file
-                    ):
-                        raise AssertionError(
-                            f"index based filter {filter} "
-                            f"(values: {file_values}) not matching "
-                            "real file filter"
-                        )
-                if filter.check_from_indexes(name, file_values):
-                    file = self.get_file(name, content_type, etag)
-                    yield (name, file, etag)
+                    try:
+                        index_result = filter.check_from_indexes(name, file_values)
+                        file_result = filter.check(name, file)
+                        if index_result != file_result:
+                            raise AssertionError(
+                                f"index based filter {filter} "
+                                f"(values: {file_values}) not matching "
+                                "real file filter"
+                            )
+                    except InsufficientIndexDataError:
+                        # Index data insufficient - this is expected in some cases
+                        pass
+                try:
+                    if filter.check_from_indexes(name, file_values):
+                        file = self.get_file(name, content_type, etag)
+                        yield (name, file, etag)
+                except InsufficientIndexDataError:
+                    # Fallback to full file check when index data is insufficient
+                    if filter.check(name, file):
+                        yield (name, file, etag)
 
     def get_file(
         self,
