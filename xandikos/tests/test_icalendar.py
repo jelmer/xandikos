@@ -415,9 +415,10 @@ class CalendarFilterTests(unittest.TestCase):
                 ["C=VCALENDAR/C=VTODO"],
             ],
         )
-        # With the new approach, time-range filters always return True from check_from_indexes
-        # to force fallback to the full check() method which handles expansion properly
-        self.assertTrue(
+        # With proper index-based filtering, this VTODO should NOT match the time range
+        # because CREATED (March 14) is after the time range end (March 10)
+        # According to RFC 4791: for VTODO with only CREATED, condition is end >= created.dt
+        self.assertFalse(
             filter.check_from_indexes(
                 "file",
                 {
@@ -430,8 +431,8 @@ class CalendarFilterTests(unittest.TestCase):
                 },
             )
         )
-        # Same here - time-range filter returns True to force fallback
-        self.assertTrue(
+        # Same logic applies for date-only CREATED value
+        self.assertFalse(
             filter.check_from_indexes(
                 "file",
                 {
@@ -470,20 +471,26 @@ class CalendarFilterTests(unittest.TestCase):
     def test_comp_apply_time_range_rrule(self):
         self.cal = ICalendarFile([EXAMPLE_VCALENDAR_RRULE], "text/calendar")
 
-        # With the new approach, indexes contain only original events, not expanded instances
-        # This prevents infinite expansion of recurring events
-        self.assertEqual(
-            self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DTSTART"]),
-            {
-                "C=VCALENDAR/C=VEVENT/P=DTSTART": [
-                    b"20150527T221952Z",  # Only the original event
-                ]
-            },
+        # With the new approach, indexes contain only original event data
+        # RRULE expansion happens at query time in match_indexes()
+        indexes = self.cal.get_indexes(
+            ["C=VCALENDAR/C=VEVENT/P=DTSTART", "C=VCALENDAR/C=VEVENT/P=RRULE"]
         )
+        dtstart_values = indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"]
+        rrule_values = indexes["C=VCALENDAR/C=VEVENT/P=RRULE"]
 
+        # Should contain only the original event in indexes
+        self.assertEqual(len(dtstart_values), 1)
+        self.assertEqual(dtstart_values[0], b"20150527T221952Z")
+
+        # Should have RRULE information for expansion at query time
+        self.assertEqual(len(rrule_values), 1)
+        self.assertEqual(rrule_values[0], b"FREQ=YEARLY;UNTIL=20180314T223512Z")
+
+        # DURATION doesn't need expansion since it's the same for all instances
         self.assertEqual(
             self.cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DURATION"]),
-            {"C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"]},  # Only the original duration
+            {"C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"]},
         )
 
         filter = CalendarFilter(ZoneInfo("UTC"))
@@ -499,16 +506,18 @@ class CalendarFilterTests(unittest.TestCase):
                 ["C=VCALENDAR/C=VEVENT/P=DTSTART"],
                 ["C=VCALENDAR/C=VEVENT/P=DTEND"],
                 ["C=VCALENDAR/C=VEVENT/P=DURATION"],
+                ["C=VCALENDAR/C=VEVENT/P=RRULE"],
                 ["C=VCALENDAR/C=VEVENT"],
             ],
         )
-        # With the new approach, time-range filters always return True to force fallback
-        self.assertTrue(
+        # With proper index-based filtering, this should return False
+        # because DTSTART (2014-03-14) is before the time range (2015-03 to 2016-03)
+        self.assertFalse(
             filter.check_from_indexes(
                 "file",
                 {
                     "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20140314T223512Z"],
-                    "C=VCALENDAR/C=VEVENT": True,
+                    "C=VCALENDAR/C=VEVENT": [True],
                     "C=VCALENDAR/C=VEVENT/P=DTEND": [],
                     "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"],
                 },
@@ -581,15 +590,16 @@ class CalendarFilterTests(unittest.TestCase):
             end=self._tzify(datetime(2014, 12, 31, 0, 0, 0)),
         )
 
-        # With the new approach, time-range filters always return True to force fallback
-        # Also, indexes would contain only original events, not expanded ones
+        # With the new approach, RRULE expansion determines the correct result from indexes
+        # Indexes contain only original events and RRULE, not expanded ones
         indexes = {
             "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20150527T221952Z"],  # Only original
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=YEARLY;UNTIL=20180314T223512Z"],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"],  # Only original
             "C=VCALENDAR/C=VEVENT": True,
         }
-        self.assertTrue(filter.check_from_indexes("file", indexes))
+        self.assertFalse(filter.check_from_indexes("file", indexes))
 
         # Also test with the actual calendar
         self.assertFalse(filter.check("file", self.cal))
@@ -716,6 +726,7 @@ END:VCALENDAR
         indexes = {
             "C=VCALENDAR/C=VEVENT/P=DTSTART": expected_dtstart,
             "C=VCALENDAR/C=VEVENT/P=DTEND": expected_dtend,
+            "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=YEARLY;COUNT=3"],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
         }
@@ -823,6 +834,7 @@ END:VCALENDAR
         indexes = {
             "C=VCALENDAR/C=VEVENT/P=DTSTART": expected_dtstart,
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=YEARLY;COUNT=3"],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
         }
@@ -871,12 +883,9 @@ END:VCALENDAR
         indexes = {
             "C=VCALENDAR/C=VEVENT/P=DTSTART": expected_dtstart,
             "C=VCALENDAR/C=VEVENT/P=DTEND": [
-                b"20150527T110000Z",
-                b"20150603T110000Z",
-                b"20150610T110000Z",
-                b"20150617T110000Z",
-                b"20150624T110000Z",
-            ],
+                b"20150527T110000Z"
+            ],  # Only original event
+            "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=WEEKLY;COUNT=5;BYDAY=WE"],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
         }
@@ -896,14 +905,17 @@ END:VCALENDAR
             end=self._tzify(datetime(2016, 5, 28, 0, 0, 0)),
         )
 
-        # With the new approach, time-range filters always return True to force fallback
+        # With the new approach, insufficient index data raises an exception
         empty_indexes = {
             "C=VCALENDAR/C=VEVENT/P=DTSTART": [],
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
         }
-        self.assertTrue(filter.check_from_indexes("file", empty_indexes))
+        from xandikos.store import InsufficientIndexDataError
+
+        with self.assertRaises(InsufficientIndexDataError):
+            filter.check_from_indexes("file", empty_indexes)
 
         # Test with partial indexes (missing component marker)
         missing_component_indexes = {
@@ -912,9 +924,12 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"],
             # Missing "C=VCALENDAR/C=VEVENT": True
         }
-        # With the new approach, time-range filters always return True regardless of indexes
-        result = filter.check_from_indexes("file", missing_component_indexes)
-        self.assertTrue(result)  # Time-range filters force fallback
+        # Missing component marker should also raise an exception
+        with self.assertRaises(InsufficientIndexDataError):
+            filter.check_from_indexes("file", missing_component_indexes)
+
+        # Verify that the full file check still works correctly
+        self.assertTrue(filter.check("file", self.cal))
 
     def test_rrule_index_based_filtering_mixed_types(self):
         """Test rrule filtering with mixed datetime and date types in indexes."""
