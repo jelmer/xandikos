@@ -697,7 +697,7 @@ END:VCALENDAR
 
         # With the new approach, indexes contain only original events, not expanded instances
         expected_dtstart = [b"20150527T100000Z"]  # Only the original event
-        expected_dtend = [b"20150527T120000Z"]     # Only the original end time
+        expected_dtend = [b"20150527T120000Z"]  # Only the original end time
 
         self.assertEqual(
             dtstart_indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"], expected_dtstart
