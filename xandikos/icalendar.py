@@ -622,10 +622,14 @@ class ComponentTimeRangeMatcher:
 
     def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
         vs: list[dict[str, Optional[vDDDTypes]]] = []
-        # TODO(jelmer): If the recurring events are a bit odd - e.g.
-        # some have DTEND, some have DURATION, then this may break
-        i = 0
-        while True:
+        # Handle edge case where recurring events have inconsistent DTEND/DURATION properties
+        # by finding the maximum number of occurrences across all properties
+        max_occurrences = 0
+        for name, values in indexes.items():
+            if name and name.startswith("P=") and name[2:] in self.all_props:
+                max_occurrences = max(max_occurrences, len(values))
+
+        for i in range(max_occurrences):
             d: dict[str, Optional[vDDDTypes]] = {}
             for name, values in indexes.items():
                 if not name:
@@ -635,6 +639,8 @@ class ComponentTimeRangeMatcher:
                     try:
                         value = values[i]
                     except IndexError:
+                        # This property doesn't have a value at this index
+                        # This is expected when events have inconsistent properties
                         continue
                     else:
                         if isinstance(value, bool):
@@ -647,10 +653,9 @@ class ComponentTimeRangeMatcher:
                             d[field] = vDDDTypes(
                                 vDDDTypes.from_ical(value.decode("utf-8"))
                             )
-            if not d:
-                break
-            vs.append(d)
-            i += 1
+            # Only include entries that have at least DTSTART (required for time range checks)
+            if d.get("DTSTART"):
+                vs.append(d)
 
         try:
             component_handler = self.component_handlers[self.comp]
