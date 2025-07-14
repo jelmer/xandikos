@@ -28,14 +28,13 @@ import shutil
 import stat
 import uuid
 from io import BytesIO, StringIO
-from typing import Optional
+from typing import Optional, cast
 from collections.abc import Iterable
 
 import dulwich.repo
-from dulwich.file import FileLocked, GitFile
-from dulwich.index import Index, index_entry_from_stat, write_index_dict
+from dulwich.file import FileLocked
+from dulwich.index import IndexEntry, index_entry_from_stat, locked_index
 from dulwich.objects import Blob, Tree
-from dulwich.pack import SHA1Writer
 
 from . import (
     DEFAULT_MIME_TYPE,
@@ -182,28 +181,6 @@ class RepoCollectionMetadata(CollectionMetadata):
             order = ""
         config.set(b"xandikos", b"calendar-order", order.encode("utf-8"))
         self._write_config(config)
-
-
-class locked_index:
-    def __init__(self, path) -> None:
-        self._path = path
-
-    def __enter__(self):
-        self._file = GitFile(self._path, "wb")
-        self._index = Index(self._path)
-        return self._index
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type is not None:
-            self._file.abort()
-            return
-        try:
-            f = SHA1Writer(self._file)
-            write_index_dict(f, self._index._byname)
-        except BaseException:
-            self._file.abort()
-        else:
-            f.close()
 
 
 class GitStore(Store):
@@ -777,7 +754,13 @@ class TreeGitStore(GitStore):
                 st = os.lstat(p)
                 blob = Blob.from_string(b"".join(data))
                 encoded_name = name.encode(DEFAULT_ENCODING)
-                if encoded_name not in index or blob.id != index[encoded_name].sha:
+                try:
+                    entry = index[encoded_name]
+                except KeyError:
+                    entry = None
+                if entry is None or (
+                    isinstance(entry, IndexEntry) and blob.id != entry.sha
+                ):
                     self.repo.object_store.add_object(blob)
                     index[encoded_name] = index_entry_from_stat(st, blob.id)
                     self._commit_tree(
@@ -791,7 +774,13 @@ class TreeGitStore(GitStore):
                 raise OutOfSpaceError() from exc
             raise
 
-    def delete_one(self, name, message=None, author=None, etag=None):
+    def delete_one(
+        self,
+        name: str,
+        message: Optional[str] = None,
+        author: Optional[str] = None,
+        etag: Optional[str] = None,
+    ) -> None:
         """Delete an item.
 
         Args:
@@ -806,7 +795,8 @@ class TreeGitStore(GitStore):
         p = os.path.join(self.repo.path, name)
         try:
             with open(p, "rb") as f:
-                current_blob = Blob.from_string(f.read())
+                # cast to Blob, because on dulwich < 0.24.0 Blob.from_string returns ShaFile
+                current_blob = cast(Blob, Blob.from_string(f.read()))
         except FileNotFoundError as exc:
             raise NoSuchItem(name) from exc
         except IsADirectoryError as exc:
@@ -829,7 +819,7 @@ class TreeGitStore(GitStore):
         except FileLocked:
             raise LockedError(name)
 
-    def get_ctag(self):
+    def get_ctag(self) -> str:
         """Return the ctag for this store."""
         index = self.repo.open_index()
         return index.commit(self.repo.object_store).decode("ascii")

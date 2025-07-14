@@ -293,7 +293,7 @@ class CardDAVFilter(Filter):
 
     content_type = "text/vcard"
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.property_filters: list[PropertyFilter] = []
         self.test = any  # default test mode is "anyof"
 
