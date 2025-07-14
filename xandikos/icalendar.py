@@ -277,6 +277,56 @@ def describe_calendar_delta(old_cal, new_cal):
                     old_value.lower() if old_value else "none",
                     new_value.lower() if new_value else "none",
                 )
+            elif field.upper() == "PRIORITY":
+                yield "changed priority of {} from {} to {}".format(
+                    description,
+                    old_value if old_value else "none",
+                    new_value if new_value else "none",
+                )
+            elif field.upper() == "CATEGORIES":
+                yield "changed categories of {} from {} to {}".format(
+                    description,
+                    old_value if old_value else "none",
+                    new_value if new_value else "none",
+                )
+            elif field.upper() == "URL":
+                yield "changed URL of {} to {}".format(
+                    description,
+                    new_value if new_value else "none",
+                )
+            elif field.upper() == "ORGANIZER":
+                yield "changed organizer of {} to {}".format(
+                    description,
+                    new_value if new_value else "none",
+                )
+            elif field.upper() == "ATTENDEE":
+                yield f"modified attendees for {description}"
+            elif field.upper() == "RRULE":
+                yield f"changed recurrence rule for {description}"
+            elif field.upper() == "EXDATE":
+                yield f"modified exception dates for {description}"
+            elif field.upper() == "RDATE":
+                yield f"modified recurrence dates for {description}"
+            elif field.upper() == "DURATION":
+                yield "changed duration of {} from {} to {}".format(
+                    description,
+                    old_value.dt if old_value else "none",
+                    new_value.dt if new_value else "none",
+                )
+            elif field.upper() == "TRANSP":
+                transparency_map = {
+                    "OPAQUE": "busy",
+                    "TRANSPARENT": "free",
+                }
+                yield "changed transparency of {} from {} to {}".format(
+                    description,
+                    transparency_map.get(
+                        old_value.upper() if old_value else "", old_value or "none"
+                    ),
+                    transparency_map.get(
+                        new_value.upper() if new_value else "", new_value or "none"
+                    ),
+                )
             else:
                 yield f"modified field {field} in {description}"
                 logging.debug(
