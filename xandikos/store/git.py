@@ -52,8 +52,8 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
-from .config import FILENAME as CONFIG_FILENAME
-from .config import CollectionMetadata, FileBasedCollectionMetadata
+from .config import CONFIG_FILENAME
+from .config import CollectionMetadata, FileBasedCollectionMetadata, is_metadata_file
 from .index import MemoryIndex
 
 DEFAULT_ENCODING = "utf-8"
@@ -610,7 +610,7 @@ class BareGitStore(GitStore):
                 raise InvalidCTag(ctag) from exc
         for name, mode, sha in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
-            if name == CONFIG_FILENAME:
+            if is_metadata_file(name):
                 continue
             yield (name, mode, sha)
 
@@ -749,6 +749,8 @@ class TreeGitStore(GitStore):
         try:
             with locked_index(self.repo.index_path()) as index:
                 p = os.path.join(self.repo.path, name)
+                # Create directory if it doesn't exist
+                os.makedirs(os.path.dirname(p), exist_ok=True)
                 with open(p, "wb") as f:
                     f.writelines(data)
                 st = os.lstat(p)
@@ -836,14 +838,14 @@ class TreeGitStore(GitStore):
                 raise InvalidCTag(ctag) from exc
             for name, mode, sha in tree.iteritems():
                 name = name.decode(DEFAULT_ENCODING)
-                if name == CONFIG_FILENAME:
+                if is_metadata_file(name):
                     continue
                 yield (name, mode, sha)
         else:
             index = self.repo.open_index()
             for name, sha, mode in index.iterobjects():
                 name = name.decode(DEFAULT_ENCODING)
-                if name == CONFIG_FILENAME:
+                if is_metadata_file(name):
                     continue
                 yield (name, mode, sha)
 
@@ -854,7 +856,7 @@ class TreeGitStore(GitStore):
         """
         ret = []
         for name in os.listdir(self.path):
-            if name == dulwich.repo.CONTROLDIR:
+            if name == dulwich.repo.CONTROLDIR or is_metadata_file(name):
                 continue
             p = os.path.join(self.path, name)
             if os.path.isdir(p):

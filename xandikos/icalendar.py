@@ -553,6 +553,46 @@ def apply_time_range_valarm(start, end, comp, tzify):
     return False
 
 
+def apply_time_range_vavailability(start, end, comp, tzify):
+    """Check if VAVAILABILITY overlaps with the given time range.
+
+    According to RFC 7953, section 7.2.2, a VAVAILABILITY component overlaps
+    a time range based on DTSTART, DTEND, and DURATION properties.
+    """
+    dtstart = comp.get("DTSTART")
+    dtend = comp.get("DTEND")
+    duration = comp.get("DURATION")
+
+    # Case 1: Both DTSTART and DTEND are present
+    if dtstart and dtend:
+        return start < tzify(dtend.dt) and end > tzify(dtstart.dt)
+
+    # Case 2: DTSTART and DURATION are present
+    if dtstart and duration:
+        dtend_calc = tzify(dtstart.dt) + duration.dt
+        return start < dtend_calc and end > tzify(dtstart.dt)
+
+    # Case 3: Only DTSTART is present
+    if dtstart:
+        return end > tzify(dtstart.dt)
+
+    # Case 4: Only DTEND is present
+    if dtend:
+        return start < tzify(dtend.dt)
+
+    # Case 5: No time properties - always matches
+    return True
+
+
+def apply_time_range_available(start, end, comp, tzify):
+    """Check if AVAILABLE subcomponent overlaps with the given time range.
+
+    AVAILABLE components within VAVAILABILITY follow similar rules to VAVAILABILITY.
+    """
+    # Same logic as VAVAILABILITY
+    return apply_time_range_vavailability(start, end, comp, tzify)
+
+
 class PropertyTimeRangeMatcher:
     def __init__(self, start: datetime, end: datetime) -> None:
         self.start = start
@@ -597,6 +637,8 @@ class ComponentTimeRangeMatcher:
         "VJOURNAL": apply_time_range_vjournal,
         "VFREEBUSY": apply_time_range_vfreebusy,
         "VALARM": apply_time_range_valarm,
+        "VAVAILABILITY": apply_time_range_vavailability,
+        "AVAILABLE": apply_time_range_available,
     }
 
     def __init__(self, start, end, comp=None) -> None:
@@ -1480,6 +1522,8 @@ def _event_overlaps_range(comp: Component, start, end) -> bool:
         "VJOURNAL": apply_time_range_vjournal,
         "VFREEBUSY": apply_time_range_vfreebusy,
         "VALARM": apply_time_range_valarm,
+        "VAVAILABILITY": apply_time_range_vavailability,
+        "AVAILABLE": apply_time_range_available,
     }
 
     if comp.name and comp.name in component_handlers:

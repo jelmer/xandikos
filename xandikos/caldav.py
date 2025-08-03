@@ -24,6 +24,7 @@ https://tools.ietf.org/html/rfc4791
 
 import datetime
 import itertools
+import logging
 from zoneinfo import ZoneInfo
 
 from icalendar.cal import Calendar as ICalendar
@@ -33,10 +34,13 @@ from icalendar.prop import vDDDTypes, vPeriod
 from . import davcommon, webdav
 from .icalendar import (
     apply_time_range_vevent,
+    apply_time_range_vavailability,
     as_tz_aware_ts,
     expand_calendar_rrule,
     limit_calendar_recurrence_set,
 )
+
+logger = logging.getLogger(__name__)
 
 ET = webdav.ET
 
@@ -100,6 +104,22 @@ class Calendar(webdav.Collection):
         VTIMEZONE component.
         """
         raise NotImplementedError(self.set_calendar_timezone)
+
+    def get_calendar_availability(self) -> str:
+        """Return calendar availability.
+
+        This should be an iCalendar object with one or more
+        VAVAILABILITY components.
+        """
+        raise NotImplementedError(self.get_calendar_availability)
+
+    def set_calendar_availability(self, content: str) -> None:
+        """Set calendar availability.
+
+        This should be an iCalendar object with one or more
+        VAVAILABILITY components.
+        """
+        raise NotImplementedError(self.set_calendar_availability)
 
     def get_supported_calendar_components(self) -> str:
         """Return set of supported calendar components in this calendar.
@@ -699,6 +719,26 @@ class CalendarTimezoneProperty(webdav.Property):
             resource.set_calendar_timezone(None)
 
 
+class CalendarAvailabilityProperty(webdav.Property):
+    """calendar-availability property.
+
+    See https://tools.ietf.org/html/rfc7953, section 5.1
+    """
+
+    name = "{urn:ietf:params:xml:ns:caldav}calendar-availability"
+    resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
+    in_allprops = False
+
+    async def get_value(self, href, resource, el, environ):
+        el.text = resource.get_calendar_availability()
+
+    async def set_value(self, href, resource, el):
+        if el is not None:
+            resource.set_calendar_availability(el.text)
+        else:
+            resource.set_calendar_availability(None)
+
+
 class MinDateTimeProperty(webdav.Property):
     """min-date-time property.
 
@@ -946,7 +986,322 @@ def extract_freebusy(comp, tzify):
     return ret
 
 
+def extract_availability_periods(vavail_comp, tzify, start, end):
+    """Extract busy and free periods from a VAVAILABILITY component.
+
+    Args:
+        vavail_comp: VAVAILABILITY component
+        tzify: Function to convert datetime to UTC
+        start: Query start time
+        end: Query end time
+
+    Yields:
+        vPeriod objects representing busy/free periods
+    """
+    # Get the overall availability time range
+    dtstart = vavail_comp.get("DTSTART")
+    dtend = vavail_comp.get("DTEND")
+    duration = vavail_comp.get("DURATION")
+
+    if not dtstart:
+        return
+
+    avail_start = tzify(dtstart.dt)
+
+    if dtend:
+        avail_end = tzify(dtend.dt)
+    elif duration:
+        avail_end = avail_start + duration.dt
+    else:
+        # No end time, availability continues indefinitely
+        avail_end = end
+
+    # Check if availability period overlaps with query range
+    if avail_end <= start or avail_start >= end:
+        return
+
+    # Clip to query range
+    period_start = max(avail_start, start)
+    period_end = min(avail_end, end)
+
+    # Get the default busy type from BUSYTYPE property
+    busytype = vavail_comp.get("BUSYTYPE", "BUSY-UNAVAILABLE")
+
+    # First, yield the overall period as busy (will be overridden by AVAILABLE subcomponents)
+    busy_period = vPeriod((period_start, period_end))
+    if busytype != "BUSY":
+        busy_period.params["FBTYPE"] = busytype
+    yield ("BUSY", busy_period)
+
+    # Process AVAILABLE subcomponents to mark free time
+    for subcomp in vavail_comp.subcomponents:
+        if subcomp.name == "AVAILABLE":
+            sub_dtstart = subcomp.get("DTSTART")
+            sub_dtend = subcomp.get("DTEND")
+            sub_duration = subcomp.get("DURATION")
+
+            if not sub_dtstart:
+                continue
+
+            sub_start = tzify(sub_dtstart.dt)
+
+            if sub_dtend:
+                sub_end = tzify(sub_dtend.dt)
+            elif sub_duration:
+                sub_end = sub_start + sub_duration.dt
+            else:
+                # No end time for AVAILABLE period
+                continue
+
+            # Check if AVAILABLE period overlaps with query range and availability range
+            if sub_end <= max(period_start, start) or sub_start >= min(period_end, end):
+                continue
+
+            # Clip to both query range and availability range
+            free_start = max(sub_start, period_start, start)
+            free_end = min(sub_end, period_end, end)
+
+            # Yield free period
+            free_period = vPeriod((free_start, free_end))
+            yield ("FREE", free_period)
+
+
+def process_vavailability_components(components, start, end, tzify):
+    """Process VAVAILABILITY components according to RFC 7953 priority rules.
+
+    This implements the algorithm from RFC 7953 section 4.4:
+    1. Initially mark the entire period as free
+    2. Process VAVAILABILITY in priority order (lowest to highest)
+    3. Apply AVAILABLE subcomponents to mark free time
+    4. Return the resulting busy/free periods
+
+    Args:
+        components: List of VAVAILABILITY components
+        start: Query start time (UTC)
+        end: Query end time (UTC)
+        tzify: Function to convert datetime to UTC
+
+    Returns:
+        List of (start, end, fbtype) tuples representing busy/free periods
+    """
+    # Create a timeline to track busy/free periods
+    # Each entry is (start_time, end_time, fbtype, priority)
+    timeline = []
+
+    # Sort components by priority (0=undefined, 9=lowest, 1=highest)
+    # Process from lowest priority to highest so higher priority can override
+    def get_priority(comp):
+        priority = comp.get("PRIORITY", 0)
+        if isinstance(priority, int):
+            parsed_priority = priority
+        elif isinstance(priority, str):
+            try:
+                parsed_priority = int(priority)
+            except ValueError:
+                logger.warning("Invalid PRIORITY value %r, defaulting to 0", priority)
+                return 0  # Default to undefined priority
+        else:
+            # It's an iCalendar property value
+            try:
+                parsed_priority = int(priority.to_ical().decode("utf-8"))
+            except ValueError:
+                logger.warning("Invalid PRIORITY value %r, defaulting to 0", priority)
+                return 0  # Default to undefined priority
+
+        # Check priority range (RFC 7953: 1-9, 0=undefined)
+        if parsed_priority < 0 or parsed_priority > 9:
+            logger.warning("Invalid PRIORITY value %r, defaulting to 0", priority)
+            return 0
+
+        return parsed_priority
+
+    sorted_components = sorted(components, key=get_priority, reverse=True)
+
+    for vavail in sorted_components:
+        priority = get_priority(vavail)
+
+        # Get the overall availability time range
+        dtstart = vavail.get("DTSTART")
+        dtend = vavail.get("DTEND")
+        duration = vavail.get("DURATION")
+
+        if not dtstart:
+            continue
+
+        avail_start = tzify(dtstart.dt)
+
+        if dtend:
+            avail_end = tzify(dtend.dt)
+        elif duration:
+            avail_end = avail_start + duration.dt
+        else:
+            # No end time, availability continues indefinitely
+            avail_end = end
+
+        # Check if availability period overlaps with query range
+        if avail_end <= start or avail_start >= end:
+            continue
+
+        # Clip to query range
+        period_start = max(avail_start, start)
+        period_end = min(avail_end, end)
+
+        # Get the default busy type from BUSYTYPE property
+        busytype = vavail.get("BUSYTYPE", "BUSY-UNAVAILABLE")
+        if isinstance(busytype, str):
+            pass  # Already a string
+        else:
+            # It's an iCalendar property value
+            busytype = str(busytype)
+
+        # Add this busy period to timeline (may override lower priority periods)
+        _add_period_to_timeline(timeline, period_start, period_end, busytype, priority)
+
+        # Process AVAILABLE subcomponents to mark free time
+        for subcomp in vavail.subcomponents:
+            if subcomp.name == "AVAILABLE":
+                sub_dtstart = subcomp.get("DTSTART")
+                sub_dtend = subcomp.get("DTEND")
+                sub_duration = subcomp.get("DURATION")
+
+                if not sub_dtstart:
+                    continue
+
+                sub_start = tzify(sub_dtstart.dt)
+
+                if sub_dtend:
+                    sub_end = tzify(sub_dtend.dt)
+                elif sub_duration:
+                    sub_end = sub_start + sub_duration.dt
+                else:
+                    # No end time for AVAILABLE period
+                    continue
+
+                # Check if AVAILABLE period overlaps with query range and availability range
+                if sub_end <= max(period_start, start) or sub_start >= min(
+                    period_end, end
+                ):
+                    continue
+
+                # Clip to both query range and availability range
+                free_start = max(sub_start, period_start, start)
+                free_end = min(sub_end, period_end, end)
+
+                # Mark this period as free (same priority as parent VAVAILABILITY)
+                _add_period_to_timeline(
+                    timeline, free_start, free_end, "FREE", priority
+                )
+
+    # Convert timeline to final periods
+    return _timeline_to_periods(timeline)
+
+
+def _add_period_to_timeline(timeline, start, end, fbtype, priority):
+    """Add a period to the timeline, handling overlaps based on priority.
+
+    Higher priority periods override lower priority ones.
+    For same priority, busy types are ordered: BUSY > BUSY-UNAVAILABLE > BUSY-TENTATIVE > FREE
+    """
+    # Busy type precedence for same priority
+    fbtype_precedence = {
+        "BUSY": 4,
+        "BUSY-UNAVAILABLE": 3,
+        "BUSY-TENTATIVE": 2,
+        "FREE": 1,
+    }
+
+    if not timeline:
+        timeline.append((start, end, fbtype, priority))
+        return
+
+    new_timeline = []
+    current_start = start
+    current_end = end
+
+    for p_start, p_end, p_fbtype, p_priority in timeline:
+        # No overlap with current period
+        if p_end <= current_start or p_start >= current_end:
+            new_timeline.append((p_start, p_end, p_fbtype, p_priority))
+            continue
+
+        # There is overlap - determine which takes precedence
+        # Special case: FREE periods from AVAILABLE always override busy periods at same priority
+        if priority == p_priority and fbtype == "FREE" and p_fbtype != "FREE":
+            new_has_precedence = True
+        else:
+            new_has_precedence = priority < p_priority or (
+                priority == p_priority
+                and fbtype_precedence.get(fbtype, 0)
+                > fbtype_precedence.get(p_fbtype, 0)
+            )
+
+        if new_has_precedence:
+            # New period takes precedence in overlap region
+            # Keep non-overlapping parts of existing period
+            if p_start < current_start:
+                new_timeline.append((p_start, current_start, p_fbtype, p_priority))
+            if p_end > current_end:
+                new_timeline.append((current_end, p_end, p_fbtype, p_priority))
+        else:
+            # Existing period takes precedence
+            # Add the existing period
+            new_timeline.append((p_start, p_end, p_fbtype, p_priority))
+
+            # Adjust current period to exclude overlap
+            if p_start <= current_start < p_end <= current_end:
+                # Existing covers start of new period
+                current_start = p_end
+            elif current_start < p_start < current_end <= p_end:
+                # Existing covers end of new period
+                current_end = p_start
+            elif p_start <= current_start and p_end >= current_end:
+                # Existing completely covers new period
+                current_start = current_end  # Mark as consumed
+            elif current_start < p_start and p_end < current_end:
+                # Existing is in middle of new period - split needed
+                # Add first part of new period
+                new_timeline.append((current_start, p_start, fbtype, priority))
+                current_start = p_end  # Continue with remainder
+
+    # Add any remaining part of the new period
+    if current_start < current_end:
+        new_timeline.append((current_start, current_end, fbtype, priority))
+
+    # Sort by start time
+    timeline.clear()
+    timeline.extend(sorted(new_timeline, key=lambda x: x[0]))
+
+
+def _timeline_to_periods(timeline):
+    """Convert timeline to final periods, merging adjacent periods with same fbtype."""
+    if not timeline:
+        return []
+
+    periods = []
+    current_start, current_end, current_fbtype, _ = timeline[0]
+
+    for start, end, fbtype, _ in timeline[1:]:
+        if start == current_end and fbtype == current_fbtype:
+            # Extend current period
+            current_end = end
+        else:
+            # Save current period and start new one
+            if current_fbtype != "FREE":  # Don't return FREE periods
+                periods.append((current_start, current_end, current_fbtype))
+            current_start, current_end, current_fbtype = start, end, fbtype
+
+    # Save last period
+    if current_fbtype != "FREE":
+        periods.append((current_start, current_end, current_fbtype))
+
+    return periods
+
+
 async def iter_freebusy(resources, start, end, tzify):
+    # Collect all VAVAILABILITY components first for priority-based processing
+    vavailability_components = []
+    event_periods = []
+
     async for href, resource in resources:
         # For free/busy queries, expand recurring events within the query range
         c = await calendar_from_resource(resource, start, end)
@@ -959,7 +1314,28 @@ async def iter_freebusy(resources, start, end, tzify):
                 if apply_time_range_vevent(start, end, comp, tzify):
                     vp = extract_freebusy(comp, tzify)
                     if vp is not None:
-                        yield vp
+                        event_periods.append(vp)
+            elif comp.name == "VAVAILABILITY":
+                # Collect VAVAILABILITY components for priority-based processing
+                if apply_time_range_vavailability(start, end, comp, tzify):
+                    vavailability_components.append(comp)
+
+    # Process VAVAILABILITY components according to RFC 7953 priority rules
+    if vavailability_components:
+        availability_periods = process_vavailability_components(
+            vavailability_components, start, end, tzify
+        )
+
+        # Convert availability periods to vPeriod objects
+        for period_start, period_end, fbtype in availability_periods:
+            period = vPeriod((period_start, period_end))
+            if fbtype != "BUSY":
+                period.params["FBTYPE"] = fbtype
+            yield period
+
+    # Yield event periods (these override availability)
+    for period in event_periods:
+        yield period
 
 
 class FreeBusyQueryReporter(webdav.Reporter):

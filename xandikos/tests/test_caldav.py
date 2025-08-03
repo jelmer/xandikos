@@ -18,14 +18,15 @@
 # MA  02110-1301, USA.
 
 import unittest
+from datetime import datetime, timezone
 from wsgiref.util import setup_testing_defaults
 
-from icalendar.cal import Calendar as ICalendar
+from icalendar.cal import Calendar as ICalendar, Component
 
 from xandikos import caldav
 from xandikos.tests import test_webdav
 
-from ..caldav import CalendarDataProperty
+from ..caldav import CalendarDataProperty, process_vavailability_components
 from ..webdav import ET, Property, WebDAVApp
 
 
@@ -622,3 +623,454 @@ END:VCALENDAR
         # Should raise AssertionError for invalid time range
         with self.assertRaises(AssertionError):
             caldav.extract_from_calendar(incal, self.requested)
+
+
+class ProcessVavailabilityComponentsTests(unittest.TestCase):
+    """Tests for priority-based VAVAILABILITY processing."""
+
+    def _tzify(self, dt):
+        """Convert datetime to UTC."""
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    def test_single_vavailability(self):
+        """Test processing a single VAVAILABILITY component."""
+        vavail = Component()
+        vavail.name = "VAVAILABILITY"
+        vavail.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+        vavail.add("DTEND", datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc))
+        vavail.add("BUSYTYPE", "BUSY-UNAVAILABLE")
+
+        start = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 1, 18, 0, tzinfo=timezone.utc)
+
+        periods = process_vavailability_components([vavail], start, end, self._tzify)
+
+        self.assertEqual(len(periods), 1)
+        self.assertEqual(
+            periods[0],
+            (
+                datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc),
+                "BUSY-UNAVAILABLE",
+            ),
+        )
+
+    def test_vavailability_with_available(self):
+        """Test VAVAILABILITY with AVAILABLE subcomponents."""
+        vavail = Component()
+        vavail.name = "VAVAILABILITY"
+        vavail.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+        vavail.add("DTEND", datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc))
+        vavail.add("BUSYTYPE", "BUSY-UNAVAILABLE")
+
+        # Add AVAILABLE period from 12:00 to 13:00
+        available = Component()
+        available.name = "AVAILABLE"
+        available.add("DTSTART", datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc))
+        available.add("DTEND", datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc))
+        vavail.add_component(available)
+
+        start = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 1, 18, 0, tzinfo=timezone.utc)
+
+        periods = process_vavailability_components([vavail], start, end, self._tzify)
+
+        # Should have two busy periods with a gap for the available time
+        self.assertEqual(len(periods), 2)
+        self.assertEqual(
+            periods[0],
+            (
+                datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+                "BUSY-UNAVAILABLE",
+            ),
+        )
+        self.assertEqual(
+            periods[1],
+            (
+                datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc),
+                "BUSY-UNAVAILABLE",
+            ),
+        )
+
+    def test_priority_override(self):
+        """Test higher priority VAVAILABILITY overriding lower priority."""
+        # Low priority (9) - busy all day
+        vavail_low = Component()
+        vavail_low.name = "VAVAILABILITY"
+        vavail_low.add("DTSTART", datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc))
+        vavail_low.add("DTEND", datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc))
+        vavail_low.add("BUSYTYPE", "BUSY-UNAVAILABLE")
+        vavail_low.add("PRIORITY", 9)
+
+        # High priority (1) - available 9-17
+        vavail_high = Component()
+        vavail_high.name = "VAVAILABILITY"
+        vavail_high.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+        vavail_high.add("DTEND", datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc))
+        vavail_high.add("BUSYTYPE", "BUSY")
+        vavail_high.add("PRIORITY", 1)
+
+        start = datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc)
+
+        periods = process_vavailability_components(
+            [vavail_low, vavail_high], start, end, self._tzify
+        )
+
+        # Should have three periods: unavailable, busy, unavailable
+        self.assertEqual(len(periods), 3)
+        self.assertEqual(
+            periods[0],
+            (
+                datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
+                "BUSY-UNAVAILABLE",
+            ),
+        )
+        self.assertEqual(
+            periods[1],
+            (
+                datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc),
+                "BUSY",
+            ),
+        )
+        self.assertEqual(
+            periods[2],
+            (
+                datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc),
+                "BUSY-UNAVAILABLE",
+            ),
+        )
+
+    def test_same_priority_fbtype_precedence(self):
+        """Test that BUSY > BUSY-UNAVAILABLE > BUSY-TENTATIVE for same priority."""
+        # Two components with same priority but different BUSYTYPE
+        vavail1 = Component()
+        vavail1.name = "VAVAILABILITY"
+        vavail1.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+        vavail1.add("DTEND", datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc))
+        vavail1.add("BUSYTYPE", "BUSY-TENTATIVE")
+        vavail1.add("PRIORITY", 5)
+
+        vavail2 = Component()
+        vavail2.name = "VAVAILABILITY"
+        vavail2.add("DTSTART", datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc))
+        vavail2.add("DTEND", datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc))
+        vavail2.add("BUSYTYPE", "BUSY")
+        vavail2.add("PRIORITY", 5)
+
+        start = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc)
+
+        periods = process_vavailability_components(
+            [vavail1, vavail2], start, end, self._tzify
+        )
+
+        # BUSY should override BUSY-TENTATIVE for the overlapping period
+        self.assertEqual(len(periods), 3)
+        self.assertEqual(periods[0][2], "BUSY-TENTATIVE")  # 9-10
+        self.assertEqual(periods[1][2], "BUSY")  # 10-11
+        self.assertEqual(periods[2][2], "BUSY-TENTATIVE")  # 11-12
+
+    def test_invalid_priority_values(self):
+        """Test handling of invalid PRIORITY values with logging."""
+        # Capture log output
+        with self.assertLogs("xandikos.caldav", level="WARNING") as cm:
+            # Test string that can't be converted to int (simulate malformed input)
+            vavail1 = Component()
+            vavail1.name = "VAVAILABILITY"
+            vavail1.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+            vavail1.add("DTEND", datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc))
+            vavail1.add("BUSYTYPE", "BUSY")
+            # Manually add invalid priority to bypass icalendar validation
+            vavail1["PRIORITY"] = "invalid"
+
+            # Test out-of-range priority (> 9)
+            vavail2 = Component()
+            vavail2.name = "VAVAILABILITY"
+            vavail2.add("DTSTART", datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc))
+            vavail2.add("DTEND", datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc))
+            vavail2.add("BUSYTYPE", "BUSY-UNAVAILABLE")
+            vavail2.add("PRIORITY", 15)
+
+            # Test negative priority
+            vavail3 = Component()
+            vavail3.name = "VAVAILABILITY"
+            vavail3.add("DTSTART", datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc))
+            vavail3.add("DTEND", datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc))
+            vavail3.add("BUSYTYPE", "BUSY-TENTATIVE")
+            vavail3.add("PRIORITY", -5)
+
+            start = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+            end = datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc)
+
+            periods = process_vavailability_components(
+                [vavail1, vavail2, vavail3], start, end, self._tzify
+            )
+
+        # Should have warnings for all three invalid priorities (called twice each: sorting + processing)
+        self.assertEqual(len(cm.output), 6)
+        for output in cm.output:
+            self.assertIn("Invalid PRIORITY value", output)
+
+        # All should default to priority 0 (highest) so should appear in order
+        self.assertEqual(len(periods), 3)
+        self.assertEqual(periods[0][2], "BUSY")  # 9-10
+        self.assertEqual(periods[1][2], "BUSY-UNAVAILABLE")  # 10-11
+        self.assertEqual(periods[2][2], "BUSY-TENTATIVE")  # 11-12
+
+    def test_available_edge_cases(self):
+        """Test AVAILABLE subcomponent edge cases."""
+        # VAVAILABILITY from 9-17, but AVAILABLE extends beyond
+        vavail = Component()
+        vavail.name = "VAVAILABILITY"
+        vavail.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+        vavail.add("DTEND", datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc))
+        vavail.add("BUSYTYPE", "BUSY")
+
+        # AVAILABLE period that extends beyond parent (16:00-18:00)
+        available1 = Component()
+        available1.name = "AVAILABLE"
+        available1.add("DTSTART", datetime(2024, 1, 1, 16, 0, tzinfo=timezone.utc))
+        available1.add("DTEND", datetime(2024, 1, 1, 18, 0, tzinfo=timezone.utc))
+        vavail.add_component(available1)
+
+        # AVAILABLE period completely outside parent (7:00-8:00)
+        available2 = Component()
+        available2.name = "AVAILABLE"
+        available2.add("DTSTART", datetime(2024, 1, 1, 7, 0, tzinfo=timezone.utc))
+        available2.add("DTEND", datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc))
+        vavail.add_component(available2)
+
+        # Multiple overlapping AVAILABLE periods (10:00-12:00 and 11:00-13:00)
+        available3 = Component()
+        available3.name = "AVAILABLE"
+        available3.add("DTSTART", datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc))
+        available3.add("DTEND", datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc))
+        vavail.add_component(available3)
+
+        available4 = Component()
+        available4.name = "AVAILABLE"
+        available4.add("DTSTART", datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc))
+        available4.add("DTEND", datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc))
+        vavail.add_component(available4)
+
+        start = datetime(2024, 1, 1, 6, 0, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 1, 20, 0, tzinfo=timezone.utc)
+
+        periods = process_vavailability_components([vavail], start, end, self._tzify)
+
+        # Should have:
+        # 1. 9:00-10:00 BUSY
+        # 2. 13:00-16:00 BUSY (after the overlapping AVAILABLE periods)
+        # No period for AVAILABLE outside parent range
+        # AVAILABLE beyond parent is clipped to parent boundary
+        self.assertEqual(len(periods), 2)
+        self.assertEqual(
+            periods[0],
+            (
+                datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+                "BUSY",
+            ),
+        )
+        self.assertEqual(
+            periods[1],
+            (
+                datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 16, 0, tzinfo=timezone.utc),
+                "BUSY",
+            ),
+        )
+
+    def test_missing_busytype(self):
+        """Test handling of missing BUSYTYPE property."""
+        vavail = Component()
+        vavail.name = "VAVAILABILITY"
+        vavail.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+        vavail.add("DTEND", datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc))
+        # No BUSYTYPE property
+
+        start = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 1, 18, 0, tzinfo=timezone.utc)
+
+        periods = process_vavailability_components([vavail], start, end, self._tzify)
+
+        # Should default to BUSY-UNAVAILABLE
+        self.assertEqual(len(periods), 1)
+        self.assertEqual(periods[0][2], "BUSY-UNAVAILABLE")
+
+    def test_complex_priority_scenarios(self):
+        """Test complex priority scenarios with 3+ overlapping components."""
+        # Priority 9 (lowest) - all day unavailable
+        vavail1 = Component()
+        vavail1.name = "VAVAILABILITY"
+        vavail1.add("DTSTART", datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc))
+        vavail1.add("DTEND", datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc))
+        vavail1.add("BUSYTYPE", "BUSY-UNAVAILABLE")
+        vavail1.add("PRIORITY", 9)
+
+        # Priority 5 (medium) - working hours tentative
+        vavail2 = Component()
+        vavail2.name = "VAVAILABILITY"
+        vavail2.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+        vavail2.add("DTEND", datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc))
+        vavail2.add("BUSYTYPE", "BUSY-TENTATIVE")
+        vavail2.add("PRIORITY", 5)
+
+        # Priority 3 (higher) - lunch hour busy
+        vavail3 = Component()
+        vavail3.name = "VAVAILABILITY"
+        vavail3.add("DTSTART", datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc))
+        vavail3.add("DTEND", datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc))
+        vavail3.add("BUSYTYPE", "BUSY")
+        vavail3.add("PRIORITY", 3)
+
+        # Priority 1 (highest) - important meeting
+        vavail4 = Component()
+        vavail4.name = "VAVAILABILITY"
+        vavail4.add("DTSTART", datetime(2024, 1, 1, 14, 0, tzinfo=timezone.utc))
+        vavail4.add("DTEND", datetime(2024, 1, 1, 15, 0, tzinfo=timezone.utc))
+        vavail4.add("BUSYTYPE", "BUSY")
+        vavail4.add("PRIORITY", 1)
+
+        start = datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc)
+
+        periods = process_vavailability_components(
+            [vavail1, vavail2, vavail3, vavail4], start, end, self._tzify
+        )
+
+        # Expected timeline:
+        # 00:00-09:00 BUSY-UNAVAILABLE (pri 9)
+        # 09:00-12:00 BUSY-TENTATIVE (pri 5)
+        # 12:00-13:00 BUSY (pri 3)
+        # 13:00-14:00 BUSY-TENTATIVE (pri 5)
+        # 14:00-15:00 BUSY (pri 1)
+        # 15:00-17:00 BUSY-TENTATIVE (pri 5)
+        # 17:00-24:00 BUSY-UNAVAILABLE (pri 9)
+        self.assertEqual(len(periods), 7)
+        self.assertEqual(periods[0][2], "BUSY-UNAVAILABLE")  # 00:00-09:00
+        self.assertEqual(periods[1][2], "BUSY-TENTATIVE")  # 09:00-12:00
+        self.assertEqual(periods[2][2], "BUSY")  # 12:00-13:00
+        self.assertEqual(periods[3][2], "BUSY-TENTATIVE")  # 13:00-14:00
+        self.assertEqual(periods[4][2], "BUSY")  # 14:00-15:00
+        self.assertEqual(periods[5][2], "BUSY-TENTATIVE")  # 15:00-17:00
+        self.assertEqual(periods[6][2], "BUSY-UNAVAILABLE")  # 17:00-24:00
+
+
+class CalendarAvailabilityPropertyTests(unittest.TestCase):
+    """Tests for CalendarAvailabilityProperty WebDAV property."""
+
+    def test_property_name(self):
+        """Test that the property has the correct name and namespace."""
+        from ..caldav import CalendarAvailabilityProperty
+
+        prop = CalendarAvailabilityProperty()
+        self.assertEqual(
+            prop.name, "{urn:ietf:params:xml:ns:caldav}calendar-availability"
+        )
+
+    def test_resource_type(self):
+        """Test that the property applies to the correct resource types."""
+        from ..caldav import (
+            CalendarAvailabilityProperty,
+            CALENDAR_RESOURCE_TYPE,
+            SCHEDULE_INBOX_RESOURCE_TYPE,
+        )
+
+        prop = CalendarAvailabilityProperty()
+        self.assertEqual(
+            prop.resource_type, (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
+        )
+
+    def test_not_in_allprops(self):
+        """Test that the property is not included in allprop queries."""
+        from ..caldav import CalendarAvailabilityProperty
+
+        prop = CalendarAvailabilityProperty()
+        self.assertFalse(prop.in_allprops)
+
+    def test_get_value(self):
+        """Test getting calendar availability from a resource."""
+        import asyncio
+        from ..caldav import CalendarAvailabilityProperty
+        from xml.etree import ElementTree as ET
+
+        class MockResource:
+            def get_calendar_availability(self):
+                return "BEGIN:VCALENDAR\nBEGIN:VAVAILABILITY\nEND:VAVAILABILITY\nEND:VCALENDAR"
+
+        async def run_test():
+            prop = CalendarAvailabilityProperty()
+            el = ET.Element("test")
+
+            await prop.get_value("/test", MockResource(), el, {})
+
+            return el.text
+
+        result = asyncio.run(run_test())
+        self.assertEqual(
+            result,
+            "BEGIN:VCALENDAR\nBEGIN:VAVAILABILITY\nEND:VAVAILABILITY\nEND:VCALENDAR",
+        )
+
+    def test_set_value_with_data(self):
+        """Test setting calendar availability on a resource."""
+        import asyncio
+        from ..caldav import CalendarAvailabilityProperty
+        from xml.etree import ElementTree as ET
+
+        class MockResource:
+            def __init__(self):
+                self.availability = None
+
+            def set_calendar_availability(self, data):
+                self.availability = data
+
+        async def run_test():
+            prop = CalendarAvailabilityProperty()
+            resource = MockResource()
+            el = ET.Element("test")
+            el.text = (
+                "BEGIN:VCALENDAR\nBEGIN:VAVAILABILITY\nEND:VAVAILABILITY\nEND:VCALENDAR"
+            )
+
+            await prop.set_value("/test", resource, el)
+
+            return resource.availability
+
+        result = asyncio.run(run_test())
+        self.assertEqual(
+            result,
+            "BEGIN:VCALENDAR\nBEGIN:VAVAILABILITY\nEND:VAVAILABILITY\nEND:VCALENDAR",
+        )
+
+    def test_set_value_with_none(self):
+        """Test setting calendar availability to None (removing it)."""
+        import asyncio
+        from ..caldav import CalendarAvailabilityProperty
+
+        class MockResource:
+            def __init__(self):
+                self.availability = "existing data"
+
+            def set_calendar_availability(self, data):
+                self.availability = data
+
+        async def run_test():
+            prop = CalendarAvailabilityProperty()
+            resource = MockResource()
+
+            await prop.set_value("/test", resource, None)
+
+            return resource.availability
+
+        result = asyncio.run(run_test())
+        self.assertEqual(result, None)

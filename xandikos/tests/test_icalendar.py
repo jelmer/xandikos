@@ -38,6 +38,8 @@ from ..icalendar import (
     _event_overlaps_range,
     apply_time_range_vevent,
     apply_time_range_valarm,
+    apply_time_range_vavailability,
+    apply_time_range_available,
     as_tz_aware_ts,
     expand_calendar_rrule,
     limit_calendar_recurrence_set,
@@ -1083,6 +1085,133 @@ class ApplyTimeRangeVeventTests(unittest.TestCase):
             datetime.now(timezone.utc),
             ev,
             self._tzify,
+        )
+
+
+class ApplyTimeRangeVavailabilityTests(unittest.TestCase):
+    def _tzify(self, dt):
+        return as_tz_aware_ts(dt, ZoneInfo("UTC"))
+
+    def test_vavailability_with_dtstart_dtend(self):
+        """Test VAVAILABILITY with DTSTART and DTEND."""
+        from icalendar.cal import Component
+
+        vavail = Component()
+        vavail.name = "VAVAILABILITY"
+        vavail.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+        vavail.add("DTEND", datetime(2024, 1, 1, 17, 0, tzinfo=timezone.utc))
+
+        # Time range that overlaps
+        self.assertTrue(
+            apply_time_range_vavailability(
+                datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc),
+                vavail,
+                self._tzify,
+            )
+        )
+
+        # Time range before availability
+        self.assertFalse(
+            apply_time_range_vavailability(
+                datetime(2024, 1, 1, 7, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc),
+                vavail,
+                self._tzify,
+            )
+        )
+
+        # Time range after availability
+        self.assertFalse(
+            apply_time_range_vavailability(
+                datetime(2024, 1, 1, 18, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 19, 0, tzinfo=timezone.utc),
+                vavail,
+                self._tzify,
+            )
+        )
+
+    def test_vavailability_with_dtstart_duration(self):
+        """Test VAVAILABILITY with DTSTART and DURATION."""
+        from icalendar.cal import Component
+
+        vavail = Component()
+        vavail.name = "VAVAILABILITY"
+        vavail.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+        vavail.add("DURATION", vDuration(timedelta(hours=8)))
+
+        # Time range that overlaps
+        self.assertTrue(
+            apply_time_range_vavailability(
+                datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc),
+                vavail,
+                self._tzify,
+            )
+        )
+
+    def test_vavailability_only_dtstart(self):
+        """Test VAVAILABILITY with only DTSTART."""
+        from icalendar.cal import Component
+
+        vavail = Component()
+        vavail.name = "VAVAILABILITY"
+        vavail.add("DTSTART", datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc))
+
+        # Any time range after dtstart should match
+        self.assertTrue(
+            apply_time_range_vavailability(
+                datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc),
+                vavail,
+                self._tzify,
+            )
+        )
+
+        # Time range before dtstart should not match
+        self.assertFalse(
+            apply_time_range_vavailability(
+                datetime(2024, 1, 1, 7, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc),
+                vavail,
+                self._tzify,
+            )
+        )
+
+    def test_vavailability_no_time_properties(self):
+        """Test VAVAILABILITY with no time properties."""
+        from icalendar.cal import Component
+
+        vavail = Component()
+        vavail.name = "VAVAILABILITY"
+
+        # Should always match when no time properties
+        self.assertTrue(
+            apply_time_range_vavailability(
+                datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc),
+                vavail,
+                self._tzify,
+            )
+        )
+
+    def test_available_subcomponent(self):
+        """Test AVAILABLE subcomponent time range filtering."""
+        from icalendar.cal import Component
+
+        available = Component()
+        available.name = "AVAILABLE"
+        available.add("DTSTART", datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc))
+        available.add("DTEND", datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc))
+
+        # Should use same logic as VAVAILABILITY
+        self.assertTrue(
+            apply_time_range_available(
+                datetime(2024, 1, 1, 12, 30, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 12, 45, tzinfo=timezone.utc),
+                available,
+                self._tzify,
+            )
         )
 
 

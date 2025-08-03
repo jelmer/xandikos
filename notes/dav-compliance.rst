@@ -369,6 +369,44 @@ rfc8144.txt (Prefer Header)
 Not supported. The Prefer header would allow clients to indicate preferences
 for server behavior (e.g., return=minimal for reduced response verbosity).
 
+rfc7953.txt (Calendar Availability)
+-----------------------------------
+
+Fully supported.
+
+This RFC extends CalDAV to support VAVAILABILITY components that define when
+a calendar user is available for scheduling. Availability information affects
+free/busy queries by marking time periods as busy or available with different
+priority levels.
+
+Supported Components
+^^^^^^^^^^^^^^^^^^^^
+
+- VAVAILABILITY [supported - time-range filtering, priority-based processing]
+- AVAILABLE [supported - marks free time within VAVAILABILITY periods]
+
+Supported Properties
+^^^^^^^^^^^^^^^^^^^^
+
+- BUSYTYPE [supported - BUSY, BUSY-UNAVAILABLE, BUSY-TENTATIVE]
+- PRIORITY [supported - 1-9 priority levels with proper precedence]
+
+DAV Properties
+^^^^^^^^^^^^^^
+
+- CALDAV:calendar-availability [supported]
+
+Free/Busy Integration
+^^^^^^^^^^^^^^^^^^^^^
+
+The implementation follows RFC 7953 section 4.4 for priority-based availability
+processing. Higher priority (lower number) VAVAILABILITY components override
+lower priority ones. For same priority levels, BUSYTYPE precedence is:
+BUSY > BUSY-UNAVAILABLE > BUSY-TENTATIVE > FREE.
+
+AVAILABLE subcomponents create free time periods within their parent 
+VAVAILABILITY component's busy time, following the same priority rules.
+
 Managed Attachments
 -------------------
 

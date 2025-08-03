@@ -568,7 +568,7 @@ class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
         self.store.set_color(color)
 
     def get_supported_calendar_components(self):
-        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
+        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"]
 
 
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
@@ -602,8 +602,82 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def set_calendar_timezone(self, content):
         raise NotImplementedError(self.set_calendar_timezone)
 
+    def _ensure_metadata_directory(self):
+        """Ensure .xandikos/ metadata directory exists, migrating from old .xandikos config file if needed."""
+        # Check if we already have the new directory structure by checking for config file
+        try:
+            self.store.get_file(".xandikos/config", "text/plain")
+            return  # Already migrated
+        except KeyError:
+            pass  # Need to migrate or create
+
+        # Check if we have the old .xandikos file that needs migration
+        old_config_content = None
+        try:
+            old_config_file = self.store.get_file(".xandikos", "text/plain")
+        except KeyError:
+            pass  # No old config file to migrate
+        else:
+            old_config_content = b"".join(old_config_file.content)
+            # Remove the old file
+            self.store.delete_one(".xandikos")
+
+        # Create .xandikos/ metadata directory by creating config file within it
+        if old_config_content:
+            # Migrate old config file content
+            content = [old_config_content]
+            message = "Migrate .xandikos config to metadata directory structure"
+        else:
+            # Create empty config file to establish the metadata directory
+            content = [b""]
+            message = "Create .xandikos metadata directory structure"
+
+        self.store.import_one(
+            ".xandikos/config", "text/plain", content, message=message
+        )
+
+    def get_calendar_availability(self):
+        """Get calendar availability from .xandikos/availability.ics file."""
+        try:
+            availability_file = self.store.get_file(
+                ".xandikos/availability.ics", "text/calendar"
+            )
+        except NoSuchItem:
+            raise KeyError
+
+        return b"".join(availability_file.content).decode("utf-8")
+
+    def set_calendar_availability(self, content):
+        """Set calendar availability by storing in .xandikos/availability.ics file."""
+        # Ensure .xandikos/ metadata directory exists (migrates config if needed)
+        self._ensure_metadata_directory()
+
+        if content is None:
+            # Remove availability
+            try:
+                self.store.delete_one(".xandikos/availability.ics")
+            except NoSuchItem:
+                pass  # Already removed
+        else:
+            # Validate that it's valid iCalendar data and normalize it
+            try:
+                from icalendar.cal import Calendar as ICalendar
+
+                cal = ICalendar.from_ical(content)
+            except (ValueError, UnicodeDecodeError, TypeError, KeyError) as e:
+                raise InvalidFileContents("text/calendar", content, e)
+
+            # Store the normalized form
+            normalized_content = cal.to_ical().decode("utf-8")
+            self.store.import_one(
+                ".xandikos/availability.ics",
+                "text/calendar",
+                [normalized_content.encode("utf-8")],
+                message="Update calendar availability",
+            )
+
     def get_supported_calendar_components(self):
-        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
+        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"]
 
     def get_supported_calendar_data_types(self):
         return [("text/calendar", "1.0"), ("text/calendar", "2.0")]
@@ -1228,6 +1302,7 @@ class XandikosApp(webdav.WebDAVApp):
                 sync.SyncTokenProperty(),
                 caldav.SupportedCalendarDataProperty(),
                 caldav.CalendarTimezoneProperty(),
+                caldav.CalendarAvailabilityProperty(),
                 caldav.MinDateTimeProperty(),
                 caldav.MaxDateTimeProperty(),
                 caldav.MaxResourceSizeProperty(),
