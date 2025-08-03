@@ -21,22 +21,31 @@
 
 import configparser
 
-FILENAME = ".xandikos"
-DIRECTORY = ".xandikos"
-CONFIG_FILE = ".xandikos/config"
-AVAILABILITY_FILE = ".xandikos/availability.ics"
+CONFIG_FILENAME = ".xandikos"  # Legacy config file name
+METADATA_DIRECTORY = ".xandikos"  # Metadata directory name
+CONFIG_FILE = ".xandikos/config"  # Config file within metadata directory
+AVAILABILITY_FILE = (
+    ".xandikos/availability.ics"  # Availability file within metadata directory
+)
 
 
-def is_config_file(name):
+def is_metadata_file(name):
     """Check if a file or directory should be ignored from collection listings.
+
+    This function identifies collection metadata files/directories that should be
+    hidden from regular collection operations.
 
     Args:
         name: File or directory name to check
 
     Returns:
-        True if the name represents a configuration file/directory that should be hidden
+        True if the name represents a metadata file/directory that should be hidden
     """
-    return name == FILENAME or name == DIRECTORY or name.startswith(DIRECTORY + "/")
+    return (
+        name == CONFIG_FILENAME
+        or name == METADATA_DIRECTORY
+        or name.startswith(METADATA_DIRECTORY + "/")
+    )
 
 
 class CollectionMetadata:

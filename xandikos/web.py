@@ -602,8 +602,8 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def set_calendar_timezone(self, content):
         raise NotImplementedError(self.set_calendar_timezone)
 
-    def _ensure_xandikos_directory(self):
-        """Ensure .xandikos/ directory exists, migrating from old .xandikos file if needed."""
+    def _ensure_metadata_directory(self):
+        """Ensure .xandikos/ metadata directory exists, migrating from old .xandikos config file if needed."""
         # Check if we already have the new directory structure by checking for config file
         try:
             self.store.get_file(".xandikos/config", "text/plain")
@@ -622,15 +622,15 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             # Remove the old file
             self.store.delete_one(".xandikos")
 
-        # Create .xandikos/ directory by creating a file within it
+        # Create .xandikos/ metadata directory by creating config file within it
         if old_config_content:
-            # Migrate old config
+            # Migrate old config file content
             content = [old_config_content]
-            message = "Migrate .xandikos config to directory structure"
+            message = "Migrate .xandikos config to metadata directory structure"
         else:
-            # Create empty config file to establish the directory
+            # Create empty config file to establish the metadata directory
             content = [b""]
-            message = "Create .xandikos directory structure"
+            message = "Create .xandikos metadata directory structure"
 
         self.store.import_one(
             ".xandikos/config", "text/plain", content, message=message
@@ -649,8 +649,8 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
     def set_calendar_availability(self, content):
         """Set calendar availability by storing in .xandikos/availability.ics file."""
-        # Ensure .xandikos/ directory exists (migrates if needed)
-        self._ensure_xandikos_directory()
+        # Ensure .xandikos/ metadata directory exists (migrates config if needed)
+        self._ensure_metadata_directory()
 
         if content is None:
             # Remove availability

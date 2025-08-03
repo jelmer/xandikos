@@ -24,7 +24,7 @@ from unittest import TestCase
 
 import dulwich.repo
 
-from ..store.config import FileBasedCollectionMetadata, is_config_file
+from ..store.config import FileBasedCollectionMetadata, is_metadata_file
 from ..store.git import RepoCollectionMetadata
 
 
@@ -141,46 +141,46 @@ class RepoMetadataTests(TestCase, MetadataTests):
         self._config = RepoCollectionMetadata(self._repo)
 
 
-class IsConfigFileTests(TestCase):
-    """Test the is_config_file() helper function."""
+class IsMetadataFileTests(TestCase):
+    """Test the is_metadata_file() helper function."""
 
     def test_old_config_file_detected(self):
-        """Test that the old .xandikos file is detected as a config file."""
-        self.assertTrue(is_config_file(".xandikos"))
+        """Test that the old .xandikos config file is detected as metadata."""
+        self.assertTrue(is_metadata_file(".xandikos"))
 
-    def test_new_config_directory_detected(self):
-        """Test that the new .xandikos directory is detected as a config file."""
-        self.assertTrue(is_config_file(".xandikos"))
+    def test_new_metadata_directory_detected(self):
+        """Test that the new .xandikos metadata directory is detected."""
+        self.assertTrue(is_metadata_file(".xandikos"))
 
     def test_regular_files_not_detected(self):
-        """Test that regular files are not detected as config files."""
-        self.assertFalse(is_config_file("event.ics"))
-        self.assertFalse(is_config_file("calendar.ics"))
-        self.assertFalse(is_config_file("todo.ics"))
-        self.assertFalse(is_config_file("README.md"))
-        self.assertFalse(is_config_file("config.txt"))
+        """Test that regular files are not detected as metadata files."""
+        self.assertFalse(is_metadata_file("event.ics"))
+        self.assertFalse(is_metadata_file("calendar.ics"))
+        self.assertFalse(is_metadata_file("todo.ics"))
+        self.assertFalse(is_metadata_file("README.md"))
+        self.assertFalse(is_metadata_file("config.txt"))
 
-    def test_config_subdirectory_files_detected(self):
-        """Test that files within .xandikos/ directory are detected as config files."""
-        self.assertTrue(is_config_file(".xandikos/config"))
-        self.assertTrue(is_config_file(".xandikos/availability.ics"))
-        self.assertTrue(is_config_file(".xandikos/any-other-file.txt"))
+    def test_metadata_subdirectory_files_detected(self):
+        """Test that files within .xandikos/ metadata directory are detected."""
+        self.assertTrue(is_metadata_file(".xandikos/config"))
+        self.assertTrue(is_metadata_file(".xandikos/availability.ics"))
+        self.assertTrue(is_metadata_file(".xandikos/any-other-file.txt"))
 
     def test_similar_names_not_detected(self):
-        """Test that similar but different names are not detected as config files."""
-        self.assertFalse(is_config_file("xandikos"))
-        self.assertFalse(is_config_file(".xandikos.bak"))
-        self.assertFalse(is_config_file(".xandikos_backup"))
-        self.assertFalse(is_config_file("my.xandikos"))
-        self.assertFalse(is_config_file(".xandikos.bak/config"))
-        self.assertFalse(is_config_file("something/.xandikos/config"))
+        """Test that similar but different names are not detected as metadata files."""
+        self.assertFalse(is_metadata_file("xandikos"))
+        self.assertFalse(is_metadata_file(".xandikos.bak"))
+        self.assertFalse(is_metadata_file(".xandikos_backup"))
+        self.assertFalse(is_metadata_file("my.xandikos"))
+        self.assertFalse(is_metadata_file(".xandikos.bak/config"))
+        self.assertFalse(is_metadata_file("something/.xandikos/config"))
 
     def test_empty_string_not_detected(self):
-        """Test that empty string is not detected as a config file."""
-        self.assertFalse(is_config_file(""))
+        """Test that empty string is not detected as a metadata file."""
+        self.assertFalse(is_metadata_file(""))
 
     def test_case_sensitivity(self):
         """Test that the function is case sensitive."""
-        self.assertFalse(is_config_file(".XANDIKOS"))
-        self.assertFalse(is_config_file(".Xandikos"))
-        self.assertFalse(is_config_file(".XandikoS"))
+        self.assertFalse(is_metadata_file(".XANDIKOS"))
+        self.assertFalse(is_metadata_file(".Xandikos"))
+        self.assertFalse(is_metadata_file(".XandikoS"))

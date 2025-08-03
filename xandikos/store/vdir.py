@@ -39,7 +39,7 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
-from .config import FILENAME as CONFIG_FILENAME
+from .config import CONFIG_FILENAME
 from .config import FileBasedCollectionMetadata
 from .index import MemoryIndex
 
