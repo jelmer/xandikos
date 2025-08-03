@@ -1789,15 +1789,38 @@ async def main(options, parser):
 
     import signal
 
-    # Set SIGINT to default handler; this appears to be necessary
-    # when running under coverage.
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    # Set up graceful shutdown handling
+    loop = asyncio.get_running_loop()
+    shutdown_event = asyncio.Event()
+
+    def signal_handler(signum, frame):
+        logging.info("Received signal %s, shutting down gracefully...", signum)
+        # Use call_soon_threadsafe to safely set the event from signal handler
+        loop.call_soon_threadsafe(shutdown_event.set)
+
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
 
     for site in sites:
         await site.start()
 
-    while True:
-        await asyncio.sleep(3600)
+    # Wait for shutdown signal
+    try:
+        await shutdown_event.wait()
+    except KeyboardInterrupt:
+        logging.info("Received KeyboardInterrupt, shutting down gracefully...")
+
+    # Cleanup: stop all sites and runners
+    logging.info("Stopping web servers...")
+    for site in sites:
+        await site.stop()
+
+    await runner.cleanup()
+    if metrics_app:
+        await metrics_runner.cleanup()
+
+    logging.info("Shutdown complete.")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+---
 version: "3.4"
 
 services:
@@ -5,6 +6,26 @@ services:
     image: ghcr.io/jelmer/xandikos
     ports:
       - 8000:8000
+      - 8001:8001  # Metrics port
     volumes:
       - /path/to/xandikos/data:/data
+    environment:
+      # Core settings (all optional - defaults shown)
+      # - PORT=8000
+      # - METRICS_PORT=8001
+      # - LISTEN_ADDRESS=0.0.0.0
+      # - DATA_DIR=/data
+      # - CURRENT_USER_PRINCIPAL=/user/
+      # - ROUTE_PREFIX=/
+
+      # Auto-create directories and default calendar/addressbook
+      - AUTOCREATE=true
+      - DEFAULTS=true
+
+      # Debug options
+      # - DEBUG=false
+      # - DUMP_DAV_XML=false
+
+      # Compatibility mode for buggy clients
+      # - NO_STRICT=false
     restart: unless-stopped
