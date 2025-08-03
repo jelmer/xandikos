@@ -22,6 +22,21 @@
 import configparser
 
 FILENAME = ".xandikos"
+DIRECTORY = ".xandikos"
+CONFIG_FILE = ".xandikos/config"
+AVAILABILITY_FILE = ".xandikos/availability.ics"
+
+
+def is_config_file(name):
+    """Check if a file or directory should be ignored from collection listings.
+
+    Args:
+        name: File or directory name to check
+
+    Returns:
+        True if the name represents a configuration file/directory that should be hidden
+    """
+    return name == FILENAME or name == DIRECTORY or name.startswith(DIRECTORY + "/")
 
 
 class CollectionMetadata:

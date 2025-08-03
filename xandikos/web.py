@@ -602,22 +602,60 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def set_calendar_timezone(self, content):
         raise NotImplementedError(self.set_calendar_timezone)
 
+    def _ensure_xandikos_directory(self):
+        """Ensure .xandikos/ directory exists, migrating from old .xandikos file if needed."""
+        # Check if we already have the new directory structure by checking for config file
+        try:
+            self.store.get_file(".xandikos/config", "text/plain")
+            return  # Already migrated
+        except KeyError:
+            pass  # Need to migrate or create
+
+        # Check if we have the old .xandikos file that needs migration
+        old_config_content = None
+        try:
+            old_config_file = self.store.get_file(".xandikos", "text/plain")
+        except KeyError:
+            pass  # No old config file to migrate
+        else:
+            old_config_content = b"".join(old_config_file.content)
+            # Remove the old file
+            self.store.delete_one(".xandikos")
+
+        # Create .xandikos/ directory by creating a file within it
+        if old_config_content:
+            # Migrate old config
+            content = [old_config_content]
+            message = "Migrate .xandikos config to directory structure"
+        else:
+            # Create empty config file to establish the directory
+            content = [b""]
+            message = "Create .xandikos directory structure"
+
+        self.store.import_one(
+            ".xandikos/config", "text/plain", content, message=message
+        )
+
     def get_calendar_availability(self):
-        """Get calendar availability from .availability.ics file."""
+        """Get calendar availability from .xandikos/availability.ics file."""
         try:
             availability_file = self.store.get_file(
-                ".availability.ics", "text/calendar"
+                ".xandikos/availability.ics", "text/calendar"
             )
-            return b"".join(availability_file.content).decode("utf-8")
         except NoSuchItem:
             raise KeyError
 
+        return b"".join(availability_file.content).decode("utf-8")
+
     def set_calendar_availability(self, content):
-        """Set calendar availability by storing in .availability.ics file."""
+        """Set calendar availability by storing in .xandikos/availability.ics file."""
+        # Ensure .xandikos/ directory exists (migrates if needed)
+        self._ensure_xandikos_directory()
+
         if content is None:
             # Remove availability
             try:
-                self.store.delete_one(".availability.ics")
+                self.store.delete_one(".xandikos/availability.ics")
             except NoSuchItem:
                 pass  # Already removed
         else:
@@ -626,16 +664,15 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
                 from icalendar.cal import Calendar as ICalendar
 
                 cal = ICalendar.from_ical(content)
-                # Store the normalized form
-                content = cal.to_ical().decode("utf-8")
             except (ValueError, UnicodeDecodeError, TypeError, KeyError) as e:
                 raise InvalidFileContents("text/calendar", content, e)
 
-            # Store the availability data
+            # Store the normalized form
+            normalized_content = cal.to_ical().decode("utf-8")
             self.store.import_one(
-                ".availability.ics",
+                ".xandikos/availability.ics",
                 "text/calendar",
-                [content.encode("utf-8")],
+                [normalized_content.encode("utf-8")],
                 message="Update calendar availability",
             )
 

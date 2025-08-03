@@ -1107,12 +1107,12 @@ def process_vavailability_components(components, start, end, tzify):
             except ValueError:
                 logger.warning("Invalid PRIORITY value %r, defaulting to 0", priority)
                 return 0  # Default to undefined priority
-        
+
         # Check priority range (RFC 7953: 1-9, 0=undefined)
         if parsed_priority < 0 or parsed_priority > 9:
             logger.warning("Invalid PRIORITY value %r, defaulting to 0", priority)
             return 0
-        
+
         return parsed_priority
 
     sorted_components = sorted(components, key=get_priority, reverse=True)
