@@ -24,6 +24,7 @@ The following standards are implemented:
 - :RFC:`5995` (POST to create members) - *fully implemented*
 - :RFC:`5689` (Extended MKCOL) - *fully implemented*
 - :RFC:`6578` (Collection Synchronization for WebDAV) - *fully implemented*
+- :RFC:`7953` (Calendar Availability) - *fully implemented*
 
 The following standards are not implemented:
 
@@ -33,7 +34,6 @@ The following standards are not implemented:
 - :RFC:`4709` (WebDAV Mount) - `intentionally <https://github.com/jelmer/xandikos/issues/48>`_ *not implemented*
 - :RFC:`5546` (iCal iTIP) - *not implemented*
 - :RFC:`4324` (iCAL CAP) - *not implemented*
-- :RFC:`7953` (iCal AVAILABILITY) - *not implemented*
 
 See `DAV compliance <notes/dav-compliance.rst>`_ for more detail on specification compliance.
 
