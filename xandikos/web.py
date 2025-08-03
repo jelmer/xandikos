@@ -568,7 +568,7 @@ class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
         self.store.set_color(color)
 
     def get_supported_calendar_components(self):
-        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
+        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"]
 
 
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
@@ -602,8 +602,15 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def set_calendar_timezone(self, content):
         raise NotImplementedError(self.set_calendar_timezone)
 
+    def get_calendar_availability(self):
+        # TODO(jelmer): Read from config
+        raise KeyError
+
+    def set_calendar_availability(self, content):
+        raise NotImplementedError(self.set_calendar_availability)
+
     def get_supported_calendar_components(self):
-        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"]
+        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"]
 
     def get_supported_calendar_data_types(self):
         return [("text/calendar", "1.0"), ("text/calendar", "2.0")]
@@ -1228,6 +1235,7 @@ class XandikosApp(webdav.WebDAVApp):
                 sync.SyncTokenProperty(),
                 caldav.SupportedCalendarDataProperty(),
                 caldav.CalendarTimezoneProperty(),
+                caldav.CalendarAvailabilityProperty(),
                 caldav.MinDateTimeProperty(),
                 caldav.MaxDateTimeProperty(),
                 caldav.MaxResourceSizeProperty(),

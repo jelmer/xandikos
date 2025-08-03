@@ -68,7 +68,7 @@ class CalendarCollectionTests(unittest.TestCase):
 
     def test_get_supported_calendar_components(self):
         self.assertEqual(
-            ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"],
+            ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"],
             self.cal.get_supported_calendar_components(),
         )
 
