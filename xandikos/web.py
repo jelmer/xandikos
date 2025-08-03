@@ -603,11 +603,41 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         raise NotImplementedError(self.set_calendar_timezone)
 
     def get_calendar_availability(self):
-        # TODO(jelmer): Read from config
-        raise KeyError
+        """Get calendar availability from .availability.ics file."""
+        try:
+            availability_file = self.store.get_file(
+                ".availability.ics", "text/calendar"
+            )
+            return b"".join(availability_file.content).decode("utf-8")
+        except NoSuchItem:
+            raise KeyError
 
     def set_calendar_availability(self, content):
-        raise NotImplementedError(self.set_calendar_availability)
+        """Set calendar availability by storing in .availability.ics file."""
+        if content is None:
+            # Remove availability
+            try:
+                self.store.delete_one(".availability.ics")
+            except NoSuchItem:
+                pass  # Already removed
+        else:
+            # Validate that it's valid iCalendar data and normalize it
+            try:
+                from icalendar.cal import Calendar as ICalendar
+
+                cal = ICalendar.from_ical(content)
+                # Store the normalized form
+                content = cal.to_ical().decode("utf-8")
+            except (ValueError, UnicodeDecodeError, TypeError, KeyError) as e:
+                raise InvalidFileContents("text/calendar", content, e)
+
+            # Store the availability data
+            self.store.import_one(
+                ".availability.ics",
+                "text/calendar",
+                [content.encode("utf-8")],
+                message="Update calendar availability",
+            )
 
     def get_supported_calendar_components(self):
         return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"]

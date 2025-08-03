@@ -175,3 +175,134 @@ class CalendarCollectionTests(unittest.TestCase):
 
         self.assertEqual(["200 OK"], codes)
         self.assertEqual(b"".join([commit_hash, b"\t", default_branch, b"\n"]), body)
+
+    def test_calendar_availability_not_set(self):
+        """Test getting availability when none is set raises KeyError."""
+        with self.assertRaises(KeyError):
+            self.cal.get_calendar_availability()
+
+    def test_calendar_availability_set_and_get(self):
+        """Test setting and getting calendar availability."""
+        availability_data = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VAVAILABILITY
+DTSTART:20240101T090000Z
+DTEND:20240101T170000Z
+BUSYTYPE:BUSY-UNAVAILABLE
+SUMMARY:Working hours
+END:VAVAILABILITY
+END:VCALENDAR"""
+
+        # Set availability
+        self.cal.set_calendar_availability(availability_data)
+
+        # Get it back - it will be in normalized form
+        retrieved = self.cal.get_calendar_availability()
+
+        # Verify we can parse both and they represent the same data
+        from icalendar.cal import Calendar as ICalendar
+
+        original_cal = ICalendar.from_ical(availability_data)
+        retrieved_cal = ICalendar.from_ical(retrieved)
+
+        # Compare the normalized forms
+        self.assertEqual(original_cal.to_ical(), retrieved_cal.to_ical())
+
+    def test_calendar_availability_set_none_removes(self):
+        """Test that setting availability to None removes it."""
+        availability_data = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VAVAILABILITY
+DTSTART:20240101T090000Z
+DTEND:20240101T170000Z
+BUSYTYPE:BUSY
+END:VAVAILABILITY
+END:VCALENDAR"""
+
+        # Set availability first
+        self.cal.set_calendar_availability(availability_data)
+
+        # Verify it was stored
+        retrieved = self.cal.get_calendar_availability()
+        self.assertIsNotNone(retrieved)
+
+        # Remove it
+        self.cal.set_calendar_availability(None)
+
+        # Should raise KeyError now
+        with self.assertRaises(KeyError):
+            self.cal.get_calendar_availability()
+
+    def test_calendar_availability_invalid_data(self):
+        """Test that setting invalid iCalendar data raises InvalidFileContents."""
+        from ..store import InvalidFileContents
+
+        invalid_data = "This is not valid iCalendar data"
+
+        with self.assertRaises(InvalidFileContents) as cm:
+            self.cal.set_calendar_availability(invalid_data)
+
+        # Check the exception has the expected attributes
+        self.assertEqual(cm.exception.content_type, "text/calendar")
+        self.assertEqual(cm.exception.data, invalid_data)
+        self.assertIsInstance(cm.exception.error, ValueError)
+
+    def test_calendar_availability_remove_nonexistent(self):
+        """Test that removing non-existent availability doesn't raise errors."""
+        # Should not raise any exception
+        self.cal.set_calendar_availability(None)
+
+        # Still should raise KeyError when trying to get
+        with self.assertRaises(KeyError):
+            self.cal.get_calendar_availability()
+
+    def test_calendar_availability_update(self):
+        """Test updating existing availability data."""
+        availability1 = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VAVAILABILITY
+DTSTART:20240101T090000Z
+DTEND:20240101T170000Z
+BUSYTYPE:BUSY-UNAVAILABLE
+SUMMARY:Working hours v1
+END:VAVAILABILITY
+END:VCALENDAR"""
+
+        availability2 = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VAVAILABILITY
+DTSTART:20240101T080000Z
+DTEND:20240101T180000Z
+BUSYTYPE:BUSY
+SUMMARY:Working hours v2
+BEGIN:AVAILABLE
+DTSTART:20240101T120000Z
+DTEND:20240101T130000Z
+SUMMARY:Lunch break
+END:AVAILABLE
+END:VAVAILABILITY
+END:VCALENDAR"""
+
+        # Set first version
+        self.cal.set_calendar_availability(availability1)
+
+        # Verify first version was stored
+        retrieved1 = self.cal.get_calendar_availability()
+        from icalendar.cal import Calendar as ICalendar
+
+        original1_cal = ICalendar.from_ical(availability1)
+        retrieved1_cal = ICalendar.from_ical(retrieved1)
+        self.assertEqual(original1_cal.to_ical(), retrieved1_cal.to_ical())
+
+        # Update to second version
+        self.cal.set_calendar_availability(availability2)
+
+        # Verify second version was stored
+        retrieved2 = self.cal.get_calendar_availability()
+        original2_cal = ICalendar.from_ical(availability2)
+        retrieved2_cal = ICalendar.from_ical(retrieved2)
+        self.assertEqual(original2_cal.to_ical(), retrieved2_cal.to_ical())
