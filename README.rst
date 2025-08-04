@@ -99,6 +99,20 @@ a ``v$RELEASE`` tag is available - e.g. ``v0.2.11`` for release *0.2.11*.
 For a full list, see `the Container overview page
 <https://github.com/jelmer/xandikos/pkgs/container/xandikos>`_.
 
+The Docker image can be configured using environment variables:
+
+- ``PORT`` - Port to listen on (default: 8000)
+- ``METRICS_PORT`` - Port for metrics endpoint (default: 8001)
+- ``LISTEN_ADDRESS`` - Address to bind to (default: 0.0.0.0)
+- ``DATA_DIR`` - Data directory path (default: /data)
+- ``CURRENT_USER_PRINCIPAL`` - User principal path (default: /user/)
+- ``ROUTE_PREFIX`` - URL route prefix (default: /)
+- ``AUTOCREATE`` - Auto-create directories (true/false)
+- ``DEFAULTS`` - Create default calendar/addressbook (true/false)
+- ``DEBUG`` - Enable debug logging (true/false)
+- ``DUMP_DAV_XML`` - Print DAV XML requests/responses (true/false)
+- ``NO_STRICT`` - Enable client compatibility workarounds (true/false)
+
 See ``examples/docker-compose.yml`` and the
 `man page <https://www.xandikos.org/manpage.html>`_ for more info.
 
