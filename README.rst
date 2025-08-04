@@ -41,7 +41,6 @@ Limitations
 -----------
 
 - No multi-user support
-- No support for CalDAV scheduling extensions
 
 Supported clients
 =================
