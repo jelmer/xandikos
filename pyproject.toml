@@ -38,7 +38,7 @@ prometheus = ["aiohttp-openmetrics"]
 systemd = ["systemd_python"]
 qrcode = ["qrcode[pil]"]
 dev = [
-   "ruff==0.12.8",
+   "ruff==0.12.9",
    "pytest",
 ]
 typing = [
