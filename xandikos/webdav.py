@@ -299,6 +299,13 @@ def split_path_preserving_encoding(request, environ):
     raw_path_for_split = request.raw_path
     if raw_path_for_split.startswith(script_name):
         raw_path_for_split = raw_path_for_split[len(script_name) :]
+
+    # Note: URL fragments (e.g., "#ment" in "/path/file#ment") should not normally
+    # be sent to the server per RFC 3986. However, if they are sent, we preserve
+    # them as part of the resource name to avoid unintended operations on parent resources.
+    # This means a DELETE on "/frag/#ment" will try to delete a resource named "frag/#ment"
+    # (which won't exist) rather than deleting the "/frag/" collection.
+
     container_path_raw, item_name_raw = posixpath.split(raw_path_for_split.rstrip("/"))
     # Decode the components after splitting
     container_path = urllib.parse.unquote(
@@ -977,7 +984,7 @@ class Collection(Resource):
         destination: "Collection",
         destination_name: str,
         overwrite: bool = True,
-    ) -> None:
+    ) -> bool:
         """Move a member from this collection to a different collection.
 
         This is a default implementation that uses create_member and delete_member.
@@ -988,6 +995,8 @@ class Collection(Resource):
           destination: Destination collection
           destination_name: Name in destination collection
           overwrite: Whether to overwrite if destination exists
+        Returns:
+          True if an existing resource was overwritten, False if created new
         Raises:
           KeyError: when the source item doesn't exist
           FileExistsError: when destination exists and overwrite is False
@@ -1004,15 +1013,18 @@ class Collection(Resource):
         # Try to create at destination first
         try:
             await destination.create_member(destination_name, [body], content_type)
+            # Delete source from this collection only after successful creation
+            self.delete_member(name, etag)
+            return False  # Created new
         except FileExistsError:
             if not overwrite:
                 raise
             # Delete existing and retry
             destination.delete_member(destination_name)
             await destination.create_member(destination_name, [body], content_type)
-
-        # Delete source from this collection only after successful creation
-        self.delete_member(name, etag)
+            # Delete source from this collection only after successful creation
+            self.delete_member(name, etag)
+            return True  # Overwrote existing
 
     async def copy_member(
         self,
@@ -1020,7 +1032,7 @@ class Collection(Resource):
         destination: "Collection",
         destination_name: str,
         overwrite: bool = True,
-    ) -> None:
+    ) -> bool:
         """Copy a member from this collection to a different collection.
 
         This is a default implementation that uses get_member and create_member.
@@ -1031,6 +1043,8 @@ class Collection(Resource):
           destination: Destination collection
           destination_name: Name in destination collection
           overwrite: Whether to overwrite if destination exists
+        Returns:
+          True if an existing resource was overwritten, False if created new
         Raises:
           KeyError: when the source item doesn't exist
           FileExistsError: when destination exists and overwrite is False
@@ -1046,12 +1060,14 @@ class Collection(Resource):
         # Try to create at destination
         try:
             await destination.create_member(destination_name, [body], content_type)
+            return False  # Created new
         except FileExistsError:
             if not overwrite:
                 raise
             # Delete existing and retry
             destination.delete_member(destination_name)
             await destination.create_member(destination_name, [body], content_type)
+            return True  # Overwrote existing
 
     def get_sync_token(self) -> str:
         """Get sync-token for the current state of this collection."""
@@ -1605,13 +1621,15 @@ class Backend:
 
     async def copy_collection(
         self, source_path: str, dest_path: str, overwrite: bool = True
-    ) -> None:
+    ) -> bool:
         """Copy a collection recursively.
 
         Args:
           source_path: Source collection path
           dest_path: Destination collection path
           overwrite: Whether to overwrite if destination exists
+        Returns:
+          True if an existing collection was overwritten, False if created new
         Raises:
           KeyError: when the source collection doesn't exist
           FileExistsError: when destination exists and overwrite is False
@@ -1620,13 +1638,15 @@ class Backend:
 
     async def move_collection(
         self, source_path: str, dest_path: str, overwrite: bool = True
-    ) -> None:
+    ) -> bool:
         """Move a collection recursively.
 
         Args:
           source_path: Source collection path
           dest_path: Destination collection path
           overwrite: Whether to overwrite if destination exists
+        Returns:
+          True if an existing collection was overwritten, False if created new
         Raises:
           KeyError: when the source collection doesn't exist
           FileExistsError: when destination exists and overwrite is False
@@ -1899,7 +1919,8 @@ class PutMethod(Method):
         container_path, name = split_path_preserving_encoding(request, environ)
         r = app.backend.get_resource(container_path)
         if r is None:
-            return _send_not_found(request)
+            # RFC 4918 Section 9.7.1: Return 409 Conflict when intermediate collection is missing
+            return Response(status=409, reason="Conflict")
         if COLLECTION_RESOURCE_TYPE not in r.resource_types:
             return _send_method_not_allowed(app._get_allowed_methods(request))
         try:
@@ -1999,8 +2020,14 @@ class MoveMethod(Method):
 
             try:
                 # Use the backend's move_collection method
-                await app.backend.move_collection(source_path, dest_path, overwrite)
-                return Response(status=201, reason="Created")
+                did_overwrite = await app.backend.move_collection(
+                    source_path, dest_path, overwrite
+                )
+                # RFC 4918 Section 9.9.1: Return 204 when overwriting, 201 when creating new
+                if did_overwrite:
+                    return Response(status=204, reason="No Content")
+                else:
+                    return Response(status=201, reason="Created")
             except NotImplementedError:
                 return Response(
                     status=501,
@@ -2062,13 +2089,15 @@ class MoveMethod(Method):
 
         try:
             # Use the move_member method
-            await source_container.move_member(
+            did_overwrite = await source_container.move_member(
                 source_name, dest_container, dest_name, overwrite
             )
 
-            # If we get here, move succeeded. Return 201 Created
-            # (we can't easily determine if destination existed before)
-            return Response(status=201, reason="Created")
+            # RFC 4918 Section 9.9.1: Return 204 when overwriting, 201 when creating new
+            if did_overwrite:
+                return Response(status=204, reason="No Content")
+            else:
+                return Response(status=201, reason="Created")
 
         except KeyError:
             return _send_not_found(request)
@@ -2192,14 +2221,26 @@ class CopyMethod(Method):
                                 reason="Precondition Failed",
                                 body=[b"Destination exists and Overwrite is False"],
                             )
-
-                    # Create empty collection
-                    app.backend.create_collection(dest_path)
-                    return Response(status=201, reason="Created")
+                        # Delete existing collection before creating
+                        # TODO: This should be atomic
+                        dest_container.delete_member(dest_name)
+                        app.backend.create_collection(dest_path)
+                        # RFC 4918 Section 9.8.5: Return 204 when overwriting
+                        return Response(status=204, reason="No Content")
+                    else:
+                        # Create empty collection
+                        app.backend.create_collection(dest_path)
+                        return Response(status=201, reason="Created")
                 else:
                     # Deep copy: use the backend's copy_collection method
-                    await app.backend.copy_collection(source_path, dest_path, overwrite)
-                    return Response(status=201, reason="Created")
+                    did_overwrite = await app.backend.copy_collection(
+                        source_path, dest_path, overwrite
+                    )
+                    # RFC 4918 Section 9.8.5: Return 204 when overwriting, 201 when creating new
+                    if did_overwrite:
+                        return Response(status=204, reason="No Content")
+                    else:
+                        return Response(status=201, reason="Created")
 
             except NotImplementedError:
                 return Response(
@@ -2262,13 +2303,15 @@ class CopyMethod(Method):
 
         try:
             # Use the copy_member method
-            await source_container.copy_member(
+            did_overwrite = await source_container.copy_member(
                 source_name, dest_container, dest_name, overwrite
             )
 
-            # If we get here, copy succeeded. Return 201 Created
-            # (we can't easily determine if destination existed before)
-            return Response(status=201, reason="Created")
+            # RFC 4918 Section 9.8.5: Return 204 when overwriting, 201 when creating new
+            if did_overwrite:
+                return Response(status=204, reason="No Content")
+            else:
+                return Response(status=201, reason="Created")
 
         except KeyError:
             return _send_not_found(request)

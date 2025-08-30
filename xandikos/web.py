@@ -393,9 +393,15 @@ class StoreBasedCollection:
         try:
             self.store.delete_one(name, etag=extract_strong_etag(etag))
         except NoSuchItem:
-            # TODO: Properly allow removing subcollections
-            # self.get_subcollection(name).destroy()
-            shutil.rmtree(os.path.join(self.store.path, name))
+            try:
+                _subcoll = self._get_subcollection(name)
+            except KeyError:
+                # Item doesn't exist at all, raise KeyError to return 404
+                raise KeyError(name)
+            else:
+                # TODO: Properly allow removing subcollections
+                # _subcoll.destroy()
+                shutil.rmtree(os.path.join(self.store.path, name))
 
     async def create_member(
         self,
@@ -1205,7 +1211,7 @@ class XandikosBackend(webdav.Backend):
 
     async def copy_collection(
         self, source_path: str, dest_path: str, overwrite: bool = True
-    ) -> None:
+    ) -> bool:
         """Copy a collection recursively."""
         import shutil
 
@@ -1220,10 +1226,12 @@ class XandikosBackend(webdav.Backend):
         dest_file_path = self._map_to_file_path(dest_path)
 
         # Check if destination exists
+        did_overwrite = False
         if os.path.exists(dest_file_path):
             if not overwrite:
                 raise FileExistsError(f"Collection '{dest_path}' already exists")
             # Remove existing destination (file or directory)
+            did_overwrite = True
             if os.path.isdir(dest_file_path):
                 shutil.rmtree(dest_file_path)
             else:
@@ -1231,10 +1239,11 @@ class XandikosBackend(webdav.Backend):
 
         # Copy the entire directory tree
         shutil.copytree(source_file_path, dest_file_path)
+        return did_overwrite
 
     async def move_collection(
         self, source_path: str, dest_path: str, overwrite: bool = True
-    ) -> None:
+    ) -> bool:
         """Move a collection recursively."""
         import shutil
 
@@ -1249,9 +1258,11 @@ class XandikosBackend(webdav.Backend):
         dest_file_path = self._map_to_file_path(dest_path)
 
         # Check if destination exists
+        did_overwrite = False
         if os.path.exists(dest_file_path):
             if not overwrite:
                 raise FileExistsError(f"Collection '{dest_path}' already exists")
+            did_overwrite = True
             # Remove existing destination (file or directory)
             if os.path.isdir(dest_file_path):
                 shutil.rmtree(dest_file_path)
@@ -1260,6 +1271,7 @@ class XandikosBackend(webdav.Backend):
 
         # Move the entire directory tree
         shutil.move(source_file_path, dest_file_path)
+        return did_overwrite
 
 
 class XandikosApp(webdav.WebDAVApp):
