@@ -73,6 +73,9 @@ class WebTests(WebTestCase):
     def lock(self, app, path):
         return self._method(app, "LOCK", path)
 
+    def options(self, app, path):
+        return self._method(app, "OPTIONS", path)
+
     def mkcol(self, app, path):
         environ = {
             "PATH_INFO": path,
@@ -245,12 +248,69 @@ class WebTests(WebTestCase):
                 "Allow",
                 (
                     "COPY, DELETE, GET, HEAD, MKCOL, MOVE, OPTIONS, "
-                    "POST, PROPFIND, PROPPATCH, PUT, REPORT"
+                    "PROPFIND, PROPPATCH, PUT, REPORT"
                 ),
             ),
             headers,
         )
         self.assertEqual(b"", contents)
+
+    def test_post_allowed_on_collection(self):
+        """Test that POST is included in Allow header for collections."""
+        from ..webdav import Collection
+
+        class TestCollection(Collection):
+            resource_types = Collection.resource_types
+
+            def members(self):
+                return []
+
+            def get_member(self, name):
+                raise KeyError(name)
+
+            def delete_member(self, name, etag=None):
+                raise KeyError(name)
+
+            async def create_member(self, name, contents, content_type, requester=None):
+                return ("new_item", '"new_etag"')
+
+            def get_ctag(self):
+                return "test-ctag"
+
+            def destroy(self):
+                pass
+
+        app = self.makeApp({"/collection": TestCollection()}, [])
+        code, headers, contents = self.options(app, "/collection")
+        self.assertEqual("200 OK", code)
+
+        # Find the Allow header
+        allow_header = None
+        for header_name, header_value in headers:
+            if header_name == "Allow":
+                allow_header = header_value
+                break
+
+        self.assertIsNotNone(allow_header, "Allow header should be present")
+        self.assertIn("POST", allow_header, "POST should be allowed on collections")
+
+    def test_post_not_allowed_on_resource(self):
+        """Test that POST is NOT included in Allow header for regular resources."""
+        app = self.makeApp({"/resource": Resource()}, [])
+        code, headers, contents = self.options(app, "/resource")
+        self.assertEqual("200 OK", code)
+
+        # Find the Allow header
+        allow_header = None
+        for header_name, header_value in headers:
+            if header_name == "Allow":
+                allow_header = header_value
+                break
+
+        self.assertIsNotNone(allow_header, "Allow header should be present")
+        self.assertNotIn(
+            "POST", allow_header, "POST should NOT be allowed on regular resources"
+        )
 
     def test_mkcol_ok(self):
         class Backend:
