@@ -57,7 +57,10 @@ docs:
 
 .PHONY: docs
 
-docker:
+docker: docker
+	@echo "Please use 'make container' rather than 'make docker'"
+
+container:
 	buildah build -t jvernooij/xandikos -t ghcr.io/jelmer/xandikos .
 	buildah push jvernooij/xandikos
 	buildah push ghcr.io/jelmer/xandikos
