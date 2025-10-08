@@ -88,17 +88,17 @@ Or to install them using pip:
 
   python setup.py develop
 
-Docker
-------
+Container
+---------
 
-A Dockerfile is also provided; see the comments on the top of the file for
-configuration instructions. The docker image is regularly built and
+A Containerfile is also provided; see the comments on the top of the file for
+configuration instructions. The container image is regularly built and
 published at ``ghcr.io/jelmer/xandikos``. For each release,
 a ``v$RELEASE`` tag is available - e.g. ``v0.2.11`` for release *0.2.11*.
 For a full list, see `the Container overview page
 <https://github.com/jelmer/xandikos/pkgs/container/xandikos>`_.
 
-The Docker image can be configured using environment variables:
+The container image can be configured using environment variables:
 
 - ``PORT`` - Port to listen on (default: 8000)
 - ``METRICS_PORT`` - Port for metrics endpoint (default: 8001)
