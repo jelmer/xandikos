@@ -29,3 +29,9 @@ services:
       # Compatibility mode for buggy clients
       # - NO_STRICT=false
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3

@@ -21,7 +21,7 @@
 FROM debian:sid-slim
 LABEL maintainer="jelmer@jelmer.uk"
 RUN apt-get update && \
-    apt-get -y install --no-install-recommends python3-icalendar python3-dulwich python3-jinja2 python3-defusedxml python3-aiohttp python3-vobject python3-aiohttp-openmetrics && \
+    apt-get -y install --no-install-recommends python3-icalendar python3-dulwich python3-jinja2 python3-defusedxml python3-aiohttp python3-vobject python3-aiohttp-openmetrics curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/ && \
     groupadd -g 1000 xandikos && \
@@ -33,5 +33,7 @@ WORKDIR /code
 VOLUME /data
 EXPOSE 8000 8001
 USER xandikos
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
 ENTRYPOINT ["/entrypoint.sh"]
 CMD []
