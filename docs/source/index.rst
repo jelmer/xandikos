@@ -7,6 +7,7 @@ Xandikos
 
    installation
    getting-started
+   importing
    configuration
    reverse-proxy
    clients
