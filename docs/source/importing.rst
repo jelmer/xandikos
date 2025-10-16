@@ -14,6 +14,9 @@ Exporting Your Existing Calendar
 --------------------------------
 Firstly, you will need to export your calendar events from your existing calendar service in the standard `.ics` format. The Internet Calendaring and Scheduling Core Object Specification (iCalendar) standard  is defined in RFC 5545, and is the underlying format used by Xandikos. Most calendar services, including Xandikos, have the ability to export existing calendars as standard iCalendar `.ics` files.
 
+.. image:: ./images/GoogleCalendarExport.png
+    :alt: Google Calendar Export Menu
+
 Search for the option to export your existing calendar, and save the resultant `.ics` file somewhere on your computer.
 
 A Word on `.ics` files
