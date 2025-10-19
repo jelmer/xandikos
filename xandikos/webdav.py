@@ -2560,7 +2560,7 @@ async def _do_get(request, environ, app, send_body):
         current_etag,
         content_type,
         content_languages,
-    ) = await r.render(request.url, accept_content_types, accept_content_languages)
+    ) = await r.render(str(request.url), accept_content_types, accept_content_languages)
 
     if_none_match = request.headers.get("If-None-Match", None)
     if (
