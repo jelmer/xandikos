@@ -21,11 +21,14 @@
 FROM debian:sid-slim
 LABEL maintainer="jelmer@jelmer.uk"
 RUN apt-get update && \
-    apt-get -y install --no-install-recommends python3-icalendar python3-dulwich python3-jinja2 python3-defusedxml python3-aiohttp python3-vobject python3-aiohttp-openmetrics curl && \
+    apt-get -y install --no-install-recommends python3-icalendar python3-pip python3-jinja2 python3-defusedxml python3-aiohttp python3-vobject python3-aiohttp-openmetrics curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/ && \
     groupadd -g 1000 xandikos && \
-    useradd -d /code -c Xandikos -g xandikos -M -s /bin/bash -u 1000 xandikos
+    useradd -d /code -c Xandikos -g xandikos -M -s /bin/bash -u 1000 xandikos && \
+    # Install dulwich from pip instead of Debian package to get a newer version
+    # that fixes _GitFile import issues in index.py (0.24.6 vs 0.24.2)
+    pip3 install --break-system-packages dulwich
 ADD . /code
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && chown xandikos:xandikos /entrypoint.sh && \
