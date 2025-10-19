@@ -28,7 +28,8 @@ RUN apt-get update && \
     useradd -d /code -c Xandikos -g xandikos -M -s /bin/bash -u 1000 xandikos
 ADD . /code
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && chown xandikos:xandikos /entrypoint.sh
+RUN chmod +x /entrypoint.sh && chown xandikos:xandikos /entrypoint.sh && \
+    mkdir -p /data && chown xandikos:xandikos /data
 WORKDIR /code
 VOLUME /data
 EXPOSE 8000 8001
