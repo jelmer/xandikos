@@ -1,0 +1,70 @@
+---
+name: Docker Build Test
+
+on:
+  pull_request:
+
+jobs:
+  docker-build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Containerfile
+          push: false
+          load: true
+          tags: xandikos:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Docker container
+        run: |
+          docker run -d \
+            --name xandikos-test \
+            -p 8000:8000 \
+            -p 8001:8001 \
+            -v xandikos-test-data:/data \
+            -e AUTOCREATE=true \
+            -e DEFAULTS=true \
+            xandikos:test
+
+      - name: Wait for container to be healthy
+        run: |
+          timeout 30 sh -c 'until docker inspect --format="{{.State.Health.Status}}" xandikos-test 2>/dev/null | grep -q healthy; do sleep 1; done' || {
+            echo "Container failed to become healthy"
+            docker logs xandikos-test
+            exit 1
+          }
+
+      - name: Test health endpoint
+        run: |
+          curl -f http://localhost:8001/health || {
+            echo "Health check failed"
+            docker logs xandikos-test
+            exit 1
+          }
+
+      - name: Test main server endpoint
+        run: |
+          curl -f http://localhost:8000/ || {
+            echo "Main server check failed"
+            docker logs xandikos-test
+            exit 1
+          }
+
+      - name: Show container logs
+        if: always()
+        run: docker logs xandikos-test
+
+      - name: Stop container
+        if: always()
+        run: docker stop xandikos-test || true
