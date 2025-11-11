@@ -21,7 +21,6 @@
 
 import uuid
 from collections.abc import Iterable
-from typing import Optional
 
 from . import (
     MIMETYPES,
@@ -56,13 +55,13 @@ class MemoryStore(Store):
         self._etag_counter += 1
         return f"etag-{self._etag_counter:06d}"
 
-    def _get_raw(self, name: str, etag: Optional[str] = None) -> Iterable[bytes]:
+    def _get_raw(self, name: str, etag: str | None = None) -> Iterable[bytes]:
         """Get raw contents of an item."""
         if name not in self._items:
             raise KeyError(name)
         return self._items[name][1]
 
-    def iter_with_etag(self, ctag: Optional[str] = None):
+    def iter_with_etag(self, ctag: str | None = None):
         """Iterate over all items with etag."""
         for name, (content_type, data, etag) in self._items.items():
             yield (name, content_type, etag)
@@ -90,10 +89,10 @@ class MemoryStore(Store):
         name: str,
         content_type: str,
         data: Iterable[bytes],
-        message: Optional[str] = None,
-        author: Optional[str] = None,
-        replace_etag: Optional[str] = None,
-        requester: Optional[str] = None,
+        message: str | None = None,
+        author: str | None = None,
+        replace_etag: str | None = None,
+        requester: str | None = None,
     ) -> tuple[str, str]:
         """Import a single item."""
         if content_type is None:
@@ -132,9 +131,9 @@ class MemoryStore(Store):
     def delete_one(
         self,
         name: str,
-        message: Optional[str] = None,
-        author: Optional[str] = None,
-        etag: Optional[str] = None,
+        message: str | None = None,
+        author: str | None = None,
+        etag: str | None = None,
     ) -> None:
         """Delete an item."""
         if name not in self._items:

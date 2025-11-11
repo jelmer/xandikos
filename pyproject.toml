@@ -11,17 +11,17 @@ license = {text = "GNU GPLv3 or later"}
 classifiers = [
     "Development Status :: 4 - Beta",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Operating System :: POSIX",
 ]
 urls = {Homepage = "https://www.xandikos.org/"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "aiohttp",
     "icalendar>=5.0.4,<7.0",
@@ -82,8 +82,6 @@ ignore = [
     "ANN001",
     "ANN002",
     "ANN003",
-    "ANN101",  # missing-type-self
-    "ANN102",
     "ANN201",
     "ANN202",
     "ANN204",

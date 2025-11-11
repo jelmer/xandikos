@@ -35,7 +35,7 @@ import posixpath
 import urllib.parse
 from collections.abc import AsyncIterable, Iterable, Iterator, Sequence
 from datetime import datetime
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 from wsgiref.util import request_uri
 
 # Hmm, defusedxml doesn't have XML generation functions? :(
@@ -462,7 +462,7 @@ class Resource:
         self_url: str,
         accepted_content_types: list[str],
         accepted_languages: list[str],
-    ) -> tuple[Iterable[bytes], int, str, str, Optional[str]]:
+    ) -> tuple[Iterable[bytes], int, str, str, str | None]:
         """'Render' this resource in the specified content type.
 
         The default implementation just checks that the
@@ -510,7 +510,7 @@ class Resource:
         raise NotImplementedError(self.get_content_language)
 
     async def set_body(
-        self, body: Iterable[bytes], replace_etag: Optional[str] = None
+        self, body: Iterable[bytes], replace_etag: str | None = None
     ) -> str:
         """Set resource contents.
 
@@ -586,7 +586,7 @@ class Property:
 
     # Resource type this property belongs to. If None, get_value()
     # will always be called.
-    resource_type: Optional[Sequence[str]] = None
+    resource_type: Sequence[str] | None = None
 
     # Whether this property is live (i.e set by the server)
     live: bool
@@ -949,7 +949,7 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.get_member)
 
-    def delete_member(self, name: str, etag: Optional[str] = None) -> None:
+    def delete_member(self, name: str, etag: str | None = None) -> None:
         """Delete a member with a specific name.
 
         Args:
@@ -965,7 +965,7 @@ class Collection(Resource):
         name: str,
         contents: Iterable[bytes],
         content_type: str,
-        requester: Optional[str] = None,
+        requester: str | None = None,
     ) -> tuple[str, str]:
         """Create a new member with specified name and contents.
 
@@ -1075,7 +1075,7 @@ class Collection(Resource):
 
     def iter_differences_since(
         self, old_token: str, new_token: str
-    ) -> Iterator[tuple[str, Optional[Resource], Optional[Resource]]]:
+    ) -> Iterator[tuple[str, Resource | None, Resource | None]]:
         """Iterate over differences in this collection.
 
         Should return an iterator over (name, old resource, new resource)
@@ -1100,7 +1100,7 @@ class Collection(Resource):
         """Destroy this collection itself."""
         raise NotImplementedError(self.destroy)
 
-    def set_refreshrate(self, value: Optional[str]) -> None:
+    def set_refreshrate(self, value: str | None) -> None:
         """Set the recommended refresh rate for this collection.
 
         Args:
@@ -1133,7 +1133,7 @@ class Principal(Resource):
         """Return inf-it settings string."""
         raise NotImplementedError(self.get_infit_settings)
 
-    def set_infit_settings(self, settings: Optional[str]) -> None:
+    def set_infit_settings(self, settings: str | None) -> None:
         """Set inf-it settings string."""
         raise NotImplementedError(self.get_infit_settings)
 
@@ -1315,7 +1315,7 @@ async def traverse_resource(
     base_resource: Resource,
     base_href: str,
     depth: str,
-    members: Optional[Callable[[Collection], Iterable[tuple[str, Resource]]]] = None,
+    members: Callable[[Collection], Iterable[tuple[str, Resource]]] | None = None,
 ) -> AsyncIterable[tuple[str, Resource]]:
     """Traverse a resource.
 
@@ -1363,7 +1363,7 @@ class Reporter:
 
     name: str
 
-    resource_type: Optional[Union[str, tuple]] = None
+    resource_type: str | tuple | None = None
 
     def supported_on(self, resource: Resource) -> bool:
         """Check if this reporter is available for the specified resource.
@@ -1405,7 +1405,7 @@ class Reporter:
         raise NotImplementedError(self.report)
 
 
-def create_href(href: str, base_href: Optional[str] = None) -> ET.Element:
+def create_href(href: str, base_href: str | None = None) -> ET.Element:
     parsed_url = urllib.parse.urlparse(href)
     if "//" in parsed_url.path:
         logging.warning("invalidly formatted href: %s", href)
@@ -1416,7 +1416,7 @@ def create_href(href: str, base_href: Optional[str] = None) -> ET.Element:
     return et
 
 
-def read_href_element(et: ET.Element) -> Optional[str]:
+def read_href_element(et: ET.Element) -> str | None:
     if et.text is None:
         return None
     el = urllib.parse.unquote(et.text)
@@ -1612,10 +1612,10 @@ class Backend:
         """
         raise NotImplementedError(self.create_collection)
 
-    def get_resource(self, relpath: str) -> Optional[Resource]:
+    def get_resource(self, relpath: str) -> Resource | None:
         raise NotImplementedError(self.get_resource)
 
-    def get_resources(self, relpaths) -> Iterator[tuple[str, Optional[Resource]]]:
+    def get_resources(self, relpaths) -> Iterator[tuple[str, Resource | None]]:
         for relpath in relpaths:
             yield relpath, self.get_resource(relpath)
 
@@ -1654,7 +1654,7 @@ class Backend:
         raise NotImplementedError(self.move_collection)
 
 
-def href_to_path(environ, href) -> Optional[str]:
+def href_to_path(environ, href) -> str | None:
     script_name = environ["SCRIPT_NAME"].rstrip("/")
     if not href or not href.startswith(script_name):
         return None
@@ -1667,7 +1667,7 @@ def href_to_path(environ, href) -> Optional[str]:
 
 def _get_resources_by_hrefs(
     backend, environ, hrefs
-) -> Iterator[tuple[str, Optional[Resource]]]:
+) -> Iterator[tuple[str, Resource | None]]:
     """Retrieve multiple resources by href.
 
     Args:
@@ -1801,9 +1801,7 @@ async def _readBody(request):
     return [await request.content.read()]
 
 
-async def _readXmlBody(
-    request, expected_tag: Optional[str] = None, strict: bool = True
-):
+async def _readXmlBody(request, expected_tag: str | None = None, strict: bool = True):
     content_type = request.content_type
     base_content_type, params = parse_type(content_type)
     if strict and base_content_type not in ("text/xml", "application/xml"):
@@ -2601,7 +2599,7 @@ class WSGIRequest:
         self.path = environ["SCRIPT_NAME"] + path_from_environ(environ, "PATH_INFO")
         self.content_type = environ.get("CONTENT_TYPE", "application/octet-stream")
         try:
-            self.content_length: Optional[int] = int(environ["CONTENT_LENGTH"])
+            self.content_length: int | None = int(environ["CONTENT_LENGTH"])
         except (KeyError, ValueError):
             self.content_length = None
         from multidict import CIMultiDict

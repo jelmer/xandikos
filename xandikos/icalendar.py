@@ -22,7 +22,7 @@
 import logging
 from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 from zoneinfo import ZoneInfo
 
 import dateutil.rrule
@@ -44,7 +44,7 @@ from .store.index import IndexDict, IndexKey, IndexValue, IndexValueIterator
 
 TYPES_FACTORY = TypesFactory()
 
-PropTypes = Union[vText]
+PropTypes = vText
 
 TzifyFunction = Callable[[datetime], datetime]
 
@@ -90,12 +90,10 @@ def validate_calendar(cal, strict=False):
 
 
 # SubIndexDict is like IndexDict, but None can also occur as a key
-SubIndexDict = dict[Optional[IndexKey], IndexValue]
+SubIndexDict = dict[IndexKey | None, IndexValue]
 
 
-def create_subindexes(
-    indexes: Union[SubIndexDict, IndexDict], base: str
-) -> SubIndexDict:
+def create_subindexes(indexes: SubIndexDict | IndexDict, base: str) -> SubIndexDict:
     ret: SubIndexDict = {}
     for k, v in indexes.items():
         if k is not None and k.startswith(base + "/"):
@@ -613,9 +611,7 @@ class PropertyTimeRangeMatcher:
         )
 
 
-TimeRangeFilter = Callable[
-    [datetime, datetime, Union[Component, dict], TzifyFunction], bool
-]
+TimeRangeFilter = Callable[[datetime, datetime, Component | dict, TzifyFunction], bool]
 
 
 class ComponentTimeRangeMatcher:
@@ -669,7 +665,7 @@ class ComponentTimeRangeMatcher:
             return self._match_indexes_with_rrule(indexes, tzify)
 
         # Original logic for non-recurring events
-        vs: list[dict[str, Optional[vDDDTypes]]] = []
+        vs: list[dict[str, vDDDTypes | None]] = []
         # Handle edge case where recurring events have inconsistent DTEND/DURATION properties
         # by finding the maximum number of occurrences across all properties
         max_occurrences = 0
@@ -678,7 +674,7 @@ class ComponentTimeRangeMatcher:
                 max_occurrences = max(max_occurrences, len(values))
 
         for i in range(max_occurrences):
-            d: dict[str, Optional[vDDDTypes]] = {}
+            d: dict[str, vDDDTypes | None] = {}
             for name, values in indexes.items():
                 if not name:
                     continue
@@ -889,7 +885,7 @@ class TextMatcher:
         self,
         name: str,
         text: str,
-        collation: Optional[str] = None,
+        collation: str | None = None,
         negate_condition: bool = False,
     ) -> None:
         self.name = name
@@ -912,7 +908,7 @@ class TextMatcher:
             self.match(self.type_fn(self.type_fn.from_ical(k))) for k in indexes[None]
         )
 
-    def match(self, prop: Union[vText, vCategory, str]):
+    def match(self, prop: vText | vCategory | str):
         if isinstance(prop, vText):
             matches = self.collation(str(prop), self.text, "contains")
         elif isinstance(prop, str):
@@ -931,7 +927,7 @@ class TextMatcher:
 
 
 class ComponentFilter:
-    time_range: Optional[ComponentTimeRangeMatcher]
+    time_range: ComponentTimeRangeMatcher | None
 
     def __init__(
         self, name: str, children=None, is_not_defined: bool = False, time_range=None
@@ -952,7 +948,7 @@ class ComponentFilter:
         self,
         name: str,
         is_not_defined: bool = False,
-        time_range: Optional[ComponentTimeRangeMatcher] = None,
+        time_range: ComponentTimeRangeMatcher | None = None,
     ):
         ret = ComponentFilter(
             name=name, is_not_defined=is_not_defined, time_range=time_range
@@ -964,7 +960,7 @@ class ComponentFilter:
         self,
         name: str,
         is_not_defined: bool = False,
-        time_range: Optional[PropertyTimeRangeMatcher] = None,
+        time_range: PropertyTimeRangeMatcher | None = None,
     ):
         ret = PropertyFilter(
             name=name, is_not_defined=is_not_defined, time_range=time_range
@@ -1079,7 +1075,7 @@ class PropertyFilter:
         name: str,
         children=None,
         is_not_defined: bool = False,
-        time_range: Optional[PropertyTimeRangeMatcher] = None,
+        time_range: PropertyTimeRangeMatcher | None = None,
     ) -> None:
         self.name = name
         self.is_not_defined = is_not_defined
@@ -1106,7 +1102,7 @@ class PropertyFilter:
         return self.time_range
 
     def filter_text_match(
-        self, text: str, collation: Optional[str] = None, negate_condition: bool = False
+        self, text: str, collation: str | None = None, negate_condition: bool = False
     ) -> TextMatcher:
         ret = TextMatcher(
             self.name, text, collation=collation, negate_condition=negate_condition
@@ -1174,7 +1170,7 @@ class ParameterFilter:
     def __init__(
         self,
         name: str,
-        children: Optional[list[TextMatcher]] = None,
+        children: list[TextMatcher] | None = None,
         is_not_defined: bool = False,
     ) -> None:
         self.name = name
@@ -1182,7 +1178,7 @@ class ParameterFilter:
         self.children = children or []
 
     def filter_text_match(
-        self, text: str, collation: Optional[str] = None, negate_condition: bool = False
+        self, text: str, collation: str | None = None, negate_condition: bool = False
     ) -> TextMatcher:
         ret = TextMatcher(
             self.name, text, collation=collation, negate_condition=negate_condition
@@ -1228,7 +1224,7 @@ class CalendarFilter(Filter):
 
     content_type = "text/calendar"
 
-    def __init__(self, default_timezone: Union[str, timezone]) -> None:
+    def __init__(self, default_timezone: str | timezone) -> None:
         self.tzify = lambda dt: as_tz_aware_ts(dt, default_timezone)
         self.children: list[ComponentFilter] = []
 
@@ -1435,9 +1431,7 @@ class ICalendarFile(File):
                 raise AssertionError(f"segments: {segments!r}")
 
 
-def as_tz_aware_ts(
-    dt: Union[datetime, date], default_timezone: Union[str, timezone]
-) -> datetime:
+def as_tz_aware_ts(dt: datetime | date, default_timezone: str | timezone) -> datetime:
     if not getattr(dt, "time", None):
         _dt = datetime.combine(dt, time())
     else:
@@ -1470,7 +1464,7 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
     return rs
 
 
-def _get_event_duration(comp: Component) -> Optional[timedelta]:
+def _get_event_duration(comp: Component) -> timedelta | None:
     """Get the duration of an event component."""
     if "DURATION" in comp:
         return comp["DURATION"].dt
@@ -1480,8 +1474,8 @@ def _get_event_duration(comp: Component) -> Optional[timedelta]:
 
 
 def _normalize_dt_for_rrule(
-    dt: Union[date, datetime], original_dt: Union[date, datetime]
-) -> Union[date, datetime]:
+    dt: date | datetime, original_dt: date | datetime
+) -> date | datetime:
     """Normalize a datetime for rrule operations based on the original event type.
 
     The rrule library requires the search bounds to match the type of the original DTSTART:
@@ -1561,9 +1555,9 @@ def _event_overlaps_range(comp: Component, start, end) -> bool:
 
 def _expand_rrule_component(
     incomp: Component,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-    existing: dict[Union[str, date, datetime], Component] = {},
+    start: datetime | None = None,
+    end: datetime | None = None,
+    existing: dict[str | date | datetime, Component] = {},
 ) -> Iterable[Component]:
     if "RRULE" not in incomp:
         return
@@ -1641,7 +1635,7 @@ def _expand_rrule_component(
 
 
 def expand_calendar_rrule(
-    incal: Calendar, start: Optional[datetime] = None, end: Optional[datetime] = None
+    incal: Calendar, start: datetime | None = None, end: datetime | None = None
 ) -> Calendar:
     outcal = Calendar()
     if incal.name != "VCALENDAR":

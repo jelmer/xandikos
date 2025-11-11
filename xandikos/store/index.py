@@ -22,11 +22,10 @@
 import collections
 import logging
 from collections.abc import Iterable, Iterator
-from typing import Optional, Union
 
 IndexKey = str
-IndexValue = list[Union[bytes, bool]]
-IndexValueIterator = Iterator[Union[bytes, bool]]
+IndexValue = list[bytes | bool]
+IndexValueIterator = Iterator[bytes | bool]
 IndexDict = dict[IndexKey, IndexValue]
 
 
@@ -88,7 +87,7 @@ class MemoryIndex(Index):
 
 
 class AutoIndexManager:
-    def __init__(self, index, threshold: Optional[int] = None) -> None:
+    def __init__(self, index, threshold: int | None = None) -> None:
         self.index = index
         self.desired: dict[IndexKey, int] = collections.defaultdict(lambda: 0)
         if threshold is None:
@@ -97,7 +96,7 @@ class AutoIndexManager:
 
     def find_present_keys(
         self, necessary_keys: Iterable[Iterable[IndexKey]]
-    ) -> Optional[Iterable[IndexKey]]:
+    ) -> Iterable[IndexKey] | None:
         available_keys = self.index.available_keys()
         needed_keys = []
         missing_keys: list[IndexKey] = []

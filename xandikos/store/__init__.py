@@ -286,7 +286,7 @@ class Store:
         index,
         *,
         double_check_indexes: bool = False,
-        index_threshold: Optional[int] = None,
+        index_threshold: int | None = None,
     ) -> None:
         self.extra_file_handlers = {}
         self.index = index
@@ -296,9 +296,7 @@ class Store:
     def load_extra_file_handler(self, file_handler: type[File]) -> None:
         self.extra_file_handlers[file_handler.content_type] = file_handler
 
-    def iter_with_etag(
-        self, ctag: Optional[str] = None
-    ) -> Iterator[tuple[str, str, str]]:
+    def iter_with_etag(self, ctag: str | None = None) -> Iterator[tuple[str, str, str]]:
         """Iterate over all items in the store with etag.
 
         Args:
@@ -397,8 +395,8 @@ class Store:
     def get_file(
         self,
         name: str,
-        content_type: Optional[str] = None,
-        etag: Optional[str] = None,
+        content_type: str | None = None,
+        etag: str | None = None,
     ) -> File:
         """Get the contents of an object.
 
@@ -417,7 +415,7 @@ class Store:
                 extra_file_handlers=self.extra_file_handlers,
             )
 
-    def _get_raw(self, name: str, etag: Optional[str] = None) -> Iterable[bytes]:
+    def _get_raw(self, name: str, etag: str | None = None) -> Iterable[bytes]:
         """Get the raw contents of an object.
 
         Args:
@@ -436,10 +434,10 @@ class Store:
         name: str,
         content_type: str,
         data: Iterable[bytes],
-        message: Optional[str] = None,
-        author: Optional[str] = None,
-        replace_etag: Optional[str] = None,
-        requester: Optional[str] = None,
+        message: str | None = None,
+        author: str | None = None,
+        replace_etag: str | None = None,
+        requester: str | None = None,
     ) -> tuple[str, str]:
         """Import a single object.
 
@@ -461,9 +459,9 @@ class Store:
     def delete_one(
         self,
         name: str,
-        message: Optional[str] = None,
-        author: Optional[str] = None,
-        etag: Optional[str] = None,
+        message: str | None = None,
+        author: str | None = None,
+        etag: str | None = None,
     ) -> None:
         """Delete an item.
 
