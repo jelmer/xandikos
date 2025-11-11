@@ -30,8 +30,14 @@ check-litmus:
 check-pycaldav:
 	./compat/xandikos-pycaldav.sh
 
+check-caldav-server-tester:
+	./compat/xandikos-caldav-server-tester.sh
+
 coverage-pycaldav:
 	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-pycaldav.sh
+
+coverage-caldav-server-tester:
+	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-caldav-server-tester.sh
 
 coverage-litmus:
 	XANDIKOS="$(XANDIKOS_COVERAGE)" ./compat/xandikos-litmus.sh "${LITMUS_TESTS}"
