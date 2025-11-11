@@ -1,5 +1,5 @@
 ---
-name: pycaldav cross-tests
+name: CalDAV server tester
 
 "on":
   - push
@@ -26,8 +26,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -U pip pycalendar vobject requests pytz attrs aiohttp aiohttp-wsgi prometheus-client multidict pytest "recurring-ical-events>=1.1.0b" typing-extensions defusedxml
           python -m pip install -e .
-      - name: Run pycaldav tests
+      - name: Run caldav-server-tester tests
         run: |
-          sudo apt install libxml2-dev libxslt1-dev
-          pip install -U nose lxml
-          make check-pycaldav
+          make check-caldav-server-tester
