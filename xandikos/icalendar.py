@@ -23,10 +23,12 @@ import logging
 from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta, timezone
 from collections.abc import Callable
+from typing import Protocol
 from zoneinfo import ZoneInfo
 
 import dateutil.rrule
 from icalendar.cal import Calendar, Component, component_factory
+from icalendar.parser import Parameters
 from icalendar.prop import (
     TypesFactory,
     vCategory,
@@ -44,7 +46,12 @@ from .store.index import IndexDict, IndexKey, IndexValue, IndexValueIterator
 
 TYPES_FACTORY = TypesFactory()
 
-PropTypes = vText
+
+class PropTypes(Protocol):
+    """Protocol for icalendar property types that have params."""
+
+    params: Parameters
+
 
 TzifyFunction = Callable[[datetime], datetime]
 
@@ -1460,6 +1467,7 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
     if "EXRULE" in comp:
         exrulestr = comp["EXRULE"].to_ical().decode("utf-8")
         exrule = dateutil.rrule.rrulestr(exrulestr, dtstart=dtstart)
+        assert isinstance(exrule, dateutil.rrule.rrule)
         rs.exrule(exrule)
     return rs
 
@@ -1475,30 +1483,32 @@ def _get_event_duration(comp: Component) -> timedelta | None:
 
 def _normalize_dt_for_rrule(
     dt: date | datetime, original_dt: date | datetime
-) -> date | datetime:
+) -> datetime:
     """Normalize a datetime for rrule operations based on the original event type.
 
     The rrule library requires the search bounds to match the type of the original DTSTART:
-    - For date-only events, use date objects or datetime at midnight
+    - For date-only events, use datetime at midnight
     - For floating time events, use naive datetimes
     - For timezone-aware events, use aware datetimes
     """
-    # Handle date-only events
+    # Handle date-only events - convert to datetime at midnight
     if not isinstance(original_dt, datetime):
         if isinstance(dt, datetime):
             return datetime.combine(dt.date(), time.min)
-        return dt
+        return datetime.combine(dt, time.min)
 
     # Handle datetime events (both naive and aware)
-    if isinstance(original_dt, datetime) and isinstance(dt, datetime):
+    if isinstance(dt, datetime):
         # Match the timezone awareness of the original
         if original_dt.tzinfo is None and dt.tzinfo is not None:
             return dt.replace(tzinfo=None)
         elif original_dt.tzinfo is not None and dt.tzinfo is None:
             # This shouldn't happen with our current code, but handle it gracefully
             return dt.replace(tzinfo=original_dt.tzinfo)
+        return dt
 
-    return dt
+    # If dt is a date but original_dt is datetime, convert to datetime
+    return datetime.combine(dt, time.min)
 
 
 def _event_overlaps_range(comp: Component, start, end) -> bool:
