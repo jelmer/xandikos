@@ -19,8 +19,6 @@
 
 """VCard file handling."""
 
-from typing import Optional
-
 from . import collation as _mod_collation
 from .store import File, Filter, InvalidFileContents
 from .store.index import IndexDict, IndexKey, IndexValueIterator
@@ -152,7 +150,7 @@ class ParamFilter:
     def __init__(self, name: str, is_not_defined: bool = False):
         self.name = name.upper()
         self.is_not_defined = is_not_defined
-        self.text_match: Optional[TextMatch] = None
+        self.text_match: TextMatch | None = None
 
     def add_text_match(
         self,

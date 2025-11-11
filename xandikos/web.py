@@ -35,7 +35,6 @@ import socket
 import urllib.parse
 from collections.abc import Iterable, Iterator
 from email.utils import parseaddr
-from typing import Optional
 from dulwich.web import make_wsgi_chain
 from dulwich.server import DictBackend
 from itertools import takewhile
@@ -145,7 +144,7 @@ jinja_env = jinja2.Environment(
 
 async def render_jinja_page(
     name: str, accepted_content_languages: list[str], **kwargs
-) -> tuple[Iterable[bytes], int, Optional[str], str, list[str]]:
+) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
     """Render a HTML page from jinja template.
 
     Args:
@@ -179,7 +178,7 @@ def create_strong_etag(etag: str) -> str:
     return '"' + etag + '"'
 
 
-def extract_strong_etag(etag: Optional[str]) -> Optional[str]:
+def extract_strong_etag(etag: str | None) -> str | None:
     """Extract a strong etag from a string."""
     if etag is None:
         return etag
@@ -195,7 +194,7 @@ class ObjectResource(webdav.Resource):
         name: str,
         content_type: str,
         etag: str,
-        file: Optional[File] = None,
+        file: File | None = None,
     ) -> None:
         self.store = store
         self.name = name
@@ -343,7 +342,7 @@ class StoreBasedCollection:
         name: str,
         content_type: str,
         etag: str,
-        file: Optional[File] = None,
+        file: File | None = None,
     ) -> webdav.Resource:
         return ObjectResource(self.store, name, content_type, etag, file=file)
 
@@ -408,7 +407,7 @@ class StoreBasedCollection:
         name: str,
         contents: Iterable[bytes],
         content_type: str,
-        requester: Optional[str] = None,
+        requester: str | None = None,
     ) -> tuple[str, str]:
         # Check if member already exists and raise FileExistsError if it does
         try:
@@ -441,9 +440,9 @@ class StoreBasedCollection:
 
     def iter_differences_since(
         self, old_token: str, new_token: str
-    ) -> Iterator[tuple[str, Optional[webdav.Resource], Optional[webdav.Resource]]]:
-        old_resource: Optional[webdav.Resource]
-        new_resource: Optional[webdav.Resource]
+    ) -> Iterator[tuple[str, webdav.Resource | None, webdav.Resource | None]]:
+        old_resource: webdav.Resource | None
+        new_resource: webdav.Resource | None
         try:
             for (
                 name,
@@ -1139,7 +1138,7 @@ def open_store_from_path(path: str, **kwargs):
 
 class XandikosBackend(webdav.Backend):
     def __init__(
-        self, path, *, paranoid: bool = False, index_threshold: Optional[int] = None
+        self, path, *, paranoid: bool = False, index_threshold: int | None = None
     ) -> None:
         self.path = path
         self._user_principals: set[str] = set()
@@ -1491,9 +1490,9 @@ def run_simple_server(
     defaults: bool = False,
     strict: bool = True,
     route_prefix: str = "/",
-    listen_address: Optional[str] = "::",
-    port: Optional[int] = 8080,
-    socket_path: Optional[str] = None,
+    listen_address: str | None = "::",
+    port: int | None = 8080,
+    socket_path: str | None = None,
 ) -> None:
     """Simple function to run a Xandikos server.
 

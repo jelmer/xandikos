@@ -28,7 +28,7 @@ import shutil
 import stat
 import uuid
 from io import BytesIO, StringIO
-from typing import Optional, cast
+from typing import cast
 from collections.abc import Iterable
 
 import dulwich.repo
@@ -210,7 +210,7 @@ class GitStore(Store):
             self._parse_file_by_sha
         )
 
-    def _parse_file_by_sha(self, sha: str, content_type: Optional[str], name: str):
+    def _parse_file_by_sha(self, sha: str, content_type: str | None, name: str):
         """Parse a file by its SHA, used for caching."""
         blob = self.repo.object_store[sha.encode("ascii")]
         if content_type is None:
@@ -227,7 +227,7 @@ class GitStore(Store):
             )
 
     def get_file(
-        self, name: str, content_type: Optional[str] = None, etag: Optional[str] = None
+        self, name: str, content_type: str | None = None, etag: str | None = None
     ):
         """Get file with caching based on blob SHA."""
         if etag is None:
@@ -244,7 +244,7 @@ class GitStore(Store):
         name: str,
         data: Iterable[bytes],
         message: str,
-        author: Optional[str] = None,
+        author: str | None = None,
     ):
         raise NotImplementedError(self._import_one)
 
@@ -302,10 +302,10 @@ class GitStore(Store):
         name: str,
         content_type: str,
         data: Iterable[bytes],
-        message: Optional[str] = None,
-        author: Optional[str] = None,
-        replace_etag: Optional[str] = None,
-        requester: Optional[str] = None,
+        message: str | None = None,
+        author: str | None = None,
+        replace_etag: str | None = None,
+        requester: str | None = None,
     ) -> tuple[str, str]:
         """Import a single object.
 
@@ -633,7 +633,7 @@ class BareGitStore(GitStore):
         name: str,
         data: Iterable[bytes],
         message: str,
-        author: Optional[str] = None,
+        author: str | None = None,
     ) -> bytes:
         """Import a single object.
 
@@ -735,7 +735,7 @@ class TreeGitStore(GitStore):
         name: str,
         data: Iterable[bytes],
         message: str,
-        author: Optional[str] = None,
+        author: str | None = None,
     ) -> bytes:
         """Import a single object.
 
@@ -779,9 +779,9 @@ class TreeGitStore(GitStore):
     def delete_one(
         self,
         name: str,
-        message: Optional[str] = None,
-        author: Optional[str] = None,
-        etag: Optional[str] = None,
+        message: str | None = None,
+        author: str | None = None,
+        etag: str | None = None,
     ) -> None:
         """Delete an item.
 
