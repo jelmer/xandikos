@@ -1,3 +1,80 @@
+0.3.0	UNRELEASED
+
+ * Add RFC 7953 (Calendar Availability) support. (Jelmer Vernooĳ, #483)
+
+ * Add WebDAV MOVE and COPY method support for collections and resources.
+   (Jelmer Vernooĳ, #458, #460, #466)
+
+ * Add CardDAV indexing support for improved search performance.
+   (Jelmer Vernooĳ, #451)
+
+ * Add support for CALDAV:limit-recurrence-set. (Jelmer Vernooĳ, #450)
+
+ * Add support for VALARM search. (Jelmer Vernooĳ, #447)
+
+ * Add support for filtering on recurring (rrule) events.
+   (Jelmer Vernooĳ, #224)
+
+ * Add caldav-server-tester integration for RFC4791 compliance testing.
+   (Jelmer Vernooĳ, #516)
+
+ * Add MemoryStore implementation. (Jelmer Vernooĳ, #464)
+
+ * Add create-collection subcommand. (Jelmer Vernooĳ, #454)
+
+ * Add 'serve' subcommand. (Jelmer Vernooĳ, #361, #362)
+
+ * Show CalDAV URLs and QR barcode on homepage. (Jelmer Vernooĳ, #448)
+
+ * Store User-Agent header in commit messages. (Jelmer Vernooĳ, #456)
+
+ * Add Docker healthchecks. (Jelmer Vernooĳ, #506, #504)
+
+ * Improve Docker configuration with environment variables and graceful shutdown.
+   (Jelmer Vernooĳ, #485)
+
+ * Ensure /data directory has correct ownership for named volumes in Docker.
+   (Jelmer Vernooĳ)
+
+ * Add per-store LRU cache for parsed files in GitStore for improved performance.
+   (Jelmer Vernooĳ, #473)
+
+ * Fix WebDAV litmus test failures and improve compliance. (Jelmer Vernooĳ, #497)
+
+ * Fix contradictory POST Allow header behavior. (Jelmer Vernooĳ, #498, #495)
+
+ * Fix high CPU usage from recurring events without bounds. (Jelmer Vernooĳ, #473)
+
+ * Fix text search to use substring matching per RFC. (Jelmer Vernooĳ, #468)
+
+ * Fix QR code URLs. (Jelmer Vernooĳ, #470)
+
+ * Fix rrule filtering bug where expand_calendar_rrule modified the original calendar.
+   (Jelmer Vernooĳ)
+
+ * Fix index_keys() return type inconsistency causing paranoid mode assertion error.
+   (Jelmer Vernooĳ, #457)
+
+ * Fix handling of %2f in item names. (Jelmer Vernooĳ, #440)
+
+ * Fix handling of whole-day recurring events. (Jelmer Vernooĳ, #442)
+
+ * Fix property removal returning 500 error. (Jelmer Vernooĳ, #441)
+
+ * Fix CardDAV/CalDAV report not returning 404 when no content type is available.
+   (Jelmer Vernooĳ, #443)
+
+ * Install dulwich from pip to fix Docker compatibility issue. (Jelmer Vernooĳ)
+
+ * Disable autogc to prevent requests from timing out. (Jelmer Vernooĳ, #439)
+
+ * Bump icalendar dependency, prevent upgrading beyond 7.0. (Jelmer Vernooĳ, #436)
+
+ * Drop Python 3.9 support, add Python 3.14 support. (Jelmer Vernooĳ, #517)
+
+ * Add documentation for installation, configuration, troubleshooting, and client setup.
+   (Jelmer Vernooĳ, #459, #461, #453, #452)
+
 0.2.12	2024-10-07
 
  * Migrate from pytz to zoneinfo (#353, Jelmer Vernooĳ)
