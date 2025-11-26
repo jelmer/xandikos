@@ -1,4 +1,4 @@
-0.3.0	UNRELEASED
+0.3.0	2025-11-26
 
  * Add RFC 7953 (Calendar Availability) support. (Jelmer Vernooĳ, #483)
 
