@@ -816,17 +816,17 @@ class ComponentTimeRangeMatcher:
 
     def _get_occurrences_in_range(self, rrule, dtstart_parsed, query_start, query_end):
         """Generate RRULE occurrences within the specified time range."""
+        # Normalize query bounds to match the original DTSTART type/timezone
+        start_normalized = _normalize_dt_for_rrule(query_start, dtstart_parsed)
+        end_normalized = _normalize_dt_for_rrule(query_end, dtstart_parsed)
+
+        # For date-only events, extend the end bound to include the full day
         if isinstance(dtstart_parsed, date) and not isinstance(
             dtstart_parsed, datetime
         ):
-            # For date-only events, convert query bounds to datetime at midnight
-            query_start_dt = datetime.combine(query_start.date(), time())
-            query_end_dt = datetime.combine(query_end.date(), time()) + timedelta(
-                days=1
-            )
-            return list(rrule.between(query_start_dt, query_end_dt, inc=True))
-        else:
-            return list(rrule.between(query_start, query_end, inc=True))
+            end_normalized = end_normalized + timedelta(days=1)
+
+        return list(rrule.between(start_normalized, end_normalized, inc=True))
 
     def _test_occurrences(
         self,
@@ -1459,11 +1459,31 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
     rs = dateutil.rrule.rruleset()
     rs.rrule(rrule)  # type: ignore
     if "EXDATE" in comp:
-        for exdate in comp["EXDATE"]:
-            rs.exdate(exdate)
+        exdate_prop = comp["EXDATE"]
+        # EXDATE can be either:
+        # 1. A single vDDDLists (one EXDATE property with one or more dates)
+        # 2. A list of vDDDLists (multiple EXDATE properties)
+        # Extract the actual datetime/date values from the .dts list(s)
+        if isinstance(exdate_prop, list):
+            for exdate_list in exdate_prop:
+                for exdate in exdate_list.dts:
+                    rs.exdate(exdate.dt)
+        else:
+            for exdate in exdate_prop.dts:
+                rs.exdate(exdate.dt)
     if "RDATE" in comp:
-        for rdate in comp["RDATE"]:
-            rs.rdate(rdate)
+        rdate_prop = comp["RDATE"]
+        # RDATE can be either:
+        # 1. A single vDDDLists (one RDATE property with one or more dates)
+        # 2. A list of vDDDLists (multiple RDATE properties)
+        # Extract the actual datetime/date values from the .dts list(s)
+        if isinstance(rdate_prop, list):
+            for rdate_list in rdate_prop:
+                for rdate in rdate_list.dts:
+                    rs.rdate(rdate.dt)
+        else:
+            for rdate in rdate_prop.dts:
+                rs.rdate(rdate.dt)
     if "EXRULE" in comp:
         exrulestr = comp["EXRULE"].to_ical().decode("utf-8")
         exrule = dateutil.rrule.rrulestr(exrulestr, dtstart=dtstart)

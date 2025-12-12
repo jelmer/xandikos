@@ -1350,6 +1350,162 @@ END:VCALENDAR"""
         self.assertGreaterEqual(len(events), 1)
         self.assertLessEqual(len(events), 2)
 
+    def test_expand_with_exdate(self):
+        """Test expansion of recurring events with EXDATE.
+
+        This test reproduces issue #528 where EXDATE values were causing
+        a TypeError when dateutil tried to sort them, because vDDDLists
+        objects don't support comparison operations.
+        """
+        from icalendar import Calendar
+
+        # Create a calendar with a recurring event and exception dates
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-exdate@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+RRULE:FREQ=DAILY;COUNT=10
+EXDATE:20240102T100000Z,20240103T100000Z
+SUMMARY:Daily Event with Exceptions
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+
+        # Expand the calendar
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 15, tzinfo=timezone.utc)
+
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Verify we got the expected events (10 total - 2 excluded = 8)
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 8)
+
+        # Verify the excluded dates are not present
+        event_dates = sorted([ev["DTSTART"].dt for ev in events])
+        excluded_dates = [
+            datetime(2024, 1, 2, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 3, 10, 0, 0, tzinfo=timezone.utc),
+        ]
+        for excluded in excluded_dates:
+            self.assertNotIn(excluded, event_dates)
+
+        # Verify the included dates are correct
+        expected_dates = [
+            datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 4, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 5, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 6, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 7, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 8, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 9, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 10, 10, 0, 0, tzinfo=timezone.utc),
+        ]
+        self.assertEqual(event_dates, expected_dates)
+
+    def test_expand_with_multiple_exdate_properties(self):
+        """Test expansion with multiple EXDATE properties on separate lines.
+
+        According to RFC 5545, EXDATE can appear multiple times in a component.
+        This tests that we correctly handle a list of vDDDLists objects.
+        """
+        from icalendar import Calendar
+
+        # Create a calendar with multiple EXDATE properties
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-multi-exdate@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+RRULE:FREQ=DAILY;COUNT=7
+EXDATE:20240102T100000Z
+EXDATE:20240103T100000Z
+EXDATE:20240105T100000Z
+SUMMARY:Event with Multiple EXDATE Properties
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+
+        # Expand the calendar
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 15, tzinfo=timezone.utc)
+
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Verify we got the expected events (7 total - 3 excluded = 4)
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 4)
+
+        # Verify the excluded dates are not present
+        event_dates = sorted([ev["DTSTART"].dt for ev in events])
+        excluded_dates = [
+            datetime(2024, 1, 2, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 3, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 5, 10, 0, 0, tzinfo=timezone.utc),
+        ]
+        for excluded in excluded_dates:
+            self.assertNotIn(excluded, event_dates)
+
+        # Verify the included dates are correct
+        expected_dates = [
+            datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 4, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 6, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 7, 10, 0, 0, tzinfo=timezone.utc),
+        ]
+        self.assertEqual(event_dates, expected_dates)
+
+    def test_expand_with_rdate(self):
+        """Test expansion with RDATE (recurrence dates).
+
+        RDATE adds additional occurrences to a recurring event.
+        This tests that we correctly handle vDDDLists for RDATE.
+        """
+        from icalendar import Calendar
+
+        # Create a calendar with RDATE
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-rdate@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+RRULE:FREQ=WEEKLY;COUNT=2
+RDATE:20240110T100000Z,20240120T100000Z
+SUMMARY:Event with RDATE
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+
+        # Expand the calendar
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 31, tzinfo=timezone.utc)
+
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Verify we got the expected events (2 from RRULE + 2 from RDATE = 4)
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 4)
+
+        # Verify all dates are present
+        event_dates = sorted([ev["DTSTART"].dt for ev in events])
+        expected_dates = [
+            datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),  # RRULE
+            datetime(2024, 1, 8, 10, 0, 0, tzinfo=timezone.utc),  # RRULE
+            datetime(2024, 1, 10, 10, 0, 0, tzinfo=timezone.utc),  # RDATE
+            datetime(2024, 1, 20, 10, 0, 0, tzinfo=timezone.utc),  # RDATE
+        ]
+        self.assertEqual(event_dates, expected_dates)
+
 
 class LimitCalendarRecurrenceSetTests(unittest.TestCase):
     def test_limit_recurrence_set_basic(self):
