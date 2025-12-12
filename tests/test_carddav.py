@@ -19,9 +19,9 @@
 
 import unittest
 
-from ..carddav import NAMESPACE, AddressDataProperty
-from ..vcard import VCardFile, CardDAVFilter, parse_filter
-from ..webdav import ET
+from xandikos.carddav import NAMESPACE, AddressDataProperty
+from xandikos.vcard import VCardFile, CardDAVFilter, parse_filter
+from xandikos.webdav import ET
 from .test_vcard import EXAMPLE_VCARD1
 
 

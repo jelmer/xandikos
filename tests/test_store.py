@@ -38,10 +38,10 @@ from xandikos.store import (
     Store,
 )
 
-from ..icalendar import ICalendarFile, CalendarFilter
-from ..store.git import BareGitStore, GitStore, TreeGitStore
-from ..store.memory import MemoryStore
-from ..store.vdir import VdirStore
+from xandikos.icalendar import ICalendarFile, CalendarFilter
+from xandikos.store.git import BareGitStore, GitStore, TreeGitStore
+from xandikos.store.memory import MemoryStore
+from xandikos.store.vdir import VdirStore
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR

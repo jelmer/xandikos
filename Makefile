@@ -2,7 +2,7 @@ export PYTHON ?= python3
 COVERAGE ?= $(PYTHON) -m coverage
 COVERAGE_RUN_OPTIONS ?=
 COVERAGE_RUN ?= $(COVERAGE) run $(COVERAGE_RUN_OPTIONS)
-TESTSUITE = xandikos.tests.test_suite
+TESTSUITE = tests.test_suite
 LITMUS_TESTS ?= basic http copymove
 CALDAVTESTER_TESTS ?= CalDAV/delete.xml \
 		      CalDAV/options.xml \

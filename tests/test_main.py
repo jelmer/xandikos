@@ -27,9 +27,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from ..__main__ import add_create_collection_parser, create_collection_main, main
-from ..store import STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR
-from ..web import XandikosBackend
+from xandikos.__main__ import add_create_collection_parser, create_collection_main, main
+from xandikos.store import STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR
+from xandikos.web import XandikosBackend
 
 
 class CreateCollectionTests(unittest.TestCase):

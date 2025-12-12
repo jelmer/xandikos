@@ -24,7 +24,7 @@ from wsgiref.util import setup_testing_defaults
 
 from xandikos import webdav
 
-from ..webdav import (
+from xandikos.webdav import (
     ET,
     Collection,
     Property,
@@ -32,6 +32,9 @@ from ..webdav import (
     WebDAVApp,
     href_to_path,
     split_path_preserving_encoding,
+    DisplayNameProperty,
+    ResourceTypeProperty,
+    apply_modify_prop,
 )
 
 
@@ -257,7 +260,6 @@ class WebTests(WebTestCase):
 
     def test_post_allowed_on_collection(self):
         """Test that POST is included in Allow header for collections."""
-        from ..webdav import Collection
 
         class TestCollection(Collection):
             resource_types = Collection.resource_types
@@ -908,7 +910,6 @@ class PropertyRemovalTests(unittest.TestCase):
     def test_displayname_removal(self):
         """Test that removing displayname property works correctly."""
         import asyncio
-        from ..webdav import DisplayNameProperty, apply_modify_prop
 
         class TestResource(Resource):
             def __init__(self):
@@ -945,7 +946,6 @@ class PropertyRemovalTests(unittest.TestCase):
     def test_resourcetype_removal(self):
         """Test that removing resourcetype property works correctly."""
         import asyncio
-        from ..webdav import ResourceTypeProperty, apply_modify_prop
 
         class TestResource(Resource):
             def __init__(self):

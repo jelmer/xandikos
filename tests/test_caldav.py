@@ -24,10 +24,18 @@ from wsgiref.util import setup_testing_defaults
 from icalendar.cal import Calendar as ICalendar, Component
 
 from xandikos import caldav
-from xandikos.tests import test_webdav
+from . import test_webdav
 
-from ..caldav import CalendarDataProperty, process_vavailability_components
-from ..webdav import ET, Property, WebDAVApp
+from xandikos.caldav import (
+    CalendarDataProperty,
+    process_vavailability_components,
+    CALENDAR_RESOURCE_TYPE,
+    SCHEDULE_INBOX_RESOURCE_TYPE,
+    CalendarAvailabilityProperty,
+)
+
+
+from xandikos.webdav import ET, Property, WebDAVApp
 
 
 class WebTests(test_webdav.WebTestCase):
@@ -970,8 +978,6 @@ class CalendarAvailabilityPropertyTests(unittest.TestCase):
 
     def test_property_name(self):
         """Test that the property has the correct name and namespace."""
-        from ..caldav import CalendarAvailabilityProperty
-
         prop = CalendarAvailabilityProperty()
         self.assertEqual(
             prop.name, "{urn:ietf:params:xml:ns:caldav}calendar-availability"
@@ -979,12 +985,6 @@ class CalendarAvailabilityPropertyTests(unittest.TestCase):
 
     def test_resource_type(self):
         """Test that the property applies to the correct resource types."""
-        from ..caldav import (
-            CalendarAvailabilityProperty,
-            CALENDAR_RESOURCE_TYPE,
-            SCHEDULE_INBOX_RESOURCE_TYPE,
-        )
-
         prop = CalendarAvailabilityProperty()
         self.assertEqual(
             prop.resource_type, (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
@@ -992,15 +992,12 @@ class CalendarAvailabilityPropertyTests(unittest.TestCase):
 
     def test_not_in_allprops(self):
         """Test that the property is not included in allprop queries."""
-        from ..caldav import CalendarAvailabilityProperty
-
         prop = CalendarAvailabilityProperty()
         self.assertFalse(prop.in_allprops)
 
     def test_get_value(self):
         """Test getting calendar availability from a resource."""
         import asyncio
-        from ..caldav import CalendarAvailabilityProperty
         from xml.etree import ElementTree as ET
 
         class MockResource:
@@ -1024,7 +1021,6 @@ class CalendarAvailabilityPropertyTests(unittest.TestCase):
     def test_set_value_with_data(self):
         """Test setting calendar availability on a resource."""
         import asyncio
-        from ..caldav import CalendarAvailabilityProperty
         from xml.etree import ElementTree as ET
 
         class MockResource:
@@ -1055,7 +1051,6 @@ class CalendarAvailabilityPropertyTests(unittest.TestCase):
     def test_set_value_with_none(self):
         """Test setting calendar availability to None (removing it)."""
         import asyncio
-        from ..caldav import CalendarAvailabilityProperty
 
         class MockResource:
             def __init__(self):

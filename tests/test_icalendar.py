@@ -29,7 +29,7 @@ from icalendar.prop import vCategory, vText, vDuration, vDDDTypes
 from xandikos import collation as _mod_collation
 from xandikos.store import InvalidFileContents
 
-from ..icalendar import (
+from xandikos.icalendar import (
     CalendarFilter,
     ICalendarFile,
     MissingProperty,
