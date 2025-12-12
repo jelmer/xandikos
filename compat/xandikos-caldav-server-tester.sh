@@ -19,10 +19,8 @@ source "${VENV_DIR}/bin/activate"
 # Install caldav and caldav-server-tester
 echo "Installing caldav and caldav-server-tester..."
 pip install -q --upgrade pip
-pip install -q caldav
-
-# Try to install caldav-server-tester if available
-if pip install -q caldav-server-tester 2>/dev/null; then
+# Install pinned versions from requirements file
+if pip install -q -r "$(dirname $0)/caldav-server-tester-requirements.txt" 2>/dev/null; then
     echo "caldav-server-tester installed successfully"
 else
     echo "WARNING: caldav-server-tester not available on PyPI, skipping..."
