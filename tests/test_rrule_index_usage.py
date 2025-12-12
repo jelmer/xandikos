@@ -3,13 +3,13 @@
 import unittest
 from datetime import datetime, timezone
 
-from ..icalendar import (
+from xandikos.icalendar import (
     ICalendarFile,
     CalendarFilter,
     ComponentFilter,
     ComponentTimeRangeMatcher,
 )
-from ..store import InsufficientIndexDataError
+from xandikos.store import InsufficientIndexDataError
 
 
 # Test calendar with RRULE

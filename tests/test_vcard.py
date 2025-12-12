@@ -21,7 +21,7 @@
 
 import unittest
 
-from ..vcard import VCardFile, CardDAVFilter
+from xandikos.vcard import VCardFile, CardDAVFilter
 
 EXAMPLE_VCARD1 = b"""\
 BEGIN:VCARD

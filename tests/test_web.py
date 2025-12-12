@@ -24,10 +24,10 @@ import shutil
 import tempfile
 import unittest
 
-from .. import caldav
-from ..icalendar import ICalendarFile
-from ..store.git import TreeGitStore
-from ..web import CalendarCollection, XandikosBackend
+from xandikos import caldav
+from xandikos.icalendar import ICalendarFile
+from xandikos.store.git import TreeGitStore
+from xandikos.web import CalendarCollection, XandikosBackend, XandikosApp
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -150,7 +150,6 @@ class CalendarCollectionTests(unittest.TestCase):
         )
 
     def test_git_refs(self):
-        from ..web import XandikosApp
         from wsgiref.util import setup_testing_defaults
 
         self.store.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
@@ -237,7 +236,7 @@ END:VCALENDAR"""
 
     def test_calendar_availability_invalid_data(self):
         """Test that setting invalid iCalendar data raises InvalidFileContents."""
-        from ..store import InvalidFileContents
+        from xandikos.store import InvalidFileContents
 
         invalid_data = "This is not valid iCalendar data"
 
@@ -357,8 +356,6 @@ END:VCALENDAR"""
         self.cal.set_calendar_availability(availability_data)
 
         # Verify migration happened (directory exists on filesystem but filtered from subdirectories)
-        import os
-
         xandikos_path = os.path.join(self.store.path, ".xandikos")
         self.assertTrue(os.path.isdir(xandikos_path))
 
@@ -398,8 +395,6 @@ END:VCALENDAR"""
         self.cal.set_calendar_availability(availability_data)
 
         # Verify directory was created (exists on filesystem but filtered from subdirectories)
-        import os
-
         xandikos_path = os.path.join(self.store.path, ".xandikos")
         self.assertTrue(os.path.isdir(xandikos_path))
 
@@ -423,8 +418,6 @@ END:VCALENDAR"""
         )
 
         # Verify directory exists on filesystem
-        import os
-
         xandikos_path = os.path.join(self.store.path, ".xandikos")
         self.assertTrue(os.path.isdir(xandikos_path))
         existing_file = self.store.get_file(".xandikos/config", "text/plain")
@@ -537,8 +530,6 @@ END:VAVAILABILITY
 END:VCALENDAR""")
 
         # Verify migration happened (directory exists on filesystem but filtered from subdirectories)
-        import os
-
         xandikos_path = os.path.join(self.store.path, ".xandikos")
         self.assertTrue(os.path.isdir(xandikos_path))
 
@@ -568,8 +559,6 @@ END:VAVAILABILITY
 END:VCALENDAR""")
 
         # Verify migration happened (directory exists on filesystem but filtered from subdirectories)
-        import os
-
         xandikos_path = os.path.join(self.store.path, ".xandikos")
         self.assertTrue(os.path.isdir(xandikos_path))
         with self.assertRaises(KeyError):
@@ -617,8 +606,6 @@ END:VAVAILABILITY
 END:VCALENDAR""")
 
         # Verify .xandikos/ directory exists on filesystem but is filtered from subdirectories()
-        import os
-
         xandikos_path = os.path.join(self.store.path, ".xandikos")
         self.assertTrue(os.path.isdir(xandikos_path))
         # But should be filtered out from subdirectories()

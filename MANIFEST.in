@@ -11,3 +11,4 @@ include notes/*.rst
 include tox.ini
 graft examples
 graft man
+recursive-include tests *.py

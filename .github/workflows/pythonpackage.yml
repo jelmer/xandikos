@@ -48,6 +48,6 @@ jobs:
           python -m mypy xandikos
       - name: Test suite run
         run: |
-          python -m unittest xandikos.tests.test_suite
+          python -m unittest tests.test_suite
         env:
           PYTHONHASHSEED: random

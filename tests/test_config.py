@@ -24,8 +24,8 @@ from unittest import TestCase
 
 import dulwich.repo
 
-from ..store.config import FileBasedCollectionMetadata, is_metadata_file
-from ..store.git import RepoCollectionMetadata
+from xandikos.store.config import FileBasedCollectionMetadata, is_metadata_file
+from xandikos.store.git import RepoCollectionMetadata
 
 
 class FileBasedCollectionMetadataTests(TestCase):

@@ -3,13 +3,13 @@
 import unittest
 from datetime import datetime, timezone
 
-from ..icalendar import (
+from xandikos.icalendar import (
     ICalendarFile,
     CalendarFilter,
     ComponentFilter,
     ComponentTimeRangeMatcher,
 )
-from ..store.git import BareGitStore
+from xandikos.store.git import BareGitStore
 
 
 # Calendar data matching the CalDAV server checker test
