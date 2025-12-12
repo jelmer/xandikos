@@ -816,17 +816,17 @@ class ComponentTimeRangeMatcher:
 
     def _get_occurrences_in_range(self, rrule, dtstart_parsed, query_start, query_end):
         """Generate RRULE occurrences within the specified time range."""
+        # Normalize query bounds to match the original DTSTART type/timezone
+        start_normalized = _normalize_dt_for_rrule(query_start, dtstart_parsed)
+        end_normalized = _normalize_dt_for_rrule(query_end, dtstart_parsed)
+
+        # For date-only events, extend the end bound to include the full day
         if isinstance(dtstart_parsed, date) and not isinstance(
             dtstart_parsed, datetime
         ):
-            # For date-only events, convert query bounds to datetime at midnight
-            query_start_dt = datetime.combine(query_start.date(), time())
-            query_end_dt = datetime.combine(query_end.date(), time()) + timedelta(
-                days=1
-            )
-            return list(rrule.between(query_start_dt, query_end_dt, inc=True))
-        else:
-            return list(rrule.between(query_start, query_end, inc=True))
+            end_normalized = end_normalized + timedelta(days=1)
+
+        return list(rrule.between(start_normalized, end_normalized, inc=True))
 
     def _test_occurrences(
         self,
