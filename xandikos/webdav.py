@@ -117,19 +117,27 @@ class Response:
         start_response("%d %s" % (self.status, self.reason), self.headers)
         return self.body
 
-    def for_aiohttp(self):
+    async def for_aiohttp(self, request):
         from aiohttp import web
 
-        if isinstance(self.body, list):
-            body = b"".join(self.body)
-        else:
-            body = self.body
-        return web.Response(
-            status=self.status,
-            reason=self.reason,
-            headers=self.headers,
-            body=body,
+        # For bytes or simple cases, use regular Response
+        if isinstance(self.body, (bytes, bytearray, memoryview, str)):
+            return web.Response(
+                status=self.status,
+                reason=self.reason,
+                headers=self.headers,
+                body=self.body,
+            )
+
+        # For iterables, use StreamResponse to avoid buffering entire response
+        response = web.StreamResponse(
+            status=self.status, reason=self.reason, headers=self.headers
         )
+        await response.prepare(request)
+        for chunk in self.body:
+            await response.write(chunk)
+        await response.write_eof()
+        return response
 
 
 def pick_content_types(accepted_content_types, available_content_types):
@@ -2885,7 +2893,7 @@ class WebDAVApp:
     async def aiohttp_handler(self, request, route_prefix="/"):
         environ = {"SCRIPT_NAME": route_prefix}
         response = await self._handle_request(request, environ)
-        return response.for_aiohttp()
+        return await response.for_aiohttp(request)
 
     # Backwards compatibility
     __call__ = handle_wsgi_request
