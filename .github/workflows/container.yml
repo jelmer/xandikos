@@ -1,6 +1,9 @@
 name: Create and publish a Docker image
 
 on:
+  push:
+    branches:
+      - '**'
   release:
     types: [created]
 
@@ -36,6 +39,13 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix={{branch}}-
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
@@ -43,6 +53,6 @@ jobs:
           context: .
           file: ./Containerfile
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ github.repository == 'jelmer/xandikos' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
