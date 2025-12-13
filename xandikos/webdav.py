@@ -1798,7 +1798,22 @@ async def apply_modify_prop(el, href, resource, properties):
 
 
 async def _readBody(request):
-    return [await request.content.read()]
+    """Read request body in streaming fashion.
+
+    Reads the body in chunks to support efficient handling of large files
+    and chunked transfer encoding without buffering everything in memory.
+
+    Returns: Iterable of bytes chunks
+    """
+    # Read in 64KB chunks for efficient streaming
+    CHUNK_SIZE = 65536
+    chunks = []
+    while True:
+        chunk = await request.content.read(CHUNK_SIZE)
+        if not chunk:
+            break
+        chunks.append(chunk)
+    return chunks
 
 
 async def _readXmlBody(request, expected_tag: str | None = None, strict: bool = True):
@@ -2648,9 +2663,7 @@ class _ChunkedStreamWrapper:
                 try:
                     chunk_size = int(chunk_size_str, 16)
                 except ValueError as e:
-                    raise ValueError(
-                        f"Invalid chunk size: {chunk_size_str!r}"
-                    ) from e
+                    raise ValueError(f"Invalid chunk size: {chunk_size_str!r}") from e
 
                 # If chunk size is 0, we've reached the last chunk
                 if chunk_size == 0:

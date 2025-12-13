@@ -754,7 +754,9 @@ class TreeGitStore(GitStore):
                 with open(p, "wb") as f:
                     f.writelines(data)
                 st = os.lstat(p)
-                blob = Blob.from_string(b"".join(data))
+                # Read the file back to create the blob since data iterator is consumed
+                with open(p, "rb") as f:
+                    blob = Blob.from_string(f.read())
                 encoded_name = name.encode(DEFAULT_ENCODING)
                 try:
                     entry = index[encoded_name]
