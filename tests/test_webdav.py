@@ -1291,3 +1291,214 @@ class CollectionCopyMemberTests(unittest.TestCase):
                 )
 
         asyncio.run(run_test())
+
+
+class ChunkedTransferEncodingTests(WebTestCase):
+    """Tests for chunked transfer encoding support in WSGI requests."""
+
+    @staticmethod
+    def encode_chunked(data: bytes) -> bytes:
+        """Encode data using chunked transfer encoding format."""
+        if not data:
+            # Just the terminating chunk
+            return b"0\r\n\r\n"
+
+        # For testing, we'll split the data into chunks
+        # We'll use varying chunk sizes to test the decoder properly
+        chunks = []
+        offset = 0
+        chunk_sizes = [5, 10, 7, 15]  # Varying sizes for testing
+
+        while offset < len(data):
+            chunk_size = chunk_sizes[len(chunks) % len(chunk_sizes)]
+            chunk = data[offset : offset + chunk_size]
+            if chunk:
+                # Format: {size in hex}\r\n{data}\r\n
+                chunks.append(f"{len(chunk):X}\r\n".encode() + chunk + b"\r\n")
+            offset += chunk_size
+
+        # Add terminating chunk
+        chunks.append(b"0\r\n\r\n")
+        return b"".join(chunks)
+
+    def put_chunked(self, app, path, contents):
+        """Helper to perform PUT request with chunked encoding."""
+        chunked_body = self.encode_chunked(contents)
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": "PUT",
+            "wsgi.input": BytesIO(chunked_body),
+            "HTTP_TRANSFER_ENCODING": "chunked",
+        }
+        setup_testing_defaults(environ)
+        # Remove CONTENT_LENGTH as it's not used with chunked encoding
+        if "CONTENT_LENGTH" in environ:
+            del environ["CONTENT_LENGTH"]
+
+        _code = []
+        _headers = []
+
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+
+        list(app(environ, start_response))
+        return _code[0], _headers
+
+    def test_put_chunked_simple(self):
+        """Test PUT with simple chunked body."""
+
+        class TestResource(Resource):
+            def __init__(self) -> None:
+                self.contents = None
+
+            def get_content_language(self):
+                return None
+
+            def get_content_type(self):
+                return "text/plain"
+
+            def get_content_length(self):
+                return len(self.contents) if self.contents else 0
+
+            async def get_body(self):
+                return [self.contents] if self.contents else []
+
+            async def set_body(self, data, replace_etag=None):
+                self.contents = b"".join(data)
+
+            def get_last_modified(self):
+                return None
+
+            async def get_etag(self):
+                return "test-etag"
+
+        resources = {"/test.txt": TestResource()}
+        app = self.makeApp(resources, [])
+
+        test_data = b"Hello, chunked world!"
+        code, headers = self.put_chunked(app, "/test.txt", test_data)
+
+        # Should succeed
+        self.assertIn(code.split()[0], ["200", "201", "204"])
+        # Verify the data was correctly decoded and stored
+        self.assertEqual(resources["/test.txt"].contents, test_data)
+
+    def test_put_chunked_empty(self):
+        """Test PUT with empty chunked body."""
+
+        class TestResource(Resource):
+            def __init__(self) -> None:
+                self.contents = None
+
+            def get_content_language(self):
+                return None
+
+            def get_content_type(self):
+                return "text/plain"
+
+            def get_content_length(self):
+                return len(self.contents) if self.contents else 0
+
+            async def get_body(self):
+                return [self.contents] if self.contents else []
+
+            async def set_body(self, data, replace_etag=None):
+                self.contents = b"".join(data)
+
+            def get_last_modified(self):
+                return None
+
+            async def get_etag(self):
+                return "test-etag"
+
+        resources = {"/empty.txt": TestResource()}
+        app = self.makeApp(resources, [])
+
+        code, headers = self.put_chunked(app, "/empty.txt", b"")
+
+        # Should succeed
+        self.assertIn(code.split()[0], ["200", "201", "204"])
+        # Verify empty data was stored
+        self.assertEqual(resources["/empty.txt"].contents, b"")
+
+    def test_put_chunked_large(self):
+        """Test PUT with larger chunked body."""
+
+        class TestResource(Resource):
+            def __init__(self) -> None:
+                self.contents = None
+
+            def get_content_language(self):
+                return None
+
+            def get_content_type(self):
+                return "text/plain"
+
+            def get_content_length(self):
+                return len(self.contents) if self.contents else 0
+
+            async def get_body(self):
+                return [self.contents] if self.contents else []
+
+            async def set_body(self, data, replace_etag=None):
+                self.contents = b"".join(data)
+
+            def get_last_modified(self):
+                return None
+
+            async def get_etag(self):
+                return "test-etag"
+
+        resources = {"/large.txt": TestResource()}
+        app = self.makeApp(resources, [])
+
+        # Create a larger test payload (1KB)
+        test_data = b"x" * 1024
+        code, headers = self.put_chunked(app, "/large.txt", test_data)
+
+        # Should succeed
+        self.assertIn(code.split()[0], ["200", "201", "204"])
+        # Verify the data was correctly decoded and stored
+        self.assertEqual(resources["/large.txt"].contents, test_data)
+        self.assertEqual(len(resources["/large.txt"].contents), 1024)
+
+    def test_put_chunked_binary(self):
+        """Test PUT with binary data in chunked encoding."""
+
+        class TestResource(Resource):
+            def __init__(self) -> None:
+                self.contents = None
+
+            def get_content_language(self):
+                return None
+
+            def get_content_type(self):
+                return "application/octet-stream"
+
+            def get_content_length(self):
+                return len(self.contents) if self.contents else 0
+
+            async def get_body(self):
+                return [self.contents] if self.contents else []
+
+            async def set_body(self, data, replace_etag=None):
+                self.contents = b"".join(data)
+
+            def get_last_modified(self):
+                return None
+
+            async def get_etag(self):
+                return "test-etag"
+
+        resources = {"/binary.dat": TestResource()}
+        app = self.makeApp(resources, [])
+
+        # Binary data with all byte values
+        test_data = bytes(range(256))
+        code, headers = self.put_chunked(app, "/binary.dat", test_data)
+
+        # Should succeed
+        self.assertIn(code.split()[0], ["200", "201", "204"])
+        # Verify binary data integrity
+        self.assertEqual(resources["/binary.dat"].contents, test_data)

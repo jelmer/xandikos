@@ -2589,6 +2589,107 @@ async def _do_get(request, environ, app, send_body):
         return Response(status=200, reason="OK", headers=headers)
 
 
+class _StreamWrapper:
+    """Wrapper for synchronous WSGI input stream."""
+
+    def __init__(self, stream) -> None:
+        self._stream = stream
+
+    async def read(self, size=None):
+        if size is None:
+            return self._stream.read()
+        else:
+            return self._stream.read(size)
+
+
+class _ChunkedStreamWrapper:
+    """Streaming decoder for chunked transfer encoding."""
+
+    def __init__(self, stream) -> None:
+        self._stream = stream
+        self._finished = False
+        self._current_chunk_remaining = 0
+
+    def _read_exact(self, n):
+        """Read exactly n bytes from the stream."""
+        data = self._stream.read(n)
+        if len(data) != n:
+            raise ValueError(f"Expected {n} bytes, got {len(data)}")
+        return data
+
+    def _read_line(self):
+        """Read a line from the stream (until CRLF)."""
+        line = b""
+        while True:
+            char = self._stream.read(1)
+            if not char:
+                raise ValueError("Unexpected end of stream while reading chunk")
+            line += char
+            if line.endswith(b"\r\n"):
+                return line[:-2]  # Remove CRLF
+
+    async def read(self, size=None):
+        """Read data, decoding chunks as needed."""
+        if self._finished:
+            return b""
+
+        result = b""
+
+        while True:
+            # If current chunk is exhausted, read next chunk header
+            if self._current_chunk_remaining == 0:
+                # Read chunk size line
+                chunk_size_line = self._read_line()
+                if not chunk_size_line:
+                    raise ValueError("Empty chunk size line")
+
+                # Parse chunk size (ignore chunk extensions after ';')
+                chunk_size_str = chunk_size_line.split(b";")[0].strip()
+                try:
+                    chunk_size = int(chunk_size_str, 16)
+                except ValueError as e:
+                    raise ValueError(
+                        f"Invalid chunk size: {chunk_size_str!r}"
+                    ) from e
+
+                # If chunk size is 0, we've reached the last chunk
+                if chunk_size == 0:
+                    # Read trailer headers (if any) until empty line
+                    while True:
+                        trailer_line = self._read_line()
+                        if not trailer_line:
+                            break
+                    self._finished = True
+                    return result
+
+                self._current_chunk_remaining = chunk_size
+
+            # Read from current chunk
+            if size is None:
+                # Read entire remaining chunk
+                chunk_data = self._read_exact(self._current_chunk_remaining)
+                result += chunk_data
+                self._current_chunk_remaining = 0
+                # Read trailing CRLF after chunk data
+                self._read_exact(2)
+                # Continue to next chunk
+            else:
+                # Read up to size bytes total
+                needed = size - len(result)
+                to_read = min(needed, self._current_chunk_remaining)
+                chunk_data = self._read_exact(to_read)
+                result += chunk_data
+                self._current_chunk_remaining -= to_read
+
+                # If we finished this chunk, read trailing CRLF
+                if self._current_chunk_remaining == 0:
+                    self._read_exact(2)
+
+                # If we have enough data, return it
+                if len(result) >= size:
+                    return result
+
+
 class WSGIRequest:
     """Request object for wsgi requests (with environ)."""
 
@@ -2609,17 +2710,17 @@ class WSGIRequest:
         )
         self.url = request_uri(environ)
 
-        class StreamWrapper:
-            def __init__(self, stream) -> None:
-                self._stream = stream
+        # Check if request uses chunked transfer encoding
+        transfer_encoding = environ.get("HTTP_TRANSFER_ENCODING", "").lower()
+        is_chunked = "chunked" in transfer_encoding
 
-            async def read(self, size=None):
-                if size is None:
-                    return self._stream.read()
-                else:
-                    return self._stream.read(size)
-
-        self.content = StreamWrapper(self._environ["wsgi.input"])
+        self.content: _StreamWrapper | _ChunkedStreamWrapper
+        if is_chunked:
+            self.content = _ChunkedStreamWrapper(self._environ["wsgi.input"])
+            # For chunked requests, content_length is unknown until decoded
+            # We'll keep it as None to indicate streaming/chunked mode
+        else:
+            self.content = _StreamWrapper(self._environ["wsgi.input"])
         # Decode the path_info to match aiohttp behavior
         # This ensures consistent handling of percent-encoded paths
         decoded_path_info = urllib.parse.unquote(
@@ -2629,9 +2730,11 @@ class WSGIRequest:
 
     @property
     def can_read_body(self):
+        transfer_encoding = self._environ.get("HTTP_TRANSFER_ENCODING", "").lower()
         return (
             "CONTENT_TYPE" in self._environ
             or self._environ.get("CONTENT_LENGTH") != "0"
+            or "chunked" in transfer_encoding
         )
 
     async def read(self):
