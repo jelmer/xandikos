@@ -251,6 +251,9 @@ class InvalidFileContents(Exception):
         self.data = data
         self.error = error
 
+    def __str__(self) -> str:
+        return f"Invalid {self.content_type} file: {self.error}"
+
 
 class InsufficientIndexDataError(Exception):
     """Raised when index data is insufficient for filtering.

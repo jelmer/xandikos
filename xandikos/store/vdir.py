@@ -117,8 +117,8 @@ class VdirStore(Store):
             except KeyError:
                 logger.warning("No UID found in file %s", name)
                 uid = None
-            except InvalidFileContents:
-                logging.warning("Unable to parse file %s", name)
+            except InvalidFileContents as e:
+                logging.warning("Unable to parse file %s: %s", name, e)
                 uid = None
             except NotImplementedError:
                 # This file type doesn't support UIDs

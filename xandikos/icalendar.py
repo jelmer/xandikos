@@ -610,7 +610,16 @@ class PropertyTimeRangeMatcher:
         dt = tzify(prop.dt)
         return dt >= self.start and dt <= self.end
 
-    def match_indexes(self, prop: SubIndexDict, tzify: TzifyFunction):
+    def match_indexes(
+        self, prop: SubIndexDict, tzify: TzifyFunction, context: str | None = None
+    ):
+        """Match indexes against this property time range matcher.
+
+        Args:
+            prop: Property index dictionary to match against
+            tzify: Timezone conversion function
+            context: Optional context string (e.g. filename) for error/warning reporting (unused here)
+        """
         return any(
             self.match(vDDDTypes(vDDDTypes.from_ical(p.decode("utf-8"))), tzify)
             for p in prop[None]
@@ -665,11 +674,20 @@ class ComponentTimeRangeMatcher:
             return False
         return component_handler(self.start, self.end, comp, tzify)
 
-    def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction):
+    def match_indexes(
+        self, indexes: SubIndexDict, tzify: TzifyFunction, context: str | None = None
+    ):
+        """Match indexes against this time range matcher.
+
+        Args:
+            indexes: Index dictionary to match against
+            tzify: Timezone conversion function
+            context: Optional context string (e.g. filename) for error/warning reporting
+        """
         # Check if we have RRULE - if so, expand and test occurrences
         rrule_values = indexes.get("P=RRULE")
         if rrule_values and rrule_values[0]:
-            return self._match_indexes_with_rrule(indexes, tzify)
+            return self._match_indexes_with_rrule(indexes, tzify, context)
 
         # Original logic for non-recurring events
         vs: list[dict[str, vDDDTypes | None]] = []
@@ -726,8 +744,16 @@ class ComponentTimeRangeMatcher:
                 return True
         return False
 
-    def _match_indexes_with_rrule(self, indexes: SubIndexDict, tzify: TzifyFunction):
-        """Handle time-range matching for recurring events using RRULE expansion."""
+    def _match_indexes_with_rrule(
+        self, indexes: SubIndexDict, tzify: TzifyFunction, context: str | None = None
+    ):
+        """Handle time-range matching for recurring events using RRULE expansion.
+
+        Args:
+            indexes: Index dictionary to match against
+            tzify: Timezone conversion function
+            context: Optional context string (e.g. filename) for error/warning reporting
+        """
         # Extract and validate RRULE and DTSTART from indexes
         rrule_values = indexes.get("P=RRULE", [])
         dtstart_values = indexes.get("P=DTSTART", [])
@@ -759,8 +785,25 @@ class ComponentTimeRangeMatcher:
             dtstart_parsed = vDDDTypes.from_ical(dtstart_str)
             rrule = dateutil.rrule.rrulestr(rrule_str, dtstart=dtstart_parsed)
         except (TypeError, ValueError) as e:
-            # If RRULE parsing fails, log and return False
-            logging.warning("Failed to parse RRULE in time-range filter: %s", e)
+            # If RRULE parsing fails, log with context and return False
+            uid_values = indexes.get("P=UID", [])
+            uid = (
+                decode_bytes(uid_values[0], "UID")
+                if uid_values and uid_values[0] and isinstance(uid_values[0], bytes)
+                else "unknown"
+            )
+
+            if context:
+                logging.warning(
+                    "Failed to parse RRULE in time-range filter for %s (UID=%s): %s",
+                    context,
+                    uid,
+                    e,
+                )
+            else:
+                logging.warning(
+                    "Failed to parse RRULE in time-range filter (UID=%s): %s", uid, e
+                )
             return False
 
         # Get component handler for testing occurrences
@@ -1044,7 +1087,16 @@ class ComponentFilter:
             not getattr(child, "is_not_defined", False) for child in self.children
         )
 
-    def match_indexes(self, indexes: IndexDict, tzify: TzifyFunction):
+    def match_indexes(
+        self, indexes: IndexDict, tzify: TzifyFunction, context: str | None = None
+    ):
+        """Match indexes against this component filter.
+
+        Args:
+            indexes: Index dictionary to match against
+            tzify: Timezone conversion function
+            context: Optional context string (e.g. filename) for error/warning reporting
+        """
         myindex = "C=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
@@ -1052,12 +1104,12 @@ class ComponentFilter:
         subindexes = create_subindexes(indexes, myindex)
 
         if self.time_range is not None and not self.time_range.match_indexes(
-            subindexes, tzify
+            subindexes, tzify, context
         ):
             return False
 
         for child in self.children:
-            if not child.match_indexes(subindexes, tzify):
+            if not child.match_indexes(subindexes, tzify, context):
                 return False
 
         if not self._implicitly_defined():
@@ -1142,7 +1194,16 @@ class PropertyFilter:
 
         return True
 
-    def match_indexes(self, indexes: SubIndexDict, tzify: TzifyFunction) -> bool:
+    def match_indexes(
+        self, indexes: SubIndexDict, tzify: TzifyFunction, context: str | None = None
+    ) -> bool:
+        """Match indexes against this property filter.
+
+        Args:
+            indexes: Index dictionary to match against
+            tzify: Timezone conversion function
+            context: Optional context string (e.g. filename) for error/warning reporting
+        """
         myindex = "P=" + self.name
         if self.is_not_defined:
             return not bool(indexes[myindex])
@@ -1151,7 +1212,7 @@ class PropertyFilter:
             return bool(indexes[myindex])
 
         if self.time_range is not None and not self.time_range.match_indexes(
-            subindexes, tzify
+            subindexes, tzify, context
         ):
             return False
 
@@ -1289,7 +1350,7 @@ class CalendarFilter(Filter):
     def check_from_indexes(self, name: str, indexes: IndexDict) -> bool:
         for child_filter in self.children:
             try:
-                if not child_filter.match_indexes(indexes, self.tzify):  # type: ignore
+                if not child_filter.match_indexes(indexes, self.tzify, name):  # type: ignore
                     return False
             except MissingProperty as e:
                 logging.warning(
