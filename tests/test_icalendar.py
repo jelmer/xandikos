@@ -1564,6 +1564,161 @@ END:VCALENDAR"""
         self.assertEqual(event_dates, expected_dates)
 
 
+class MixedDateDatetimeTests(unittest.TestCase):
+    """Test handling of mixed date/datetime types in EXDATE/RDATE.
+
+    These tests cover issue #528 where mixed types would cause TypeError
+    when dateutil tried to compare date and datetime objects.
+    """
+
+    def test_datetime_dtstart_with_date_exdate(self):
+        """Test DTSTART is datetime, EXDATE is date (VALUE=DATE)."""
+        from icalendar import Calendar
+
+        # This reproduces the case where EXDATE;VALUE=DATE is used with
+        # a datetime DTSTART, which is technically non-compliant but happens
+        # in practice
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-mixed-1@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+RRULE:FREQ=DAILY;COUNT=5
+EXDATE;VALUE=DATE:20240102
+SUMMARY:Event with datetime DTSTART and date EXDATE
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 10, tzinfo=timezone.utc)
+
+        # This should not raise TypeError
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Verify we got the expected events (5 total - 1 excluded = 4)
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 4)
+
+        # Verify Jan 2 is excluded
+        event_dates = sorted([ev["DTSTART"].dt for ev in events])
+        excluded_date = datetime(2024, 1, 2, 10, 0, 0, tzinfo=timezone.utc)
+        self.assertNotIn(excluded_date, event_dates)
+
+    def test_date_dtstart_with_datetime_exdate(self):
+        """Test DTSTART is date, EXDATE is datetime."""
+        from icalendar import Calendar
+
+        # This reproduces the case where EXDATE is a full datetime but
+        # DTSTART is just a date (all-day event)
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-mixed-2@example.com
+DTSTART;VALUE=DATE:20240101
+RRULE:FREQ=DAILY;COUNT=5
+EXDATE:20240102T100000Z
+SUMMARY:Event with date DTSTART and datetime EXDATE
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 10, tzinfo=timezone.utc)
+
+        # This should not raise TypeError
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Verify we got the expected events (5 total - 1 excluded = 4)
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 4)
+
+        # Verify Jan 2 is excluded (the date portion should match)
+        event_dates = sorted([ev["DTSTART"].dt for ev in events])
+        # When DTSTART is a date, occurrences are datetimes at midnight
+        # Convert to just dates for comparison since these are all-day events
+        event_date_only = [
+            d.date() if isinstance(d, datetime) else d for d in event_dates
+        ]
+        self.assertNotIn(date(2024, 1, 2), event_date_only)
+
+    def test_datetime_dtstart_with_date_rdate(self):
+        """Test DTSTART is datetime, RDATE is date (VALUE=DATE)."""
+        from icalendar import Calendar
+
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-rdate-mixed@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+RRULE:FREQ=WEEKLY;COUNT=2
+RDATE;VALUE=DATE:20240110
+SUMMARY:Event with datetime DTSTART and date RDATE
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 31, tzinfo=timezone.utc)
+
+        # This should not raise TypeError
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Verify we got the expected events (2 from RRULE + 1 from RDATE = 3)
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 3)
+
+        # Verify Jan 10 is included from RDATE
+        event_dates = sorted([ev["DTSTART"].dt for ev in events])
+        rdate_occurrence = datetime(2024, 1, 10, 10, 0, 0, tzinfo=timezone.utc)
+        self.assertIn(rdate_occurrence, event_dates)
+
+    def test_multiple_mixed_exdates(self):
+        """Test multiple EXDATE properties with mixed types."""
+        from icalendar import Calendar
+
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-multi-mixed@example.com
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+RRULE:FREQ=DAILY;COUNT=10
+EXDATE;VALUE=DATE:20240102
+EXDATE:20240103T100000Z
+EXDATE;VALUE=DATE:20240105
+SUMMARY:Event with multiple mixed EXDATEs
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 1, 15, tzinfo=timezone.utc)
+
+        # This should not raise TypeError
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Verify we got the expected events (10 total - 3 excluded = 7)
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 7)
+
+        # Verify the excluded dates
+        event_dates = sorted([ev["DTSTART"].dt for ev in events])
+        excluded_dates = [
+            datetime(2024, 1, 2, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 3, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 5, 10, 0, 0, tzinfo=timezone.utc),
+        ]
+        for excluded in excluded_dates:
+            self.assertNotIn(excluded, event_dates)
+
+
 class LimitCalendarRecurrenceSetTests(unittest.TestCase):
     def test_limit_recurrence_set_basic(self):
         """Test basic functionality of limit_calendar_recurrence_set."""
