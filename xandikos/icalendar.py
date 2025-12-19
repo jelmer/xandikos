@@ -1937,6 +1937,92 @@ def limit_calendar_recurrence_set(
     return outcal
 
 
+def limit_calendar_freebusy_set(
+    incal: Calendar, start: datetime, end: datetime
+) -> Calendar:
+    """Limit FREEBUSY properties to a specified time range.
+
+    Filters FREEBUSY properties in VFREEBUSY components to only include
+    those that overlap with the specified time range. This implements
+    RFC 4791 section 9.6.7.
+
+    Args:
+        incal: Input calendar
+        start: Start of time range (UTC)
+        end: End of time range (UTC)
+
+    Returns:
+        Calendar with VFREEBUSY components containing only overlapping FREEBUSY periods
+    """
+    outcal = Calendar()
+    if incal.name != "VCALENDAR":
+        raise AssertionError(f"called on file with root component {incal.name}")
+
+    # Copy calendar properties
+    for field in incal:
+        outcal[field] = incal[field]
+
+    # Normalize start/end to naive UTC for comparison
+    start_utc = asutc(start) if isinstance(start, datetime) else start
+    end_utc = asutc(end) if isinstance(end, datetime) else end
+
+    # First, add all VTIMEZONE components to preserve timezone definitions
+    for insub in incal.subcomponents:
+        if insub.name == "VTIMEZONE":
+            outcal.add_component(insub)
+
+    # Process other components
+    for insub in incal.subcomponents:
+        if insub.name == "VTIMEZONE":
+            continue
+
+        if insub.name == "VFREEBUSY":
+            # Create a new VFREEBUSY component with filtered FREEBUSY properties
+            from icalendar.cal import FreeBusy
+
+            newsub = FreeBusy()
+
+            # Copy all non-FREEBUSY properties
+            for field in insub:
+                if field != "FREEBUSY":
+                    newsub[field] = insub[field]
+
+            # Filter and copy only overlapping FREEBUSY properties
+            freebusy_props = insub.get("FREEBUSY", [])
+            if not isinstance(freebusy_props, list):
+                freebusy_props = [freebusy_props]
+
+            for fb_period in freebusy_props:
+                # FREEBUSY properties are vPeriod objects with start and end times
+                # Check if the period overlaps with the requested range
+                # Overlap occurs if: period_start < range_end AND period_end > range_start
+                period_start_utc = (
+                    asutc(fb_period.start)
+                    if isinstance(fb_period.start, datetime)
+                    else fb_period.start
+                )
+                period_end_utc = (
+                    asutc(fb_period.end)
+                    if isinstance(fb_period.end, datetime)
+                    else fb_period.end
+                )
+
+                if period_start_utc < end_utc and period_end_utc > start_utc:
+                    # This FREEBUSY period overlaps with the requested range
+                    newsub.add("FREEBUSY", fb_period)
+
+            # Copy subcomponents (though VFREEBUSY typically doesn't have any)
+            for subcomp in insub.subcomponents:
+                newsub.add_component(subcomp)
+
+            outcal.add_component(newsub)
+        else:
+            # For non-VFREEBUSY components, just copy them as-is
+            outcal.add_component(insub)
+
+    return outcal
+
+
 def asutc(dt):
     if isinstance(dt, date) and not isinstance(dt, datetime):
         # Return date as-is - dates are timezone-agnostic

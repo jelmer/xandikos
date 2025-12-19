@@ -456,6 +456,93 @@ END:VCALENDAR
 """,
         )
 
+    def test_limit_freebusy_set(self):
+        """Test limit-freebusy-set element filters FREEBUSY properties."""
+        limit = ET.SubElement(
+            self.requested, "{%s}limit-freebusy-set" % caldav.NAMESPACE
+        )
+        # Request range: 10:00 - 12:00
+        limit.set("start", "20240115T100000Z")
+        limit.set("end", "20240115T120000Z")
+        self.extractEqual(
+            """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VFREEBUSY
+UID:freebusy@example.com
+DTSTART:20240115T080000Z
+DTEND:20240115T140000Z
+FREEBUSY:20240115T090000Z/20240115T093000Z
+FREEBUSY:20240115T095000Z/20240115T103000Z
+FREEBUSY:20240115T110000Z/20240115T120000Z
+FREEBUSY:20240115T120000Z/20240115T130000Z
+FREEBUSY:20240115T133000Z/20240115T140000Z
+END:VFREEBUSY
+END:VCALENDAR
+""",
+            """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VFREEBUSY
+UID:freebusy@example.com
+DTSTART:20240115T080000Z
+DTEND:20240115T140000Z
+FREEBUSY:20240115T095000Z/20240115T103000Z
+FREEBUSY:20240115T110000Z/20240115T120000Z
+END:VFREEBUSY
+END:VCALENDAR
+""",
+        )
+
+    def test_limit_freebusy_set_preserves_other_components(self):
+        """Test that limit-freebusy-set preserves non-VFREEBUSY components."""
+        limit = ET.SubElement(
+            self.requested, "{%s}limit-freebusy-set" % caldav.NAMESPACE
+        )
+        limit.set("start", "20240115T100000Z")
+        limit.set("end", "20240115T120000Z")
+        self.extractEqual(
+            """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+DTSTART:20240115T090000Z
+DTEND:20240115T100000Z
+SUMMARY:Morning meeting
+UID:event1@example.com
+END:VEVENT
+BEGIN:VFREEBUSY
+UID:freebusy@example.com
+DTSTART:20240115T080000Z
+DTEND:20240115T140000Z
+FREEBUSY:20240115T090000Z/20240115T093000Z
+FREEBUSY:20240115T110000Z/20240115T120000Z
+END:VFREEBUSY
+END:VCALENDAR
+""",
+            """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+DTSTART:20240115T090000Z
+DTEND:20240115T100000Z
+SUMMARY:Morning meeting
+UID:event1@example.com
+END:VEVENT
+BEGIN:VFREEBUSY
+UID:freebusy@example.com
+DTSTART:20240115T080000Z
+DTEND:20240115T140000Z
+FREEBUSY:20240115T110000Z/20240115T120000Z
+END:VFREEBUSY
+END:VCALENDAR
+""",
+        )
+
 
 class TestCalendarDataProperty(unittest.TestCase):
     def test_supported_on_with_calendar(self):
