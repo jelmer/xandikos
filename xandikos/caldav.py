@@ -38,6 +38,7 @@ from .icalendar import (
     as_tz_aware_ts,
     expand_calendar_rrule,
     limit_calendar_recurrence_set,
+    limit_calendar_freebusy_set,
 )
 
 logger = logging.getLogger(__name__)
@@ -338,8 +339,8 @@ def extract_from_calendar(incal, requested):
             (start, end) = _parse_time_range(tag)
             incal = limit_calendar_recurrence_set(incal, start, end)
         elif tag.tag == ("{%s}limit-freebusy-set" % NAMESPACE):
-            # TODO(jelmer): https://github.com/jelmer/xandikos/issues/104
-            raise NotImplementedError("limit-freebusy-set is not yet implemented")
+            (start, end) = _parse_time_range(tag)
+            incal = limit_calendar_freebusy_set(incal, start, end)
         else:
             raise AssertionError(f"invalid element {tag!r}")
     return incal
