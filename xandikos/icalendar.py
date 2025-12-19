@@ -62,6 +62,11 @@ MAX_EXPANSION_TIME = datetime(
     9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc
 )  # 99991231T235959Z
 
+# Maximum number of recurrence instances to expand for infinite recurrences
+# This prevents resource exhaustion when expanding recurring events with no end date
+# Following sabre/dav and Stalwart's approach of limiting to ~3000 instances
+MAX_RECURRENCE_INSTANCES = 3000
+
 
 # Based on RFC5545 section 3.3.11, CONTROL = %x00-08 / %x0A-1F / %x7F
 # All control characters except HTAB (\x09) are forbidden
@@ -869,7 +874,22 @@ class ComponentTimeRangeMatcher:
         ):
             end_normalized = end_normalized + timedelta(days=1)
 
-        return list(rrule.between(start_normalized, end_normalized, inc=True))
+        # When the query end is unbounded (at MAX_EXPANSION_TIME), limit the number
+        # of instances to prevent resource exhaustion with infinite recurrences
+        # Compare dates to handle both aware and naive datetimes
+        query_end_date = (
+            query_end.date() if isinstance(query_end, datetime) else query_end
+        )
+        max_date = MAX_EXPANSION_TIME.date()
+        if query_end_date >= max_date:
+            # Use xafter with count limit for unbounded queries
+            occurrences = list(
+                rrule.xafter(start_normalized, count=MAX_RECURRENCE_INSTANCES, inc=True)
+            )
+            # Filter to only those before end_normalized
+            return [occ for occ in occurrences if occ <= end_normalized]
+        else:
+            return list(rrule.between(start_normalized, end_normalized, inc=True))
 
     def _test_occurrences(
         self,
@@ -1672,7 +1692,20 @@ def _expand_rrule_component(
         start_normalized = _normalize_dt_for_rrule(adjusted_start, original_dtstart.dt)
         end_normalized = _normalize_dt_for_rrule(end, original_dtstart.dt)
 
-        occurrences = rs.between(start_normalized, end_normalized, inc=True)
+        # When the query end is unbounded (at MAX_EXPANSION_TIME), limit the number
+        # of instances to prevent resource exhaustion with infinite recurrences
+        # Compare dates to handle both aware and naive datetimes
+        end_date = end.date() if isinstance(end, datetime) else end
+        max_date = MAX_EXPANSION_TIME.date()
+        if end_date >= max_date:
+            # Use xafter with count limit for unbounded queries
+            all_occurrences = list(
+                rs.xafter(start_normalized, count=MAX_RECURRENCE_INSTANCES, inc=True)
+            )
+            # Filter to only those before end_normalized
+            occurrences = [occ for occ in all_occurrences if occ <= end_normalized]
+        else:
+            occurrences = rs.between(start_normalized, end_normalized, inc=True)
     else:
         # For unbounded queries, we still need to return a list/iterator
         occurrences = rs  # type: ignore

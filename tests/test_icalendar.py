@@ -1006,6 +1006,43 @@ END:VCALENDAR
         result_bounded = filter_bounded.check("test.ics", cal_file)
         self.assertTrue(result_bounded)
 
+    def test_unbounded_query_overflow_prevention(self):
+        """Test that unbounded queries with date-only events don't cause overflow.
+
+        Regression test for issue #538 where querying recurring date-only events
+        with no end date caused OverflowError when trying to add 1 day to MAX_EXPANSION_TIME.
+        """
+        from xandikos.icalendar import MAX_EXPANSION_TIME
+
+        # Create a calendar with a daily recurring date-only event
+        daily_event = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:daily-event@example.com
+DTSTART;VALUE=DATE:20200101
+SUMMARY:Daily Event
+RRULE:FREQ=DAILY
+END:VEVENT
+END:VCALENDAR
+"""
+        cal_file = ICalendarFile([daily_event], "text/calendar")
+
+        # Test unbounded query (end date at MAX_EXPANSION_TIME)
+        # This should not cause OverflowError when adding 1 day for date-only events
+        filter_unbounded = CalendarFilter(ZoneInfo("UTC"))
+        filter_unbounded.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2020, 1, 1, 0, 0, 0)),
+            end=MAX_EXPANSION_TIME,  # This triggers the overflow if not handled
+        )
+
+        # This should complete without OverflowError
+        result = filter_unbounded.check("test.ics", cal_file)
+        self.assertTrue(result)
+
 
 class TextMatchTest(unittest.TestCase):
     def test_default_collation(self):
