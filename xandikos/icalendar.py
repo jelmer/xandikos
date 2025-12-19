@@ -1533,38 +1533,124 @@ def as_tz_aware_ts(dt: datetime | date, default_timezone: str | timezone) -> dat
     return _dt
 
 
+def _normalize_to_dtstart_type(
+    dt_value: date | datetime, dtstart: date | datetime
+) -> date | datetime:
+    """Normalize a date/datetime value to match the type of DTSTART.
+
+    This is necessary because dateutil.rrule cannot compare date and datetime objects.
+    When adding EXDATE/RDATE values to an rruleset, they must be the same type as DTSTART.
+
+    Args:
+        dt_value: The date or datetime value to normalize
+        dtstart: The DTSTART value to match the type of
+
+    Returns:
+        The normalized value matching DTSTART's type
+    """
+    # If both are the same type, check timezone compatibility
+    if type(dt_value) is type(dtstart):
+        # Both are datetimes - ensure timezone awareness matches
+        if isinstance(dt_value, datetime) and isinstance(dtstart, datetime):
+            if dt_value.tzinfo is not None and dtstart.tzinfo is None:
+                # Converting aware to naive - extract date and use dtstart's time
+                return datetime.combine(dt_value.date(), dtstart.time())
+            elif dt_value.tzinfo is None and dtstart.tzinfo is not None:
+                # Make dt_value aware to match dtstart
+                return dt_value.replace(tzinfo=dtstart.tzinfo)
+        return dt_value
+
+    # If DTSTART is a date (not datetime), convert datetime to date
+    if isinstance(dtstart, date) and not isinstance(dtstart, datetime):
+        if isinstance(dt_value, datetime):
+            return dt_value.date()
+        return dt_value
+
+    # If DTSTART is a datetime, convert date to datetime
+    if isinstance(dtstart, datetime):
+        if isinstance(dt_value, date) and not isinstance(dt_value, datetime):
+            # Convert date to datetime, matching DTSTART's time and timezone
+            # This ensures that EXDATE;VALUE=DATE:20240102 matches the occurrence
+            # at DTSTART's time (e.g., 10:00:00), not just midnight
+            if dtstart.tzinfo is not None:
+                # Use the same time and timezone as DTSTART
+                return datetime.combine(dt_value, dtstart.time()).replace(
+                    tzinfo=dtstart.tzinfo
+                )
+            else:
+                # Naive datetime - use DTSTART's time
+                return datetime.combine(dt_value, dtstart.time())
+        # dt_value is already a datetime, but check timezone awareness
+        if isinstance(dt_value, datetime):
+            if dt_value.tzinfo is not None and dtstart.tzinfo is None:
+                # Converting aware datetime to naive datetime
+                # First extract the date to handle timezone properly, then
+                # combine with dtstart's time to create a naive datetime
+                return datetime.combine(dt_value.date(), dtstart.time())
+            elif dt_value.tzinfo is None and dtstart.tzinfo is not None:
+                # Make dt_value aware to match dtstart
+                return dt_value.replace(tzinfo=dtstart.tzinfo)
+        return dt_value
+
+    return dt_value
+
+
 def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
     dtstart = comp["DTSTART"].dt
     rrulestr = comp["RRULE"].to_ical().decode("utf-8")
     rrule = dateutil.rrule.rrulestr(rrulestr, dtstart=dtstart)
     rs = dateutil.rrule.rruleset()
     rs.rrule(rrule)  # type: ignore
+
+    # dateutil.rrule internally converts date objects to datetime objects.
+    # To determine what type the rrule will generate, we check the first occurrence.
+    # This is necessary because EXDATE/RDATE values must match the generated type.
+    first_occurrence = next(iter(rrule), None)
+    effective_dtstart: datetime
+    if first_occurrence is not None:
+        effective_dtstart = first_occurrence
+    elif isinstance(dtstart, date) and not isinstance(dtstart, datetime):
+        # dateutil.rrule converts date to datetime at midnight
+        effective_dtstart = datetime.combine(dtstart, datetime.min.time())
+    else:
+        # dtstart must be a datetime at this point
+        assert isinstance(dtstart, datetime)
+        effective_dtstart = dtstart
+
     if "EXDATE" in comp:
         exdate_prop = comp["EXDATE"]
         # EXDATE can be either:
         # 1. A single vDDDLists (one EXDATE property with one or more dates)
         # 2. A list of vDDDLists (multiple EXDATE properties)
         # Extract the actual datetime/date values from the .dts list(s)
+        # and normalize them to match what the rrule will generate
         if isinstance(exdate_prop, list):
             for exdate_list in exdate_prop:
                 for exdate in exdate_list.dts:
-                    rs.exdate(exdate.dt)
+                    normalized = _normalize_to_dtstart_type(
+                        exdate.dt, effective_dtstart
+                    )
+                    rs.exdate(normalized)
         else:
             for exdate in exdate_prop.dts:
-                rs.exdate(exdate.dt)
+                normalized = _normalize_to_dtstart_type(exdate.dt, effective_dtstart)
+                rs.exdate(normalized)
     if "RDATE" in comp:
         rdate_prop = comp["RDATE"]
         # RDATE can be either:
         # 1. A single vDDDLists (one RDATE property with one or more dates)
         # 2. A list of vDDDLists (multiple RDATE properties)
         # Extract the actual datetime/date values from the .dts list(s)
+        # and normalize them to match what the rrule will generate
         if isinstance(rdate_prop, list):
             for rdate_list in rdate_prop:
                 for rdate in rdate_list.dts:
-                    rs.rdate(rdate.dt)
+                    normalized = _normalize_to_dtstart_type(rdate.dt, effective_dtstart)
+                    rs.rdate(normalized)
         else:
             for rdate in rdate_prop.dts:
-                rs.rdate(rdate.dt)
+                normalized = _normalize_to_dtstart_type(rdate.dt, effective_dtstart)
+                rs.rdate(normalized)
     if "EXRULE" in comp:
         exrulestr = comp["EXRULE"].to_ical().decode("utf-8")
         exrule = dateutil.rrule.rrulestr(exrulestr, dtstart=dtstart)
