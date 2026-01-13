@@ -402,6 +402,28 @@ class WebTests(WebTestCase):
         self.assertEqual("itemwith/slash.ics", created_items[0][0])
         self.assertEqual([b"test data"], created_items[0][1])
 
+    def test_put_with_precondition_failure_returns_412_not_207(self):
+        """Test that PUT with precondition failure returns 412, not 207."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"existing-etag"'
+
+            async def set_body(self, data, replace_etag=None):
+                # Simulate a precondition failure (e.g., invalid calendar data)
+                raise webdav.PreconditionFailure(
+                    "{urn:ietf:params:xml:ns:caldav}valid-calendar-data",
+                    "Not a valid calendar file: test error",
+                )
+
+        app = self.makeApp({"/test.ics": TestResource()}, [])
+        code, headers = self.put(app, "/test.ics", b"invalid data")
+
+        # Should return 412, not 207
+        self.assertEqual("412 Precondition Failed", code)
+        # Verify it's not a multi-status response
+        self.assertNotEqual("207 Multi-Status", code)
+
     def test_propfind_prop_does_not_exist(self):
         app = self.makeApp({"/resource": Resource()}, [])
         code, headers, contents = self.propfind(
