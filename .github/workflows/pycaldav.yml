@@ -28,6 +28,7 @@ jobs:
           python -m pip install -e .
       - name: Run pycaldav tests
         run: |
+          sudo apt -y update
           sudo apt install libxml2-dev libxslt1-dev
           pip install -U nose lxml
           make check-pycaldav
