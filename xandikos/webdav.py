@@ -218,6 +218,14 @@ class ResourceLocked(Exception):
     """Resource locked."""
 
 
+class ProtectedPropertyError(Exception):
+    """Attempt to modify a protected property."""
+
+    def __init__(self, message=None) -> None:
+        self.message = message
+        super().__init__(message)
+
+
 def etag_matches(condition, actual_etag):
     """Check if an etag matches an If-Matches condition.
 
@@ -1804,10 +1812,14 @@ async def apply_modify_prop(el, href, resource, properties):
             else:
                 try:
                     await handler.set_value(href, resource, newval)
+                except ProtectedPropertyError:
+                    # Protected property - cannot be modified
+                    # RFC 4918: {DAV:}cannot-modify-protected-property
+                    statuscode = "403 Forbidden"
                 except NotImplementedError:
-                    # TODO(jelmer): Signal
-                    # {DAV:}cannot-modify-protected-property error
-                    statuscode = "409 Conflict"
+                    # For backwards compatibility - treat as protected property
+                    # RFC 4918: {DAV:}cannot-modify-protected-property
+                    statuscode = "403 Forbidden"
                 else:
                     statuscode = "200 OK"
             yield PropStatus(statuscode, None, ET.Element(propel.tag))

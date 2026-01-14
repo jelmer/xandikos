@@ -28,6 +28,7 @@ from xandikos.webdav import (
     ET,
     Collection,
     Property,
+    ProtectedPropertyError,
     Resource,
     WebDAVApp,
     href_to_path,
@@ -79,11 +80,14 @@ class WebTests(WebTestCase):
     def options(self, app, path):
         return self._method(app, "OPTIONS", path)
 
-    def mkcol(self, app, path):
+    def mkcol(self, app, path, body=None):
         environ = {
             "PATH_INFO": path,
             "REQUEST_METHOD": "MKCOL",
         }
+        if body is not None:
+            environ["CONTENT_TYPE"] = "text/xml"
+            environ["wsgi.input"] = BytesIO(body)
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -352,6 +356,235 @@ class WebTests(WebTestCase):
         code, headers, contents = self.mkcol(app, "/resource/bla")
         self.assertEqual("405 Method Not Allowed", code)
         self.assertEqual(b"", contents)
+
+    # RFC 5689 - Extended MKCOL tests
+    def test_rfc5689_extended_mkcol_with_properties(self):
+        """Test Extended MKCOL (RFC 5689) with property set at creation."""
+        created_collections = []
+
+        class TestProperty(Property):
+            name = "{DAV:}displayname"
+            live = False
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = resource.get_displayname()
+
+            async def set_value(self, href, resource, el):
+                resource.set_displayname(el.text if el is not None else None)
+
+        class TestCollection(Collection):
+            def __init__(self):
+                self._displayname = None
+
+            def get_displayname(self):
+                if self._displayname is None:
+                    raise KeyError
+                return self._displayname
+
+            def set_displayname(self, name):
+                self._displayname = name
+
+            def members(self):
+                return []
+
+            def get_member(self, name):
+                raise KeyError(name)
+
+        class Backend:
+            def create_collection(self, relpath):
+                collection = TestCollection()
+                created_collections.append((relpath, collection))
+                return collection
+
+            def get_resource(self, relpath):
+                return None
+
+        app = WebDAVApp(Backend())
+        app.properties = {"{DAV:}displayname": TestProperty()}
+
+        code, headers, contents = self.mkcol(
+            app,
+            "/newcol",
+            b'<d:mkcol xmlns:d="DAV:"><d:set><d:prop>'
+            b"<d:displayname>My Collection</d:displayname>"
+            b"</d:prop></d:set></d:mkcol>",
+        )
+
+        self.assertEqual("201 Created", code)
+        self.assertEqual(len(created_collections), 1)
+        self.assertEqual(created_collections[0][0], "/newcol")
+        # Verify property was set
+        self.assertEqual(created_collections[0][1].get_displayname(), "My Collection")
+        # Response should contain mkcol-response with propstat
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:mkcol-response xmlns:ns0="DAV:"><ns0:propstat>'
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname /></ns0:prop>"
+            "</ns0:propstat></ns0:mkcol-response>",
+        )
+
+    def test_rfc5689_extended_mkcol_protected_property(self):
+        """Test Extended MKCOL with protected property returns 403 Forbidden."""
+
+        class TestProperty(Property):
+            name = "{DAV:}getetag"
+            live = True
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = '"test-etag"'
+
+            async def set_value(self, href, resource, el):
+                # Protected property - cannot be set
+                raise ProtectedPropertyError("Cannot set protected property")
+
+        class TestCollection(Collection):
+            def members(self):
+                return []
+
+            def get_member(self, name):
+                raise KeyError(name)
+
+        class Backend:
+            def create_collection(self, relpath):
+                return TestCollection()
+
+            def get_resource(self, relpath):
+                return None
+
+        app = WebDAVApp(Backend())
+        app.properties = {"{DAV:}getetag": TestProperty()}
+
+        code, headers, contents = self.mkcol(
+            app,
+            "/newcol",
+            b'<d:mkcol xmlns:d="DAV:"><d:set><d:prop>'
+            b"<d:getetag>test-value</d:getetag>"
+            b"</d:prop></d:set></d:mkcol>",
+        )
+
+        self.assertEqual("201 Created", code)
+        # Response contains mkcol-response with 403 Forbidden for protected property
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:mkcol-response xmlns:ns0="DAV:"><ns0:propstat>'
+            "<ns0:status>HTTP/1.1 403 Forbidden</ns0:status>"
+            "<ns0:prop><ns0:getetag /></ns0:prop>"
+            "</ns0:propstat></ns0:mkcol-response>",
+        )
+
+    def test_rfc5689_extended_mkcol_parent_not_found(self):
+        """Test Extended MKCOL with non-existent parent returns 409 Conflict."""
+
+        class Backend:
+            def create_collection(self, relpath):
+                # Simulate parent not found
+                raise FileNotFoundError("Parent does not exist")
+
+            def get_resource(self, relpath):
+                return None
+
+        app = WebDAVApp(Backend())
+        app.properties = {}
+
+        code, headers, contents = self.mkcol(
+            app,
+            "/nonexistent/newcol",
+            b'<d:mkcol xmlns:d="DAV:"><d:set><d:prop>'
+            b"<d:displayname>Test</d:displayname>"
+            b"</d:prop></d:set></d:mkcol>",
+        )
+
+        self.assertEqual("409 Conflict", code)
+
+    def test_rfc5689_extended_mkcol_multiple_properties(self):
+        """Test Extended MKCOL with multiple properties."""
+        created_collections = []
+
+        class DisplayNameProperty(Property):
+            name = "{DAV:}displayname"
+            live = False
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = resource.get_displayname()
+
+            async def set_value(self, href, resource, el):
+                resource.set_displayname(el.text if el is not None else None)
+
+        class CommentProperty(Property):
+            name = "{DAV:}comment"
+            live = False
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = resource.get_comment()
+
+            async def set_value(self, href, resource, el):
+                resource.set_comment(el.text if el is not None else None)
+
+        class TestCollection(Collection):
+            def __init__(self):
+                self._displayname = None
+                self._comment = None
+
+            def get_displayname(self):
+                if self._displayname is None:
+                    raise KeyError
+                return self._displayname
+
+            def set_displayname(self, name):
+                self._displayname = name
+
+            def get_comment(self):
+                if self._comment is None:
+                    raise KeyError
+                return self._comment
+
+            def set_comment(self, comment):
+                self._comment = comment
+
+            def members(self):
+                return []
+
+            def get_member(self, name):
+                raise KeyError(name)
+
+        class Backend:
+            def create_collection(self, relpath):
+                collection = TestCollection()
+                created_collections.append((relpath, collection))
+                return collection
+
+            def get_resource(self, relpath):
+                return None
+
+        app = WebDAVApp(Backend())
+        app.properties = {
+            "{DAV:}displayname": DisplayNameProperty(),
+            "{DAV:}comment": CommentProperty(),
+        }
+
+        code, headers, contents = self.mkcol(
+            app,
+            "/newcol",
+            b'<d:mkcol xmlns:d="DAV:"><d:set><d:prop>'
+            b"<d:displayname>My Collection</d:displayname>"
+            b"<d:comment>Test comment</d:comment>"
+            b"</d:prop></d:set></d:mkcol>",
+        )
+
+        self.assertEqual("201 Created", code)
+        self.assertEqual(len(created_collections), 1)
+        # Verify both properties were set
+        self.assertEqual(created_collections[0][1].get_displayname(), "My Collection")
+        self.assertEqual(created_collections[0][1].get_comment(), "Test comment")
+        # Response contains mkcol-response with propstat for both properties
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:mkcol-response xmlns:ns0="DAV:"><ns0:propstat>'
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname /><ns0:comment /></ns0:prop>"
+            "</ns0:propstat></ns0:mkcol-response>",
+        )
 
     def test_delete(self):
         class TestResource(Collection):
@@ -695,7 +928,7 @@ class WebTests(WebTestCase):
         )
 
     def test_rfc4918_9_2_proppatch_protected_property(self):
-        """Test PROPPATCH on protected property returns 409 Conflict."""
+        """Test PROPPATCH on protected property returns 403 Forbidden."""
 
         class ProtectedProperty(Property):
             name = "{DAV:}getetag"
@@ -704,7 +937,7 @@ class WebTests(WebTestCase):
                 el.text = "protected-etag"
 
             async def set_value(self, href, resource, el):
-                raise NotImplementedError("Cannot modify protected property")
+                raise ProtectedPropertyError("Cannot modify protected property")
 
         app = self.makeApp({"/resource": Resource()}, [ProtectedProperty()])
         code, headers, contents = self.proppatch(
@@ -724,7 +957,7 @@ class WebTests(WebTestCase):
             contents.decode("utf-8"),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
             "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
-            "<ns0:propstat><ns0:status>HTTP/1.1 409 Conflict</ns0:status><ns0:prop><ns0:getetag /></ns0:prop></ns0:propstat>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 403 Forbidden</ns0:status><ns0:prop><ns0:getetag /></ns0:prop></ns0:propstat>"
             "</ns0:response></ns0:multistatus>",
         )
 
