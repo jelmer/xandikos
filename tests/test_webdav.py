@@ -99,8 +99,10 @@ class WebTests(WebTestCase):
         contents = b"".join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def delete(self, app, path):
+    def delete(self, app, path, if_match=None):
         environ = {"PATH_INFO": path, "REQUEST_METHOD": "DELETE"}
+        if if_match is not None:
+            environ["HTTP_IF_MATCH"] = if_match
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -112,8 +114,10 @@ class WebTests(WebTestCase):
         contents = b"".join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def get(self, app, path):
+    def get(self, app, path, if_none_match=None):
         environ = {"PATH_INFO": path, "REQUEST_METHOD": "GET"}
+        if if_none_match is not None:
+            environ["HTTP_IF_NONE_MATCH"] = if_none_match
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -125,12 +129,16 @@ class WebTests(WebTestCase):
         contents = b"".join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def put(self, app, path, contents):
+    def put(self, app, path, contents, if_match=None, if_none_match=None):
         environ = {
             "PATH_INFO": path,
             "REQUEST_METHOD": "PUT",
             "wsgi.input": BytesIO(contents),
         }
+        if if_match is not None:
+            environ["HTTP_IF_MATCH"] = if_match
+        if if_none_match is not None:
+            environ["HTTP_IF_NONE_MATCH"] = if_none_match
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -585,6 +593,204 @@ class WebTests(WebTestCase):
             "<ns0:prop><ns0:displayname /><ns0:comment /></ns0:prop>"
             "</ns0:propstat></ns0:mkcol-response>",
         )
+
+    # RFC 4918 Section 10.4 - If-Match and If-None-Match tests
+    def test_rfc4918_10_4_put_if_match_success(self):
+        """Test PUT with If-Match header matching ETag succeeds."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag-123"'
+
+            async def set_body(self, body, replace_etag=None):
+                return '"new-etag"'
+
+        app = self.makeApp({"/resource": TestResource()}, [])
+        code, headers = self.put(
+            app, "/resource", b"new content", if_match='"test-etag-123"'
+        )
+        self.assertEqual("204 No Content", code)
+
+    def test_rfc4918_10_4_put_if_match_fail(self):
+        """Test PUT with If-Match header not matching ETag returns 412."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag-123"'
+
+            async def set_body(self, body, replace_etag=None):
+                return '"new-etag"'
+
+        app = self.makeApp({"/resource": TestResource()}, [])
+        code, headers = self.put(
+            app, "/resource", b"new content", if_match='"wrong-etag"'
+        )
+        self.assertEqual("412 Precondition Failed", code)
+
+    def test_rfc4918_10_4_put_if_match_wildcard(self):
+        """Test PUT with If-Match: * succeeds for existing resource."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag-123"'
+
+            async def set_body(self, body, replace_etag=None):
+                return '"new-etag"'
+
+        app = self.makeApp({"/resource": TestResource()}, [])
+        code, headers = self.put(app, "/resource", b"new content", if_match="*")
+        self.assertEqual("204 No Content", code)
+
+    def test_rfc4918_10_4_put_if_match_wildcard_nonexistent(self):
+        """Test PUT with If-Match: * fails for nonexistent resource."""
+        created_items = []
+
+        class TestCollection(Collection):
+            async def create_member(self, name, contents, content_type, requester=None):
+                created_items.append(name)
+                return (name, '"new-etag"')
+
+            def members(self):
+                return []
+
+            def get_member(self, name):
+                raise KeyError(name)
+
+        app = self.makeApp({"/collection": TestCollection()}, [])
+        code, headers = self.put(
+            app, "/collection/newitem", b"new content", if_match="*"
+        )
+        self.assertEqual("412 Precondition Failed", code)
+        self.assertEqual(len(created_items), 0)
+
+    def test_rfc4918_10_4_put_if_none_match_success(self):
+        """Test PUT with If-None-Match on nonexistent resource succeeds."""
+        created_items = []
+
+        class TestCollection(Collection):
+            async def create_member(self, name, contents, content_type, requester=None):
+                created_items.append(name)
+                return (name, '"new-etag"')
+
+            def members(self):
+                return []
+
+            def get_member(self, name):
+                raise KeyError(name)
+
+        app = self.makeApp({"/collection": TestCollection()}, [])
+        code, headers = self.put(
+            app, "/collection/newitem", b"new content", if_none_match='"any-etag"'
+        )
+        self.assertEqual("201 Created", code)
+        self.assertEqual(len(created_items), 1)
+
+    def test_rfc4918_10_4_put_if_none_match_fail(self):
+        """Test PUT with If-None-Match matching existing ETag returns 412."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag-123"'
+
+            async def set_body(self, body, replace_etag=None):
+                return '"new-etag"'
+
+        app = self.makeApp({"/resource": TestResource()}, [])
+        code, headers = self.put(
+            app, "/resource", b"new content", if_none_match='"test-etag-123"'
+        )
+        self.assertEqual("412 Precondition Failed", code)
+
+    def test_rfc4918_10_4_put_if_none_match_wildcard_create(self):
+        """Test PUT with If-None-Match: * succeeds for nonexistent resource."""
+        created_items = []
+
+        class TestCollection(Collection):
+            async def create_member(self, name, contents, content_type, requester=None):
+                created_items.append(name)
+                return (name, '"new-etag"')
+
+            def members(self):
+                return []
+
+            def get_member(self, name):
+                raise KeyError(name)
+
+        app = self.makeApp({"/collection": TestCollection()}, [])
+        code, headers = self.put(
+            app, "/collection/newitem", b"new content", if_none_match="*"
+        )
+        self.assertEqual("201 Created", code)
+        self.assertEqual(len(created_items), 1)
+
+    def test_rfc4918_10_4_put_if_none_match_wildcard_exists(self):
+        """Test PUT with If-None-Match: * fails for existing resource."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag-123"'
+
+            async def set_body(self, body, replace_etag=None):
+                return '"new-etag"'
+
+        app = self.makeApp({"/resource": TestResource()}, [])
+        code, headers = self.put(app, "/resource", b"new content", if_none_match="*")
+        self.assertEqual("412 Precondition Failed", code)
+
+    def test_rfc4918_10_4_delete_if_match_success(self):
+        """Test DELETE with If-Match header matching ETag succeeds."""
+        deleted_items = []
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag-123"'
+
+        class TestCollection(Collection):
+            async def get_etag(self):
+                return '"parent-etag"'
+
+            def delete_member(self, name, etag=None):
+                deleted_items.append((name, etag))
+
+            def get_member(self, name):
+                if name == "resource":
+                    return TestResource()
+                raise KeyError(name)
+
+            def members(self):
+                return [("resource", TestResource())]
+
+        app = self.makeApp(
+            {"/collection": TestCollection(), "/collection/resource": TestResource()},
+            [],
+        )
+        code, headers, contents = self.delete(
+            app, "/collection/resource", if_match='"test-etag-123"'
+        )
+        self.assertEqual("204 No Content", code)
+        self.assertEqual(len(deleted_items), 1)
+
+    def test_rfc4918_10_4_delete_if_match_fail(self):
+        """Test DELETE with If-Match header not matching ETag returns 412."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"test-etag-123"'
+
+        class TestCollection(Collection):
+            def get_member(self, name):
+                if name == "resource":
+                    return TestResource()
+                raise KeyError(name)
+
+        app = self.makeApp(
+            {"/collection": TestCollection(), "/collection/resource": TestResource()},
+            [],
+        )
+        code, headers, contents = self.delete(
+            app, "/collection/resource", if_match='"wrong-etag"'
+        )
+        self.assertEqual("412 Precondition Failed", code)
 
     def test_delete(self):
         class TestResource(Collection):

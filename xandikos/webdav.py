@@ -2747,7 +2747,11 @@ class WSGIRequest:
         from multidict import CIMultiDict
 
         self.headers = CIMultiDict(
-            [(k[5:], v) for k, v in environ.items() if k.startswith("HTTP_")]
+            [
+                (k[5:].replace("_", "-"), v)
+                for k, v in environ.items()
+                if k.startswith("HTTP_")
+            ]
         )
         self.url = request_uri(environ)
 
