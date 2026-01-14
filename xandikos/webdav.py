@@ -351,11 +351,19 @@ class Status:
     def get_single_body(self, encoding):
         if self.propstat and len(propstat_by_status(self.propstat)) > 1:
             raise NeedsMultiStatus()
-        if self.error is not None:
-            raise NeedsMultiStatus()
         if self.propstat:
             [ret] = list(propstat_as_xml(self.propstat))
             body = ET.tostringlist(ret, encoding)
+            return body, (f'text/xml; encoding="{encoding}"')
+        elif self.error is not None:
+            # Return error element as XML body with the status code
+            # (not as a 207 Multi-Status response)
+            error_element = ET.Element("{DAV:}error")
+            error_element.append(self.error)
+            if self.responsedescription:
+                desc_el = ET.SubElement(error_element, "{DAV:}responsedescription")
+                desc_el.text = self.responsedescription
+            body = ET.tostringlist(error_element, encoding)
             return body, (f'text/xml; encoding="{encoding}"')
         else:
             body = (
