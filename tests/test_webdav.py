@@ -182,10 +182,30 @@ class WebTests(WebTestCase):
         contents = b"".join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def propfind(self, app, path, body):
+    def propfind(self, app, path, body, depth=None):
         environ = {
             "PATH_INFO": path,
             "REQUEST_METHOD": "PROPFIND",
+            "CONTENT_TYPE": "text/xml",
+            "wsgi.input": BytesIO(body),
+        }
+        if depth is not None:
+            environ["HTTP_DEPTH"] = depth
+        setup_testing_defaults(environ)
+        _code = []
+        _headers = []
+
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+
+        contents = b"".join(app(environ, start_response))
+        return _code[0], _headers, contents
+
+    def proppatch(self, app, path, body):
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": "PROPPATCH",
             "CONTENT_TYPE": "text/xml",
             "wsgi.input": BytesIO(body),
         }
@@ -555,6 +575,425 @@ class WebTests(WebTestCase):
 <ns0:somethingelse /></ns0:prop></ns0:propstat>\
 </ns0:response>\
 </ns0:multistatus>""",
+        )
+
+    # RFC 4918 Section 9.2 - PROPPATCH tests
+    def test_rfc4918_9_2_proppatch_set_property(self):
+        """Test PROPPATCH set operation on displayname property."""
+        set_values = {}
+
+        class TestProperty(Property):
+            name = "{DAV:}displayname"
+
+            async def get_value(self, href, resource, el, environ):
+                if href in set_values:
+                    el.text = set_values[href]
+                else:
+                    raise KeyError
+
+            async def set_value(self, href, resource, el):
+                set_values[href] = el.text
+
+        app = self.makeApp({"/resource": Resource()}, [TestProperty()])
+        code, headers, contents = self.proppatch(
+            app,
+            "/resource",
+            b"""\
+<d:propertyupdate xmlns:d="DAV:">
+  <d:set>
+    <d:prop>
+      <d:displayname>My Resource</d:displayname>
+    </d:prop>
+  </d:set>
+</d:propertyupdate>""",
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status><ns0:prop><ns0:displayname /></ns0:prop></ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
+        # Verify the property was set (href key may vary)
+        self.assertEqual(len(set_values), 1)
+        self.assertEqual(list(set_values.values())[0], "My Resource")
+
+    def test_rfc4918_9_2_proppatch_remove_property(self):
+        """Test PROPPATCH remove operation."""
+        set_values = {}
+        removed = []
+
+        class TestProperty(Property):
+            name = "{DAV:}displayname"
+
+            async def get_value(self, href, resource, el, environ):
+                if href in set_values:
+                    el.text = set_values[href]
+                else:
+                    raise KeyError
+
+            async def set_value(self, href, resource, el):
+                if el is None:
+                    removed.append(href)
+                    if href in set_values:
+                        del set_values[href]
+                else:
+                    set_values[href] = el.text
+
+        # Set an initial value
+        set_values["/resource"] = "Old Name"
+
+        app = self.makeApp({"/resource": Resource()}, [TestProperty()])
+        code, headers, contents = self.proppatch(
+            app,
+            "/resource",
+            b"""\
+<d:propertyupdate xmlns:d="DAV:">
+  <d:remove>
+    <d:prop>
+      <d:displayname />
+    </d:prop>
+  </d:remove>
+</d:propertyupdate>""",
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status><ns0:prop><ns0:displayname /></ns0:prop></ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
+        # Verify remove was called
+        self.assertEqual(len(removed), 1)
+
+    def test_rfc4918_9_2_proppatch_not_found(self):
+        """Test PROPPATCH on non-existent resource returns 207 with 404 status."""
+        self.maxDiff = None
+        app = self.makeApp({}, [DisplayNameProperty()])
+        code, headers, contents = self.proppatch(
+            app,
+            "/nonexistent",
+            b"""\
+<d:propertyupdate xmlns:d="DAV:">
+  <d:set>
+    <d:prop>
+      <d:displayname>Test</d:displayname>
+    </d:prop>
+  </d:set>
+</d:propertyupdate>""",
+        )
+        # PROPPATCH on non-existent resource returns 207 with 404 status
+        self.assertEqual(code, "207 Multi-Status")
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>http%3A//127.0.0.1/nonexistent</ns0:href>"
+            "<ns0:status>HTTP/1.1 404 Not Found</ns0:status>"
+            "</ns0:response></ns0:multistatus>",
+        )
+
+    def test_rfc4918_9_2_proppatch_protected_property(self):
+        """Test PROPPATCH on protected property returns 409 Conflict."""
+
+        class ProtectedProperty(Property):
+            name = "{DAV:}getetag"
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = "protected-etag"
+
+            async def set_value(self, href, resource, el):
+                raise NotImplementedError("Cannot modify protected property")
+
+        app = self.makeApp({"/resource": Resource()}, [ProtectedProperty()])
+        code, headers, contents = self.proppatch(
+            app,
+            "/resource",
+            b"""\
+<d:propertyupdate xmlns:d="DAV:">
+  <d:set>
+    <d:prop>
+      <d:getetag>new-etag</d:getetag>
+    </d:prop>
+  </d:set>
+</d:propertyupdate>""",
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 409 Conflict</ns0:status><ns0:prop><ns0:getetag /></ns0:prop></ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
+
+    def test_rfc4918_9_2_proppatch_set_and_remove(self):
+        """Test PROPPATCH with both set and remove operations."""
+        set_values = {}
+        removed_props = []
+
+        class TestProperty(Property):
+            name = "{DAV:}displayname"
+
+            async def get_value(self, href, resource, el, environ):
+                if href in set_values:
+                    el.text = set_values[href]
+                else:
+                    raise KeyError
+
+            async def set_value(self, href, resource, el):
+                if el is None:
+                    removed_props.append("displayname")
+                    if href in set_values:
+                        del set_values[href]
+                else:
+                    set_values[href] = el.text
+
+        class AnotherProperty(Property):
+            name = "{DAV:}comment"
+
+            async def get_value(self, href, resource, el, environ):
+                raise KeyError
+
+            async def set_value(self, href, resource, el):
+                set_values[f"{href}_comment"] = el.text
+
+        app = self.makeApp(
+            {"/resource": Resource()}, [TestProperty(), AnotherProperty()]
+        )
+        code, headers, contents = self.proppatch(
+            app,
+            "/resource",
+            b"""\
+<d:propertyupdate xmlns:d="DAV:">
+  <d:set>
+    <d:prop>
+      <d:comment>New comment</d:comment>
+    </d:prop>
+  </d:set>
+  <d:remove>
+    <d:prop>
+      <d:displayname />
+    </d:prop>
+  </d:remove>
+</d:propertyupdate>""",
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        # Verify remove was called for displayname
+        self.assertEqual(removed_props, ["displayname"])
+        # Verify comment was set (one key ending with _comment)
+        comment_keys = [k for k in set_values.keys() if "_comment" in k]
+        self.assertEqual(len(comment_keys), 1)
+        # Verify the comment value
+        self.assertEqual(list(set_values.values())[0], "New comment")
+
+    # RFC 4918 Section 9.1 - PROPFIND Depth tests
+    def test_rfc4918_9_1_propfind_depth_0(self):
+        """Test PROPFIND with Depth: 0 (resource only, no children)."""
+
+        class TestProperty(Property):
+            name = "{DAV:}displayname"
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = f"Name-{href}"
+
+        class TestCollection(Collection):
+            def __init__(self, child_members):
+                self._members = child_members
+
+            def members(self):
+                return self._members
+
+            def get_member(self, name):
+                for member_name, member_resource in self._members:
+                    if member_name == name:
+                        return member_resource
+                raise KeyError(name)
+
+        child_resource = Resource()
+        parent = TestCollection([("child", child_resource)])
+
+        app = self.makeApp(
+            {"/parent/": parent, "/parent/child": child_resource}, [TestProperty()]
+        )
+        code, headers, contents = self.propfind(
+            app,
+            "/parent/",
+            b'<d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>',
+            depth="0",
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        # Depth 0 should only include the parent collection, not children
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>/parent/</ns0:href><ns0:propstat>"
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname>Name-/parent/</ns0:displayname></ns0:prop>"
+            "</ns0:propstat></ns0:response></ns0:multistatus>",
+        )
+
+    def test_rfc4918_9_1_propfind_depth_1(self):
+        """Test PROPFIND with Depth: 1 (resource and immediate children)."""
+
+        class TestProperty(Property):
+            name = "{DAV:}displayname"
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = f"Name-{href}"
+
+        class TestCollection(Collection):
+            def __init__(self, child_members):
+                self._members = child_members
+
+            def members(self):
+                return self._members
+
+            def get_member(self, name):
+                for member_name, member_resource in self._members:
+                    if member_name == name:
+                        return member_resource
+                raise KeyError(name)
+
+        child1 = Resource()
+        child2 = Resource()
+        parent = TestCollection([("child1", child1), ("child2", child2)])
+
+        app = self.makeApp(
+            {"/parent/": parent, "/parent/child1": child1, "/parent/child2": child2},
+            [TestProperty()],
+        )
+        code, headers, contents = self.propfind(
+            app,
+            "/parent/",
+            b'<d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>',
+            depth="1",
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        # Depth 1 should include parent and immediate children
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:">'
+            "<ns0:response><ns0:href>/parent/</ns0:href><ns0:propstat>"
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname>Name-/parent/</ns0:displayname></ns0:prop>"
+            "</ns0:propstat></ns0:response>"
+            "<ns0:response><ns0:href>/parent/child1</ns0:href><ns0:propstat>"
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname>Name-/parent/child1</ns0:displayname></ns0:prop>"
+            "</ns0:propstat></ns0:response>"
+            "<ns0:response><ns0:href>/parent/child2</ns0:href><ns0:propstat>"
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname>Name-/parent/child2</ns0:displayname></ns0:prop>"
+            "</ns0:propstat></ns0:response>"
+            "</ns0:multistatus>",
+        )
+
+    def test_rfc4918_9_1_propfind_depth_infinity(self):
+        """Test PROPFIND with Depth: infinity (resource and all descendants)."""
+
+        class TestProperty(Property):
+            name = "{DAV:}displayname"
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = f"Name-{href}"
+
+        class TestCollection(Collection):
+            def __init__(self, child_members):
+                self._members = child_members
+
+            def members(self):
+                return self._members
+
+            def get_member(self, name):
+                for member_name, member_resource in self._members:
+                    if member_name == name:
+                        return member_resource
+                raise KeyError(name)
+
+        grandchild = Resource()
+        child = TestCollection([("grandchild", grandchild)])
+        parent = TestCollection([("child/", child)])
+
+        app = self.makeApp(
+            {
+                "/parent/": parent,
+                "/parent/child/": child,
+                "/parent/child/grandchild": grandchild,
+            },
+            [TestProperty()],
+        )
+        code, headers, contents = self.propfind(
+            app,
+            "/parent/",
+            b'<d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>',
+            depth="infinity",
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        # Depth infinity should include all levels
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:">'
+            "<ns0:response><ns0:href>/parent/</ns0:href><ns0:propstat>"
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname>Name-/parent/</ns0:displayname></ns0:prop>"
+            "</ns0:propstat></ns0:response>"
+            "<ns0:response><ns0:href>/parent/child/</ns0:href><ns0:propstat>"
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname>Name-/parent/child/</ns0:displayname></ns0:prop>"
+            "</ns0:propstat></ns0:response>"
+            "<ns0:response><ns0:href>/parent/child/grandchild</ns0:href><ns0:propstat>"
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname>Name-/parent/child/grandchild</ns0:displayname></ns0:prop>"
+            "</ns0:propstat></ns0:response>"
+            "</ns0:multistatus>",
+        )
+
+    def test_rfc4918_9_1_propfind_allprop(self):
+        """Test PROPFIND with allprop request."""
+        app = self.makeApp(
+            {"/resource": Resource()},
+            [DisplayNameProperty(), ResourceTypeProperty()],
+        )
+        code, headers, contents = self.propfind(
+            app,
+            "/resource",
+            b'<d:propfind xmlns:d="DAV:"><d:allprop/></d:propfind>',
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        # allprop returns all properties that succeed (200 OK status)
+        # Resource doesn't have displayname by default, so only resourcetype is returned
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>/resource</ns0:href><ns0:propstat>"
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:resourcetype /></ns0:prop>"
+            "</ns0:propstat></ns0:response></ns0:multistatus>",
+        )
+
+    def test_rfc4918_9_1_propfind_propname(self):
+        """Test PROPFIND with propname request (property names only)."""
+        app = self.makeApp(
+            {"/resource": Resource()},
+            [DisplayNameProperty(), ResourceTypeProperty()],
+        )
+        code, headers, contents = self.propfind(
+            app,
+            "/resource",
+            b'<d:propfind xmlns:d="DAV:"><d:propname/></d:propfind>',
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        # propname returns names of properties that are set on the resource
+        # Resource doesn't have displayname by default, so only resourcetype is returned
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>/resource</ns0:href><ns0:propstat>"
+            "<ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:resourcetype /></ns0:prop>"
+            "</ns0:propstat></ns0:response></ns0:multistatus>",
         )
 
     def test_move_success(self):
