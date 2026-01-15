@@ -227,7 +227,11 @@ class SyncCollectionReporterTests(unittest.TestCase):
         asyncio.run(run_test())
 
     def test_report_with_limit(self):
-        """Test sync-collection report with limit."""
+        """Test sync-collection report with limit.
+
+        RFC 6578 Section 3.3: The limit element allows clients to limit
+        the number of member resources in the response.
+        """
 
         async def run_test():
             body = ET.Element("body")
@@ -235,9 +239,6 @@ class SyncCollectionReporterTests(unittest.TestCase):
             sync_token_el.text = "old-token"
             sync_level_el = ET.SubElement(body, "{DAV:}sync-level")
             sync_level_el.text = "1"
-            # Note: The code has a bug - it sets limit = el.text instead of limit = el
-            # So limit becomes None and the limiting doesn't work
-            # We'll test what actually happens
             limit_el = ET.SubElement(body, "{DAV:}limit")
             nresults_el = ET.SubElement(limit_el, "{DAV:}nresults")
             nresults_el.text = "1"
@@ -277,9 +278,14 @@ class SyncCollectionReporterTests(unittest.TestCase):
             xml_content = b"".join(response.body)
             root = ET.fromstring(xml_content)
 
-            # Due to the bug, all 3 responses are returned (limit is not applied)
+            # Limit is now working - only 1 response should be returned
             responses = root.findall("{DAV:}response")
-            self.assertEqual(len(responses), 3)
+            self.assertEqual(len(responses), 1)
+
+            # Verify sync token is still present
+            sync_tokens = root.findall("{DAV:}sync-token")
+            self.assertEqual(len(sync_tokens), 1)
+            self.assertEqual(sync_tokens[0].text, "new-token")
 
         asyncio.run(run_test())
 
@@ -313,6 +319,142 @@ class SyncCollectionReporterTests(unittest.TestCase):
                 args = mock_bad_request.call_args[0]
                 self.assertIn("unknown tag", args[0])
                 self.assertIn("{TEST:}unknown", args[0])
+
+        asyncio.run(run_test())
+
+    def test_report_initial_sync(self):
+        """Test initial sync-collection with empty token.
+
+        RFC 6578 Section 3.4: Initial synchronization uses an empty
+        DAV:sync-token element to get all current collection members.
+        """
+
+        async def run_test():
+            body = ET.Element("body")
+            sync_token_el = ET.SubElement(body, "{DAV:}sync-token")
+            sync_token_el.text = ""  # Empty token for initial sync
+            sync_level_el = ET.SubElement(body, "{DAV:}sync-level")
+            sync_level_el.text = "1"
+            prop_el = ET.SubElement(body, "{DAV:}prop")
+            ET.SubElement(prop_el, "{DAV:}getetag")
+
+            resource = Mock()
+            resource.get_sync_token.return_value = "token-1"
+
+            # All current resources returned for initial sync
+            new_resource1 = Mock()
+            new_resource2 = Mock()
+            resource.iter_differences_since.return_value = [
+                ("file1.txt", None, new_resource1),  # None = not in old state
+                ("file2.txt", None, new_resource2),
+            ]
+
+            # Mock property handling
+            async def mock_get_property_from_element(href, res, props, env, el):
+                return webdav.PropStatus("200 OK", None, ET.Element("{DAV:}getetag"))
+
+            with patch(
+                "xandikos.webdav.get_property_from_element",
+                mock_get_property_from_element,
+            ):
+                response = await self.reporter.report(
+                    environ={},
+                    request_body=body,
+                    resources_by_hrefs=lambda hrefs: [],
+                    properties={},
+                    href="/collection/",
+                    resource=resource,
+                    depth="1",
+                    strict=True,
+                )
+
+            # Parse XML response
+            xml_content = b"".join(response.body)
+            root = ET.fromstring(xml_content)
+
+            # Should return all current members
+            responses = root.findall("{DAV:}response")
+            self.assertEqual(len(responses), 2)
+
+            # Verify new sync token is provided
+            sync_tokens = root.findall("{DAV:}sync-token")
+            self.assertEqual(len(sync_tokens), 1)
+            self.assertEqual(sync_tokens[0].text, "token-1")
+
+            # Verify called with empty token
+            resource.iter_differences_since.assert_called_once_with("", "token-1")
+
+        asyncio.run(run_test())
+
+    def test_report_collection_member_changes(self):
+        """Test sync-collection with nested collection changes.
+
+        RFC 6578 Section 3.5: Collections within collections are reported
+        when they are created, modified, or deleted.
+        """
+
+        async def run_test():
+            body = ET.Element("body")
+            sync_token_el = ET.SubElement(body, "{DAV:}sync-token")
+            sync_token_el.text = "old-token"
+            sync_level_el = ET.SubElement(body, "{DAV:}sync-level")
+            sync_level_el.text = "1"
+            prop_el = ET.SubElement(body, "{DAV:}prop")
+            ET.SubElement(prop_el, "{DAV:}resourcetype")
+
+            resource = Mock()
+            resource.get_sync_token.return_value = "new-token"
+
+            # Mix of file and collection changes
+            new_file = Mock()
+            new_collection = Mock()
+            resource.iter_differences_since.return_value = [
+                ("newfile.txt", None, new_file),  # New file
+                ("subcollection/", None, new_collection),  # New collection
+                ("oldcollection/", Mock(), None),  # Deleted collection
+            ]
+
+            # Mock property handling
+            async def mock_get_property_from_element(href, res, props, env, el):
+                prop_el = ET.Element("{DAV:}resourcetype")
+                if res == new_collection:
+                    ET.SubElement(prop_el, "{DAV:}collection")
+                return webdav.PropStatus("200 OK", None, prop_el)
+
+            with patch(
+                "xandikos.webdav.get_property_from_element",
+                mock_get_property_from_element,
+            ):
+                response = await self.reporter.report(
+                    environ={},
+                    request_body=body,
+                    resources_by_hrefs=lambda hrefs: [],
+                    properties={},
+                    href="/collection/",
+                    resource=resource,
+                    depth="1",
+                    strict=True,
+                )
+
+            # Parse XML response
+            xml_content = b"".join(response.body)
+            root = ET.fromstring(xml_content)
+
+            responses = root.findall("{DAV:}response")
+            self.assertEqual(len(responses), 3)
+
+            # Verify deleted collection returns 404
+            hrefs = [r.find("{DAV:}href").text for r in responses]
+            statuses = [
+                r.find("{DAV:}status").text
+                if r.find("{DAV:}status") is not None
+                else None
+                for r in responses
+            ]
+
+            # One should be the deleted collection with 404
+            deleted_idx = hrefs.index("/collection/oldcollection/")
+            self.assertIn("404", statuses[deleted_idx])
 
         asyncio.run(run_test())
 

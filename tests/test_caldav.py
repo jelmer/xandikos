@@ -1156,3 +1156,47 @@ class CalendarAvailabilityPropertyTests(unittest.TestCase):
 
         result = asyncio.run(run_test())
         self.assertEqual(result, None)
+
+
+class CalendarQueryReporterTests(unittest.TestCase):
+    """Tests for calendar-query REPORT (RFC 4791 Section 7.8)."""
+
+    def test_report_name(self):
+        """Test calendar-query reporter name."""
+        from xandikos.caldav import CalendarQueryReporter
+
+        reporter = CalendarQueryReporter()
+        self.assertEqual(reporter.name, "{urn:ietf:params:xml:ns:caldav}calendar-query")
+
+    def test_report_resource_types(self):
+        """Test calendar-query supported resource types."""
+        from xandikos.caldav import CalendarQueryReporter
+
+        reporter = CalendarQueryReporter()
+        self.assertEqual(
+            reporter.resource_type,
+            (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE),
+        )
+
+
+class CalendarMultigetReporterTests(unittest.TestCase):
+    """Tests for calendar-multiget REPORT (RFC 4791 Section 7.9)."""
+
+    def test_report_name(self):
+        """Test calendar-multiget reporter name."""
+        from xandikos.caldav import CalendarMultiGetReporter
+
+        reporter = CalendarMultiGetReporter()
+        self.assertEqual(
+            reporter.name, "{urn:ietf:params:xml:ns:caldav}calendar-multiget"
+        )
+
+    def test_report_resource_types(self):
+        """Test calendar-multiget supported resource types."""
+        from xandikos.caldav import CalendarMultiGetReporter
+
+        reporter = CalendarMultiGetReporter()
+        self.assertEqual(
+            reporter.resource_type,
+            (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE),
+        )
