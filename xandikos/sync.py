@@ -82,7 +82,7 @@ class SyncCollectionReporter(webdav.Reporter):
             elif el.tag == "{DAV:}sync-level":
                 sync_level = el.text
             elif el.tag == "{DAV:}limit":
-                limit = el.text
+                limit = el
             elif el.tag == "{DAV:}prop":
                 requested = list(el)
             else:

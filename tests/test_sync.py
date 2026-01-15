@@ -227,7 +227,11 @@ class SyncCollectionReporterTests(unittest.TestCase):
         asyncio.run(run_test())
 
     def test_report_with_limit(self):
-        """Test sync-collection report with limit."""
+        """Test sync-collection report with limit.
+
+        RFC 6578 Section 3.3: The limit element allows clients to limit
+        the number of member resources in the response.
+        """
 
         async def run_test():
             body = ET.Element("body")
@@ -235,9 +239,6 @@ class SyncCollectionReporterTests(unittest.TestCase):
             sync_token_el.text = "old-token"
             sync_level_el = ET.SubElement(body, "{DAV:}sync-level")
             sync_level_el.text = "1"
-            # Note: The code has a bug - it sets limit = el.text instead of limit = el
-            # So limit becomes None and the limiting doesn't work
-            # We'll test what actually happens
             limit_el = ET.SubElement(body, "{DAV:}limit")
             nresults_el = ET.SubElement(limit_el, "{DAV:}nresults")
             nresults_el.text = "1"
@@ -277,9 +278,14 @@ class SyncCollectionReporterTests(unittest.TestCase):
             xml_content = b"".join(response.body)
             root = ET.fromstring(xml_content)
 
-            # Due to the bug, all 3 responses are returned (limit is not applied)
+            # Limit is now working - only 1 response should be returned
             responses = root.findall("{DAV:}response")
-            self.assertEqual(len(responses), 3)
+            self.assertEqual(len(responses), 1)
+
+            # Verify sync token is still present
+            sync_tokens = root.findall("{DAV:}sync-token")
+            self.assertEqual(len(sync_tokens), 1)
+            self.assertEqual(sync_tokens[0].text, "new-token")
 
         asyncio.run(run_test())
 
