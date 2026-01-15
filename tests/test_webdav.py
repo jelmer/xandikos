@@ -792,6 +792,146 @@ class WebTests(WebTestCase):
         )
         self.assertEqual("412 Precondition Failed", code)
 
+    # RFC 4918 Section 9.1/9.2 - Multi-Status error scenario tests
+    def test_rfc4918_propfind_mixed_success_failure(self):
+        """Test PROPFIND with mix of found and not-found properties."""
+
+        class FoundProperty(Property):
+            name = "{DAV:}displayname"
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = "Test Resource"
+
+        class NotFoundProperty(Property):
+            name = "{DAV:}nonexistent"
+
+            async def get_value(self, href, resource, el, environ):
+                raise KeyError("Property not found")
+
+        app = self.makeApp(
+            {"/resource": Resource()}, [FoundProperty(), NotFoundProperty()]
+        )
+        code, headers, contents = self.propfind(
+            app,
+            "/resource",
+            b'<d:propfind xmlns:d="DAV:"><d:prop>'
+            b"<d:displayname/><d:nonexistent/>"
+            b"</d:prop></d:propfind>",
+        )
+        self.assertEqual("207 Multi-Status", code)
+        # Response should have separate propstat elements for different status codes
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>/resource</ns0:href>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname>Test Resource</ns0:displayname></ns0:prop>"
+            "</ns0:propstat>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>"
+            "<ns0:prop><ns0:nonexistent /></ns0:prop>"
+            "</ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
+
+    def test_rfc4918_proppatch_mixed_success_failure(self):
+        """Test PROPPATCH with mix of successful and failed property updates."""
+
+        class WritableProperty(Property):
+            name = "{DAV:}displayname"
+            live = False
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = resource.get_displayname()
+
+            async def set_value(self, href, resource, el):
+                resource.set_displayname(el.text if el is not None else None)
+
+        class ReadOnlyProperty(Property):
+            name = "{DAV:}getetag"
+            live = True
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = '"readonly"'
+
+            async def set_value(self, href, resource, el):
+                raise ProtectedPropertyError("Cannot modify getetag")
+
+        class TestResource(Resource):
+            def __init__(self):
+                self._displayname = None
+
+            def get_displayname(self):
+                if self._displayname is None:
+                    raise KeyError
+                return self._displayname
+
+            def set_displayname(self, name):
+                self._displayname = name
+
+        app = self.makeApp(
+            {"/resource": TestResource()}, [WritableProperty(), ReadOnlyProperty()]
+        )
+        code, headers, contents = self.proppatch(
+            app,
+            "/resource",
+            b'<d:propertyupdate xmlns:d="DAV:"><d:set><d:prop>'
+            b"<d:displayname>New Name</d:displayname>"
+            b"<d:getetag>should-fail</d:getetag>"
+            b"</d:prop></d:set></d:propertyupdate>",
+        )
+        self.assertEqual("207 Multi-Status", code)
+        # Response should have separate propstat elements for success and failure
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:displayname /></ns0:prop>"
+            "</ns0:propstat>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 403 Forbidden</ns0:status>"
+            "<ns0:prop><ns0:getetag /></ns0:prop>"
+            "</ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
+
+    def test_rfc4918_proppatch_all_fail(self):
+        """Test PROPPATCH where all properties fail returns 207 with errors."""
+
+        class ProtectedProperty1(Property):
+            name = "{DAV:}creationdate"
+
+            async def set_value(self, href, resource, el):
+                raise ProtectedPropertyError("Cannot modify creationdate")
+
+        class ProtectedProperty2(Property):
+            name = "{DAV:}getlastmodified"
+
+            async def set_value(self, href, resource, el):
+                raise ProtectedPropertyError("Cannot modify getlastmodified")
+
+        app = self.makeApp(
+            {"/resource": Resource()}, [ProtectedProperty1(), ProtectedProperty2()]
+        )
+        code, headers, contents = self.proppatch(
+            app,
+            "/resource",
+            b'<d:propertyupdate xmlns:d="DAV:"><d:set><d:prop>'
+            b"<d:creationdate>2024-01-01</d:creationdate>"
+            b"<d:getlastmodified>2024-01-01</d:getlastmodified>"
+            b"</d:prop></d:set></d:propertyupdate>",
+        )
+        self.assertEqual("207 Multi-Status", code)
+        # Both properties should have 403 Forbidden status in single propstat
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 403 Forbidden</ns0:status>"
+            "<ns0:prop><ns0:creationdate /><ns0:getlastmodified /></ns0:prop>"
+            "</ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
+
     def test_delete(self):
         class TestResource(Collection):
             async def get_etag(self):
