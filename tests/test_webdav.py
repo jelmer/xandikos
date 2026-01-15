@@ -2044,6 +2044,130 @@ class WebTests(WebTestCase):
         self.assertEqual("400 Bad Request", code)
         self.assertIn(b"Depth must be infinity for MOVE on collection", contents)
 
+    def test_rfc4918_9_7_put_missing_intermediate_collection(self):
+        """Test PUT returns 409 when intermediate collection is missing.
+
+        RFC 4918 Section 9.7.1: A PUT that would result in the creation of a
+        resource without an appropriately scoped parent collection MUST fail
+        with a 409 (Conflict).
+        """
+
+        class TestCollection(Collection):
+            resource_types = Collection.resource_types
+
+        app = self.makeApp({"/": TestCollection()}, [])
+        code, headers = self.put(app, "/nonexistent/file.txt", b"test content")
+        self.assertEqual("409 Conflict", code)
+
+    def test_rfc4918_9_3_mkcol_missing_parent(self):
+        """Test MKCOL returns 409 when parent collection doesn't exist.
+
+        RFC 4918 Section 9.3.1: If the Request-URI is such that a resource
+        cannot be created as the child of an existing collection, then the
+        server MUST fail with a 409 (Conflict).
+        """
+
+        class Backend:
+            def create_collection(self, relpath):
+                # Simulate missing parent by raising FileNotFoundError
+                raise FileNotFoundError(f"Parent of {relpath} does not exist")
+
+            def get_resource(self, relpath):
+                if relpath == "/":
+                    return Collection()
+                return None
+
+        app = WebDAVApp(Backend())
+        code, headers, contents = self.mkcol(app, "/nonexistent/newcollection/")
+        self.assertEqual("409 Conflict", code)
+
+    def test_rfc4918_9_8_copy_destination_not_collection(self):
+        """Test COPY returns 409 when destination container is not a collection.
+
+        RFC 4918 Section 9.8.4: If the destination is not a collection, the
+        server MUST fail the request with 409 (Conflict).
+        """
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag1"'
+
+            async def get_body(self):
+                yield b"content"
+
+            def get_content_type(self):
+                return "text/plain"
+
+        class TestCollection(Collection):
+            def get_member(self, name):
+                if name == "source.txt":
+                    return TestResource()
+                if name == "notacollection":
+                    return TestResource()
+                raise KeyError(name)
+
+            async def copy_member(self, name, destination, dest_name, overwrite=True):
+                pass
+
+        app = self.makeApp(
+            {
+                "/": TestCollection(),
+                "/source.txt": TestResource(),
+                "/notacollection": TestResource(),
+            },
+            [],
+        )
+        code, headers, contents = self.copy(
+            app, "/source.txt", "http://localhost/notacollection/dest.txt"
+        )
+        self.assertEqual("409 Conflict", code)
+        self.assertIn(b"Destination container is not a collection", contents)
+
+    def test_rfc4918_9_9_move_destination_not_collection(self):
+        """Test MOVE returns 409 when destination container is not a collection.
+
+        RFC 4918 Section 9.9.3: If a resource exists at the destination and
+        the Overwrite header is "T", then prior to performing the move, the
+        server MUST perform a DELETE with "Depth: infinity" on the destination.
+        If the destination is not a collection, the server MUST fail with
+        409 (Conflict).
+        """
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag1"'
+
+            async def get_body(self):
+                yield b"content"
+
+            def get_content_type(self):
+                return "text/plain"
+
+        class TestCollection(Collection):
+            def get_member(self, name):
+                if name == "source.txt":
+                    return TestResource()
+                if name == "notacollection":
+                    return TestResource()
+                raise KeyError(name)
+
+            async def move_member(self, name, destination, dest_name, overwrite=True):
+                pass
+
+        app = self.makeApp(
+            {
+                "/": TestCollection(),
+                "/source.txt": TestResource(),
+                "/notacollection": TestResource(),
+            },
+            [],
+        )
+        code, headers, contents = self.move(
+            app, "/source.txt", "http://localhost/notacollection/dest.txt"
+        )
+        self.assertEqual("409 Conflict", code)
+        self.assertIn(b"Destination container is not a collection", contents)
+
 
 class PickContentTypesTests(unittest.TestCase):
     def test_not_acceptable(self):
