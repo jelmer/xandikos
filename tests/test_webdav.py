@@ -17,6 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import asyncio
 import logging
 import unittest
 from io import BytesIO
@@ -150,7 +151,7 @@ class WebTests(WebTestCase):
         list(app(environ, start_response))
         return _code[0], _headers
 
-    def move(self, app, path, destination, overwrite=None):
+    def move(self, app, path, destination, overwrite=None, depth=None):
         environ = {
             "PATH_INFO": path,
             "REQUEST_METHOD": "MOVE",
@@ -159,6 +160,8 @@ class WebTests(WebTestCase):
             environ["HTTP_DESTINATION"] = destination
         if overwrite is not None:
             environ["HTTP_OVERWRITE"] = "T" if overwrite else "F"
+        if depth is not None:
+            environ["HTTP_DEPTH"] = depth
         setup_testing_defaults(environ)
         # Add HTTP_HOST for proper destination parsing
         environ["HTTP_HOST"] = "localhost"
@@ -172,7 +175,7 @@ class WebTests(WebTestCase):
         contents = b"".join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def copy(self, app, path, destination, overwrite=None):
+    def copy(self, app, path, destination, overwrite=None, depth=None):
         environ = {
             "PATH_INFO": path,
             "REQUEST_METHOD": "COPY",
@@ -181,6 +184,8 @@ class WebTests(WebTestCase):
             environ["HTTP_DESTINATION"] = destination
         if overwrite is not None:
             environ["HTTP_OVERWRITE"] = "T" if overwrite else "F"
+        if depth is not None:
+            environ["HTTP_DEPTH"] = depth
         setup_testing_defaults(environ)
         # Add HTTP_HOST for proper destination parsing
         environ["HTTP_HOST"] = "localhost"
@@ -1894,6 +1899,150 @@ class WebTests(WebTestCase):
         )
         self.assertEqual("501 Not Implemented", code)
         self.assertIn(b"COPY for collections not implemented", contents)
+
+    def test_rfc4918_9_8_copy_collection_depth_0(self):
+        """Test COPY on collection with Depth: 0 creates empty collection.
+
+        RFC 4918 Section 9.8.3: Depth of 0 means only copy the collection,
+        not its members (create empty collection at destination).
+        """
+
+        class TestBackend:
+            def __init__(self):
+                self.created_collections = []
+
+            def get_resource(self, path):
+                if path == "/":
+                    return Collection()
+                if path == "/source/":
+                    return Collection()
+                if path == "/dest":
+                    return Collection()
+                return None
+
+            def create_collection(self, path):
+                self.created_collections.append(path)
+
+        backend = TestBackend()
+
+        class TestApp:
+            def __init__(self):
+                self.backend = backend
+                self.strict = True
+
+            def _get_resource_from_environ(self, request, environ):
+                path = environ["PATH_INFO"]
+                return path, path, backend.get_resource(path)
+
+        app_instance = TestApp()
+
+        from xandikos.webdav import CopyMethod, WSGIRequest
+
+        method = CopyMethod()
+        environ = {
+            "PATH_INFO": "/source/",
+            "REQUEST_METHOD": "COPY",
+            "SCRIPT_NAME": "",
+        }
+        setup_testing_defaults(environ)
+        environ["HTTP_DESTINATION"] = "http://localhost/newcollection/"
+        environ["HTTP_DEPTH"] = "0"
+        environ["HTTP_HOST"] = "localhost"
+
+        request = WSGIRequest(environ)
+        response = asyncio.run(method.handle(request, environ, app_instance))
+
+        self.assertEqual(201, response.status)
+        self.assertEqual(["/newcollection/"], backend.created_collections)
+
+    def test_rfc4918_9_8_copy_collection_depth_infinity(self):
+        """Test COPY on collection with Depth: infinity (default).
+
+        RFC 4918 Section 9.8.3: Depth of infinity means copy the collection
+        and all its members recursively.
+        """
+
+        class TestCollection(Collection):
+            resource_types = Collection.resource_types
+
+        # Test with default depth (infinity)
+        app = self.makeApp({"/collection/": TestCollection()}, [])
+        code, headers, contents = self.copy(
+            app, "/collection/", "http://localhost/newcollection/"
+        )
+        # Current implementation returns 501 Not Implemented for collection copy
+        self.assertEqual("501 Not Implemented", code)
+        self.assertIn(b"COPY for collections not implemented", contents)
+
+    def test_rfc4918_9_8_copy_collection_invalid_depth(self):
+        """Test COPY on collection with invalid Depth header.
+
+        RFC 4918 Section 9.8.3: Depth must be 0 or infinity for COPY on collections.
+        Other values should return 400 Bad Request.
+        """
+
+        class TestCollection(Collection):
+            resource_types = Collection.resource_types
+
+        app = self.makeApp({"/collection/": TestCollection()}, [])
+        code, headers, contents = self.copy(
+            app, "/collection/", "http://localhost/newcollection/", depth="1"
+        )
+        self.assertEqual("400 Bad Request", code)
+        self.assertIn(b"Depth must be 0 or infinity for COPY on collection", contents)
+
+    def test_rfc4918_9_9_move_collection_depth_0(self):
+        """Test MOVE on collection with Depth: 0.
+
+        RFC 4918 Section 9.9.2: The MOVE method on a collection MUST act as if
+        a 'Depth: infinity' header was used. Depth: 0 should return 400 Bad Request.
+        """
+
+        class TestCollection(Collection):
+            resource_types = Collection.resource_types
+
+        app = self.makeApp({"/collection/": TestCollection()}, [])
+        code, headers, contents = self.move(
+            app, "/collection/", "http://localhost/newcollection/", depth="0"
+        )
+        self.assertEqual("400 Bad Request", code)
+        self.assertIn(b"Depth must be infinity for MOVE on collection", contents)
+
+    def test_rfc4918_9_9_move_collection_depth_infinity(self):
+        """Test MOVE on collection with Depth: infinity (default).
+
+        RFC 4918 Section 9.9.2: The MOVE method on a collection MUST act as if
+        a 'Depth: infinity' header was used.
+        """
+
+        class TestCollection(Collection):
+            resource_types = Collection.resource_types
+
+        # Test with explicit depth=infinity
+        app = self.makeApp({"/collection/": TestCollection()}, [])
+        code, headers, contents = self.move(
+            app, "/collection/", "http://localhost/newcollection/", depth="infinity"
+        )
+        # Current implementation returns 501 Not Implemented for collection move
+        self.assertEqual("501 Not Implemented", code)
+        self.assertIn(b"MOVE for collections not implemented", contents)
+
+    def test_rfc4918_9_9_move_collection_invalid_depth(self):
+        """Test MOVE on collection with invalid Depth header.
+
+        RFC 4918 Section 9.9.2: The MOVE method on a collection MUST use
+        Depth: infinity. Other values should return 400 Bad Request.
+        """
+
+        class TestCollection(Collection):
+            resource_types = Collection.resource_types
+
+        app = self.makeApp({"/collection/": TestCollection()}, [])
+        code, headers, contents = self.move(
+            app, "/collection/", "http://localhost/newcollection/", depth="1"
+        )
+        self.assertEqual("400 Bad Request", code)
+        self.assertIn(b"Depth must be infinity for MOVE on collection", contents)
 
 
 class PickContentTypesTests(unittest.TestCase):
