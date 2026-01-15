@@ -218,6 +218,14 @@ class ResourceLocked(Exception):
     """Resource locked."""
 
 
+class ProtectedPropertyError(Exception):
+    """Attempt to modify a protected property."""
+
+    def __init__(self, message=None) -> None:
+        self.message = message
+        super().__init__(message)
+
+
 def etag_matches(condition, actual_etag):
     """Check if an etag matches an If-Matches condition.
 
@@ -351,11 +359,19 @@ class Status:
     def get_single_body(self, encoding):
         if self.propstat and len(propstat_by_status(self.propstat)) > 1:
             raise NeedsMultiStatus()
-        if self.error is not None:
-            raise NeedsMultiStatus()
         if self.propstat:
             [ret] = list(propstat_as_xml(self.propstat))
             body = ET.tostringlist(ret, encoding)
+            return body, (f'text/xml; encoding="{encoding}"')
+        elif self.error is not None:
+            # Return error element as XML body with the status code
+            # (not as a 207 Multi-Status response)
+            error_element = ET.Element("{DAV:}error")
+            error_element.append(self.error)
+            if self.responsedescription:
+                desc_el = ET.SubElement(error_element, "{DAV:}responsedescription")
+                desc_el.text = self.responsedescription
+            body = ET.tostringlist(error_element, encoding)
             return body, (f'text/xml; encoding="{encoding}"')
         else:
             body = (
@@ -1796,10 +1812,14 @@ async def apply_modify_prop(el, href, resource, properties):
             else:
                 try:
                     await handler.set_value(href, resource, newval)
+                except ProtectedPropertyError:
+                    # Protected property - cannot be modified
+                    # RFC 4918: {DAV:}cannot-modify-protected-property
+                    statuscode = "403 Forbidden"
                 except NotImplementedError:
-                    # TODO(jelmer): Signal
-                    # {DAV:}cannot-modify-protected-property error
-                    statuscode = "409 Conflict"
+                    # For backwards compatibility - treat as protected property
+                    # RFC 4918: {DAV:}cannot-modify-protected-property
+                    statuscode = "403 Forbidden"
                 else:
                     statuscode = "200 OK"
             yield PropStatus(statuscode, None, ET.Element(propel.tag))
@@ -2727,7 +2747,11 @@ class WSGIRequest:
         from multidict import CIMultiDict
 
         self.headers = CIMultiDict(
-            [(k[5:], v) for k, v in environ.items() if k.startswith("HTTP_")]
+            [
+                (k[5:].replace("_", "-"), v)
+                for k, v in environ.items()
+                if k.startswith("HTTP_")
+            ]
         )
         self.url = request_uri(environ)
 
