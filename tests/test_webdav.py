@@ -1989,7 +1989,9 @@ class WebTests(WebTestCase):
             app, "/collection/", "http://localhost/newcollection/", depth="1"
         )
         self.assertEqual("400 Bad Request", code)
-        self.assertIn(b"Depth must be 0 or infinity for COPY on collection", contents)
+        self.assertEqual(
+            b"Depth must be 0 or infinity for COPY on collection", contents
+        )
 
     def test_rfc4918_9_9_move_collection_depth_0(self):
         """Test MOVE on collection with Depth: 0.
@@ -2006,7 +2008,7 @@ class WebTests(WebTestCase):
             app, "/collection/", "http://localhost/newcollection/", depth="0"
         )
         self.assertEqual("400 Bad Request", code)
-        self.assertIn(b"Depth must be infinity for MOVE on collection", contents)
+        self.assertEqual(b"Depth must be infinity for MOVE on collection", contents)
 
     def test_rfc4918_9_9_move_collection_depth_infinity(self):
         """Test MOVE on collection with Depth: infinity (default).
@@ -2025,7 +2027,7 @@ class WebTests(WebTestCase):
         )
         # Current implementation returns 501 Not Implemented for collection move
         self.assertEqual("501 Not Implemented", code)
-        self.assertIn(b"MOVE for collections not implemented", contents)
+        self.assertEqual(b"MOVE for collections not implemented", contents)
 
     def test_rfc4918_9_9_move_collection_invalid_depth(self):
         """Test MOVE on collection with invalid Depth header.
@@ -2042,7 +2044,7 @@ class WebTests(WebTestCase):
             app, "/collection/", "http://localhost/newcollection/", depth="1"
         )
         self.assertEqual("400 Bad Request", code)
-        self.assertIn(b"Depth must be infinity for MOVE on collection", contents)
+        self.assertEqual(b"Depth must be infinity for MOVE on collection", contents)
 
     def test_rfc4918_9_7_put_missing_intermediate_collection(self):
         """Test PUT returns 409 when intermediate collection is missing.
@@ -2121,7 +2123,7 @@ class WebTests(WebTestCase):
             app, "/source.txt", "http://localhost/notacollection/dest.txt"
         )
         self.assertEqual("409 Conflict", code)
-        self.assertIn(b"Destination container is not a collection", contents)
+        self.assertEqual(b"Destination container is not a collection", contents)
 
     def test_rfc4918_9_9_move_destination_not_collection(self):
         """Test MOVE returns 409 when destination container is not a collection.
@@ -2166,7 +2168,124 @@ class WebTests(WebTestCase):
             app, "/source.txt", "http://localhost/notacollection/dest.txt"
         )
         self.assertEqual("409 Conflict", code)
-        self.assertIn(b"Destination container is not a collection", contents)
+        self.assertEqual(b"Destination container is not a collection", contents)
+
+    def test_rfc4918_propfind_distinguish_404_vs_empty(self):
+        """Test PROPFIND distinguishes between property not found (404) vs empty value.
+
+        RFC 4918: When a property is requested but doesn't exist, the propstat
+        should contain 404 Not Found. This is different from a property that
+        exists but has no value.
+        """
+
+        class EmptyProperty(Property):
+            name = "{DAV:}empty-prop"
+
+            async def get_value(self, href, resource, el, environ):
+                # Property exists but has empty value
+                el.text = ""
+
+        # Test requesting a property that doesn't exist
+        app = self.makeApp({"/resource": Resource()}, [EmptyProperty()])
+        body = b"""<?xml version="1.0" encoding="utf-8" ?>
+<D:propfind xmlns:D="DAV:">
+  <D:prop>
+    <D:nonexistent-prop/>
+  </D:prop>
+</D:propfind>"""
+        code, headers, contents = self.propfind(app, "/resource", body, depth="0")
+        self.assertEqual("207 Multi-Status", code)
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response><ns0:href>/resource</ns0:href>'
+            "<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>"
+            "<ns0:prop><ns0:nonexistent-prop /></ns0:prop></ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
+
+    def test_rfc4918_proppatch_distinguish_errors(self):
+        """Test PROPPATCH correctly distinguishes different error types.
+
+        RFC 4918: Protected properties should return 403 Forbidden,
+        while non-existent properties attempting to be modified should
+        also be handled appropriately.
+        """
+
+        class ProtectedProperty(Property):
+            name = "{DAV:}getetag"
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = "protected-value"
+
+            async def set_value(self, href, resource, el):
+                raise ProtectedPropertyError("Cannot modify protected property")
+
+        app = self.makeApp({"/resource": Resource()}, [ProtectedProperty()])
+
+        # Try to modify protected property
+        body = b"""<?xml version="1.0" encoding="utf-8" ?>
+<D:propertyupdate xmlns:D="DAV:">
+  <D:set>
+    <D:prop>
+      <D:getetag>new-value</D:getetag>
+    </D:prop>
+  </D:set>
+</D:propertyupdate>"""
+        code, headers, contents = self.proppatch(app, "/resource", body)
+        self.assertEqual("207 Multi-Status", code)
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
+            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 403 Forbidden</ns0:status>"
+            "<ns0:prop><ns0:getetag /></ns0:prop></ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
+
+    def test_rfc4918_propstat_multiple_status_codes(self):
+        """Test that propstat correctly groups properties by status code.
+
+        RFC 4918 Section 14.22: propstat contains one or more prop elements
+        and a status indicating the result of the properties in the prop.
+        Multiple propstat elements can be returned for different status codes.
+        """
+
+        class SuccessProperty(Property):
+            name = "{DAV:}success-prop"
+
+            async def get_value(self, href, resource, el, environ):
+                el.text = "success"
+
+        class FailProperty(Property):
+            name = "{DAV:}fail-prop"
+
+            async def get_value(self, href, resource, el, environ):
+                raise KeyError("Property not available")
+
+        app = self.makeApp(
+            {"/resource": Resource()}, [SuccessProperty(), FailProperty()]
+        )
+
+        # Request both properties
+        body = b"""<?xml version="1.0" encoding="utf-8" ?>
+<D:propfind xmlns:D="DAV:">
+  <D:prop>
+    <D:success-prop/>
+    <D:fail-prop/>
+  </D:prop>
+</D:propfind>"""
+        code, headers, contents = self.propfind(app, "/resource", body, depth="0")
+        self.assertEqual("207 Multi-Status", code)
+        # Properties are correctly grouped in separate propstat elements by status code
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response><ns0:href>/resource</ns0:href>'
+            "<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>"
+            "<ns0:prop><ns0:success-prop>success</ns0:success-prop></ns0:prop></ns0:propstat>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 404 Not Found</ns0:status>"
+            "<ns0:prop><ns0:fail-prop /></ns0:prop></ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
 
 
 class PickContentTypesTests(unittest.TestCase):
