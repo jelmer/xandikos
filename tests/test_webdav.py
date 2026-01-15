@@ -2634,6 +2634,45 @@ class SplitPathPreservingEncodingTests(unittest.TestCase):
         self.assertEqual("/", container)
         self.assertEqual("item/with/slash.ics", item)
 
+    def test_fragment_stripped(self):
+        """Test that URI fragments are stripped per RFC 3986.
+
+        Fragments (the part after #) should not be sent to the server,
+        but if they are, they should be stripped before processing.
+        """
+
+        class MockRequest:
+            raw_path = "/litmus/frag/#ment"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/litmus", container)
+        self.assertEqual("frag", item)
+
+    def test_fragment_in_middle(self):
+        """Test fragment stripping when fragment is in the middle of path."""
+
+        class MockRequest:
+            raw_path = "/collection#fragment/item.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        # Everything after # should be stripped
+        self.assertEqual("/", container)
+        self.assertEqual("collection", item)
+
+    def test_encoded_hash_preserved(self):
+        """Test that percent-encoded hash (%23) is preserved as part of name."""
+
+        class MockRequest:
+            raw_path = "/collection/item%23name.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/collection", container)
+        # %23 should decode to # and be part of the item name
+        self.assertEqual("item#name.ics", item)
+
 
 class CollectionMoveMemberTests(unittest.TestCase):
     """Test the Collection.move_member method."""
