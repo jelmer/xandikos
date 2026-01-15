@@ -932,6 +932,123 @@ class WebTests(WebTestCase):
             "</ns0:response></ns0:multistatus>",
         )
 
+    # RFC 4918 Section 9.6 - DELETE on collections tests
+    def test_rfc4918_9_6_delete_empty_collection(self):
+        """Test DELETE on empty collection succeeds."""
+        deleted_items = []
+
+        class TestCollection(Collection):
+            async def get_etag(self):
+                return '"collection-etag"'
+
+            def members(self):
+                return []
+
+            def get_member(self, name):
+                raise KeyError(name)
+
+            def delete_member(self, name, etag=None):
+                deleted_items.append((name, etag))
+
+        app = self.makeApp({"/": TestCollection(), "/emptycol": TestCollection()}, [])
+        code, headers, contents = self.delete(app, "/emptycol")
+        self.assertEqual("204 No Content", code)
+        self.assertEqual(b"", contents)
+        self.assertEqual(len(deleted_items), 1)
+        self.assertEqual(deleted_items[0][0], "emptycol")
+
+    def test_rfc4918_9_6_delete_collection_with_members(self):
+        """Test DELETE on collection with members succeeds."""
+        deleted_items = []
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"resource-etag"'
+
+        class TestCollection(Collection):
+            def __init__(self, has_members=False):
+                self._has_members = has_members
+
+            async def get_etag(self):
+                return '"collection-etag"'
+
+            def members(self):
+                if self._has_members:
+                    return [
+                        ("file1.txt", TestResource()),
+                        ("file2.txt", TestResource()),
+                    ]
+                return []
+
+            def get_member(self, name):
+                if self._has_members and name in ("file1.txt", "file2.txt"):
+                    return TestResource()
+                if name == "collection":
+                    return TestCollection(has_members=True)
+                raise KeyError(name)
+
+            def delete_member(self, name, etag=None):
+                deleted_items.append((name, etag))
+
+        app = self.makeApp(
+            {"/": TestCollection(), "/collection": TestCollection(has_members=True)},
+            [],
+        )
+        code, headers, contents = self.delete(app, "/collection")
+        self.assertEqual("204 No Content", code)
+        self.assertEqual(b"", contents)
+        # Backend is responsible for recursive deletion
+        self.assertEqual(len(deleted_items), 1)
+        self.assertEqual(deleted_items[0][0], "collection")
+
+    def test_rfc4918_9_6_delete_collection_not_found(self):
+        """Test DELETE on non-existent collection returns 404."""
+
+        class TestCollection(Collection):
+            def members(self):
+                return []
+
+            def get_member(self, name):
+                raise KeyError(name)
+
+        app = self.makeApp({"/": TestCollection()}, [])
+        code, headers, contents = self.delete(app, "/nonexistent")
+        self.assertEqual("404 Not Found", code)
+
+    def test_rfc4918_9_6_delete_nested_collection(self):
+        """Test DELETE on nested collection succeeds."""
+        deleted_items = []
+
+        class TestCollection(Collection):
+            def __init__(self, children=None):
+                self._children = children or {}
+
+            async def get_etag(self):
+                return '"nested-etag"'
+
+            def members(self):
+                return list(self._children.items())
+
+            def get_member(self, name):
+                if name in self._children:
+                    return self._children[name]
+                raise KeyError(name)
+
+            def delete_member(self, name, etag=None):
+                deleted_items.append((name, etag))
+
+        subcol = TestCollection()
+        parent = TestCollection({"subdir": subcol})
+
+        app = self.makeApp(
+            {"/": parent, "/parent": parent, "/parent/subdir": subcol}, []
+        )
+        code, headers, contents = self.delete(app, "/parent/subdir")
+        self.assertEqual("204 No Content", code)
+        self.assertEqual(b"", contents)
+        self.assertEqual(len(deleted_items), 1)
+        self.assertEqual(deleted_items[0][0], "subdir")
+
     def test_delete(self):
         class TestResource(Collection):
             async def get_etag(self):
