@@ -316,11 +316,12 @@ def split_path_preserving_encoding(request, environ):
     if raw_path_for_split.startswith(script_name):
         raw_path_for_split = raw_path_for_split[len(script_name) :]
 
-    # Note: URL fragments (e.g., "#ment" in "/path/file#ment") should not normally
-    # be sent to the server per RFC 3986. However, if they are sent, we preserve
-    # them as part of the resource name to avoid unintended operations on parent resources.
-    # This means a DELETE on "/frag/#ment" will try to delete a resource named "frag/#ment"
-    # (which won't exist) rather than deleting the "/frag/" collection.
+    # Strip URI fragments per RFC 3986 Section 3.5
+    # Fragments (e.g., "#ment" in "/path/file#ment") are client-side only and
+    # should not be sent to the server. If they are sent, strip them to avoid
+    # treating them as part of the resource name.
+    if "#" in raw_path_for_split:
+        raw_path_for_split = raw_path_for_split.split("#", 1)[0]
 
     container_path_raw, item_name_raw = posixpath.split(raw_path_for_split.rstrip("/"))
     # Decode the components after splitting

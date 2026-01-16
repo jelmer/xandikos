@@ -86,3 +86,49 @@ class TestAddressDataProperty(unittest.TestCase):
 
         # This should not raise an exception, but return False
         self.assertFalse(prop.supported_on(ResourceWithoutContentType()))
+
+
+class AddressbookQueryReporterTests(unittest.TestCase):
+    """Tests for addressbook-query REPORT (RFC 6352 Section 8.6)."""
+
+    def test_report_name(self):
+        """Test addressbook-query reporter name."""
+        from xandikos.carddav import AddressbookQueryReporter
+
+        reporter = AddressbookQueryReporter()
+        self.assertEqual(
+            reporter.name, "{urn:ietf:params:xml:ns:carddav}addressbook-query"
+        )
+
+    def test_report_resource_type(self):
+        """Test addressbook-query supported resource type."""
+        from xandikos.carddav import (
+            AddressbookQueryReporter,
+            ADDRESSBOOK_RESOURCE_TYPE,
+        )
+
+        reporter = AddressbookQueryReporter()
+        self.assertEqual(reporter.resource_type, ADDRESSBOOK_RESOURCE_TYPE)
+
+
+class AddressbookMultigetReporterTests(unittest.TestCase):
+    """Tests for addressbook-multiget REPORT (RFC 6352 Section 8.7)."""
+
+    def test_report_name(self):
+        """Test addressbook-multiget reporter name."""
+        from xandikos.carddav import AddressbookMultiGetReporter
+
+        reporter = AddressbookMultiGetReporter()
+        self.assertEqual(
+            reporter.name, "{urn:ietf:params:xml:ns:carddav}addressbook-multiget"
+        )
+
+    def test_report_resource_type(self):
+        """Test addressbook-multiget supported resource type."""
+        from xandikos.carddav import (
+            AddressbookMultiGetReporter,
+            ADDRESSBOOK_RESOURCE_TYPE,
+        )
+
+        reporter = AddressbookMultiGetReporter()
+        self.assertEqual(reporter.resource_type, ADDRESSBOOK_RESOURCE_TYPE)
