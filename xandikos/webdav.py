@@ -1485,7 +1485,6 @@ class ExpandPropertyReporter(Reporter):
             if prop_name is None:
                 nonfatal_bad_request(f"Tag {prop.tag} without name attribute", strict)
                 continue
-            # FIXME: Resolve prop_name on resource
             propstat = await get_property_from_name(
                 href, resource, properties, prop_name, environ
             )
@@ -1511,8 +1510,7 @@ class ExpandPropertyReporter(Reporter):
                         continue
                     child_resource = dict(child_resources).get(child_href)
                     if child_resource is None:
-                        # FIXME: What to do if the referenced href is invalid?
-                        # For now, let's just keep the unresolved href around
+                        # Keep unresolved href so client can see what was referenced
                         new_prop.append(prop_child)
                     else:
                         async for response in self._populate(
