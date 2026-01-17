@@ -16,8 +16,8 @@ HTTP Methods
 - MKCOL [supported]
 - DELETE [supported]
 - PUT [supported]
-- COPY [supported for non-collections]
-- MOVE [supported for non-collections]
+- COPY [supported]
+- MOVE [supported]
 - LOCK [not implemented]
 - UNLOCK [not implemented]
 
@@ -26,7 +26,7 @@ HTTP Headers
 
 - (9.1) Dav [supported]
 - (9.2) Depth ['0, '1' and 'infinity' are supported]
-- (9.3) Destination [only used with COPY/MOVE, which are not supported]
+- (9.3) Destination [supported]
 - (9.4) If [partially supported - If-Match and If-None-Match headers are supported]
 - (9.5) Lock-Token [not supported]
 - (9.6) Overwrite [supported, used with COPY/MOVE]
