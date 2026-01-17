@@ -265,6 +265,49 @@ class MultiGetReporterTests(unittest.TestCase):
 
         asyncio.run(run_test())
 
+    def test_report_depth_validation(self):
+        """Test that multiget operations require Depth: 0."""
+
+        async def run_test():
+            # Create minimal test body
+            body = ET.Element("body")
+            href_el = ET.SubElement(body, "{DAV:}href")
+            href_el.text = "/test"
+
+            # Test with invalid depth "1"
+            with self.assertRaises(webdav.BadRequestError) as cm:
+                await self.reporter.report(
+                    environ={},
+                    body=body,
+                    resources_by_hrefs=lambda hrefs: [],
+                    properties={},
+                    base_href="/",
+                    resource=Mock(),
+                    depth="1",
+                    strict=True,
+                )
+
+            self.assertIn("Depth: 0", str(cm.exception))
+            self.assertIn("Depth: 1", str(cm.exception))
+
+            # Test with invalid depth "infinity"
+            with self.assertRaises(webdav.BadRequestError) as cm:
+                await self.reporter.report(
+                    environ={},
+                    body=body,
+                    resources_by_hrefs=lambda hrefs: [],
+                    properties={},
+                    base_href="/",
+                    resource=Mock(),
+                    depth="infinity",
+                    strict=True,
+                )
+
+            self.assertIn("Depth: 0", str(cm.exception))
+            self.assertIn("Depth: infinity", str(cm.exception))
+
+        asyncio.run(run_test())
+
 
 if __name__ == "__main__":
     unittest.main()

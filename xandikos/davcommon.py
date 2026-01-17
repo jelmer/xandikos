@@ -71,7 +71,11 @@ class MultiGetReporter(webdav.Reporter):
         depth,
         strict,
     ):
-        # TODO(jelmer): Verify that depth == "0"
+        # RFC 4791 Section 7.9 and RFC 6352 Section 8.7 require Depth: 0
+        if depth != "0":
+            raise webdav.BadRequestError(
+                f"{self.name} requires Depth: 0, got Depth: {depth}"
+            )
         # TODO(jelmer): Verify that resource is an the right resource type
         requested = None
         hrefs = []
