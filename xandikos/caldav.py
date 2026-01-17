@@ -373,8 +373,8 @@ class CalendarDataProperty(davcommon.SubbedProperty):
                 raise KeyError
             c = extract_from_calendar(calendar, requested)
             serialized_cal = c.to_ical()
-        # TODO(jelmer): Don't hardcode encoding
-        # TODO(jelmer): Strip invalid characters or raise an exception
+        # UTF-8 encoding is required by RFC 5545 (iCalendar format)
+        # decode() will raise UnicodeDecodeError on invalid UTF-8
         el.text = serialized_cal.decode("utf-8")
 
 

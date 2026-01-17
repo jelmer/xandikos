@@ -75,7 +75,7 @@ class AddressDataProperty(davcommon.SubbedProperty):
 
     async def get_value_ext(self, href, resource, el, environ, requested):
         # TODO(jelmer): Support subproperties
-        # TODO(jelmer): Don't hardcode encoding
+        # UTF-8 encoding is required by RFC 6350 (vCard format)
         el.text = b"".join(await resource.get_body()).decode("utf-8")
 
 
