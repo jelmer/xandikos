@@ -76,7 +76,8 @@ class MultiGetReporter(webdav.Reporter):
             raise webdav.BadRequestError(
                 f"{self.name} requires Depth: 0, got Depth: {depth}"
             )
-        # TODO(jelmer): Verify that resource is an the right resource type
+        # Note: Resource type validation is performed by the REPORT handler
+        # via supported_on() before this method is called
         requested = None
         hrefs = []
         for el in body:
