@@ -957,6 +957,7 @@ class TextMatcher:
         text: str,
         collation: str | None = None,
         negate_condition: bool = False,
+        match_type: str = "contains",
     ) -> None:
         self.name = name
         self.type_fn = TYPES_FACTORY.for_property(name)
@@ -966,6 +967,7 @@ class TextMatcher:
             collation = "i;ascii-casemap"
         self.collation = _mod_collation.get_collation(collation)
         self.negate_condition = negate_condition
+        self.match_type = match_type
 
     def __repr__(self) -> str:
         return (
@@ -980,9 +982,9 @@ class TextMatcher:
 
     def match(self, prop: vText | vCategory | str):
         if isinstance(prop, vText):
-            matches = self.collation(str(prop), self.text, "contains")
+            matches = self.collation(str(prop), self.text, self.match_type)
         elif isinstance(prop, str):
-            matches = self.collation(prop, self.text, "contains")
+            matches = self.collation(prop, self.text, self.match_type)
         elif isinstance(prop, vCategory):
             matches = any([self.match(cat) for cat in prop.cats])
         else:
@@ -1181,10 +1183,18 @@ class PropertyFilter:
         return self.time_range
 
     def filter_text_match(
-        self, text: str, collation: str | None = None, negate_condition: bool = False
+        self,
+        text: str,
+        collation: str | None = None,
+        negate_condition: bool = False,
+        match_type: str = "contains",
     ) -> TextMatcher:
         ret = TextMatcher(
-            self.name, text, collation=collation, negate_condition=negate_condition
+            self.name,
+            text,
+            collation=collation,
+            negate_condition=negate_condition,
+            match_type=match_type,
         )
         self.children.append(ret)
         return ret
@@ -1266,10 +1276,18 @@ class ParameterFilter:
         self.children = children or []
 
     def filter_text_match(
-        self, text: str, collation: str | None = None, negate_condition: bool = False
+        self,
+        text: str,
+        collation: str | None = None,
+        negate_condition: bool = False,
+        match_type: str = "contains",
     ) -> TextMatcher:
         ret = TextMatcher(
-            self.name, text, collation=collation, negate_condition=negate_condition
+            self.name,
+            text,
+            collation=collation,
+            negate_condition=negate_condition,
+            match_type=match_type,
         )
         self.children.append(ret)
         return ret

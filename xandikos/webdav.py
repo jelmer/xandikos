@@ -1800,7 +1800,9 @@ async def apply_modify_prop(el, href, resource, properties):
                 propel.tag,
                 href,
             )
-            yield PropStatus("404 Not Found", None, ET.Element(propel.tag))
+            # RFC 4918 Section 9.2: Return 403 for properties that cannot be set
+            # Dead properties are not supported, so return 403 Forbidden
+            yield PropStatus("403 Forbidden", None, ET.Element(propel.tag))
         else:
             if el.tag == "{DAV:}remove":
                 newval = None
@@ -1809,7 +1811,8 @@ async def apply_modify_prop(el, href, resource, properties):
             else:
                 raise AssertionError
             if not handler.supported_on(resource):
-                statuscode = "404 Not Found"
+                # RFC 4918 Section 9.2: Return 403 for properties not supported on this resource
+                statuscode = "403 Forbidden"
             else:
                 try:
                     await handler.set_value(href, resource, newval)

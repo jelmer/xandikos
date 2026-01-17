@@ -48,6 +48,19 @@ DAV Properties
 - (15.10) supportedlock [supported - returns empty, no actual locking]
 - (RFC2518 ONLY - 13.10) source [not supported]
 
+Known Limitations
+^^^^^^^^^^^^^^^^^
+
+**Dead Properties**: Arbitrary custom (dead) properties are not supported.
+PROPPATCH operations on unknown properties return 403 Forbidden per RFC 4918
+Section 9.2.1, indicating the operation cannot be performed. This affects
+litmus test suite compatibility where some property tests expect full dead
+property storage and retrieval support.
+
+**URI Fragment Handling**: URI fragments (text after #) are properly stripped
+per RFC 3986 Section 3.5 before server-side processing. Percent-encoded hashes
+(%23) are correctly decoded and preserved as part of resource names.
+
 rfc3253.txt (Versioning Extensions)
 -----------------------------------
 
