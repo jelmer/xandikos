@@ -182,6 +182,36 @@ class RepoCollectionMetadata(CollectionMetadata):
         config.set(b"xandikos", b"calendar-order", order.encode("utf-8"))
         self._write_config(config)
 
+    def get_refreshrate(self):
+        config = self._repo.get_config()
+        refreshrate = config.get(b"xandikos", b"refreshrate")
+        if refreshrate == b"":
+            raise KeyError
+        return refreshrate.decode(DEFAULT_ENCODING)
+
+    def set_refreshrate(self, refreshrate):
+        config = self._repo.get_config()
+        if refreshrate is not None:
+            config.set(b"xandikos", b"refreshrate", refreshrate.encode(DEFAULT_ENCODING))
+        else:
+            config.set(b"xandikos", b"refreshrate", b"")
+        self._write_config(config)
+
+    def get_timezone(self):
+        config = self._repo.get_config()
+        timezone = config.get(b"xandikos", b"timezone")
+        if timezone == b"":
+            raise KeyError
+        return timezone.decode(DEFAULT_ENCODING)
+
+    def set_timezone(self, timezone):
+        config = self._repo.get_config()
+        if timezone is not None:
+            config.set(b"xandikos", b"timezone", timezone.encode(DEFAULT_ENCODING))
+        else:
+            config.set(b"xandikos", b"timezone", b"")
+        self._write_config(config)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository."""

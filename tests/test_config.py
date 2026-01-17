@@ -126,6 +126,21 @@ class MetadataTests:
         self._config.set_order(None)
         self.assertRaises(KeyError, self._config.get_order)
 
+    def test_refreshrate(self):
+        self.assertRaises(KeyError, self._config.get_refreshrate)
+        self._config.set_refreshrate("PT1H")
+        self.assertEqual("PT1H", self._config.get_refreshrate())
+        self._config.set_refreshrate(None)
+        self.assertRaises(KeyError, self._config.get_refreshrate)
+
+    def test_timezone(self):
+        self.assertRaises(KeyError, self._config.get_timezone)
+        tz_data = "BEGIN:VTIMEZONE\r\nTZID:America/New_York\r\nEND:VTIMEZONE"
+        self._config.set_timezone(tz_data)
+        self.assertEqual(tz_data, self._config.get_timezone())
+        self._config.set_timezone(None)
+        self.assertRaises(KeyError, self._config.get_timezone)
+
 
 class FileMetadataTests(TestCase, MetadataTests):
     def setUp(self):
