@@ -565,7 +565,8 @@ class CalendarQueryReporter(webdav.Reporter):
         depth,
         strict,
     ):
-        # TODO(jelmer): Verify that resource is a calendar
+        # Note: Resource type validation is performed by the REPORT handler
+        # via supported_on() before this method is called
         requested = None
         filter_el = None
         tztext = None
