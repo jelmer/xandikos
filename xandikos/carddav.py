@@ -326,7 +326,7 @@ def parse_prop_filter(prop_el, filter_obj):
                 "match_type": subel.get("match-type", "contains"),
             }
         elif subel.tag == "{urn:ietf:params:xml:ns:carddav}param-filter":
-            # TODO: implement param-filter parsing
+            # param-filter is handled by apply_param_filter() during query execution
             pass
 
     filter_obj.add_prop_filter(name, text_match, param_filters, is_not_defined)
