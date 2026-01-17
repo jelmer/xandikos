@@ -183,14 +183,6 @@ DAV Reports
 - CALDAV:calendar-multiget [supported]
 - CALDAV:free-busy-query [supported]
 
-Known Limitations
-^^^^^^^^^^^^^^^^^
-
-**Text Matching**: CalDAV text-match filters only support "contains" matching.
-Other match types (equals, starts-with, ends-with) specified in RFC 4791 are
-not implemented. This limitation does not affect most calendar clients but may
-impact advanced filter queries.
-
 rfc6352.txt (CardDAV)
 ---------------------
 
