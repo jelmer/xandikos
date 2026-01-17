@@ -376,6 +376,63 @@ class CalDAVFilterCombinationTests(unittest.TestCase):
         # Event3: has attendees - should not match
         self.assertFalse(filter_obj.check("event3.ics", self.event3))
 
+    def test_text_match_equals(self):
+        """Test SUMMARY text-match with equals match type."""
+        filter_obj = CalendarFilter(timezone.utc)
+        comp_filter = filter_obj.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        )
+        comp_filter.filter_property("SUMMARY").filter_text_match(
+            "Team Meeting", collation="i;unicode-casemap", match_type="equals"
+        )
+
+        self.assertTrue(filter_obj.check("event1.ics", self.event1))
+        self.assertFalse(filter_obj.check("event2.ics", self.event2))
+        self.assertFalse(filter_obj.check("event3.ics", self.event3))
+
+    def test_text_match_starts_with(self):
+        """Test SUMMARY text-match with starts-with match type."""
+        filter_obj = CalendarFilter(timezone.utc)
+        comp_filter = filter_obj.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        )
+        comp_filter.filter_property("SUMMARY").filter_text_match(
+            "Team", collation="i;unicode-casemap", match_type="starts-with"
+        )
+
+        self.assertTrue(filter_obj.check("event1.ics", self.event1))
+        self.assertFalse(filter_obj.check("event2.ics", self.event2))
+        self.assertFalse(filter_obj.check("event3.ics", self.event3))
+
+    def test_text_match_ends_with(self):
+        """Test SUMMARY text-match with ends-with match type."""
+        filter_obj = CalendarFilter(timezone.utc)
+        comp_filter = filter_obj.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        )
+        comp_filter.filter_property("SUMMARY").filter_text_match(
+            "Meeting", collation="i;unicode-casemap", match_type="ends-with"
+        )
+
+        self.assertTrue(filter_obj.check("event1.ics", self.event1))
+        self.assertFalse(filter_obj.check("event2.ics", self.event2))
+        self.assertFalse(filter_obj.check("event3.ics", self.event3))
+
+    def test_text_match_contains_default(self):
+        """Test SUMMARY text-match with default contains match type."""
+        filter_obj = CalendarFilter(timezone.utc)
+        comp_filter = filter_obj.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        )
+        # Default should be contains
+        comp_filter.filter_property("SUMMARY").filter_text_match(
+            "Meeting", collation="i;unicode-casemap"
+        )
+
+        self.assertTrue(filter_obj.check("event1.ics", self.event1))
+        self.assertFalse(filter_obj.check("event2.ics", self.event2))
+        self.assertFalse(filter_obj.check("event3.ics", self.event3))
+
 
 class CalDAVFilterEdgeCasesTests(unittest.TestCase):
     """Test edge cases for CalDAV filters."""
