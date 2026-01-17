@@ -61,6 +61,11 @@ class CalendarCollectionTests(unittest.TestCase):
         self.store.set_description("foo")
         self.assertEqual("foo", self.cal.get_calendar_description())
 
+    def test_set_description(self):
+        self.cal.set_calendar_description("My Calendar")
+        self.assertEqual("My Calendar", self.cal.get_calendar_description())
+        self.assertEqual("My Calendar", self.store.get_description())
+
     def test_color(self):
         self.assertRaises(KeyError, self.cal.get_calendar_color)
         self.cal.set_calendar_color("#aabbcc")

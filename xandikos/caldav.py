@@ -72,8 +72,21 @@ class Calendar(webdav.Collection):
     resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self) -> str:
-        """Return the calendar description."""
+        """Return the calendar description.
+
+        This provides the value for the CALDAV:calendar-description property
+        defined in RFC 4791 Section 5.2.1. It's a human-readable description
+        of the calendar collection.
+        """
         raise NotImplementedError(self.get_calendar_description)
+
+    def set_calendar_description(self, description: str) -> None:
+        """Set the calendar description.
+
+        This sets the value for the CALDAV:calendar-description property
+        defined in RFC 4791 Section 5.2.1.
+        """
+        raise NotImplementedError(self.set_calendar_description)
 
     def get_calendar_color(self) -> str:
         """Return the calendar color."""
@@ -285,9 +298,8 @@ class CalendarDescriptionProperty(webdav.Property):
     async def get_value(self, base_href, resource, el, environ):
         el.text = resource.get_calendar_description()
 
-    # TODO(jelmer): allow modification of this property
     async def set_value(self, href, resource, el):
-        raise NotImplementedError
+        resource.set_calendar_description(el.text)
 
 
 def _extract_from_component(incomp: Component, outcomp: Component, requested) -> None:

@@ -580,6 +580,9 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def get_calendar_description(self):
         return self.store.get_description()
 
+    def set_calendar_description(self, description):
+        self.store.set_description(description)
+
     def get_calendar_color(self):
         color = self.store.get_color()
         if not color:
