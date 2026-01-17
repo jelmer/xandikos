@@ -56,7 +56,8 @@ CALENDAR_RESOURCE_TYPE = "{%s}calendar" % NAMESPACE
 
 SUBSCRIPTION_RESOURCE_TYPE = "{http://calendarserver.org/ns/}subscribed"
 
-# TODO(jelmer): These resource types belong in scheduling.py
+# Scheduling resource types (RFC 6638)
+# These are defined here rather than in scheduling.py to avoid circular imports
 SCHEDULE_INBOX_RESOURCE_TYPE = "{%s}schedule-inbox" % NAMESPACE
 SCHEDULE_OUTBOX_RESOURCE_TYPE = "{%s}schedule-outbox" % NAMESPACE
 
@@ -564,7 +565,8 @@ class CalendarQueryReporter(webdav.Reporter):
         depth,
         strict,
     ):
-        # TODO(jelmer): Verify that resource is a calendar
+        # Note: Resource type validation is performed by the REPORT handler
+        # via supported_on() before this method is called
         requested = None
         filter_el = None
         tztext = None

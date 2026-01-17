@@ -23,9 +23,10 @@ See https://tools.ietf.org/html/rfc6638
 """
 
 from xandikos import caldav, webdav
-
-SCHEDULE_INBOX_RESOURCE_TYPE = "{%s}schedule-inbox" % caldav.NAMESPACE
-SCHEDULE_OUTBOX_RESOURCE_TYPE = "{%s}schedule-outbox" % caldav.NAMESPACE
+from xandikos.caldav import (
+    SCHEDULE_INBOX_RESOURCE_TYPE,
+    SCHEDULE_OUTBOX_RESOURCE_TYPE,
+)
 
 # Feature to advertise to indicate scheduling support.
 FEATURE = "calendar-auto-schedule"
