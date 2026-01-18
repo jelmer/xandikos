@@ -469,7 +469,7 @@ class TreeGitStoreTest(BaseGitStoreTest, unittest.TestCase):
     def add_blob(self, gc, name, contents):
         with open(os.path.join(gc.repo.path, name), "wb") as f:
             f.write(contents)
-        gc.repo.stage(name.encode("utf-8"))
+        gc.repo.get_worktree().stage(name.encode("utf-8"))
         return Blob.from_string(contents).id.decode("ascii")
 
 
