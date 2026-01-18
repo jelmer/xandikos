@@ -83,8 +83,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if url is not None:
             config.set(b"xandikos", b"source", url.encode(DEFAULT_ENCODING))
         else:
-            # TODO(jelmer): Add and use config.remove()
-            config.set(b"xandikos", b"source", b"")
+            config.remove(b"xandikos", b"source")
         self._write_config(config)
 
     def get_color(self):
@@ -99,8 +98,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if color is not None:
             config.set(b"xandikos", b"color", color.encode(DEFAULT_ENCODING))
         else:
-            # TODO(jelmer): Add and use config.remove()
-            config.set(b"xandikos", b"color", b"")
+            config.remove(b"xandikos", b"color")
         self._write_config(config)
 
     def _write_config(self, config):
@@ -124,7 +122,7 @@ class RepoCollectionMetadata(CollectionMetadata):
                 displayname.encode(DEFAULT_ENCODING),
             )
         else:
-            config.set(b"xandikos", b"displayname", b"")
+            config.remove(b"xandikos", b"displayname")
         self._write_config(config)
 
     def get_description(self):
@@ -151,8 +149,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if comment is not None:
             config.set(b"xandikos", b"comment", comment.encode(DEFAULT_ENCODING))
         else:
-            # TODO(jelmer): Add and use config.remove()
-            config.set(b"xandikos", b"comment", b"")
+            config.remove(b"xandikos", b"comment")
         self._write_config(config)
 
     def set_type(self, store_type):
@@ -196,7 +193,7 @@ class RepoCollectionMetadata(CollectionMetadata):
                 b"xandikos", b"refreshrate", refreshrate.encode(DEFAULT_ENCODING)
             )
         else:
-            config.set(b"xandikos", b"refreshrate", b"")
+            config.remove(b"xandikos", b"refreshrate")
         self._write_config(config)
 
     def get_timezone(self):
@@ -211,7 +208,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if timezone is not None:
             config.set(b"xandikos", b"timezone", timezone.encode(DEFAULT_ENCODING))
         else:
-            config.set(b"xandikos", b"timezone", b"")
+            config.remove(b"xandikos", b"timezone")
         self._write_config(config)
 
 
