@@ -405,6 +405,17 @@ class CalendarOrderProperty(webdav.Property):
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
+    # RFC 4791 Section 7.9 (CalDAV calendar-multiget) specifies:
+    #   "the 'Depth' header MUST be ignored by the server and SHOULD NOT be
+    #   sent by the client."
+    #
+    # Therefore, we do NOT validate the Depth header for CalDAV multiget
+    # operations. The base class implementation handles the request logic,
+    # and any Depth header value is simply ignored as per the RFC.
+    #
+    # Note: Some CalDAV client libraries
+    # send Depth: 1, which is against the RFC's recommendation but should
+    # not cause the request to fail.
     name = "{%s}calendar-multiget" % NAMESPACE
     resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     data_property = CalendarDataProperty()
