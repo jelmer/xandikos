@@ -25,7 +25,7 @@ requires-python = ">=3.10"
 dependencies = [
     "aiohttp",
     "icalendar>=5.0.4,<7.0",
-    "dulwich>=0.21.6,<0.26.0",
+    "dulwich>=0.21.6,<2",
     "defusedxml",
     "jinja2",
     "multidict",
