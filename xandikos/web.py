@@ -528,12 +528,10 @@ class StoreBasedCollection:
         raise KeyError
 
     def get_refreshrate(self):
-        # TODO(jelmer): Support setting refreshrate
-        raise KeyError
+        return self.store.config.get_refreshrate()
 
     def set_refreshrate(self, value):
-        # TODO(jelmer): Store refreshrate
-        raise NotImplementedError(self.set_refreshrate)
+        self.store.config.set_refreshrate(value)
 
 
 class Collection(StoreBasedCollection, webdav.Collection):
@@ -604,11 +602,10 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         self.store.config.set_order(order)
 
     def get_calendar_timezone(self):
-        # TODO(jelmer): Read from config
-        raise KeyError
+        return self.store.config.get_timezone()
 
     def set_calendar_timezone(self, content):
-        raise NotImplementedError(self.set_calendar_timezone)
+        self.store.config.set_timezone(content)
 
     def _ensure_metadata_directory(self):
         """Ensure .xandikos/ metadata directory exists, migrating from old .xandikos config file if needed."""

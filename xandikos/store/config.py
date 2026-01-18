@@ -82,6 +82,38 @@ class CollectionMetadata:
     def set_order(self, order: str) -> None:
         raise NotImplementedError(self.set_order)
 
+    def get_refreshrate(self) -> str:
+        """Get the recommended refresh rate for this collection.
+
+        Returns: Refresh rate in ISO 8601 duration format
+        Raises: KeyError if not set
+        """
+        raise NotImplementedError(self.get_refreshrate)
+
+    def set_refreshrate(self, refreshrate: str | None) -> None:
+        """Set the recommended refresh rate for this collection.
+
+        Args:
+            refreshrate: Refresh rate in ISO 8601 duration format, or None to unset
+        """
+        raise NotImplementedError(self.set_refreshrate)
+
+    def get_timezone(self) -> str:
+        """Get the calendar timezone.
+
+        Returns: iCalendar VTIMEZONE component as a string
+        Raises: KeyError if not set
+        """
+        raise NotImplementedError(self.get_timezone)
+
+    def set_timezone(self, timezone: str | None) -> None:
+        """Set the calendar timezone.
+
+        Args:
+            timezone: iCalendar VTIMEZONE component as a string, or None to unset
+        """
+        raise NotImplementedError(self.set_timezone)
+
 
 class FileBasedCollectionMetadata(CollectionMetadata):
     """Metadata for a configuration."""
@@ -172,3 +204,24 @@ class FileBasedCollectionMetadata(CollectionMetadata):
             del self._configparser["calendar"]["order"]
         else:
             self._configparser["calendar"]["order"] = order
+        self._save("Set calendar order.")
+
+    def get_refreshrate(self):
+        return self._configparser["DEFAULT"]["refreshrate"]
+
+    def set_refreshrate(self, refreshrate):
+        if refreshrate is not None:
+            self._configparser["DEFAULT"]["refreshrate"] = refreshrate
+        else:
+            del self._configparser["DEFAULT"]["refreshrate"]
+        self._save("Set refresh rate.")
+
+    def get_timezone(self):
+        return self._configparser["DEFAULT"]["timezone"]
+
+    def set_timezone(self, timezone):
+        if timezone is not None:
+            self._configparser["DEFAULT"]["timezone"] = timezone
+        else:
+            del self._configparser["DEFAULT"]["timezone"]
+        self._save("Set timezone.")
