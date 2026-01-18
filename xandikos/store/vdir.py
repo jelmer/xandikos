@@ -197,7 +197,9 @@ class VdirStore(Store):
         if expected_extension and not name.endswith(expected_extension):
             logging.warning(
                 "File %s has extension mismatch: expected %s for content type %s",
-                name, expected_extension, fi.content_type
+                name,
+                expected_extension,
+                fi.content_type,
             )
 
         # TODO(jelmer): check that a UID is present and that all UIDs are the
