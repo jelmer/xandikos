@@ -192,9 +192,14 @@ class VdirStore(Store):
             uid = None
         self._check_duplicate(uid, name, replace_etag)
 
-        # TODO(jelmer): Check that extensions match content type:
-        #  if this is a vCard, the extension should be .vcf
-        #  if this is a iCalendar, the extension should be .ics
+        # Validate file extension matches content type
+        expected_extension = MIMETYPES.guess_extension(fi.content_type)
+        if expected_extension and not name.endswith(expected_extension):
+            logging.warning(
+                "File %s has extension mismatch: expected %s for content type %s",
+                name, expected_extension, fi.content_type
+            )
+
         # TODO(jelmer): check that a UID is present and that all UIDs are the
         # same
         path = os.path.join(self.path, name)
