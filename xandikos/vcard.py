@@ -19,6 +19,8 @@
 
 """VCard file handling."""
 
+import vobject
+
 from . import collation as _mod_collation
 from .store import File, Filter, InvalidFileContents
 from .store.index import IndexDict, IndexKey, IndexValueIterator
@@ -51,8 +53,6 @@ class VCardFile(File):
     @property
     def addressbook(self):
         if self._addressbook is None:
-            import vobject
-
             text = b"".join(self.content).decode("utf-8", "surrogateescape")
             try:
                 self._addressbook = vobject.readOne(text)
