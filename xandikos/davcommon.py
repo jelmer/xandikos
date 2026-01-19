@@ -71,8 +71,9 @@ class MultiGetReporter(webdav.Reporter):
         depth,
         strict,
     ):
-        # TODO(jelmer): Verify that depth == "0"
-        # TODO(jelmer): Verify that resource is an the right resource type
+        # Note: Resource type validation is performed by the REPORT handler
+        # via supported_on() before this method is called
+        # Note: Depth header validation is handled by subclasses as needed
         requested = None
         hrefs = []
         for el in body:

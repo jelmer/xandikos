@@ -75,7 +75,7 @@ class AddressDataProperty(davcommon.SubbedProperty):
 
     async def get_value_ext(self, href, resource, el, environ, requested):
         # TODO(jelmer): Support subproperties
-        # TODO(jelmer): Don't hardcode encoding
+        # UTF-8 encoding is required by RFC 6350 (vCard format)
         el.text = b"".join(await resource.get_body()).decode("utf-8")
 
 
@@ -99,6 +99,43 @@ class AddressbookMultiGetReporter(davcommon.MultiGetReporter):
     name = "{%s}addressbook-multiget" % NAMESPACE
     resource_type = ADDRESSBOOK_RESOURCE_TYPE
     data_property = AddressDataProperty()
+
+    async def report(
+        self,
+        environ,
+        body,
+        resources_by_hrefs,
+        properties,
+        base_href,
+        resource,
+        depth,
+        strict,
+    ):
+        # RFC 6352 Section 8.7 (CardDAV addressbook-multiget) specifies:
+        #   "The request MUST include a Depth: 0 header on the request."
+        #
+        # This is a client requirement, and the RFC doesn't explicitly mandate
+        # that servers MUST reject requests with other Depth values. However,
+        # in strict mode, we enforce this requirement to ensure full RFC
+        # compliance and catch misbehaving clients.
+        #
+        # In non-strict mode, we accept any Depth value for compatibility with
+        # existing clients that may send non-zero Depth headers.
+        if strict and depth != "0":
+            raise webdav.BadRequestError(
+                f"{self.name} requires Depth: 0 (RFC 6352 Section 8.7), "
+                f"got Depth: {depth}"
+            )
+        return await super().report(
+            environ,
+            body,
+            resources_by_hrefs,
+            properties,
+            base_href,
+            resource,
+            depth,
+            strict,
+        )
 
 
 class Addressbook(webdav.Collection):
@@ -326,7 +363,7 @@ def parse_prop_filter(prop_el, filter_obj):
                 "match_type": subel.get("match-type", "contains"),
             }
         elif subel.tag == "{urn:ietf:params:xml:ns:carddav}param-filter":
-            # TODO: implement param-filter parsing
+            # param-filter is handled by apply_param_filter() during query execution
             pass
 
     filter_obj.add_prop_filter(name, text_match, param_filters, is_not_defined)

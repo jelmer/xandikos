@@ -136,6 +136,29 @@ CALENDAR_HOME_SET = ["calendars"]
 ADDRESSBOOK_HOME_SET = ["contacts"]
 GIT_PATH = ".git"
 
+# Mapping from content types to their validation error tags
+CONTENT_TYPE_ERROR_TAGS = {
+    "text/calendar": ("{%s}valid-calendar-data" % caldav.NAMESPACE, "calendar"),
+    "text/vcard": ("{%s}valid-address-data" % carddav.NAMESPACE, "vCard"),
+}
+
+
+def get_validation_error(exc: InvalidFileContents):
+    """Get appropriate validation error tag for a content type.
+
+    Args:
+        exc: InvalidFileContents exception with content_type and error details
+
+    Returns:
+        Tuple of (error_tag, error_message) for the content type
+    """
+    error_tag, file_type = CONTENT_TYPE_ERROR_TAGS.get(
+        exc.content_type,
+        ("{%s}valid-calendar-data" % caldav.NAMESPACE, "file"),
+    )
+    return error_tag, f"Not a valid {file_type} file: {exc.error}"
+
+
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATES_DIR), enable_async=True
@@ -227,11 +250,8 @@ class ObjectResource(webdav.Resource):
                 replace_etag=extract_strong_etag(replace_etag),
             )
         except InvalidFileContents as exc:
-            # TODO(jelmer): Not every invalid file is a calendar file..
-            raise webdav.PreconditionFailure(
-                "{%s}valid-calendar-data" % caldav.NAMESPACE,
-                f"Not a valid calendar file: {exc.error}",
-            ) from exc
+            error_tag, error_message = get_validation_error(exc)
+            raise webdav.PreconditionFailure(error_tag, error_message) from exc
         except DuplicateUidError as exc:
             raise webdav.PreconditionFailure(
                 "{%s}no-uid-conflict" % caldav.NAMESPACE, "UID already in use."
@@ -423,11 +443,8 @@ class StoreBasedCollection:
                 name, content_type, contents, requester=requester
             )
         except InvalidFileContents as exc:
-            # TODO(jelmer): Not every invalid file is a calendar file..
-            raise webdav.PreconditionFailure(
-                "{%s}valid-calendar-data" % caldav.NAMESPACE,
-                f"Not a valid calendar file: {exc.error}",
-            ) from exc
+            error_tag, error_message = get_validation_error(exc)
+            raise webdav.PreconditionFailure(error_tag, error_message) from exc
         except DuplicateUidError as exc:
             raise webdav.PreconditionFailure(
                 "{%s}no-uid-conflict" % caldav.NAMESPACE, "UID already in use."
@@ -528,12 +545,10 @@ class StoreBasedCollection:
         raise KeyError
 
     def get_refreshrate(self):
-        # TODO(jelmer): Support setting refreshrate
-        raise KeyError
+        return self.store.config.get_refreshrate()
 
     def set_refreshrate(self, value):
-        # TODO(jelmer): Store refreshrate
-        raise NotImplementedError(self.set_refreshrate)
+        self.store.config.set_refreshrate(value)
 
 
 class Collection(StoreBasedCollection, webdav.Collection):
@@ -580,6 +595,9 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     def get_calendar_description(self):
         return self.store.get_description()
 
+    def set_calendar_description(self, description):
+        self.store.set_description(description)
+
     def get_calendar_color(self):
         color = self.store.get_color()
         if not color:
@@ -601,11 +619,10 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         self.store.config.set_order(order)
 
     def get_calendar_timezone(self):
-        # TODO(jelmer): Read from config
-        raise KeyError
+        return self.store.config.get_timezone()
 
     def set_calendar_timezone(self, content):
-        raise NotImplementedError(self.set_calendar_timezone)
+        self.store.config.set_timezone(content)
 
     def _ensure_metadata_directory(self):
         """Ensure .xandikos/ metadata directory exists, migrating from old .xandikos config file if needed."""

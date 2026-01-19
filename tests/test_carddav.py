@@ -17,10 +17,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import asyncio
 import unittest
 
 from xandikos.carddav import NAMESPACE, AddressDataProperty
 from xandikos.vcard import VCardFile, CardDAVFilter, parse_filter
+from xandikos import webdav
 from xandikos.webdav import ET
 from .test_vcard import EXAMPLE_VCARD1
 
@@ -86,3 +88,92 @@ class TestAddressDataProperty(unittest.TestCase):
 
         # This should not raise an exception, but return False
         self.assertFalse(prop.supported_on(ResourceWithoutContentType()))
+
+
+class AddressbookQueryReporterTests(unittest.TestCase):
+    """Tests for addressbook-query REPORT (RFC 6352 Section 8.6)."""
+
+    def test_report_name(self):
+        """Test addressbook-query reporter name."""
+        from xandikos.carddav import AddressbookQueryReporter
+
+        reporter = AddressbookQueryReporter()
+        self.assertEqual(
+            reporter.name, "{urn:ietf:params:xml:ns:carddav}addressbook-query"
+        )
+
+    def test_report_resource_type(self):
+        """Test addressbook-query supported resource type."""
+        from xandikos.carddav import (
+            AddressbookQueryReporter,
+            ADDRESSBOOK_RESOURCE_TYPE,
+        )
+
+        reporter = AddressbookQueryReporter()
+        self.assertEqual(reporter.resource_type, ADDRESSBOOK_RESOURCE_TYPE)
+
+
+class AddressbookMultigetReporterTests(unittest.TestCase):
+    """Tests for addressbook-multiget REPORT (RFC 6352 Section 8.7)."""
+
+    def test_report_name(self):
+        """Test addressbook-multiget reporter name."""
+        from xandikos.carddav import AddressbookMultiGetReporter
+
+        reporter = AddressbookMultiGetReporter()
+        self.assertEqual(
+            reporter.name, "{urn:ietf:params:xml:ns:carddav}addressbook-multiget"
+        )
+
+    def test_report_resource_type(self):
+        """Test addressbook-multiget supported resource type."""
+        from xandikos.carddav import (
+            AddressbookMultiGetReporter,
+            ADDRESSBOOK_RESOURCE_TYPE,
+        )
+
+        reporter = AddressbookMultiGetReporter()
+        self.assertEqual(reporter.resource_type, ADDRESSBOOK_RESOURCE_TYPE)
+
+    def test_depth_validation_strict_mode(self):
+        """Test that Depth: 0 is enforced in strict mode.
+
+        RFC 6352 Section 8.7 requires Depth: 0 for addressbook-multiget.
+        In strict mode, non-zero depth values should be rejected.
+        """
+        from xandikos.carddav import AddressbookMultiGetReporter
+
+        async def run_test():
+            reporter = AddressbookMultiGetReporter()
+            body = ET.Element("body")
+
+            # Test with depth "1" in strict mode - should raise error
+            with self.assertRaises(webdav.BadRequestError) as cm:
+                await reporter.report(
+                    environ={},
+                    body=body,
+                    resources_by_hrefs=lambda hrefs: [],
+                    properties={},
+                    base_href="/",
+                    resource=None,
+                    depth="1",
+                    strict=True,
+                )
+            self.assertIn("Depth: 0", str(cm.exception))
+            self.assertIn("RFC 6352", str(cm.exception))
+
+            # Test with depth "infinity" in strict mode - should raise error
+            with self.assertRaises(webdav.BadRequestError) as cm:
+                await reporter.report(
+                    environ={},
+                    body=body,
+                    resources_by_hrefs=lambda hrefs: [],
+                    properties={},
+                    base_href="/",
+                    resource=None,
+                    depth="infinity",
+                    strict=True,
+                )
+            self.assertIn("Depth: 0", str(cm.exception))
+
+        asyncio.run(run_test())

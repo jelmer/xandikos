@@ -1489,6 +1489,36 @@ class WebTests(WebTestCase):
         # Verify the comment value
         self.assertEqual(list(set_values.values())[0], "New comment")
 
+    def test_rfc4918_9_2_proppatch_unknown_property(self):
+        """Test PROPPATCH on unknown property returns 403 Forbidden.
+
+        RFC 4918 Section 9.2.1: Dead properties are not supported, so
+        attempts to set unknown properties should return 403 Forbidden
+        rather than 404 Not Found.
+        """
+        self.maxDiff = None
+        app = self.makeApp({"/resource": Resource()}, [])
+        code, headers, contents = self.proppatch(
+            app,
+            "/resource",
+            b"""\
+<d:propertyupdate xmlns:d="DAV:" xmlns:custom="http://example.com/ns">
+  <d:set>
+    <d:prop>
+      <custom:deadproperty>Custom Value</custom:deadproperty>
+    </d:prop>
+  </d:set>
+</d:propertyupdate>""",
+        )
+        self.assertEqual(code, "207 Multi-Status")
+        self.assertMultiLineEqual(
+            contents.decode("utf-8"),
+            '<ns0:multistatus xmlns:ns0="DAV:" xmlns:ns1="http://example.com/ns"><ns0:response>'
+            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:propstat><ns0:status>HTTP/1.1 403 Forbidden</ns0:status><ns0:prop><ns1:deadproperty /></ns0:prop></ns0:propstat>"
+            "</ns0:response></ns0:multistatus>",
+        )
+
     # RFC 4918 Section 9.1 - PROPFIND Depth tests
     def test_rfc4918_9_1_propfind_depth_0(self):
         """Test PROPFIND with Depth: 0 (resource only, no children)."""
@@ -2633,6 +2663,45 @@ class SplitPathPreservingEncodingTests(unittest.TestCase):
         container, item = split_path_preserving_encoding(MockRequest(), environ)
         self.assertEqual("/", container)
         self.assertEqual("item/with/slash.ics", item)
+
+    def test_fragment_stripped(self):
+        """Test that URI fragments are stripped per RFC 3986.
+
+        Fragments (the part after #) should not be sent to the server,
+        but if they are, they should be stripped before processing.
+        """
+
+        class MockRequest:
+            raw_path = "/litmus/frag/#ment"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/litmus", container)
+        self.assertEqual("frag", item)
+
+    def test_fragment_in_middle(self):
+        """Test fragment stripping when fragment is in the middle of path."""
+
+        class MockRequest:
+            raw_path = "/collection#fragment/item.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        # Everything after # should be stripped
+        self.assertEqual("/", container)
+        self.assertEqual("collection", item)
+
+    def test_encoded_hash_preserved(self):
+        """Test that percent-encoded hash (%23) is preserved as part of name."""
+
+        class MockRequest:
+            raw_path = "/collection/item%23name.ics"
+
+        environ = {"SCRIPT_NAME": ""}
+        container, item = split_path_preserving_encoding(MockRequest(), environ)
+        self.assertEqual("/collection", container)
+        # %23 should decode to # and be part of the item name
+        self.assertEqual("item#name.ics", item)
 
 
 class CollectionMoveMemberTests(unittest.TestCase):

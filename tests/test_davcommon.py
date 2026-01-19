@@ -265,6 +265,75 @@ class MultiGetReporterTests(unittest.TestCase):
 
         asyncio.run(run_test())
 
+    def test_report_accepts_any_depth(self):
+        """Test that base multiget implementation accepts any depth value.
+
+        The base MultiGetReporter class does not validate the Depth header.
+        Subclasses (CalDAV, CardDAV) handle depth validation according to
+        their specific RFC requirements.
+        """
+
+        async def run_test():
+            # Create minimal test body
+            body = ET.Element("body")
+            href_el = ET.SubElement(body, "{DAV:}href")
+            href_el.text = "/test"
+
+            resource = Mock()
+
+            def mock_resources_by_hrefs(hrefs):
+                return [("/test", resource)]
+
+            async def mock_get_properties_with_data(
+                data_prop, href, res, props, environ, requested
+            ):
+                yield webdav.PropStatus("200 OK", None, ET.Element("prop"))
+
+            with patch(
+                "xandikos.davcommon.get_properties_with_data",
+                mock_get_properties_with_data,
+            ):
+                # Test with depth "0" - should work
+                response = await self.reporter.report(
+                    environ={},
+                    body=body,
+                    resources_by_hrefs=mock_resources_by_hrefs,
+                    properties={},
+                    base_href="/",
+                    resource=Mock(),
+                    depth="0",
+                    strict=True,
+                )
+                self.assertEqual(response.status, 207)
+
+                # Test with depth "1" - should also work (no validation)
+                response = await self.reporter.report(
+                    environ={},
+                    body=body,
+                    resources_by_hrefs=mock_resources_by_hrefs,
+                    properties={},
+                    base_href="/",
+                    resource=Mock(),
+                    depth="1",
+                    strict=True,
+                )
+                self.assertEqual(response.status, 207)
+
+                # Test with depth "infinity" - should also work (no validation)
+                response = await self.reporter.report(
+                    environ={},
+                    body=body,
+                    resources_by_hrefs=mock_resources_by_hrefs,
+                    properties={},
+                    base_href="/",
+                    resource=Mock(),
+                    depth="infinity",
+                    strict=True,
+                )
+                self.assertEqual(response.status, 207)
+
+        asyncio.run(run_test())
+
 
 if __name__ == "__main__":
     unittest.main()

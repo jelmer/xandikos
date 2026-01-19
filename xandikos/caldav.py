@@ -56,7 +56,8 @@ CALENDAR_RESOURCE_TYPE = "{%s}calendar" % NAMESPACE
 
 SUBSCRIPTION_RESOURCE_TYPE = "{http://calendarserver.org/ns/}subscribed"
 
-# TODO(jelmer): These resource types belong in scheduling.py
+# Scheduling resource types (RFC 6638)
+# These are defined here rather than in scheduling.py to avoid circular imports
 SCHEDULE_INBOX_RESOURCE_TYPE = "{%s}schedule-inbox" % NAMESPACE
 SCHEDULE_OUTBOX_RESOURCE_TYPE = "{%s}schedule-outbox" % NAMESPACE
 
@@ -71,8 +72,21 @@ class Calendar(webdav.Collection):
     resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
     def get_calendar_description(self) -> str:
-        """Return the calendar description."""
+        """Return the calendar description.
+
+        This provides the value for the CALDAV:calendar-description property
+        defined in RFC 4791 Section 5.2.1. It's a human-readable description
+        of the calendar collection.
+        """
         raise NotImplementedError(self.get_calendar_description)
+
+    def set_calendar_description(self, description: str) -> None:
+        """Set the calendar description.
+
+        This sets the value for the CALDAV:calendar-description property
+        defined in RFC 4791 Section 5.2.1.
+        """
+        raise NotImplementedError(self.set_calendar_description)
 
     def get_calendar_color(self) -> str:
         """Return the calendar color."""
@@ -284,9 +298,8 @@ class CalendarDescriptionProperty(webdav.Property):
     async def get_value(self, base_href, resource, el, environ):
         el.text = resource.get_calendar_description()
 
-    # TODO(jelmer): allow modification of this property
     async def set_value(self, href, resource, el):
-        raise NotImplementedError
+        resource.set_calendar_description(el.text)
 
 
 def _extract_from_component(incomp: Component, outcomp: Component, requested) -> None:
@@ -373,8 +386,8 @@ class CalendarDataProperty(davcommon.SubbedProperty):
                 raise KeyError
             c = extract_from_calendar(calendar, requested)
             serialized_cal = c.to_ical()
-        # TODO(jelmer): Don't hardcode encoding
-        # TODO(jelmer): Strip invalid characters or raise an exception
+        # UTF-8 encoding is required by RFC 5545 (iCalendar format)
+        # decode() will raise UnicodeDecodeError on invalid UTF-8
         el.text = serialized_cal.decode("utf-8")
 
 
@@ -392,6 +405,17 @@ class CalendarOrderProperty(webdav.Property):
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
+    # RFC 4791 Section 7.9 (CalDAV calendar-multiget) specifies:
+    #   "the 'Depth' header MUST be ignored by the server and SHOULD NOT be
+    #   sent by the client."
+    #
+    # Therefore, we do NOT validate the Depth header for CalDAV multiget
+    # operations. The base class implementation handles the request logic,
+    # and any Depth header value is simply ignored as per the RFC.
+    #
+    # Note: Some CalDAV client libraries
+    # send Depth: 1, which is against the RFC's recommendation but should
+    # not cause the request to fail.
     name = "{%s}calendar-multiget" % NAMESPACE
     resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
     data_property = CalendarDataProperty()
@@ -564,7 +588,8 @@ class CalendarQueryReporter(webdav.Reporter):
         depth,
         strict,
     ):
-        # TODO(jelmer): Verify that resource is a calendar
+        # Note: Resource type validation is performed by the REPORT handler
+        # via supported_on() before this method is called
         requested = None
         filter_el = None
         tztext = None

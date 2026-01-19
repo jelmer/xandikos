@@ -34,7 +34,7 @@ from collections.abc import Iterable
 import dulwich.repo
 from dulwich.file import FileLocked
 from dulwich.index import IndexEntry, index_entry_from_stat, locked_index
-from dulwich.objects import Blob, Tree
+from dulwich.objects import Blob, Commit, Tree
 
 from . import (
     DEFAULT_MIME_TYPE,
@@ -83,8 +83,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if url is not None:
             config.set(b"xandikos", b"source", url.encode(DEFAULT_ENCODING))
         else:
-            # TODO(jelmer): Add and use config.remove()
-            config.set(b"xandikos", b"source", b"")
+            config.remove(b"xandikos", b"source")
         self._write_config(config)
 
     def get_color(self):
@@ -99,8 +98,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if color is not None:
             config.set(b"xandikos", b"color", color.encode(DEFAULT_ENCODING))
         else:
-            # TODO(jelmer): Add and use config.remove()
-            config.set(b"xandikos", b"color", b"")
+            config.remove(b"xandikos", b"color")
         self._write_config(config)
 
     def _write_config(self, config):
@@ -124,7 +122,7 @@ class RepoCollectionMetadata(CollectionMetadata):
                 displayname.encode(DEFAULT_ENCODING),
             )
         else:
-            config.set(b"xandikos", b"displayname", b"")
+            config.remove(b"xandikos", b"displayname")
         self._write_config(config)
 
     def get_description(self):
@@ -151,8 +149,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if comment is not None:
             config.set(b"xandikos", b"comment", comment.encode(DEFAULT_ENCODING))
         else:
-            # TODO(jelmer): Add and use config.remove()
-            config.set(b"xandikos", b"comment", b"")
+            config.remove(b"xandikos", b"comment")
         self._write_config(config)
 
     def set_type(self, store_type):
@@ -180,6 +177,38 @@ class RepoCollectionMetadata(CollectionMetadata):
         if order is None:
             order = ""
         config.set(b"xandikos", b"calendar-order", order.encode("utf-8"))
+        self._write_config(config)
+
+    def get_refreshrate(self):
+        config = self._repo.get_config()
+        refreshrate = config.get(b"xandikos", b"refreshrate")
+        if refreshrate == b"":
+            raise KeyError
+        return refreshrate.decode(DEFAULT_ENCODING)
+
+    def set_refreshrate(self, refreshrate):
+        config = self._repo.get_config()
+        if refreshrate is not None:
+            config.set(
+                b"xandikos", b"refreshrate", refreshrate.encode(DEFAULT_ENCODING)
+            )
+        else:
+            config.remove(b"xandikos", b"refreshrate")
+        self._write_config(config)
+
+    def get_timezone(self):
+        config = self._repo.get_config()
+        timezone = config.get(b"xandikos", b"timezone")
+        if timezone == b"":
+            raise KeyError
+        return timezone.decode(DEFAULT_ENCODING)
+
+    def set_timezone(self, timezone):
+        config = self._repo.get_config()
+        if timezone is not None:
+            config.set(b"xandikos", b"timezone", timezone.encode(DEFAULT_ENCODING))
+        else:
+            config.remove(b"xandikos", b"timezone")
         self._write_config(config)
 
 
@@ -624,9 +653,47 @@ class BareGitStore(GitStore):
         return cls(repo)
 
     def _commit_tree(self, tree_id, message, author=None):
-        return self.repo.do_commit(
-            message=message, tree=tree_id, ref=self.ref, author=author
-        )
+        """Create a commit for the given tree.
+
+        Args:
+            tree_id: Tree object ID
+            message: Commit message (bytes)
+            author: Optional author (bytes)
+
+        Returns:
+            Commit SHA
+        """
+        import time
+        from dulwich.porcelain import get_user_identity
+
+        c = Commit()
+        c.tree = tree_id
+
+        if author is None:
+            author = get_user_identity(self.repo.get_config_stack())
+
+        c.author = author
+        c.committer = author
+        c.author_time = int(time.time())
+        c.commit_time = c.author_time
+        c.author_timezone = 0
+        c.commit_timezone = 0
+        c.encoding = b"UTF-8"
+        c.message = message
+
+        # Get parent commits
+        try:
+            c.parents = [self.repo.refs[self.ref]]
+        except KeyError:
+            c.parents = []
+
+        # Add commit to object store
+        self.repo.object_store.add_object(c)
+
+        # Update ref
+        self.repo.refs[self.ref] = c.id
+
+        return c.id
 
     def _import_one(
         self,
@@ -728,7 +795,9 @@ class TreeGitStore(GitStore):
 
     def _commit_tree(self, index, message, author=None):
         tree = index.commit(self.repo.object_store)
-        return self.repo.do_commit(message=message, author=author, tree=tree)
+        return self.repo.get_worktree().commit(
+            message=message, author=author, tree=tree
+        )
 
     def _import_one(
         self,

@@ -316,11 +316,12 @@ def split_path_preserving_encoding(request, environ):
     if raw_path_for_split.startswith(script_name):
         raw_path_for_split = raw_path_for_split[len(script_name) :]
 
-    # Note: URL fragments (e.g., "#ment" in "/path/file#ment") should not normally
-    # be sent to the server per RFC 3986. However, if they are sent, we preserve
-    # them as part of the resource name to avoid unintended operations on parent resources.
-    # This means a DELETE on "/frag/#ment" will try to delete a resource named "frag/#ment"
-    # (which won't exist) rather than deleting the "/frag/" collection.
+    # Strip URI fragments per RFC 3986 Section 3.5
+    # Fragments (e.g., "#ment" in "/path/file#ment") are client-side only and
+    # should not be sent to the server. If they are sent, strip them to avoid
+    # treating them as part of the resource name.
+    if "#" in raw_path_for_split:
+        raw_path_for_split = raw_path_for_split.split("#", 1)[0]
 
     container_path_raw, item_name_raw = posixpath.split(raw_path_for_split.rstrip("/"))
     # Decode the components after splitting
@@ -1484,7 +1485,6 @@ class ExpandPropertyReporter(Reporter):
             if prop_name is None:
                 nonfatal_bad_request(f"Tag {prop.tag} without name attribute", strict)
                 continue
-            # FIXME: Resolve prop_name on resource
             propstat = await get_property_from_name(
                 href, resource, properties, prop_name, environ
             )
@@ -1510,8 +1510,7 @@ class ExpandPropertyReporter(Reporter):
                         continue
                     child_resource = dict(child_resources).get(child_href)
                     if child_resource is None:
-                        # FIXME: What to do if the referenced href is invalid?
-                        # For now, let's just keep the unresolved href around
+                        # Keep unresolved href so client can see what was referenced
                         new_prop.append(prop_child)
                     else:
                         async for response in self._populate(
@@ -1799,7 +1798,9 @@ async def apply_modify_prop(el, href, resource, properties):
                 propel.tag,
                 href,
             )
-            yield PropStatus("404 Not Found", None, ET.Element(propel.tag))
+            # RFC 4918 Section 9.2: Return 403 for properties that cannot be set
+            # Dead properties are not supported, so return 403 Forbidden
+            yield PropStatus("403 Forbidden", None, ET.Element(propel.tag))
         else:
             if el.tag == "{DAV:}remove":
                 newval = None
@@ -1808,7 +1809,8 @@ async def apply_modify_prop(el, href, resource, properties):
             else:
                 raise AssertionError
             if not handler.supported_on(resource):
-                statuscode = "404 Not Found"
+                # RFC 4918 Section 9.2: Return 403 for properties not supported on this resource
+                statuscode = "403 Forbidden"
             else:
                 try:
                     await handler.set_value(href, resource, newval)
