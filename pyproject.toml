@@ -6,30 +6,30 @@ build-backend = "setuptools.build_meta"
 name = "xandikos"
 description = "Lightweight CalDAV/CardDAV server"
 readme = "README.rst"
-authors = [{name = "Jelmer Vernooij", email = "jelmer@jelmer.uk"}]
-license = {text = "GNU GPLv3 or later"}
+authors = [{ name = "Jelmer Vernooij", email = "jelmer@jelmer.uk" }]
+license = { text = "GNU GPLv3 or later" }
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
-    "Operating System :: POSIX",
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Operating System :: POSIX",
 ]
-urls = {Homepage = "https://www.xandikos.org/"}
+urls = { Homepage = "https://www.xandikos.org/" }
 requires-python = ">=3.10"
 dependencies = [
-    "aiohttp",
-    "icalendar>=5.0.4,<7.0",
-    "dulwich>=0.21.6,<0.26.0",
-    "defusedxml",
-    "jinja2",
-    "multidict",
-    "vobject",
+  "aiohttp",
+  "icalendar>=5.0.4,<7.0",
+  "dulwich>=0.21.6,<0.26.0",
+  "defusedxml",
+  "jinja2",
+  "multidict",
+  "vobject",
 ]
 dynamic = ["version"]
 
@@ -37,14 +37,8 @@ dynamic = ["version"]
 prometheus = ["aiohttp-openmetrics"]
 systemd = ["systemd_python"]
 qrcode = ["qrcode[pil]"]
-dev = [
-   "ruff==0.14.10",
-   "pytest",
-]
-typing = [
-   "mypy==1.19.1",
-   "types-python-dateutil"
-]
+dev = ["ruff==0.14.10", "pytest"]
+typing = ["mypy==1.19.1", "types-python-dateutil"]
 
 [project.scripts]
 xandikos = "xandikos.__main__:main"
@@ -53,16 +47,13 @@ xandikos = "xandikos.__main__:main"
 include-package-data = false
 
 [tool.setuptools.packages]
-find = {namespaces = false}
+find = { namespaces = false }
 
 [tool.setuptools.package-data]
-xandikos = [
-    "templates/*.html",
-    "py.typed",
-]
+xandikos = ["templates/*.html", "py.typed"]
 
 [tool.setuptools.dynamic]
-version = {attr = "xandikos.__version__"}
+version = { attr = "xandikos.__version__" }
 
 [tool.mypy]
 ignore_missing_imports = true
@@ -71,35 +62,29 @@ ignore_missing_imports = true
 universal = 1
 
 [tool.ruff.lint]
-select = [
-    "ANN",
-    "D",
-    "E",
-    "F",
-    "UP",
-]
+select = ["ANN", "D", "E", "F", "UP"]
 ignore = [
-    "ANN001",
-    "ANN002",
-    "ANN003",
-    "ANN201",
-    "ANN202",
-    "ANN204",
-    "ANN206",
-    "D100",
-    "D101",
-    "D102",
-    "D103",
-    "D104",
-    "D105",
-    "D107",
-    "D403",
-    "D417",
-    "E501",
-    # f-strings aren't actually more readable for some expressions, especially things like:
-    # "{%s}blah" % caldav.NAMESPACE
-    # where escaping the braces is a pain
-    "UP031",
+  "ANN001",
+  "ANN002",
+  "ANN003",
+  "ANN201",
+  "ANN202",
+  "ANN204",
+  "ANN206",
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D107",
+  "D403",
+  "D417",
+  "E501",
+  # f-strings aren't actually more readable for some expressions, especially things like:
+  # "{%s}blah" % caldav.NAMESPACE
+  # where escaping the braces is a pain
+  "UP031",
 ]
 
 [tool.ruff.lint.pydocstyle]
