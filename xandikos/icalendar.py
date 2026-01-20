@@ -83,6 +83,8 @@ _INVALID_CONTROL_CHARACTERS = (
         chr(0x7F)  # DEL character
     ]
 )
+_INVALID_CONTROL_CHARACTERS.remove("\n")
+_INVALID_CONTROL_CHARACTERS.remove("\r")
 
 
 class MissingProperty(Exception):
