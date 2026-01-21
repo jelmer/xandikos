@@ -1,3 +1,72 @@
+0.3.2	UNRELEASED
+
+ * Fix TypeError with mixed date/datetime types in EXDATE/RDATE.
+   (Jelmer Vernooĳ, #537)
+
+ * Allow escaped newlines in calendar text fields. (Jelmer Vernooĳ, #565)
+
+0.3.1	2025-12-18
+
+ * Fix console script entrypoint compatibility with setuptools.
+   (Jelmer Vernooĳ, #563)
+
+ * Add extensible validation error handling for different content types.
+   (Jelmer Vernooĳ)
+
+ * Implement calendar-description property modification. (Jelmer Vernooĳ, #555)
+
+ * Implement refreshrate and calendar-timezone property support.
+   (Jelmer Vernooĳ, #556)
+
+ * Implement full CalDAV text-match support for all match types.
+   (Jelmer Vernooĳ, #552)
+
+ * Implement limit-freebusy-set support. (Jelmer Vernooĳ, #540)
+
+ * Add support for chunked transfer encoding in HTTP requests.
+   (Jelmer Vernooĳ, #535)
+
+ * Add streaming response support for aiohttp. (Jelmer Vernooĳ, #535)
+
+ * Add ARMv7 platform support to container builds. (Jelmer Vernooĳ, #534)
+
+ * Publish Docker images for every commit with commit SHA tags.
+   (Jelmer Vernooĳ, #533)
+
+ * Fix Depth header validation for multiget REPORT operations.
+   (Jelmer Vernooĳ, #559)
+
+ * Fix dead property error responses per RFC 4918. (Jelmer Vernooĳ, #552)
+
+ * Fix URI fragment handling in DELETE operations. (Jelmer Vernooĳ, #551)
+
+ * Fix RFC 6578 sync-collection limit element bug. (Jelmer Vernooĳ, #550)
+
+ * Fix precondition error responses to return correct status codes.
+   (Jelmer Vernooĳ, #546)
+
+ * Fix timezone awareness mismatch in RRULE occurrence generation.
+   (Jelmer Vernooĳ, #529)
+
+ * Fix EXDATE/RDATE handling to extract datetime values. (Jelmer Vernooĳ, #529)
+
+ * Fix compatibility with Dulwich 1. (Jelmer Vernooĳ, #557)
+
+ * Limit recurrence expansion for unbounded queries. (Jelmer Vernooĳ, #539)
+
+ * Improve error messages for file parsing failures and RRULE parsing.
+   (Jelmer Vernooĳ, #536)
+
+ * Restrict supported dulwich versions. (Jelmer Vernooĳ, #541)
+
+ * Clarify resource type validation in multiget and calendar-query reporters.
+   (Jelmer Vernooĳ, #553, #554)
+
+ * Document file format specification with complete metadata property reference.
+   (Jelmer Vernooĳ, #561)
+
+ * Move tests to root directory and don't install them. (Jelmer Vernooĳ, #532)
+
 0.3.0	2025-11-26
 
  * Add RFC 7953 (Calendar Availability) support. (Jelmer Vernooĳ, #483)
