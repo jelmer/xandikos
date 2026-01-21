@@ -2923,7 +2923,7 @@ class ChunkedTransferEncodingTests(WebTestCase):
 
         # For testing, we'll split the data into chunks
         # We'll use varying chunk sizes to test the decoder properly
-        chunks = []
+        chunks: list[bytes] = []
         offset = 0
         chunk_sizes = [5, 10, 7, 15]  # Varying sizes for testing
 

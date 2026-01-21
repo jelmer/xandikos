@@ -66,6 +66,7 @@ version = {attr = "xandikos.__version__"}
 
 [tool.mypy]
 ignore_missing_imports = true
+exclude = ["^build/", "^compat/", "^docs/"]
 
 [tool.distutils.bdist_wheel]
 universal = 1
