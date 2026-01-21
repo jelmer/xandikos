@@ -69,20 +69,18 @@ MAX_RECURRENCE_INSTANCES = 3000
 
 
 # Based on RFC5545 section 3.3.11, CONTROL = %x00-08 / %x0A-1F / %x7F
-# All control characters except HTAB (\x09) are forbidden
-_INVALID_CONTROL_CHARACTERS = (
-    [
-        chr(i)
-        for i in range(0x00, 0x09)  # \x00-\x08
-    ]
-    + [
-        chr(i)
-        for i in range(0x0A, 0x20)  # \x0A-\x1F
-    ]
-    + [
-        chr(0x7F)  # DEL character
-    ]
-)
+# Control characters are forbidden in TEXT values, EXCEPT:
+# - HTAB (\x09) is explicitly allowed
+# - LF (\x0A) and CR (\x0D) are allowed because they appear in the parsed
+#   representation when the icalendar library unescapes valid \n and \r
+#   escape sequences from the iCalendar file (RFC 5545 allows these escapes)
+_INVALID_CONTROL_CHARACTERS = [
+    chr(i)
+    for i in range(0x00, 0x20)  # \x00-\x1F
+    if i not in (0x09, 0x0A, 0x0D)  # Allow HTAB, LF, CR
+] + [
+    chr(0x7F)  # DEL character
+]
 
 
 class MissingProperty(Exception):

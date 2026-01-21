@@ -147,6 +147,26 @@ class ExtractCalendarUIDTests(unittest.TestCase):
             list(validate_calendar(fi.calendar, strict=False)),
         )
 
+    def test_escaped_newlines_allowed(self):
+        # Test that properly escaped \n and \r sequences are allowed
+        # This is critical for calendar invites from email clients like Thunderbird
+        cal_data = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-multiline@example.com
+DTSTART:20250101T120000Z
+SUMMARY:Event with description
+DESCRIPTION:Line 1\\nLine 2\\r\\nLine 3
+END:VEVENT
+END:VCALENDAR
+"""
+        fi = ICalendarFile([cal_data], "text/calendar")
+        # Should validate successfully (no exception raised)
+        fi.validate()
+        # Should have no validation errors
+        self.assertEqual([], list(validate_calendar(fi.calendar, strict=False)))
+
 
 class CalendarFilterTests(unittest.TestCase):
     def setUp(self):
