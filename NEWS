@@ -1,4 +1,4 @@
-0.3.2	UNRELEASED
+0.3.2	2026-01-21
 
  * Fix TypeError with mixed date/datetime types in EXDATE/RDATE.
    (Jelmer Vernooĳ, #537)
