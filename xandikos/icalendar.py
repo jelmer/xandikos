@@ -23,7 +23,7 @@ import logging
 from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta, timezone
 from collections.abc import Callable
-from typing import Protocol
+from typing import Protocol, overload
 from zoneinfo import ZoneInfo
 
 import dateutil.rrule
@@ -1547,6 +1547,16 @@ def as_tz_aware_ts(dt: datetime | date, default_timezone: str | timezone) -> dat
             _dt = _dt.replace(tzinfo=default_timezone)
     assert _dt.tzinfo
     return _dt
+
+
+@overload
+def _normalize_to_dtstart_type(
+    dt_value: date | datetime, dtstart: datetime
+) -> datetime: ...
+
+
+@overload
+def _normalize_to_dtstart_type(dt_value: date | datetime, dtstart: date) -> date: ...
 
 
 def _normalize_to_dtstart_type(
