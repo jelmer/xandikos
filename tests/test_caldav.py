@@ -18,7 +18,7 @@
 # MA  02110-1301, USA.
 
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from wsgiref.util import setup_testing_defaults
 
 from icalendar.cal import Calendar as ICalendar, Component
@@ -575,6 +575,143 @@ class TestCalendarDataProperty(unittest.TestCase):
 
         # This should not raise an exception, but return False
         self.assertFalse(prop.supported_on(ResourceWithoutContentType()))
+
+    def test_get_value_ext_with_expand(self):
+        """Test that get_value_ext properly handles expand elements."""
+        import asyncio
+
+        prop = CalendarDataProperty()
+
+        # Create a mock resource with recurring event
+        ical_data = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-recurring@example.com
+DTSTART:20230101T100000Z
+DURATION:PT1H
+RRULE:FREQ=DAILY;COUNT=5
+SUMMARY:Recurring Event
+END:VEVENT
+END:VCALENDAR"""
+
+        class MockFile:
+            def __init__(self, cal_data):
+                self.calendar = ICalendar.from_ical(cal_data)
+
+        class MockResource:
+            def __init__(self):
+                self._file = MockFile(ical_data)
+
+            def get_content_type(self):
+                return "text/calendar"
+
+            async def get_body(self):
+                return [ical_data]
+
+            async def get_file(self):
+                return self._file
+
+        # Create calendar-data element with expand
+        requested = ET.Element("{%s}calendar-data" % caldav.NAMESPACE)
+        expand = ET.SubElement(requested, "{%s}expand" % caldav.NAMESPACE)
+        expand.set("start", "20230102T000000Z")
+        expand.set("end", "20230104T000000Z")
+
+        # Create output element
+        el = ET.Element("test")
+
+        async def run_test():
+            # Call get_value_ext
+            await prop.get_value_ext("/test", MockResource(), el, {}, requested)
+
+        asyncio.run(run_test())
+
+        # Parse the result
+        result_cal = ICalendar.from_ical(el.text)
+
+        # Should have expanded events for Jan 2 and Jan 3
+        events = list(result_cal.walk("VEVENT"))
+        self.assertEqual(2, len(events))
+
+        # Check that events have RECURRENCE-ID
+        for event in events:
+            self.assertIn("RECURRENCE-ID", event)
+
+    def test_calendar_query_with_expand(self):
+        """Test that calendar-query REPORT properly handles expand in calendar-data."""
+        import asyncio
+        from xml.etree import ElementTree as ET
+
+        # Create a mock CalDAV app/reporter setup
+        ical_data = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:recurring@example.com
+DTSTART:20230101T100000Z
+DURATION:PT1H
+RRULE:FREQ=DAILY;COUNT=7
+SUMMARY:Daily Meeting
+END:VEVENT
+END:VCALENDAR"""
+
+        class MockFile:
+            def __init__(self):
+                self.calendar = ICalendar.from_ical(ical_data)
+
+        class MockResource:
+            def __init__(self):
+                self._file = MockFile()
+                self.content_type = "text/calendar"
+
+            def get_content_type(self):
+                return self.content_type
+
+            async def get_file(self):
+                return self._file
+
+            async def get_body(self):
+                return [ical_data]
+
+        # Create the calendar-query request body
+        query = ET.Element("{urn:ietf:params:xml:ns:caldav}calendar-query")
+        prop_el = ET.SubElement(query, "{DAV:}prop")
+        caldata_el = ET.SubElement(
+            prop_el, "{urn:ietf:params:xml:ns:caldav}calendar-data"
+        )
+        expand_el = ET.SubElement(caldata_el, "{urn:ietf:params:xml:ns:caldav}expand")
+        expand_el.set("start", "20230103T000000Z")
+        expand_el.set("end", "20230105T000000Z")
+
+        # The reporter would process this and call get_properties_with_data
+        # which would eventually call CalendarDataProperty.get_value_ext
+        # For this test, we'll verify that the expand works correctly
+        prop = CalendarDataProperty()
+        el = ET.Element("test")
+
+        async def run_test():
+            await prop.get_value_ext("/test", MockResource(), el, {}, caldata_el)
+
+        asyncio.run(run_test())
+
+        # Verify the expanded result
+        result_cal = ICalendar.from_ical(el.text)
+        events = list(result_cal.walk("VEVENT"))
+
+        # Should have 2 events (Jan 3 and Jan 4)
+        self.assertEqual(2, len(events))
+
+        # Check that each event has the expected date
+        dates = sorted([event["DTSTART"].dt for event in events])
+        self.assertEqual(
+            datetime(2023, 1, 3, 10, 0, 0, tzinfo=timezone(timedelta(0))), dates[0]
+        )
+        self.assertEqual(
+            datetime(2023, 1, 4, 10, 0, 0, tzinfo=timezone(timedelta(0))), dates[1]
+        )
 
 
 class ExtractFromCalendarExpandTests(unittest.TestCase):
