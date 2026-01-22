@@ -22,5 +22,5 @@
 
 import defusedxml.ElementTree  # noqa: F401 This does some monkey-patching on-load
 
-__version__ = (0, 3, 2)
+__version__ = (0, 3, 3)
 version_string = ".".join(map(str, __version__))

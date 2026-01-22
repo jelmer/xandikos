@@ -1,3 +1,15 @@
+0.3.3	2026-01-22
+
+ * Support VALARM searching in calendar queries. (Jelmer Vernooĳ, #568)
+
+ * Bump minimum dulwich version to 0.25. (Jelmer Vernooĳ)
+
+ * Add python3-qrcode to container image. (Jelmer Vernooĳ)
+
+ * Trigger docker container build on tags. (Jelmer Vernooĳ)
+
+ * Fix container build failing on release events. (Jelmer Vernooĳ)
+
 0.3.2	2026-01-21
 
  * Fix TypeError with mixed date/datetime types in EXDATE/RDATE.
