@@ -36,6 +36,7 @@ from xandikos.icalendar import (
     TextMatcher,
     _create_enriched_valarm,
     _event_overlaps_range,
+    _normalize_rrule_until,
     apply_time_range_vevent,
     apply_time_range_valarm,
     apply_time_range_vavailability,
@@ -2471,3 +2472,112 @@ class EventOverlapsRangeTests(unittest.TestCase):
 
         # All-day event on Jan 16 shouldn't overlap with range 10:00-12:00 on Jan 15
         self.assertFalse(_event_overlaps_range(event, self.start, self.end))
+
+
+class NormalizeRruleUntilTests(unittest.TestCase):
+    """Tests for _normalize_rrule_until function.
+
+    This tests the fix for GitHub issue #571: recurring calendar items with
+    UNTIL that is not in UTC when DTSTART is timezone-aware.
+    """
+
+    def test_naive_until_with_aware_dtstart(self):
+        """Test normalizing naive UNTIL when DTSTART is timezone-aware."""
+        rrule_str = "FREQ=DAILY;UNTIL=20260131T235959"
+        dtstart = datetime(2026, 1, 22, 9, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+
+        normalized = _normalize_rrule_until(rrule_str, dtstart)
+
+        # UNTIL should now have UTC suffix
+        self.assertIn("UNTIL=20260131T235959Z", normalized)
+
+    def test_utc_until_unchanged(self):
+        """Test that UNTIL already in UTC is not modified."""
+        rrule_str = "FREQ=DAILY;UNTIL=20260131T235959Z"
+        dtstart = datetime(2026, 1, 22, 9, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+
+        normalized = _normalize_rrule_until(rrule_str, dtstart)
+
+        # Should be unchanged
+        self.assertEqual(normalized, rrule_str)
+
+    def test_date_only_until_with_aware_dtstart(self):
+        """Test normalizing date-only UNTIL when DTSTART is timezone-aware."""
+        rrule_str = "FREQ=DAILY;UNTIL=20260131"
+        dtstart = datetime(2026, 1, 22, 9, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+
+        normalized = _normalize_rrule_until(rrule_str, dtstart)
+
+        # Should be converted to datetime at end of day in UTC
+        self.assertIn("UNTIL=20260131T235959Z", normalized)
+
+    def test_no_until_unchanged(self):
+        """Test that RRULE without UNTIL is not modified."""
+        rrule_str = "FREQ=DAILY;COUNT=10"
+        dtstart = datetime(2026, 1, 22, 9, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+
+        normalized = _normalize_rrule_until(rrule_str, dtstart)
+
+        self.assertEqual(normalized, rrule_str)
+
+    def test_naive_dtstart_unchanged(self):
+        """Test that RRULE is not modified when DTSTART is naive."""
+        rrule_str = "FREQ=DAILY;UNTIL=20260131T235959"
+        dtstart = datetime(2026, 1, 22, 9, 0, 0)  # Naive datetime
+
+        normalized = _normalize_rrule_until(rrule_str, dtstart)
+
+        # Should be unchanged
+        self.assertEqual(normalized, rrule_str)
+
+    def test_date_only_dtstart_unchanged(self):
+        """Test that RRULE is not modified when DTSTART is date-only."""
+        rrule_str = "FREQ=DAILY;UNTIL=20260131"
+        dtstart = date(2026, 1, 22)  # Date, not datetime
+
+        normalized = _normalize_rrule_until(rrule_str, dtstart)
+
+        # Should be unchanged
+        self.assertEqual(normalized, rrule_str)
+
+    def test_expand_rrule_with_naive_until(self):
+        """Test that expand_calendar_rrule works with naive UNTIL (issue #571)."""
+        # This is the specific case from iPhone clients
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VTIMEZONE
+TZID:America/New_York
+BEGIN:STANDARD
+DTSTART:20231105T020000
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:20240310T020000
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:iphone-test@example.com
+DTSTAMP:20260122T120000Z
+DTSTART;TZID=America/New_York:20260122T090000
+DTEND;TZID=America/New_York:20260122T100000
+SUMMARY:iPhone Event
+RRULE:FREQ=DAILY;UNTIL=20260131T235959
+END:VEVENT
+END:VCALENDAR"""
+
+        from icalendar import Calendar
+
+        cal = Calendar.from_ical(test_ical)
+        start = datetime(2026, 1, 1, tzinfo=ZoneInfo("UTC"))
+        end = datetime(2026, 2, 28, tzinfo=ZoneInfo("UTC"))
+
+        # This should not raise an error
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        # Verify we got the expected number of events
+        events = [comp for comp in expanded.walk() if comp.name == "VEVENT"]
+        self.assertEqual(len(events), 10)  # Jan 22-31 = 10 days

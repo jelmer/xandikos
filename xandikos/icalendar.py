@@ -36,6 +36,7 @@ from icalendar.prop import (
     vDatetime,
     vDDDTypes,
     vDuration,
+    vRecur,
     vText,
 )
 
@@ -795,6 +796,8 @@ class ComponentTimeRangeMatcher:
 
             # Parse DTSTART and create rrule
             dtstart_parsed = vDDDTypes.from_ical(dtstart_str)
+            # Normalize UNTIL to be UTC if dtstart is timezone-aware
+            rrule_str = _normalize_rrule_until(rrule_str, dtstart_parsed)
             rrule = dateutil.rrule.rrulestr(rrule_str, dtstart=dtstart_parsed)
         except (TypeError, ValueError) as e:
             # If RRULE parsing fails, log with context and return False
@@ -1659,9 +1662,51 @@ def _normalize_to_dtstart_type(
     return dt_value
 
 
+def _normalize_rrule_until(rrule_str: str, dtstart: date | datetime) -> str:
+    """Normalize RRULE UNTIL to be compatible with dateutil when DTSTART is timezone-aware.
+
+    RFC 5545 requires UNTIL to be in UTC when DTSTART is timezone-aware.
+    Some clients (like iPhone) send UNTIL without UTC suffix.
+    This function parses the RRULE and ensures UNTIL is properly formatted.
+
+    Args:
+        rrule_str: The RRULE string
+        dtstart: The DTSTART value (used to determine if normalization is needed)
+
+    Returns:
+        The RRULE string, possibly modified to have UNTIL in UTC format
+    """
+    # Only normalize if dtstart is a timezone-aware datetime
+    if not isinstance(dtstart, datetime) or dtstart.tzinfo is None:
+        return rrule_str
+
+    parsed = vRecur.from_ical(rrule_str)
+    until_list = parsed.get("UNTIL", [])
+
+    if not until_list:
+        return rrule_str
+
+    until = until_list[0]
+
+    # If UNTIL is a date (not datetime), convert to end of day in UTC
+    if isinstance(until, date) and not isinstance(until, datetime):
+        until_dt = datetime.combine(until, time(23, 59, 59), tzinfo=timezone.utc)
+        parsed["UNTIL"] = [until_dt]
+        return parsed.to_ical().decode("utf-8")
+
+    # If UNTIL is a naive datetime, make it UTC
+    if isinstance(until, datetime) and until.tzinfo is None:
+        parsed["UNTIL"] = [until.replace(tzinfo=timezone.utc)]
+        return parsed.to_ical().decode("utf-8")
+
+    return rrule_str
+
+
 def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
     dtstart = comp["DTSTART"].dt
     rrulestr = comp["RRULE"].to_ical().decode("utf-8")
+    # Normalize UNTIL to be UTC if dtstart is timezone-aware
+    rrulestr = _normalize_rrule_until(rrulestr, dtstart)
     rrule = dateutil.rrule.rrulestr(rrulestr, dtstart=dtstart)
     rs = dateutil.rrule.rruleset()
     rs.rrule(rrule)  # type: ignore
@@ -1717,6 +1762,8 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
                 rs.rdate(normalized)
     if "EXRULE" in comp:
         exrulestr = comp["EXRULE"].to_ical().decode("utf-8")
+        # Normalize UNTIL to be UTC if dtstart is timezone-aware
+        exrulestr = _normalize_rrule_until(exrulestr, dtstart)
         exrule = dateutil.rrule.rrulestr(exrulestr, dtstart=dtstart)
         assert isinstance(exrule, dateutil.rrule.rrule)
         rs.exrule(exrule)
