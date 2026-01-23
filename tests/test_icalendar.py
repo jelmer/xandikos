@@ -123,6 +123,38 @@ END:VEVENT
 END:VCALENDAR
 """
 
+EXAMPLE_VCALENDAR_EVOLUTION_RRULE = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Ximian//NONSGML Evolution Calendar//EN
+BEGIN:VTIMEZONE
+TZID:Europe/Amsterdam
+BEGIN:DAYLIGHT
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+DTSTART:20090329T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
+TZNAME:CEST
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+DTSTART:20091025T030000
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
+TZNAME:CET
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:evolution-test-rrule@example.com
+DTSTART;TZID=Europe/Amsterdam:20090805T153000
+DTEND;TZID=Europe/Amsterdam:20090805T163000
+RRULE:FREQ=DAILY;UNTIL=20090807T153000
+SUMMARY:Test event with non-UTC UNTIL
+DTSTAMP:20090805T133000Z
+END:VEVENT
+END:VCALENDAR
+"""
+
 
 class ExtractCalendarUIDTests(unittest.TestCase):
     def test_extract_str(self):
@@ -167,6 +199,35 @@ END:VCALENDAR
         fi.validate()
         # Should have no validation errors
         self.assertEqual([], list(validate_calendar(fi.calendar, strict=False)))
+
+    def test_evolution_rrule_non_utc_until(self):
+        # Test for issue #80: Evolution generates RRULE with non-UTC UNTIL
+        # when DTSTART is timezone-aware. This should be normalized to UTC.
+        # RFC 5545 requires UNTIL to be in UTC when DTSTART is timezone-aware.
+        from xandikos.icalendar import rruleset_from_comp
+
+        fi = ICalendarFile([EXAMPLE_VCALENDAR_EVOLUTION_RRULE], "text/calendar")
+        fi.validate()
+        self.assertEqual("evolution-test-rrule@example.com", fi.get_uid())
+
+        # Get the VEVENT component
+        vevent = next((c for c in fi.calendar.walk() if c.name == "VEVENT"), None)
+        self.assertIsNotNone(vevent, "VEVENT component not found")
+        self.assertIn("RRULE", vevent, "RRULE property not found in VEVENT")
+
+        # Verify DTSTART is timezone-aware (precondition for the bug)
+        dtstart = vevent["DTSTART"].dt
+        self.assertIsNotNone(dtstart.tzinfo, "DTSTART should be timezone-aware")
+
+        # Parse the RRULE - this should not raise an error after normalization
+        rs = rruleset_from_comp(vevent)
+
+        # Verify we can get occurrences from the rruleset
+        occurrences = list(rs)
+        self.assertGreater(len(occurrences), 0, "RRULE should generate occurrences")
+        # The RRULE is FREQ=DAILY;UNTIL=20090807T153000 with DTSTART on 20090805
+        # so we should get 3 occurrences (Aug 5, 6, 7)
+        self.assertEqual(3, len(occurrences))
 
 
 class CalendarFilterTests(unittest.TestCase):
