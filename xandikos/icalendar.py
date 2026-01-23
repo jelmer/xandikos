@@ -1694,7 +1694,7 @@ def _normalize_rrule_until(rrule_str: str, dtstart: date | datetime) -> str:
         parsed["UNTIL"] = [until_dt]
         return parsed.to_ical().decode("utf-8")
 
-    # If UNTIL is a naive datetime, make it UTC
+    # If UNTIL is a naive datetime, make it UTC (issue #80, #571)
     if isinstance(until, datetime) and until.tzinfo is None:
         parsed["UNTIL"] = [until.replace(tzinfo=timezone.utc)]
         return parsed.to_ical().decode("utf-8")
