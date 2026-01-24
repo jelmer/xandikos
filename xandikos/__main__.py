@@ -113,6 +113,7 @@ async def create_collection_main(args, parser):
 async def main(argv):
     # For now, just invoke xandikos.web
     from . import web
+    from . import multi_user
 
     parser = argparse.ArgumentParser()
 
@@ -133,6 +134,13 @@ async def main(argv):
     )
     add_create_collection_parser(create_parser)
 
+    multi_user_parser = subparsers.add_parser(
+        "multi-user",
+        usage="%(prog)s -d ROOT-DIR [OPTIONS]",
+        help="Run a multi-user Xandikos server (experimental)",
+    )
+    multi_user.add_parser(multi_user_parser)
+
     set_default_subparser(parser, argv, "serve")
     args = parser.parse_args(argv)
 
@@ -142,6 +150,8 @@ async def main(argv):
         # Configure logging for create-collection subcommand
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         return await create_collection_main(args, parser)
+    elif args.subcommand == "multi-user":
+        return await multi_user.main(args, parser)
     else:
         parser.print_help()
         return 1
