@@ -882,7 +882,11 @@ class ComponentTimeRangeMatcher:
         if isinstance(dtstart_parsed, date) and not isinstance(
             dtstart_parsed, datetime
         ):
-            end_normalized = end_normalized + timedelta(days=1)
+            try:
+                end_normalized = end_normalized + timedelta(days=1)
+            except OverflowError:
+                # If we're already at the maximum date, keep end_normalized as-is
+                pass
 
         # When the query end is unbounded (at MAX_EXPANSION_TIME), limit the number
         # of instances to prevent resource exhaustion with infinite recurrences
