@@ -1284,30 +1284,6 @@ class XandikosBackend(webdav.Backend):
         return did_overwrite
 
 
-class MultiUserXandikosBackend(XandikosBackend):
-    """Backend that automatically creates principals for authenticated users."""
-
-    def __init__(self, path, principal_path_prefix="/", principal_path_suffix="/"):
-        super().__init__(path, autocreate=True)
-        self.principal_path_prefix = principal_path_prefix
-        self.principal_path_suffix = principal_path_suffix
-
-    def set_principal(
-        self, user, principal_path_prefix=None, principal_path_suffix=None
-    ):
-        """Set the principal for a user, creating it if necessary."""
-        if principal_path_prefix is None:
-            principal_path_prefix = self.principal_path_prefix
-        if principal_path_suffix is None:
-            principal_path_suffix = self.principal_path_suffix
-
-        principal = principal_path_prefix + user + principal_path_suffix
-
-        if not self.get_resource(principal):
-            self.create_principal(principal, create_defaults=True)
-        self._mark_as_principal(principal)
-
-
 class XandikosApp(webdav.WebDAVApp):
     """A wsgi App that provides a Xandikos web server."""
 
