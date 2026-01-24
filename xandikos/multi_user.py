@@ -37,8 +37,9 @@ from .web import (
     get_systemd_listen_sockets,
     systemd_imported,
 )
+from .webdav import ForbiddenError
 
-__all__ = ["MultiUserXandikosBackend", "add_parser", "main"]
+__all__ = ["MultiUserXandikosBackend", "MultiUserXandikosApp", "add_parser", "main"]
 
 
 class MultiUserXandikosBackend(XandikosBackend):
@@ -69,6 +70,108 @@ class MultiUserXandikosBackend(XandikosBackend):
         if not self.get_resource(principal):
             self.create_principal(principal, create_defaults=True)
         self._mark_as_principal(principal)
+
+
+class MultiUserXandikosApp(XandikosApp):
+    """A Xandikos app with path-based authorization for multi-user deployments.
+
+    This app enforces that authenticated users can only access resources
+    under their own principal path. For example, if the principal path
+    pattern is "/<username>/", user "alice" can only access paths starting
+    with "/alice/".
+
+    The root path ("/") and well-known paths are accessible to all
+    authenticated users for discovery purposes.
+    """
+
+    def __init__(
+        self,
+        backend: MultiUserXandikosBackend,
+        current_user_principal: str,
+        strict: bool = True,
+    ) -> None:
+        super().__init__(backend, current_user_principal, strict=strict)
+        self._backend = backend
+
+    def _get_user_principal_path(self, environ: dict) -> str | None:
+        """Get the principal path for the current user.
+
+        Returns:
+            The principal path (e.g., "/alice/") or None if no user is authenticated.
+        """
+        remote_user = environ.get("REMOTE_USER")
+        if not remote_user:
+            return None
+
+        return (
+            self._backend.principal_path_prefix
+            + remote_user
+            + self._backend.principal_path_suffix
+        )
+
+    def _normalize_path(self, path: str) -> str:
+        """Normalize a path for comparison.
+
+        Ensures path starts with / and handles trailing slashes consistently.
+        """
+        if not path.startswith("/"):
+            path = "/" + path
+        # Remove trailing slash for comparison, but keep root as "/"
+        if path != "/" and path.endswith("/"):
+            path = path.rstrip("/")
+        return path
+
+    def check_access(self, environ: dict, path: str, method: str) -> None:
+        """Check if the current user has access to the requested path.
+
+        Users can only access resources under their own principal path.
+        The root path and well-known discovery paths are accessible to all.
+
+        Args:
+            environ: The request environment
+            path: The resource path being accessed
+            method: The HTTP method
+
+        Raises:
+            ForbiddenError: If the user is not allowed to access the path
+        """
+        # Get the authenticated user
+        remote_user = environ.get("REMOTE_USER")
+
+        # If no user is authenticated, allow access (authentication should
+        # be handled separately, e.g., by a reverse proxy)
+        if not remote_user:
+            return
+
+        normalized_path = self._normalize_path(path)
+
+        # Allow access to root for discovery
+        if normalized_path == "/":
+            return
+
+        # Allow access to well-known paths for discovery
+        for wellknown_path in WELLKNOWN_DAV_PATHS:
+            if normalized_path == self._normalize_path(wellknown_path):
+                return
+
+        # Get the user's principal path
+        user_principal = self._get_user_principal_path(environ)
+        if user_principal is None:
+            return
+
+        normalized_principal = self._normalize_path(user_principal)
+
+        # Check if the requested path is under the user's principal
+        # The path must either be the principal itself or start with principal + "/"
+        if normalized_path == normalized_principal:
+            return
+        if normalized_path.startswith(normalized_principal.rstrip("/") + "/"):
+            return
+
+        # Access denied
+        raise ForbiddenError(
+            f"Access denied: user '{remote_user}' cannot access '{path}'"
+        )
 
 
 def add_parser(parser):
@@ -205,7 +308,7 @@ async def main(options, parser):
 
     logging.info("Xandikos %s (multi-user mode)", ".".join(map(str, xandikos_version)))
 
-    main_app = XandikosApp(
+    main_app = MultiUserXandikosApp(
         backend,
         current_user_principal=(
             options.principal_path_prefix
