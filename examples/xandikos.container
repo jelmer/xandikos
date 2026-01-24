@@ -1,0 +1,42 @@
+# This file contains an example .container file, that allows you to run Xandikos as a container from
+# systemd.
+
+# To use it, place it in ~/.config/containers/systemd/xandikos.container or
+# /etc/containers/systemd/xandikos.container, and then start it by running either:
+#
+# systemctl --user start xandikos
+#
+# or
+#
+# systemctl start xandikos
+
+[Unit]
+Description=Xandikos CalDAV/CardDAV Server
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/jelmer/xandikos:latest
+AutoUpdate=registry
+Pull=newer
+
+# Data and socket directories
+Volume=%h/.local/share/xandikos/data:/data:Z
+Volume=%h/.local/share/xandikos/run:/sockets:Z
+
+# Listen on Unix domain socket with /dav route prefix
+Exec=--directory /data --autocreate --listen-address /sockets/xandikos.sock --route-prefix /dav
+
+# No network needed since we're using Unix sockets
+Network=none
+User=0
+
+# Security
+NoNewPrivileges=true
+
+[Service]
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
