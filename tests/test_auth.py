@@ -27,7 +27,7 @@ from unittest.mock import MagicMock, AsyncMock
 from wsgiref.util import setup_testing_defaults
 
 from xandikos.webdav import WebDAVApp
-from xandikos.web import MultiUserXandikosBackend
+from xandikos.multi_user import MultiUserXandikosBackend
 
 
 class MockBackend:

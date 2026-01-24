@@ -89,10 +89,22 @@ class UnsupportedMediaType(Exception):
 
 
 class UnauthorizedError(Exception):
-    """Base class for unauthorized errors."""
+    """Base class for unauthorized errors (401)."""
 
     def __init__(self) -> None:
         super().__init__("Request unauthorized")
+
+
+class ForbiddenError(Exception):
+    """Error raised when access to a resource is forbidden (403).
+
+    This is distinct from UnauthorizedError (401) - ForbiddenError means
+    the user is authenticated but not allowed to access the resource.
+    """
+
+    def __init__(self, message: str = "Access forbidden") -> None:
+        super().__init__(message)
+        self.message = message
 
 
 class Response:
@@ -2863,6 +2875,24 @@ class WebDAVApp:
                 ret.append(name)
         return ret
 
+    def check_access(self, environ: dict, path: str, method: str) -> None:
+        """Check if the current user has access to perform the operation.
+
+        This method can be overridden by subclasses to implement
+        custom authorization logic.
+
+        Args:
+            environ: The WSGI/aiohttp environment dict
+            path: The resource path being accessed
+            method: The HTTP method being used (GET, PUT, DELETE, etc.)
+
+        Raises:
+            ForbiddenError: If access is denied
+            UnauthorizedError: If authentication is required but missing
+        """
+        # Default implementation allows all access
+        pass
+
     async def _handle_request(self, request, environ, start_response=None):
         # Handle remote user authentication
         remote_user = None
@@ -2877,6 +2907,14 @@ class WebDAVApp:
         if remote_user and hasattr(self.backend, "set_principal"):
             environ["REMOTE_USER"] = remote_user
             self.backend.set_principal(remote_user)
+
+        # Get the path for authorization check
+        path_info = request.match_info.get("path_info", "/")
+        if not path_info.startswith("/"):
+            path_info = "/" + path_info
+
+        # Check authorization before processing the request
+        self.check_access(environ, path_info, request.method)
 
         try:
             do = self.methods[request.method]
@@ -2910,6 +2948,11 @@ class WebDAVApp:
             return Response(
                 status="401 Unauthorized",
                 body=[("Please login.".encode(DEFAULT_ENCODING))],
+            )
+        except ForbiddenError as e:
+            return Response(
+                status="403 Forbidden",
+                body=[e.message.encode(DEFAULT_ENCODING)],
             )
 
     def handle_wsgi_request(self, environ, start_response):

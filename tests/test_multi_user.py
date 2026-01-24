@@ -27,6 +27,7 @@ import unittest
 
 from xandikos.multi_user import (
     MultiUserXandikosBackend,
+    MultiUserXandikosApp,
     add_parser,
 )
 from xandikos.store import (
@@ -34,6 +35,7 @@ from xandikos.store import (
     STORE_TYPE_CALENDAR,
     STORE_TYPE_SCHEDULE_INBOX,
 )
+from xandikos.webdav import ForbiddenError
 
 
 class MultiUserXandikosBackendTests(unittest.TestCase):
@@ -599,16 +601,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
 
 class UserAccessControlTests(unittest.TestCase):
-    """Tests for user access control and isolation.
-
-    NOTE: Xandikos currently does NOT implement fine-grained access control.
-    These tests document the current behavior where any user can access
-    any resource if they know the path. The current_user_principal is used
-    for discovery (finding the user's own calendars) but not for enforcement.
-
-    Access control enforcement is expected to be handled by a reverse proxy
-    or authentication layer in front of Xandikos.
-    """
+    """Tests for user access control and isolation."""
 
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
@@ -762,6 +755,183 @@ class UserAccessControlTests(unittest.TestCase):
         )
 
 
+class MultiUserXandikosAppAuthorizationTests(unittest.TestCase):
+    """Tests for MultiUserXandikosApp path-based authorization."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.backend = MultiUserXandikosBackend(self.test_dir)
+        self.backend.set_principal("alice")
+        self.backend.set_principal("bob")
+        self.app = MultiUserXandikosApp(
+            self.backend,
+            current_user_principal="/%(REMOTE_USER)s/",
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def test_user_can_access_own_principal(self):
+        """Test that a user can access their own principal path."""
+        environ = {"REMOTE_USER": "alice"}
+        # Should not raise
+        self.app.check_access(environ, "/alice/", "GET")
+        self.app.check_access(environ, "/alice", "GET")
+
+    def test_user_can_access_own_calendar(self):
+        """Test that a user can access their own calendar."""
+        environ = {"REMOTE_USER": "alice"}
+        # Should not raise
+        self.app.check_access(environ, "/alice/calendars/", "GET")
+        self.app.check_access(environ, "/alice/calendars/calendar/", "GET")
+
+    def test_user_can_access_own_addressbook(self):
+        """Test that a user can access their own addressbook."""
+        environ = {"REMOTE_USER": "alice"}
+        # Should not raise
+        self.app.check_access(environ, "/alice/contacts/", "GET")
+        self.app.check_access(environ, "/alice/contacts/addressbook/", "GET")
+
+    def test_user_cannot_access_other_user_principal(self):
+        """Test that a user cannot access another user's principal."""
+        environ = {"REMOTE_USER": "alice"}
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/", "GET")
+
+    def test_user_cannot_access_other_user_calendar(self):
+        """Test that a user cannot access another user's calendar."""
+        environ = {"REMOTE_USER": "alice"}
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/calendars/", "GET")
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/calendars/calendar/", "GET")
+
+    def test_user_cannot_access_other_user_addressbook(self):
+        """Test that a user cannot access another user's addressbook."""
+        environ = {"REMOTE_USER": "alice"}
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/contacts/", "GET")
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/contacts/addressbook/", "GET")
+
+    def test_user_can_access_root(self):
+        """Test that users can access the root path for discovery."""
+        environ = {"REMOTE_USER": "alice"}
+        # Should not raise
+        self.app.check_access(environ, "/", "GET")
+
+    def test_user_can_access_wellknown_caldav(self):
+        """Test that users can access .well-known/caldav."""
+        environ = {"REMOTE_USER": "alice"}
+        # Should not raise
+        self.app.check_access(environ, "/.well-known/caldav", "GET")
+
+    def test_user_can_access_wellknown_carddav(self):
+        """Test that users can access .well-known/carddav."""
+        environ = {"REMOTE_USER": "alice"}
+        # Should not raise
+        self.app.check_access(environ, "/.well-known/carddav", "GET")
+
+    def test_unauthenticated_user_allowed(self):
+        """Test that unauthenticated requests are allowed through.
+
+        Authentication should be handled separately (e.g., by reverse proxy).
+        """
+        environ = {}  # No REMOTE_USER
+        # Should not raise - authentication is handled elsewhere
+        self.app.check_access(environ, "/alice/calendars/", "GET")
+        self.app.check_access(environ, "/bob/calendars/", "GET")
+
+    def test_authorization_applies_to_all_methods(self):
+        """Test that authorization applies to various HTTP methods."""
+        environ = {"REMOTE_USER": "alice"}
+
+        # Alice can use various methods on her own resources
+        for method in ["GET", "PUT", "DELETE", "PROPFIND", "PROPPATCH", "MKCOL"]:
+            self.app.check_access(environ, "/alice/calendars/", method)
+
+        # Alice cannot use any method on Bob's resources
+        for method in ["GET", "PUT", "DELETE", "PROPFIND", "PROPPATCH", "MKCOL"]:
+            with self.assertRaises(ForbiddenError):
+                self.app.check_access(environ, "/bob/calendars/", method)
+
+    def test_forbidden_error_message_includes_details(self):
+        """Test that ForbiddenError includes user and path in message."""
+        environ = {"REMOTE_USER": "alice"}
+        try:
+            self.app.check_access(environ, "/bob/calendars/", "GET")
+            self.fail("Expected ForbiddenError")
+        except ForbiddenError as e:
+            self.assertIn("alice", e.message)
+            self.assertIn("/bob/calendars/", e.message)
+
+    def test_path_normalization(self):
+        """Test that paths are normalized correctly."""
+        environ = {"REMOTE_USER": "alice"}
+
+        # Various path formats should work for Alice
+        self.app.check_access(environ, "/alice", "GET")
+        self.app.check_access(environ, "/alice/", "GET")
+        self.app.check_access(environ, "alice/", "GET")  # Without leading slash
+
+        # Various path formats should be denied for Bob
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob", "GET")
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/", "GET")
+
+
+class MultiUserXandikosAppCustomPrefixTests(unittest.TestCase):
+    """Tests for MultiUserXandikosApp with custom principal path prefix/suffix."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.backend = MultiUserXandikosBackend(
+            self.test_dir,
+            principal_path_prefix="/users/",
+            principal_path_suffix="/home/",
+        )
+        self.backend.set_principal("alice")
+        self.backend.set_principal("bob")
+        self.app = MultiUserXandikosApp(
+            self.backend,
+            current_user_principal="/users/%(REMOTE_USER)s/home/",
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def test_user_can_access_own_path_with_custom_prefix(self):
+        """Test access with custom principal path prefix."""
+        environ = {"REMOTE_USER": "alice"}
+        # Should not raise
+        self.app.check_access(environ, "/users/alice/home/", "GET")
+        self.app.check_access(environ, "/users/alice/home/calendars/", "GET")
+
+    def test_user_cannot_access_other_path_with_custom_prefix(self):
+        """Test denial with custom principal path prefix."""
+        environ = {"REMOTE_USER": "alice"}
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/users/bob/home/", "GET")
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/users/bob/home/calendars/", "GET")
+
+    def test_user_cannot_access_partial_match(self):
+        """Test that partial path matches don't grant access."""
+        environ = {"REMOTE_USER": "alice"}
+        # /users/alice/ without /home/ suffix should be denied
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/users/alice/", "GET")
+        # /alice/ without /users/ prefix should be denied
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/alice/home/", "GET")
+
+    def test_root_still_accessible(self):
+        """Test that root is still accessible with custom prefix."""
+        environ = {"REMOTE_USER": "alice"}
+        self.app.check_access(environ, "/", "GET")
+
+
 class ModuleExportsTests(unittest.TestCase):
     """Tests for module exports and imports."""
 
@@ -770,6 +940,7 @@ class ModuleExportsTests(unittest.TestCase):
         from xandikos import multi_user
 
         self.assertTrue(hasattr(multi_user, "MultiUserXandikosBackend"))
+        self.assertTrue(hasattr(multi_user, "MultiUserXandikosApp"))
         self.assertTrue(hasattr(multi_user, "add_parser"))
         self.assertTrue(hasattr(multi_user, "main"))
 
@@ -778,6 +949,7 @@ class ModuleExportsTests(unittest.TestCase):
         from xandikos.multi_user import __all__
 
         self.assertIn("MultiUserXandikosBackend", __all__)
+        self.assertIn("MultiUserXandikosApp", __all__)
         self.assertIn("add_parser", __all__)
         self.assertIn("main", __all__)
 
