@@ -1,5 +1,8 @@
 0.3.3	2026-01-22
 
+ * Add --socket-mode and --socket-group flags to set Unix domain socket
+   permissions and group ownership. (Jelmer Vernooĳ, #331)
+
  * Support VALARM searching in calendar queries. (Jelmer Vernooĳ, #568)
 
  * Bump minimum dulwich version to 0.25. (Jelmer Vernooĳ)
