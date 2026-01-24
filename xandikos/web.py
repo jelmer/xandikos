@@ -1611,6 +1611,24 @@ def add_parser(parser):
         help="Port to listen on. [%(default)s]",
     )
     access_group.add_argument(
+        "--socket-mode",
+        dest="socket_mode",
+        default=None,
+        help=(
+            "File mode (permissions) for unix domain socket, "
+            "in octal (e.g. 660). Only used when listening on a unix socket."
+        ),
+    )
+    access_group.add_argument(
+        "--socket-group",
+        dest="socket_group",
+        default=None,
+        help=(
+            "Group ownership for unix domain socket. "
+            "Only used when listening on a unix socket."
+        ),
+    )
+    access_group.add_argument(
         "--metrics-port",
         dest="metrics_port",
         default=None,
@@ -1832,6 +1850,30 @@ async def main(options, parser):
 
     for site in sites:
         await site.start()
+
+    # Set socket group ownership after the socket is created
+    if socket_path and options.socket_group is not None:
+        import grp
+
+        try:
+            gid = grp.getgrnam(options.socket_group).gr_gid
+            os.chown(socket_path, -1, gid)
+            logging.info("Set socket group to %s", options.socket_group)
+        except KeyError:
+            parser.error(f"Unknown group: {options.socket_group}")
+        except OSError as e:
+            logging.error("Failed to set socket group: %s", e)
+
+    # Set socket permissions after the socket is created
+    if socket_path and options.socket_mode is not None:
+        try:
+            mode = int(options.socket_mode, 8)
+            os.chmod(socket_path, mode)
+            logging.info("Set socket permissions to %s", options.socket_mode)
+        except ValueError:
+            parser.error(f"Invalid socket mode: {options.socket_mode}")
+        except OSError as e:
+            logging.error("Failed to set socket permissions: %s", e)
 
     # Wait for shutdown signal
     try:
