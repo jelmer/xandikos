@@ -1125,6 +1125,37 @@ END:VCALENDAR
         result = filter_unbounded.check("test.ics", cal_file)
         self.assertTrue(result)
 
+    def test_unbounded_query_overflow_index_path(self):
+        """Test that the index-based path doesn't overflow with date-only events.
+
+        Regression test for issue #538. The overflow occurred in
+        _get_occurrences_in_range when adding 1 day to end_normalized
+        for date-only events when query_end was at MAX_EXPANSION_TIME.
+        """
+        from xandikos.icalendar import MAX_EXPANSION_TIME
+
+        # Use a yearly event with COUNT to keep the test fast
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20200101"],  # DATE only event
+            "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=YEARLY;COUNT=3"],
+            "C=VCALENDAR/C=VEVENT/P=UID": [b"yearly-event@example.com"],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+
+        filter_unbounded = CalendarFilter(ZoneInfo("UTC"))
+        filter_unbounded.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2020, 1, 1, 0, 0, 0)),
+            end=MAX_EXPANSION_TIME,
+        )
+
+        # This should complete without OverflowError
+        result = filter_unbounded.check_from_indexes("test.ics", indexes)
+        self.assertTrue(result)
+
 
 class TextMatchTest(unittest.TestCase):
     def test_default_collation(self):
