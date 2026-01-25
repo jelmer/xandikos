@@ -343,6 +343,13 @@ def add_parser(parser):
         default=True,
     )
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
+    parser.add_argument(
+        "--hide-principals",
+        action="store_true",
+        dest="hide_principals",
+        help="Hide list of principals on the root HTML page.",
+        default=False,
+    )
     # Hidden arguments. These may change without notice in between releases,
     # and are generally just meant for developers.
     parser.add_argument("--paranoid", action="store_true", help=argparse.SUPPRESS)
@@ -372,6 +379,7 @@ async def main(options, parser):
         principal_path_suffix=options.principal_path_suffix,
         paranoid=options.paranoid,
         index_threshold=options.index_threshold,
+        show_principals_on_root=not options.hide_principals,
     )
 
     if not os.path.isdir(options.directory):

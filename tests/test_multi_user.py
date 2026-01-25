@@ -79,6 +79,19 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
         self.assertTrue(backend.paranoid)
         self.assertEqual(backend.index_threshold, 100)
 
+    def test_show_principals_on_root_default(self):
+        """Test that show_principals_on_root defaults to True."""
+        backend = MultiUserXandikosBackend(self.test_dir)
+        self.assertTrue(backend.show_principals_on_root)
+
+    def test_show_principals_on_root_can_be_disabled(self):
+        """Test that show_principals_on_root can be set to False."""
+        backend = MultiUserXandikosBackend(
+            self.test_dir,
+            show_principals_on_root=False,
+        )
+        self.assertFalse(backend.show_principals_on_root)
+
     def test_set_principal_creates_principal(self):
         """Test that set_principal creates a new principal."""
         backend = MultiUserXandikosBackend(self.test_dir)
@@ -485,6 +498,19 @@ class AddParserTests(unittest.TestCase):
         )
 
         self.assertEqual(args.listen_address, "/var/run/xandikos.sock")
+
+    def test_add_parser_hide_principals_flag(self):
+        """Test parsing hide-principals flag."""
+        parser = argparse.ArgumentParser()
+        add_parser(parser)
+
+        # Default is False (show principals)
+        args = parser.parse_args(["-d", "/tmp/test"])
+        self.assertFalse(args.hide_principals)
+
+        # With flag, hide principals
+        args = parser.parse_args(["-d", "/tmp/test", "--hide-principals"])
+        self.assertTrue(args.hide_principals)
 
 
 class MultiUserIntegrationTests(unittest.TestCase):
