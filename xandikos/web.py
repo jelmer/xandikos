@@ -894,8 +894,9 @@ class RootPage(webdav.Resource):
 
     resource_types: list[str] = []
 
-    def __init__(self, backend) -> None:
+    def __init__(self, backend, show_principals: bool = True) -> None:
         self.backend = backend
+        self.show_principals = show_principals
 
     def render(self, self_url, accepted_content_types, accepted_content_languages):
         content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
@@ -953,10 +954,12 @@ class RootPage(webdav.Resource):
             img.save(buffer, format="PNG")
             qr_code_data = base64.b64encode(buffer.getvalue()).decode()
 
+        principals = self.backend.find_principals() if self.show_principals else []
+
         return render_jinja_page(
             "root.html",
             accepted_content_languages,
-            principals=self.backend.find_principals(),
+            principals=principals,
             self_url=self_url,
             caldav_url=caldav_url,
             carddav_url=carddav_url,
@@ -1149,12 +1152,14 @@ class XandikosBackend(webdav.Backend):
         paranoid: bool = False,
         index_threshold: int | None = None,
         autocreate: bool = False,
+        show_principals_on_root: bool = True,
     ) -> None:
         self.path = path
         self._user_principals: set[str] = set()
         self.paranoid = paranoid
         self.index_threshold = index_threshold
         self.autocreate = autocreate
+        self.show_principals_on_root = show_principals_on_root
 
     def _map_to_file_path(self, relpath):
         return os.path.join(self.path, relpath.lstrip("/"))
@@ -1181,7 +1186,7 @@ class XandikosBackend(webdav.Backend):
         if not relpath.startswith("/"):
             raise ValueError("relpath %r should start with /")
         if relpath == "/":
-            return RootPage(self)
+            return RootPage(self, show_principals=self.show_principals_on_root)
         p = self._map_to_file_path(relpath)
         if p is None:
             return None
