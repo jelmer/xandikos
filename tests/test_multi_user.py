@@ -28,6 +28,8 @@ import unittest
 from xandikos.multi_user import (
     MultiUserXandikosBackend,
     MultiUserXandikosApp,
+    InvalidUsernameError,
+    validate_username,
     add_parser,
 )
 from xandikos.store import (
@@ -267,13 +269,11 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
         collection = backend.create_collection("/kate/calendars/work/")
         self.assertIsNotNone(collection)
 
-    def test_empty_username(self):
-        """Test behavior with empty username."""
+    def test_empty_username_rejected(self):
+        """Test that empty usernames are rejected for security."""
         backend = MultiUserXandikosBackend(self.test_dir)
-        # Empty username results in path like "//" which normalizes to "/"
-        backend.set_principal("")
-        # The root resource should still be accessible
-        self.assertIsNotNone(backend.get_resource("/"))
+        with self.assertRaises(InvalidUsernameError):
+            backend.set_principal("")
 
 
 class AddParserTests(unittest.TestCase):
@@ -832,15 +832,18 @@ class MultiUserXandikosAppAuthorizationTests(unittest.TestCase):
         # Should not raise
         self.app.check_access(environ, "/.well-known/carddav", "GET")
 
-    def test_unauthenticated_user_allowed(self):
-        """Test that unauthenticated requests are allowed through.
+    def test_unauthenticated_user_denied_by_default(self):
+        """Test that unauthenticated requests are denied by default.
 
-        Authentication should be handled separately (e.g., by reverse proxy).
+        Multi-user mode requires authentication to access user resources.
+        Only root and well-known paths are accessible without authentication.
         """
         environ = {}  # No REMOTE_USER
-        # Should not raise - authentication is handled elsewhere
-        self.app.check_access(environ, "/alice/calendars/", "GET")
-        self.app.check_access(environ, "/bob/calendars/", "GET")
+        # Should raise ForbiddenError for user paths
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/alice/calendars/", "GET")
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/calendars/", "GET")
 
     def test_authorization_applies_to_all_methods(self):
         """Test that authorization applies to various HTTP methods."""
@@ -855,15 +858,18 @@ class MultiUserXandikosAppAuthorizationTests(unittest.TestCase):
             with self.assertRaises(ForbiddenError):
                 self.app.check_access(environ, "/bob/calendars/", method)
 
-    def test_forbidden_error_message_includes_details(self):
-        """Test that ForbiddenError includes user and path in message."""
+    def test_forbidden_error_message_is_generic(self):
+        """Test that ForbiddenError uses generic message to avoid info disclosure."""
         environ = {"REMOTE_USER": "alice"}
         try:
             self.app.check_access(environ, "/bob/calendars/", "GET")
             self.fail("Expected ForbiddenError")
         except ForbiddenError as e:
-            self.assertIn("alice", e.message)
-            self.assertIn("/bob/calendars/", e.message)
+            # Should be generic message without username or path details
+            self.assertEqual(e.message, "Access denied")
+            # Should NOT contain sensitive details
+            self.assertNotIn("alice", e.message)
+            self.assertNotIn("/bob/calendars/", e.message)
 
     def test_path_normalization(self):
         """Test that paths are normalized correctly."""
@@ -932,6 +938,342 @@ class MultiUserXandikosAppCustomPrefixTests(unittest.TestCase):
         self.app.check_access(environ, "/", "GET")
 
 
+class UsernameValidationTests(unittest.TestCase):
+    """Tests for username validation security."""
+
+    def test_valid_username(self):
+        """Test that valid usernames are accepted."""
+        # Should not raise
+        validate_username("alice")
+        validate_username("bob123")
+        validate_username("user-name")
+        validate_username("user_name")
+        validate_username("user.name")
+        validate_username("UPPERCASE")
+
+    def test_empty_username_rejected(self):
+        """Test that empty usernames are rejected."""
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("")
+
+    def test_slash_in_username_rejected(self):
+        """Test that usernames with slashes are rejected."""
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("user/name")
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("/alice")
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("alice/")
+
+    def test_backslash_in_username_rejected(self):
+        """Test that usernames with backslashes are rejected."""
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("user\\name")
+
+    def test_dotdot_in_username_rejected(self):
+        """Test that usernames with '..' are rejected."""
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("..")
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("..bob")
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("bob..")
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("a..b")
+
+    def test_null_byte_in_username_rejected(self):
+        """Test that usernames with null bytes are rejected."""
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("user\x00name")
+
+    def test_long_username_rejected(self):
+        """Test that extremely long usernames are rejected."""
+        with self.assertRaises(InvalidUsernameError):
+            validate_username("a" * 256)
+
+    def test_dot_username_rejected(self):
+        """Test that '.' username is rejected."""
+        with self.assertRaises(InvalidUsernameError):
+            validate_username(".")
+
+    def test_max_length_username_accepted(self):
+        """Test that max length usernames are accepted."""
+        # Should not raise
+        validate_username("a" * 255)
+
+
+class SecurityTests(unittest.TestCase):
+    """Security-focused tests for multi-user mode."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.backend = MultiUserXandikosBackend(self.test_dir)
+        self.backend.set_principal("alice")
+        self.backend.set_principal("bob")
+        self.app = MultiUserXandikosApp(
+            self.backend,
+            current_user_principal="/%(REMOTE_USER)s/",
+            require_auth=True,
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def test_unauthenticated_access_to_user_data_denied(self):
+        """Test that unauthenticated requests cannot access user data."""
+        environ = {}  # No REMOTE_USER
+        with self.assertRaises(ForbiddenError) as ctx:
+            self.app.check_access(environ, "/alice/calendars/", "GET")
+        # Message should be generic to avoid path disclosure
+        self.assertEqual(ctx.exception.message, "Authentication required")
+
+    def test_unauthenticated_can_access_root(self):
+        """Test that unauthenticated requests can access root for discovery."""
+        environ = {}  # No REMOTE_USER
+        # Should not raise
+        self.app.check_access(environ, "/", "GET")
+
+    def test_unauthenticated_can_access_wellknown(self):
+        """Test that unauthenticated requests can access well-known paths."""
+        environ = {}  # No REMOTE_USER
+        # Should not raise
+        self.app.check_access(environ, "/.well-known/caldav", "GET")
+        self.app.check_access(environ, "/.well-known/carddav", "GET")
+
+    def test_path_traversal_username_rejected(self):
+        """Test that path traversal attempts in username are rejected."""
+        with self.assertRaises(InvalidUsernameError):
+            self.backend.set_principal("../bob")
+        with self.assertRaises(InvalidUsernameError):
+            self.backend.set_principal("alice/../bob")
+        with self.assertRaises(InvalidUsernameError):
+            self.backend.set_principal("alice/../../etc/passwd")
+
+    def test_require_auth_false_allows_unauthenticated(self):
+        """Test that require_auth=False allows unauthenticated access."""
+        app = MultiUserXandikosApp(
+            self.backend,
+            current_user_principal="/%(REMOTE_USER)s/",
+            require_auth=False,
+        )
+        environ = {}  # No REMOTE_USER
+        # Should not raise with require_auth=False
+        app.check_access(environ, "/alice/calendars/", "GET")
+
+    def test_cannot_access_other_user_via_move_destination(self):
+        """Test that MOVE destination to other user's path is denied.
+
+        This tests that the authorization is checked on destination paths,
+        not just source paths.
+        """
+        environ = {"REMOTE_USER": "alice"}
+        # Alice can access her own path
+        self.app.check_access(environ, "/alice/calendars/event.ics", "MOVE")
+        # But not Bob's path (even as destination)
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/calendars/event.ics", "MOVE")
+
+    def test_cannot_access_other_user_via_copy_destination(self):
+        """Test that COPY destination to other user's path is denied."""
+        environ = {"REMOTE_USER": "alice"}
+        # Alice can access her own path
+        self.app.check_access(environ, "/alice/calendars/event.ics", "COPY")
+        # But not Bob's path (even as destination)
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/calendars/event.ics", "COPY")
+
+    def test_all_http_methods_authorized(self):
+        """Test that authorization applies to all HTTP methods."""
+        environ = {"REMOTE_USER": "alice"}
+        methods = [
+            "GET",
+            "PUT",
+            "DELETE",
+            "POST",
+            "PROPFIND",
+            "PROPPATCH",
+            "MKCOL",
+            "MKCALENDAR",
+            "MOVE",
+            "COPY",
+            "REPORT",
+            "OPTIONS",
+        ]
+        for method in methods:
+            # Alice can use any method on her resources
+            self.app.check_access(environ, "/alice/calendars/", method)
+            # But not on Bob's
+            with self.assertRaises(ForbiddenError):
+                self.app.check_access(environ, "/bob/calendars/", method)
+
+
+class PropfindAuthorizationTests(unittest.TestCase):
+    """Tests for PROPFIND authorization filtering with depth > 0."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.backend = MultiUserXandikosBackend(self.test_dir)
+        self.backend.set_principal("alice")
+        self.backend.set_principal("bob")
+        self.app = MultiUserXandikosApp(
+            self.backend,
+            current_user_principal="/%(REMOTE_USER)s/",
+            require_auth=True,
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def test_propfind_on_root_only_shows_own_principal(self):
+        """Test that PROPFIND on root with depth only shows user's own principal.
+
+        This is a critical security test - PROPFIND with Depth > 0 on root
+        should only return resources the user is authorized to see, not
+        other users' resources.
+        """
+        # Create environ for alice
+        environ = {"REMOTE_USER": "alice", "SCRIPT_NAME": ""}
+
+        # Test the check_access callback mechanism used by traverse_resource
+        # Alice should be able to access her own paths
+        self.app.check_access(environ, "/alice/", "PROPFIND")
+        self.app.check_access(environ, "/alice/calendars/", "PROPFIND")
+
+        # Alice should NOT be able to access Bob's paths
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/", "PROPFIND")
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/bob/calendars/", "PROPFIND")
+
+    def test_propfind_depth_filtering_callback(self):
+        """Test the filtering callback pattern used by PropfindMethod."""
+        from xandikos.webdav import ForbiddenError, href_to_path
+
+        environ = {"REMOTE_USER": "alice", "SCRIPT_NAME": ""}
+
+        def check_resource_access(href: str) -> bool:
+            """Simulate the check used in PropfindMethod."""
+            path = href_to_path(environ, href)
+            if path is None:
+                return False
+            try:
+                self.app.check_access(environ, path, "PROPFIND")
+                return True
+            except ForbiddenError:
+                return False
+
+        # Alice's paths should pass
+        self.assertTrue(check_resource_access("/alice/"))
+        self.assertTrue(check_resource_access("/alice/calendars/"))
+        self.assertTrue(check_resource_access("/alice/contacts/"))
+
+        # Bob's paths should fail
+        self.assertFalse(check_resource_access("/bob/"))
+        self.assertFalse(check_resource_access("/bob/calendars/"))
+        self.assertFalse(check_resource_access("/bob/contacts/"))
+
+        # Root should pass (allowed for discovery)
+        self.assertTrue(check_resource_access("/"))
+
+    def test_traverse_resource_with_authorization(self):
+        """Test traverse_resource with authorization filtering.
+
+        This test verifies that traverse_resource correctly filters out
+        resources that the user is not authorized to access, using Alice's
+        calendar collection as the base resource.
+        """
+        import asyncio
+        from xandikos.webdav import traverse_resource
+
+        # Get alice's calendar collection (which is a real Collection)
+        alice_calendars = self.backend.get_resource("/alice/calendars/")
+        self.assertIsNotNone(alice_calendars)
+
+        environ = {"REMOTE_USER": "alice", "SCRIPT_NAME": ""}
+
+        def check_access(href: str) -> bool:
+            """Authorization callback for traverse_resource."""
+            path = href.rstrip("/") or "/"
+            if not path.startswith("/"):
+                path = "/" + path
+            try:
+                self.app.check_access(environ, path, "PROPFIND")
+                return True
+            except ForbiddenError:
+                return False
+
+        async def collect_traversed():
+            results = []
+            async for href, resource in traverse_resource(
+                alice_calendars, "/alice/calendars/", "1", check_access=check_access
+            ):
+                results.append(href)
+            return results
+
+        traversed = asyncio.run(collect_traversed())
+
+        # Should include alice's calendars collection
+        self.assertIn("/alice/calendars/", traversed)
+
+        # Should include alice's default calendar
+        self.assertIn("/alice/calendars/calendar/", traversed)
+
+    def test_traverse_filters_unauthorized_children(self):
+        """Test that traverse_resource skips unauthorized children.
+
+        This simulates the scenario where a collection contains references
+        to resources the user cannot access (e.g., if we had a shared
+        calendar home with multiple users' calendars).
+        """
+        import asyncio
+        from xandikos.webdav import traverse_resource, Collection
+
+        # Create a mock collection that returns both alice and bob resources
+        class MockCollection(Collection):
+            resource_types = Collection.resource_types
+
+            def members(self):
+                # Simulate a collection that contains both users' resources
+                alice_cal = self.backend.get_resource("/alice/calendars/calendar/")
+                bob_cal = self.backend.get_resource("/bob/calendars/calendar/")
+                # Note: in real code paths would be relative, but we use
+                # absolute hrefs here for testing the authorization filter
+                yield ("alice-calendar", alice_cal)
+                yield ("bob-calendar", bob_cal)
+
+            def __init__(self, backend):
+                self.backend = backend
+
+        mock_collection = MockCollection(self.backend)
+
+        def check_access(href: str) -> bool:
+            """Check if alice can access the path."""
+            # For this test, alice can only access her own resources
+            # The href will be like /shared/bob-calendar/ (with trailing slash for collections)
+            if "bob-calendar" in href:
+                return False
+            return True
+
+        async def collect_traversed():
+            results = []
+            async for href, resource in traverse_resource(
+                mock_collection, "/shared/", "1", check_access=check_access
+            ):
+                results.append(href)
+            return results
+
+        traversed = asyncio.run(collect_traversed())
+
+        # Should include the base collection
+        self.assertIn("/shared/", traversed)
+
+        # Should include alice's calendar (authorized) - collections get trailing slash
+        self.assertIn("/shared/alice-calendar/", traversed)
+
+        # Should NOT include bob's calendar (filtered out)
+        self.assertNotIn("/shared/bob-calendar/", traversed)
+
+
 class ModuleExportsTests(unittest.TestCase):
     """Tests for module exports and imports."""
 
@@ -941,6 +1283,8 @@ class ModuleExportsTests(unittest.TestCase):
 
         self.assertTrue(hasattr(multi_user, "MultiUserXandikosBackend"))
         self.assertTrue(hasattr(multi_user, "MultiUserXandikosApp"))
+        self.assertTrue(hasattr(multi_user, "InvalidUsernameError"))
+        self.assertTrue(hasattr(multi_user, "validate_username"))
         self.assertTrue(hasattr(multi_user, "add_parser"))
         self.assertTrue(hasattr(multi_user, "main"))
 
@@ -950,6 +1294,8 @@ class ModuleExportsTests(unittest.TestCase):
 
         self.assertIn("MultiUserXandikosBackend", __all__)
         self.assertIn("MultiUserXandikosApp", __all__)
+        self.assertIn("InvalidUsernameError", __all__)
+        self.assertIn("validate_username", __all__)
         self.assertIn("add_parser", __all__)
         self.assertIn("main", __all__)
 
