@@ -1355,6 +1355,7 @@ async def traverse_resource(
     base_href: str,
     depth: str,
     members: Callable[[Collection], Iterable[tuple[str, Resource]]] | None = None,
+    check_access: Callable[[str], bool] | None = None,
 ) -> AsyncIterable[tuple[str, Resource]]:
     """Traverse a resource.
 
@@ -1364,6 +1365,9 @@ async def traverse_resource(
       depth: Depth ("0", "1", "infinity")
       members: Function to use to get members of each
         collection.
+      check_access: Optional callback to check if a path is accessible.
+        Should return True if accessible, False otherwise.
+        If None, all resources are accessible.
     Returns: Iterator over (URL, Resource) tuples
     """
     if members is None:
@@ -1382,6 +1386,12 @@ async def traverse_resource(
             # mentions that a trailing slash *SHOULD* be added for
             # collections.
             href = ensure_trailing_slash(href)
+
+        # Check authorization for this resource
+        if check_access is not None and not check_access(href):
+            # Skip this resource and don't descend into it
+            continue
+
         yield (href, resource)
         if depth == "0":
             continue
@@ -1703,7 +1713,7 @@ def href_to_path(environ, href) -> str | None:
 
 
 def _get_resources_by_hrefs(
-    backend, environ, hrefs
+    backend, environ, hrefs, check_access=None
 ) -> Iterator[tuple[str, Resource | None]]:
     """Retrieve multiple resources by href.
 
@@ -1711,12 +1721,22 @@ def _get_resources_by_hrefs(
       backend: backend from which to retrieve resources
       environ: Environment dictionary
       hrefs: List of hrefs to resolve
+      check_access: Optional callback to check access for each path.
+                   Should raise ForbiddenError if access is denied.
     Returns: iterator over (href, resource) tuples
     """
     paths: dict[str, str] = {}
     for href in hrefs:
         path = href_to_path(environ, href)
         if path is not None:
+            # Check authorization for each path if callback provided
+            if check_access is not None:
+                try:
+                    check_access(environ, path, "REPORT")
+                except ForbiddenError:
+                    # If access denied, treat as if resource doesn't exist
+                    yield (href, None)
+                    continue
             paths[path] = href
         else:
             yield (href, None)
@@ -2064,6 +2084,9 @@ class MoveMethod(Method):
         if not dest_path.startswith("/"):
             dest_path = "/" + dest_path
 
+        # Check authorization for the destination path
+        app.check_access(environ, dest_path, request.method)
+
         # Check if source and destination are the same
         if source_path == dest_path:
             return Response(
@@ -2241,6 +2264,9 @@ class CopyMethod(Method):
         # Ensure destination path starts with /
         if not dest_path.startswith("/"):
             dest_path = "/" + dest_path
+
+        # Check authorization for the destination path
+        app.check_access(environ, dest_path, request.method)
 
         # Check if source and destination are the same
         if source_path == dest_path:
@@ -2435,7 +2461,12 @@ class ReportMethod(Method):
             return await reporter.report(
                 environ,
                 et,
-                functools.partial(_get_resources_by_hrefs, app.backend, environ),
+                functools.partial(
+                    _get_resources_by_hrefs,
+                    app.backend,
+                    environ,
+                    check_access=app.check_access,
+                ),
                 app.properties,
                 base_href,
                 r,
@@ -2472,7 +2503,23 @@ class PropfindMethod(Method):
                 raise BadRequestError(
                     "Received more than one element in propfind."
                 ) from exc
-        async for href, resource in traverse_resource(base_resource, base_href, depth):
+
+        # Create access check callback for filtering traversed resources
+        def check_resource_access(href: str) -> bool:
+            """Check if the current user can access the given href."""
+            # Convert href to path for authorization check
+            path = href_to_path(environ, href)
+            if path is None:
+                return False
+            try:
+                app.check_access(environ, path, "PROPFIND")
+                return True
+            except ForbiddenError:
+                return False
+
+        async for href, resource in traverse_resource(
+            base_resource, base_href, depth, check_access=check_resource_access
+        ):
             propstat = []
             if requested is None or requested.tag == "{DAV:}allprop":
                 propstat = get_all_properties(href, resource, app.properties, environ)

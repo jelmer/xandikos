@@ -39,7 +39,52 @@ from .web import (
 )
 from .webdav import ForbiddenError
 
-__all__ = ["MultiUserXandikosBackend", "MultiUserXandikosApp", "add_parser", "main"]
+__all__ = [
+    "MultiUserXandikosBackend",
+    "MultiUserXandikosApp",
+    "InvalidUsernameError",
+    "validate_username",
+    "add_parser",
+    "main",
+]
+
+
+class InvalidUsernameError(ValueError):
+    """Raised when a username contains invalid characters."""
+
+    pass
+
+
+def validate_username(username: str) -> None:
+    """Validate that a username is safe for use in paths.
+
+    Args:
+        username: The username to validate
+
+    Raises:
+        InvalidUsernameError: If the username contains unsafe characters
+    """
+    if not username:
+        raise InvalidUsernameError("Username cannot be empty")
+
+    # Check for path traversal characters
+    if "/" in username or "\\" in username:
+        raise InvalidUsernameError("Username cannot contain path separators")
+
+    if ".." in username:
+        raise InvalidUsernameError("Username cannot contain '..'")
+
+    # Check for null bytes
+    if "\x00" in username:
+        raise InvalidUsernameError("Username cannot contain null bytes")
+
+    # Check for extremely long usernames (filesystem limits)
+    if len(username) > 255:
+        raise InvalidUsernameError("Username too long (max 255 characters)")
+
+    # Check for usernames that are just dots
+    if username in (".", ".."):
+        raise InvalidUsernameError("Username cannot be '.' or '..'")
 
 
 class MultiUserXandikosBackend(XandikosBackend):
@@ -59,7 +104,19 @@ class MultiUserXandikosBackend(XandikosBackend):
     def set_principal(
         self, user, principal_path_prefix=None, principal_path_suffix=None
     ):
-        """Set the principal for a user, creating it if necessary."""
+        """Set the principal for a user, creating it if necessary.
+
+        Args:
+            user: Username (will be validated for safety)
+            principal_path_prefix: Override prefix for this call
+            principal_path_suffix: Override suffix for this call
+
+        Raises:
+            InvalidUsernameError: If the username is invalid or unsafe
+        """
+        # Validate username to prevent path traversal attacks
+        validate_username(user)
+
         if principal_path_prefix is None:
             principal_path_prefix = self.principal_path_prefix
         if principal_path_suffix is None:
@@ -89,9 +146,20 @@ class MultiUserXandikosApp(XandikosApp):
         backend: MultiUserXandikosBackend,
         current_user_principal: str,
         strict: bool = True,
+        require_auth: bool = True,
     ) -> None:
+        """Initialize the multi-user app.
+
+        Args:
+            backend: The multi-user backend
+            current_user_principal: Template for current user principal path
+            strict: Whether to be strict about DAV compliance
+            require_auth: If True, deny access to unauthenticated requests
+                         (except for root and well-known paths for discovery)
+        """
         super().__init__(backend, current_user_principal, strict=strict)
         self._backend = backend
+        self._require_auth = require_auth
 
     def _get_user_principal_path(self, environ: dict) -> str | None:
         """Get the principal path for the current user.
@@ -125,7 +193,8 @@ class MultiUserXandikosApp(XandikosApp):
         """Check if the current user has access to the requested path.
 
         Users can only access resources under their own principal path.
-        The root path and well-known discovery paths are accessible to all.
+        The root path and well-known discovery paths are accessible to all
+        authenticated users (or unauthenticated if require_auth is False).
 
         Args:
             environ: The request environment
@@ -137,15 +206,9 @@ class MultiUserXandikosApp(XandikosApp):
         """
         # Get the authenticated user
         remote_user = environ.get("REMOTE_USER")
-
-        # If no user is authenticated, allow access (authentication should
-        # be handled separately, e.g., by a reverse proxy)
-        if not remote_user:
-            return
-
         normalized_path = self._normalize_path(path)
 
-        # Allow access to root for discovery
+        # Allow access to root for discovery (even without auth for client setup)
         if normalized_path == "/":
             return
 
@@ -154,10 +217,21 @@ class MultiUserXandikosApp(XandikosApp):
             if normalized_path == self._normalize_path(wellknown_path):
                 return
 
+        # If no user is authenticated
+        if not remote_user:
+            if self._require_auth:
+                # Deny access to non-discovery paths without authentication
+                # Use generic message to avoid path disclosure
+                raise ForbiddenError("Authentication required")
+            else:
+                # Allow access if auth is not required (not recommended)
+                return
+
         # Get the user's principal path
         user_principal = self._get_user_principal_path(environ)
         if user_principal is None:
-            return
+            # This shouldn't happen if remote_user is set, but handle it
+            raise ForbiddenError("Unable to determine user principal")
 
         normalized_principal = self._normalize_path(user_principal)
 
@@ -168,10 +242,8 @@ class MultiUserXandikosApp(XandikosApp):
         if normalized_path.startswith(normalized_principal.rstrip("/") + "/"):
             return
 
-        # Access denied
-        raise ForbiddenError(
-            f"Access denied: user '{remote_user}' cannot access '{path}'"
-        )
+        # Access denied - use generic message to avoid information disclosure
+        raise ForbiddenError("Access denied")
 
 
 def add_parser(parser):
