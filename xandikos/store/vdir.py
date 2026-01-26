@@ -24,7 +24,7 @@ See https://github.com/pimutils/vdirsyncer/blob/master/docs/vdir.rst
 
 import configparser
 import hashlib
-import logging
+from logging import getLogger
 import os
 import shutil
 import uuid
@@ -46,7 +46,7 @@ from .index import MemoryIndex
 DEFAULT_ENCODING = "utf-8"
 
 
-logger = logging.getLogger(__name__)
+logger = getLogger("xandikos")
 
 
 class VdirStore(Store):
@@ -118,7 +118,7 @@ class VdirStore(Store):
                 logger.warning("No UID found in file %s", name)
                 uid = None
             except InvalidFileContents as e:
-                logging.warning("Unable to parse file %s: %s", name, e)
+                logger.warning("Unable to parse file %s: %s", name, e)
                 uid = None
             except NotImplementedError:
                 # This file type doesn't support UIDs
@@ -195,7 +195,7 @@ class VdirStore(Store):
         # Validate file extension matches content type
         expected_extension = MIMETYPES.guess_extension(fi.content_type)
         if expected_extension and not name.endswith(expected_extension):
-            logging.warning(
+            logger.warning(
                 "File %s has extension mismatch: expected %s for content type %s",
                 name,
                 expected_extension,

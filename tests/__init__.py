@@ -17,7 +17,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import logging
 import unittest
+
+# Configure logging to hide DEBUG output from dulwich
+logging.getLogger("dulwich").setLevel(logging.WARNING)
+logging.getLogger("asyncio").setLevel(logging.WARNING)
 
 
 def test_suite():

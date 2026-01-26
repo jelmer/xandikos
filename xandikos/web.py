@@ -28,6 +28,7 @@ import asyncio
 import functools
 import hashlib
 import logging
+from logging import getLogger
 import os
 import posixpath
 import shutil
@@ -78,7 +79,7 @@ from .icalendar import CalendarFilter, ICalendarFile
 from .store.git import GitStore, TreeGitStore
 from .vcard import VCardFile
 
-logger = logging.getLogger(__name__)
+logger = getLogger("xandikos")
 
 try:
     import systemd.daemon
@@ -805,7 +806,7 @@ class CollectionSetResource(webdav.Collection):
         path = backend._map_to_file_path(relpath)
         if not os.path.isdir(path):
             os.makedirs(path)
-            logging.info("Creating %s", path)
+            logger.info("Creating %s", path)
         return cls(backend, relpath)
 
     def get_displayname(self):
@@ -1429,7 +1430,7 @@ def create_principal_defaults(backend, principal):
         pass
     else:
         resource.store.set_type(STORE_TYPE_CALENDAR)
-        logging.info("Create calendar in %s.", resource.store.path)
+        logger.info("Create calendar in %s.", resource.store.path)
     addressbook_path = posixpath.join(
         principal.relpath,
         principal.get_addressbook_home_set()[0],
@@ -1441,7 +1442,7 @@ def create_principal_defaults(backend, principal):
         pass
     else:
         resource.store.set_type(STORE_TYPE_ADDRESSBOOK)
-        logging.info("Create addressbook in %s.", resource.store.path)
+        logger.info("Create addressbook in %s.", resource.store.path)
     calendar_path = posixpath.join(
         principal.relpath, principal.get_schedule_inbox_url()
     )
@@ -1451,7 +1452,7 @@ def create_principal_defaults(backend, principal):
         pass
     else:
         resource.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
-        logging.info("Create inbox in %s.", resource.store.path)
+        logger.info("Create inbox in %s.", resource.store.path)
 
 
 class RedirectDavHandler:
@@ -1495,7 +1496,7 @@ def avahi_register(port: int, path: str):
                 avahi.string_array_to_txt_array([f"path={path}"]),
             )
         except dbus.DBusException as e:
-            logging.error("Error registering %s: %s", service, e)
+            logger.error("Error registering %s: %s", service, e)
 
     group.Commit()
 
@@ -1537,12 +1538,12 @@ def run_simple_server(
         backend.create_principal(current_user_principal, create_defaults=defaults)
 
     if not os.path.isdir(directory):
-        logging.warning(
+        logger.warning(
             "%r does not exist. Run xandikos with --autocreate?",
             directory,
         )
     if not backend.get_resource(current_user_principal):
-        logging.warning(
+        logger.warning(
             "default user principal %s does not exist. Run xandikos with --autocreate?",
             current_user_principal,
         )
@@ -1557,9 +1558,9 @@ def run_simple_server(
         return await main_app.aiohttp_handler(request, route_prefix)
 
     if socket_path:
-        logging.info("Listening on unix domain socket %s", socket_path)
+        logger.info("Listening on unix domain socket %s", socket_path)
     if listen_address and port:
-        logging.info("Listening on %s:%s", listen_address, port)
+        logger.info("Listening on %s:%s", listen_address, port)
 
     from aiohttp import web
 
@@ -1722,17 +1723,17 @@ async def main(options, parser):
         )
 
     if not os.path.isdir(options.directory):
-        logging.warning(
+        logger.warning(
             "%r does not exist. Run xandikos with --autocreate?",
             options.directory,
         )
     if not backend.get_resource(options.current_user_principal):
-        logging.warning(
+        logger.warning(
             "default user principal %s does not exist. Run xandikos with --autocreate?",
             options.current_user_principal,
         )
 
-    logging.info("Xandikos %s", ".".join(map(str, xandikos_version)))
+    logger.info("Xandikos %s", ".".join(map(str, xandikos_version)))
 
     main_app = XandikosApp(
         backend,
@@ -1751,19 +1752,19 @@ async def main(options, parser):
         socket_path = None
         listen_address = None
         listen_port = None
-        logging.info("Receiving file descriptors from systemd socket activation")
+        logger.info("Receiving file descriptors from systemd socket activation")
     elif "/" in options.listen_address:
         socket_path = options.listen_address
         listen_address = None
         listen_port = None  # otherwise aiohttp also listens on default host
         listen_socks = []
-        logging.info("Listening on unix domain socket %s", socket_path)
+        logger.info("Listening on unix domain socket %s", socket_path)
     else:
         listen_address = options.listen_address
         listen_port = options.port
         socket_path = None
         listen_socks = []
-        logging.info("Listening on %s:%s", listen_address, options.port)
+        logger.info("Listening on %s:%s", listen_address, options.port)
 
     from aiohttp import web
 
@@ -1776,7 +1777,7 @@ async def main(options, parser):
         try:
             from aiohttp_openmetrics import metrics, metrics_middleware
         except ModuleNotFoundError:
-            logging.warning(
+            logger.warning(
                 "aiohttp-openmetrics not found; /metrics will not be available."
             )
         else:
@@ -1810,7 +1811,7 @@ async def main(options, parser):
             import avahi  # noqa: F401
             import dbus  # noqa: F401
         except ImportError:
-            logging.error(
+            logger.error(
                 "Please install python-avahi and python-dbus for avahi support."
             )
         else:
@@ -1840,7 +1841,7 @@ async def main(options, parser):
     shutdown_event = asyncio.Event()
 
     def signal_handler(signum, frame):
-        logging.info("Received signal %s, shutting down gracefully...", signum)
+        logger.info("Received signal %s, shutting down gracefully...", signum)
         # Use call_soon_threadsafe to safely set the event from signal handler
         loop.call_soon_threadsafe(shutdown_event.set)
 
@@ -1858,31 +1859,31 @@ async def main(options, parser):
         try:
             gid = grp.getgrnam(options.socket_group).gr_gid
             os.chown(socket_path, -1, gid)
-            logging.info("Set socket group to %s", options.socket_group)
+            logger.info("Set socket group to %s", options.socket_group)
         except KeyError:
             parser.error(f"Unknown group: {options.socket_group}")
         except OSError as e:
-            logging.error("Failed to set socket group: %s", e)
+            logger.error("Failed to set socket group: %s", e)
 
     # Set socket permissions after the socket is created
     if socket_path and options.socket_mode is not None:
         try:
             mode = int(options.socket_mode, 8)
             os.chmod(socket_path, mode)
-            logging.info("Set socket permissions to %s", options.socket_mode)
+            logger.info("Set socket permissions to %s", options.socket_mode)
         except ValueError:
             parser.error(f"Invalid socket mode: {options.socket_mode}")
         except OSError as e:
-            logging.error("Failed to set socket permissions: %s", e)
+            logger.error("Failed to set socket permissions: %s", e)
 
     # Wait for shutdown signal
     try:
         await shutdown_event.wait()
     except KeyboardInterrupt:
-        logging.info("Received KeyboardInterrupt, shutting down gracefully...")
+        logger.info("Received KeyboardInterrupt, shutting down gracefully...")
 
     # Cleanup: stop all sites and runners
-    logging.info("Stopping web servers...")
+    logger.info("Stopping web servers...")
     for site in sites:
         await site.stop()
 
@@ -1890,7 +1891,7 @@ async def main(options, parser):
     if metrics_app:
         await metrics_runner.cleanup()
 
-    logging.info("Shutdown complete.")
+    logger.info("Shutdown complete.")
 
 
 if __name__ == "__main__":

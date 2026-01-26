@@ -20,8 +20,10 @@
 """Indexing."""
 
 import collections
-import logging
+from logging import getLogger
 from collections.abc import Iterable, Iterator
+
+logger = getLogger("xandikos")
 
 IndexKey = str
 IndexValue = list[bytes | bool]
@@ -117,7 +119,7 @@ class AutoIndexManager:
             return needed_keys
 
         if new_index_keys:
-            logging.debug("Adding new index keys: %r", new_index_keys)
+            logger.debug("Adding new index keys: %r", new_index_keys)
             self.index.reset(set(self.index.available_keys()) | new_index_keys)
 
         # TODO(jelmer): Maybe best to check if missing_keys are satisfiable

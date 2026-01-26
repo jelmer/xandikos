@@ -23,12 +23,14 @@ ETags (https://en.wikipedia.org/wiki/HTTP_ETag) used in this file
 are always strong, and should be returned without wrapping quotes.
 """
 
-import logging
+from logging import getLogger
 import mimetypes
 from collections.abc import Iterable, Iterator
 from typing import Optional
 
 from .index import AutoIndexManager, IndexDict, IndexKey, IndexValueIterator
+
+logger = getLogger("xandikos")
 
 STORE_TYPE_ADDRESSBOOK = "addressbook"
 STORE_TYPE_CALENDAR = "calendar"
@@ -337,7 +339,7 @@ class Store:
                 if filter.check(name, file):
                     yield (name, file, etag)
             except InvalidFileContents:
-                logging.warning("Unable to parse file %s, skipping.", name)
+                logger.warning("Unable to parse file %s, skipping.", name)
 
     def _iter_with_filter_indexes(
         self, filter: Filter, keys
@@ -353,7 +355,7 @@ class Store:
                 try:
                     file_values = file.get_indexes(self.index.available_keys())
                 except InvalidFileContents:
-                    logging.warning(
+                    logger.warning(
                         "Unable to parse file %s for indexing, skipping.", name
                     )
                     file_values = {}

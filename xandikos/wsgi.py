@@ -19,16 +19,18 @@
 
 """WSGI wrapper for xandikos."""
 
-import logging
+from logging import getLogger
 import os
 
 from .web import XandikosApp, XandikosBackend
+
+logger = getLogger("xandikos")
 
 create_defaults = False
 
 autocreate_str = os.getenv("AUTOCREATE")
 if autocreate_str == "defaults":
-    logging.warning("Creating default collections.")
+    logger.warning("Creating default collections.")
     create_defaults = True
     autocreate = True
 elif autocreate_str in ("empty", "yes"):
@@ -36,7 +38,7 @@ elif autocreate_str in ("empty", "yes"):
 elif autocreate_str in (None, "no"):
     autocreate = False
 else:
-    logging.warning("Unknown value for AUTOCREATE: %r", autocreate_str)
+    logger.warning("Unknown value for AUTOCREATE: %r", autocreate_str)
     autocreate = False
 
 backend = XandikosBackend(path=os.environ["XANDIKOSPATH"])
@@ -44,7 +46,7 @@ if not os.path.isdir(backend.path):
     if autocreate:
         os.makedirs(os.environ["XANDIKOSPATH"])
     else:
-        logging.warning("%r does not exist.", backend.path)
+        logger.warning("%r does not exist.", backend.path)
 
 current_user_principal = os.environ.get("CURRENT_USER_PRINCIPAL", "/user/")
 if not backend.get_resource(current_user_principal):
@@ -53,7 +55,7 @@ if not backend.get_resource(current_user_principal):
             current_user_principal, create_defaults=create_defaults
         )
     else:
-        logging.warning(
+        logger.warning(
             "default user principal '%s' does not exist. "
             "Create directory %s or set AUTOCREATE variable?",
             current_user_principal,
