@@ -22,7 +22,7 @@
 import configparser
 import errno
 import functools
-import logging
+from logging import getLogger
 import os
 import shutil
 import stat
@@ -59,7 +59,7 @@ from .index import MemoryIndex
 DEFAULT_ENCODING = "utf-8"
 
 
-logger = logging.getLogger(__name__)
+logger = getLogger("xandikos")
 
 
 class RepoCollectionMetadata(CollectionMetadata):
@@ -162,7 +162,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         store_type = config.get(b"xandikos", b"type")
         store_type = store_type.decode(DEFAULT_ENCODING)
         if store_type not in VALID_STORE_TYPES:
-            logging.warning("Invalid store type %s set for %r.", store_type, self._repo)
+            logger.warning("Invalid store type %s set for %r.", store_type, self._repo)
         return store_type
 
     def get_order(self):
@@ -409,7 +409,7 @@ class GitStore(Store):
                 logger.warning("No UID found in file %s", name)
                 uid = None
             except InvalidFileContents as e:
-                logging.warning("Unable to parse file %s: %s", name, e)
+                logger.warning("Unable to parse file %s: %s", name, e)
                 uid = None
             except NotImplementedError:
                 # This file type doesn't support UIDs
