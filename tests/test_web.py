@@ -27,7 +27,11 @@ import unittest
 from xandikos import caldav
 from xandikos.icalendar import ICalendarFile
 from xandikos.store.git import TreeGitStore
-from xandikos.web import CalendarCollection, XandikosBackend, XandikosApp
+from xandikos.web import (
+    CalendarCollection,
+    XandikosBackend,
+    XandikosApp,
+)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
