@@ -1,5 +1,5 @@
 # Requirements for caldav-server-tester compatibility tests
 # Pin to specific versions to avoid breaking changes
 # caldav 2.1.2 and caldav-server-tester 0.1.0 were released on the same day (Nov 8, 2025)
-caldav==2.1.2
+caldav==2.2.3
 caldav-server-tester==0.1.0
