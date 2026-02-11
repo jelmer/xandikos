@@ -42,6 +42,7 @@ from xandikos.icalendar import ICalendarFile, CalendarFilter
 from xandikos.store.git import BareGitStore, GitStore, TreeGitStore
 from xandikos.store.memory import MemoryStore
 from xandikos.store.vdir import VdirStore
+from xandikos.store.sql import SQLStore
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -570,3 +571,58 @@ class ParanoidModeTests(unittest.TestCase):
         result_name, result_file, result_etag = results[0]
         self.assertEqual(result_name, name)
         self.assertEqual(result_etag, etag)
+
+
+class SQLStoreTest(BaseStoreTest, unittest.TestCase):
+    kls = SQLStore
+
+    def create_store(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        store_path = os.path.join(d, "store")
+        db_url = f"sqlite:///{os.path.join(d, 'test.db')}"
+        os.environ["XANDIKOS_SQL_URL"] = db_url
+        self.addCleanup(os.environ.pop, "XANDIKOS_SQL_URL", None)
+        store = self.kls.create(store_path)
+        store.load_extra_file_handler(ICalendarFile)
+        return store
+
+
+class RegistryTest(unittest.TestCase):
+    def test_get_backend_default(self):
+        from xandikos.store.registry import get_backend
+
+        cls = get_backend()
+        self.assertIs(cls, GitStore)
+
+    def test_get_backend_by_name_git(self):
+        from xandikos.store.registry import get_backend
+
+        self.assertIs(get_backend("git"), GitStore)
+
+    def test_get_backend_by_name_vdir(self):
+        from xandikos.store.registry import get_backend
+
+        self.assertIs(get_backend("vdir"), VdirStore)
+
+    def test_get_backend_by_name_memory(self):
+        from xandikos.store.registry import get_backend
+
+        self.assertIs(get_backend("memory"), MemoryStore)
+
+    def test_get_backend_by_name_sql(self):
+        from xandikos.store.registry import get_backend
+
+        self.assertIs(get_backend("sql"), SQLStore)
+
+    def test_get_backend_unknown(self):
+        from xandikos.store.registry import get_backend
+
+        with self.assertRaises(ValueError):
+            get_backend("nonexistent")
+
+    def test_get_backend_dotted_path(self):
+        from xandikos.store.registry import get_backend
+
+        cls = get_backend("xandikos.store.memory.MemoryStore")
+        self.assertIs(cls, MemoryStore)
