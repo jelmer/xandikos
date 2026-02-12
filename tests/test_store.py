@@ -23,6 +23,7 @@ import shutil
 import stat
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 
@@ -39,9 +40,11 @@ from xandikos.store import (
 )
 
 from xandikos.icalendar import ICalendarFile, CalendarFilter
+from xandikos.vcard import VCardFile
 from xandikos.store.git import BareGitStore, GitStore, TreeGitStore
 from xandikos.store.memory import MemoryStore
 from xandikos.store.vdir import VdirStore
+from xandikos.store.sql import SQLStore
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -570,3 +573,374 @@ class ParanoidModeTests(unittest.TestCase):
         result_name, result_file, result_etag = results[0]
         self.assertEqual(result_name, name)
         self.assertEqual(result_etag, etag)
+
+
+class SQLStoreTest(BaseStoreTest, unittest.TestCase):
+    kls = SQLStore
+
+    def create_store(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        store_path = os.path.join(d, "store")
+        db_url = f"sqlite:///{os.path.join(d, 'test.db')}"
+        os.environ["XANDIKOS_SQL_URL"] = db_url
+        self.addCleanup(os.environ.pop, "XANDIKOS_SQL_URL", None)
+        store = self.kls.create(store_path)
+        store.load_extra_file_handler(ICalendarFile)
+        return store
+
+
+class SQLStoreStructuredFieldsTest(unittest.TestCase):
+    """Tests for denormalized dtstart/dtend/summary columns in the SQL backend."""
+
+    def _make_store(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        store_path = os.path.join(d, "store")
+        db_url = f"sqlite:///{os.path.join(d, 'test.db')}"
+        os.environ["XANDIKOS_SQL_URL"] = db_url
+        self.addCleanup(os.environ.pop, "XANDIKOS_SQL_URL", None)
+        # Clear cached session factories so each test gets a fresh DB
+        from xandikos.store.sql import _session_factories, _engines
+
+        _session_factories.pop(db_url, None)
+        _engines.pop(db_url, None)
+        store = SQLStore.create(store_path)
+        store.load_extra_file_handler(ICalendarFile)
+        return store, db_url
+
+    def _query_item(self, db_url, name):
+        from xandikos.store.sql import _get_session_factory, Item, select as _sel
+
+        session_factory = _get_session_factory(db_url)
+        with session_factory() as session:
+            item = session.execute(_sel(Item).where(Item.name == name)).scalar_one()
+            # SQLite returns naive datetimes — re-attach UTC since we always store UTC
+            dtstart = item.dtstart
+            if dtstart is not None and dtstart.tzinfo is None:
+                dtstart = dtstart.replace(tzinfo=timezone.utc)
+            dtend = item.dtend
+            if dtend is not None and dtend.tzinfo is None:
+                dtend = dtend.replace(tzinfo=timezone.utc)
+            recurrence_end = item.recurrence_end
+            if recurrence_end is not None and recurrence_end.tzinfo is None:
+                recurrence_end = recurrence_end.replace(tzinfo=timezone.utc)
+            return {
+                "dtstart": dtstart,
+                "dtend": dtend,
+                "summary": item.summary,
+                "rrule": item.rrule,
+                "recurrence_end": recurrence_end,
+            }
+
+    def test_vevent_with_dtstart_dtend_summary(self):
+        store, db_url = self._make_store()
+        ics = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:ev1@example.com
+DTSTART:20250215T100000Z
+DTEND:20250215T120000Z
+SUMMARY:Team Meeting
+END:VEVENT
+END:VCALENDAR
+"""
+        name, _etag = store.import_one("ev1.ics", "text/calendar", [ics])
+        row = self._query_item(db_url, name)
+        self.assertEqual(row["summary"], "Team Meeting")
+        self.assertEqual(
+            row["dtstart"],
+            datetime(2025, 2, 15, 10, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            row["dtend"],
+            datetime(2025, 2, 15, 12, 0, tzinfo=timezone.utc),
+        )
+
+    def test_vevent_with_duration(self):
+        store, db_url = self._make_store()
+        ics = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:ev2@example.com
+DTSTART:20250301T090000Z
+DURATION:PT1H30M
+SUMMARY:Standup
+END:VEVENT
+END:VCALENDAR
+"""
+        name, _ = store.import_one("ev2.ics", "text/calendar", [ics])
+        row = self._query_item(db_url, name)
+        self.assertEqual(
+            row["dtstart"],
+            datetime(2025, 3, 1, 9, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            row["dtend"],
+            datetime(2025, 3, 1, 10, 30, tzinfo=timezone.utc),
+        )
+
+    def test_allday_event(self):
+        store, db_url = self._make_store()
+        ics = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:ev3@example.com
+DTSTART;VALUE=DATE:20250401
+DTEND;VALUE=DATE:20250402
+SUMMARY:Holiday
+END:VEVENT
+END:VCALENDAR
+"""
+        name, _ = store.import_one("ev3.ics", "text/calendar", [ics])
+        row = self._query_item(db_url, name)
+        self.assertEqual(
+            row["dtstart"],
+            datetime(2025, 4, 1, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            row["dtend"],
+            datetime(2025, 4, 2, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_vtodo_with_due(self):
+        store, db_url = self._make_store()
+        ics = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VTODO
+UID:todo1@example.com
+DTSTART:20250501T080000Z
+DUE:20250501T170000Z
+SUMMARY:Finish report
+END:VTODO
+END:VCALENDAR
+"""
+        name, _ = store.import_one("todo1.ics", "text/calendar", [ics])
+        row = self._query_item(db_url, name)
+        self.assertEqual(row["summary"], "Finish report")
+        self.assertEqual(
+            row["dtend"],
+            datetime(2025, 5, 1, 17, 0, tzinfo=timezone.utc),
+        )
+
+    def test_event_without_summary(self):
+        store, db_url = self._make_store()
+        ics = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:ev4@example.com
+DTSTART:20250601T140000Z
+DTEND:20250601T150000Z
+END:VEVENT
+END:VCALENDAR
+"""
+        name, _ = store.import_one("ev4.ics", "text/calendar", [ics])
+        row = self._query_item(db_url, name)
+        self.assertIsNone(row["summary"])
+        self.assertIsNotNone(row["dtstart"])
+
+    def test_non_calendar_file(self):
+        store, db_url = self._make_store()
+        name, _ = store.import_one("plain.txt", "text/plain", [b"Hello world"])
+        row = self._query_item(db_url, name)
+        self.assertIsNone(row["dtstart"])
+        self.assertIsNone(row["dtend"])
+        self.assertIsNone(row["summary"])
+
+    def test_vtodo_without_dates(self):
+        """VTODO from EXAMPLE_VCALENDAR1 has no DTSTART/DUE but has SUMMARY."""
+        store, db_url = self._make_store()
+        name, _ = store.import_one("todo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        row = self._query_item(db_url, name)
+        self.assertEqual(row["summary"], "do something")
+        self.assertIsNone(row["dtstart"])
+        self.assertIsNone(row["dtend"])
+
+    def test_update_item_refreshes_fields(self):
+        store, db_url = self._make_store()
+        ics_v1 = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:upd@example.com
+DTSTART:20250101T080000Z
+DTEND:20250101T090000Z
+SUMMARY:Original
+END:VEVENT
+END:VCALENDAR
+"""
+        ics_v2 = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:upd@example.com
+DTSTART:20250202T100000Z
+DTEND:20250202T110000Z
+SUMMARY:Updated
+END:VEVENT
+END:VCALENDAR
+"""
+        name, etag1 = store.import_one("upd.ics", "text/calendar", [ics_v1])
+        row1 = self._query_item(db_url, name)
+        self.assertEqual(row1["summary"], "Original")
+
+        name, etag2 = store.import_one(
+            "upd.ics", "text/calendar", [ics_v2], replace_etag=etag1
+        )
+        row2 = self._query_item(db_url, name)
+        self.assertEqual(row2["summary"], "Updated")
+        self.assertEqual(
+            row2["dtstart"],
+            datetime(2025, 2, 2, 10, 0, tzinfo=timezone.utc),
+        )
+
+    def test_vcard_fn_to_summary(self):
+        """vCard FN should be stored as summary."""
+        store, db_url = self._make_store()
+        store.load_extra_file_handler(VCardFile)
+        vcard = b"""\
+BEGIN:VCARD
+VERSION:3.0
+FN:John Doe
+N:Doe;John;;;
+UID:jdoe@example.com
+END:VCARD
+"""
+        name, _ = store.import_one("jdoe.vcf", "text/vcard", [vcard])
+        row = self._query_item(db_url, name)
+        self.assertEqual(row["summary"], "John Doe")
+        self.assertIsNone(row["dtstart"])
+        self.assertIsNone(row["rrule"])
+
+    def test_rrule_with_until(self):
+        """Recurring event with UNTIL should set rrule and recurrence_end."""
+        store, db_url = self._make_store()
+        ics = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:rec1@example.com
+DTSTART:20250101T090000Z
+DTEND:20250101T100000Z
+RRULE:FREQ=WEEKLY;UNTIL=20250401T090000Z
+SUMMARY:Weekly sync
+END:VEVENT
+END:VCALENDAR
+"""
+        name, _ = store.import_one("rec1.ics", "text/calendar", [ics])
+        row = self._query_item(db_url, name)
+        self.assertEqual(row["summary"], "Weekly sync")
+        self.assertIsNotNone(row["rrule"])
+        self.assertIn("FREQ=WEEKLY", row["rrule"])
+        self.assertEqual(
+            row["recurrence_end"],
+            datetime(2025, 4, 1, 9, 0, tzinfo=timezone.utc),
+        )
+
+    def test_rrule_with_count(self):
+        """Recurring event with COUNT should compute recurrence_end from last occurrence."""
+        store, db_url = self._make_store()
+        # Daily for 5 days starting Jan 10 → last occurrence Jan 14
+        ics = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:rec2@example.com
+DTSTART:20250110T080000Z
+DTEND:20250110T090000Z
+RRULE:FREQ=DAILY;COUNT=5
+SUMMARY:Daily standup
+END:VEVENT
+END:VCALENDAR
+"""
+        name, _ = store.import_one("rec2.ics", "text/calendar", [ics])
+        row = self._query_item(db_url, name)
+        self.assertIn("FREQ=DAILY", row["rrule"])
+        self.assertEqual(
+            row["recurrence_end"],
+            datetime(2025, 1, 14, 8, 0, tzinfo=timezone.utc),
+        )
+
+    def test_rrule_infinite(self):
+        """Recurring event without UNTIL/COUNT should have recurrence_end=None."""
+        store, db_url = self._make_store()
+        ics = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:rec3@example.com
+DTSTART:20250101T120000Z
+DTEND:20250101T130000Z
+RRULE:FREQ=YEARLY
+SUMMARY:Birthday
+END:VEVENT
+END:VCALENDAR
+"""
+        name, _ = store.import_one("rec3.ics", "text/calendar", [ics])
+        row = self._query_item(db_url, name)
+        self.assertIn("FREQ=YEARLY", row["rrule"])
+        self.assertIsNone(row["recurrence_end"])
+
+    def test_non_recurring_event_no_rrule(self):
+        """Non-recurring event should have rrule=None and recurrence_end=None."""
+        store, db_url = self._make_store()
+        ics = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:norec@example.com
+DTSTART:20250301T100000Z
+DTEND:20250301T110000Z
+SUMMARY:One-off meeting
+END:VEVENT
+END:VCALENDAR
+"""
+        name, _ = store.import_one("norec.ics", "text/calendar", [ics])
+        row = self._query_item(db_url, name)
+        self.assertIsNone(row["rrule"])
+        self.assertIsNone(row["recurrence_end"])
+
+
+class RegistryTest(unittest.TestCase):
+    def test_get_backend_default(self):
+        from xandikos.store.registry import get_backend
+
+        cls = get_backend()
+        self.assertIs(cls, GitStore)
+
+    def test_get_backend_by_name_git(self):
+        from xandikos.store.registry import get_backend
+
+        self.assertIs(get_backend("git"), GitStore)
+
+    def test_get_backend_by_name_vdir(self):
+        from xandikos.store.registry import get_backend
+
+        self.assertIs(get_backend("vdir"), VdirStore)
+
+    def test_get_backend_by_name_memory(self):
+        from xandikos.store.registry import get_backend
+
+        self.assertIs(get_backend("memory"), MemoryStore)
+
+    def test_get_backend_by_name_sql(self):
+        from xandikos.store.registry import get_backend
+
+        self.assertIs(get_backend("sql"), SQLStore)
+
+    def test_get_backend_unknown(self):
+        from xandikos.store.registry import get_backend
+
+        with self.assertRaises(ValueError):
+            get_backend("nonexistent")
+
+    def test_get_backend_dotted_path(self):
+        from xandikos.store.registry import get_backend
+
+        cls = get_backend("xandikos.store.memory.MemoryStore")
+        self.assertIs(cls, MemoryStore)

@@ -445,6 +445,9 @@ class GitStore(Store):
 
         Returns: A `GitStore`
         """
+        # Delegate to TreeGitStore if called on GitStore directly
+        if cls is GitStore:
+            return TreeGitStore.create(path)
         raise NotImplementedError(cls.create)
 
     @classmethod

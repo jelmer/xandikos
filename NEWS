@@ -1,3 +1,16 @@
+0.4.0	UNRELEASED
+
+ * Add pluggable storage backend system with backend registry, --backend
+   CLI flag, and XANDIKOS_BACKEND environment variable. Built-in backends:
+   git (default), vdir, memory, sql. Third-party backends can be loaded
+   via fully-qualified Python class paths.
+
+ * Add SQL storage backend using SQLAlchemy, supporting SQLite, PostgreSQL,
+   and other databases. Configured via XANDIKOS_SQL_URL environment variable.
+
+ * The -d/--directory flag is now optional for non-filesystem backends
+   (sql, memory).
+
 0.3.4	2026-01-24
 
  * Add --socket-mode and --socket-group flags to set Unix domain socket

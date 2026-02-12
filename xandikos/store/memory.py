@@ -39,6 +39,7 @@ class MemoryStore(Store):
 
     def __init__(self, *, check_for_duplicate_uids=True):
         super().__init__(MemoryIndex())
+        self.path = None
         self._items = {}  # name -> (content_type, data, etag)
         self._etag_counter = 0
         self._check_for_duplicate_uids = check_for_duplicate_uids
@@ -220,3 +221,13 @@ class MemoryStore(Store):
     def set_source_url(self, url: str) -> None:
         """Set source URL (no-op for memory store)."""
         self._source_url = url
+
+    @classmethod
+    def open_from_path(cls, path: str, **kwargs) -> "MemoryStore":
+        """Open a memory store (path is ignored)."""
+        return cls()
+
+    @classmethod
+    def create(cls, path: str) -> "MemoryStore":
+        """Create a new memory store (path is ignored)."""
+        return cls()

@@ -22,6 +22,7 @@
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from . import __version__
 from .store import STORE_TYPE_CALENDAR, STORE_TYPE_ADDRESSBOOK
@@ -51,8 +52,8 @@ def add_create_collection_parser(parser):
         "-d",
         "--directory",
         type=str,
-        required=True,
-        help="Root directory containing collections",
+        default=None,
+        help="Root directory containing collections (required for filesystem backends).",
     )
     parser.add_argument(
         "--type",
@@ -75,6 +76,16 @@ def add_create_collection_parser(parser):
     parser.add_argument(
         "--color", type=str, help="Color for the collection (hex format, e.g., #FF0000)"
     )
+    parser.add_argument(
+        "--backend",
+        default=None,
+        help="Storage backend to use (default: git).",
+    )
+    parser.add_argument(
+        "--sql-url",
+        default=None,
+        help="SQLAlchemy database URL for the SQL backend. Overrides XANDIKOS_SQL_URL.",
+    )
 
 
 async def create_collection_main(args, parser):
@@ -83,7 +94,13 @@ async def create_collection_main(args, parser):
 
     logger = logging.getLogger(__name__)
 
-    backend = XandikosBackend(args.directory)
+    backend_name = getattr(args, "backend", None) or os.environ.get("XANDIKOS_BACKEND")
+
+    if getattr(args, "sql_url", None):
+        os.environ["XANDIKOS_SQL_URL"] = args.sql_url
+
+    directory = args.directory
+    backend = XandikosBackend(directory, backend=backend_name)
     collection_path = args.name
     collection_type = (
         STORE_TYPE_CALENDAR if args.type == "calendar" else STORE_TYPE_ADDRESSBOOK
@@ -92,7 +109,7 @@ async def create_collection_main(args, parser):
     try:
         resource = backend.create_collection(collection_path)
     except FileExistsError:
-        logger.error(f"Collection '{collection_path}' already exists")
+        logger.error("Collection %r already exists", collection_path)
         return 1
 
     resource.store.set_type(collection_type)
@@ -106,7 +123,7 @@ async def create_collection_main(args, parser):
     if args.color:
         resource.store.set_color(args.color)
 
-    logger.info(f"Successfully created {args.type} collection: {collection_path}")
+    logger.info("Successfully created %s collection: %s", args.type, collection_path)
     return 0
 
 

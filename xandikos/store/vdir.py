@@ -242,7 +242,7 @@ class VdirStore(Store):
         return cls(path)
 
     @classmethod
-    def open_from_path(cls, path: str) -> "VdirStore":
+    def open_from_path(cls, path: str, **kwargs) -> "VdirStore":
         """Open a VdirStore from a path.
 
         Args:
