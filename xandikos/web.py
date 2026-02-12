@@ -1758,6 +1758,15 @@ def add_parser(parser):
             "Can also be a fully-qualified Python class path."
         ),
     )
+    parser.add_argument(
+        "--sql-url",
+        default=None,
+        help=(
+            "SQLAlchemy database URL for the SQL backend. "
+            "Overrides XANDIKOS_SQL_URL environment variable. "
+            "Example: sqlite:///xandikos.db or postgresql://user:pass@localhost/xandikos"
+        ),
+    )
     # Hidden arguments. These may change without notice in between releases,
     # and are generally just meant for developers.
     parser.add_argument("--paranoid", action="store_true", help=argparse.SUPPRESS)
@@ -1769,6 +1778,9 @@ async def main(options, parser):
         # TODO(jelmer): Find a way to propagate this without abusing
         # os.environ.
         os.environ["XANDIKOS_DUMP_DAV_XML"] = "1"
+
+    if options.sql_url:
+        os.environ["XANDIKOS_SQL_URL"] = options.sql_url
 
     if not options.route_prefix.endswith("/"):
         options.route_prefix += "/"

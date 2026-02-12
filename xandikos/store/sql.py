@@ -334,15 +334,24 @@ class SQLStore(Store):
         except (KeyError, NotImplementedError):
             uid = None
 
-        cal_fields: dict[str, object] = {
-            "dtstart": None, "dtend": None, "summary": None,
-            "rrule": None, "recurrence_end": None,
+        sf: dict[str, object] = {
+            "dtstart": None,
+            "dtend": None,
+            "summary": None,
+            "rrule": None,
+            "recurrence_end": None,
         }
         if hasattr(fi, "get_structured_fields"):
             try:
-                cal_fields = fi.get_structured_fields()
+                sf = fi.get_structured_fields()
             except Exception:
                 logger.debug("Failed to extract structured fields from %s", name)
+
+        sf_dtstart: datetime | None = sf["dtstart"]  # type: ignore[assignment]
+        sf_dtend: datetime | None = sf["dtend"]  # type: ignore[assignment]
+        sf_summary: str | None = sf["summary"]  # type: ignore[assignment]
+        sf_rrule: str | None = sf["rrule"]  # type: ignore[assignment]
+        sf_recurrence_end: datetime | None = sf["recurrence_end"]  # type: ignore[assignment]
 
         normalized_data = b"".join(fi.normalized())
         new_etag = _compute_etag(normalized_data)
@@ -374,11 +383,11 @@ class SQLStore(Store):
                 item.etag = new_etag
                 item.content_type = content_type
                 item.uid = uid
-                item.dtstart = cal_fields["dtstart"]
-                item.dtend = cal_fields["dtend"]
-                item.summary = cal_fields["summary"]
-                item.rrule = cal_fields["rrule"]
-                item.recurrence_end = cal_fields["recurrence_end"]
+                item.dtstart = sf_dtstart
+                item.dtend = sf_dtend
+                item.summary = sf_summary
+                item.rrule = sf_rrule
+                item.recurrence_end = sf_recurrence_end
             else:
                 if replace_etag is not None:
                     raise InvalidETag(name, replace_etag, "(no existing item)")
@@ -389,11 +398,11 @@ class SQLStore(Store):
                     content_type=content_type,
                     data=normalized_data,
                     etag=new_etag,
-                    dtstart=cal_fields["dtstart"],
-                    dtend=cal_fields["dtend"],
-                    summary=cal_fields["summary"],
-                    rrule=cal_fields["rrule"],
-                    recurrence_end=cal_fields["recurrence_end"],
+                    dtstart=sf_dtstart,
+                    dtend=sf_dtend,
+                    summary=sf_summary,
+                    rrule=sf_rrule,
+                    recurrence_end=sf_recurrence_end,
                 )
                 session.add(item)
 

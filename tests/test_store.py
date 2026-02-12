@@ -602,6 +602,7 @@ class SQLStoreStructuredFieldsTest(unittest.TestCase):
         self.addCleanup(os.environ.pop, "XANDIKOS_SQL_URL", None)
         # Clear cached session factories so each test gets a fresh DB
         from xandikos.store.sql import _session_factories, _engines
+
         _session_factories.pop(db_url, None)
         _engines.pop(db_url, None)
         store = SQLStore.create(store_path)
@@ -610,11 +611,10 @@ class SQLStoreStructuredFieldsTest(unittest.TestCase):
 
     def _query_item(self, db_url, name):
         from xandikos.store.sql import _get_session_factory, Item, select as _sel
+
         session_factory = _get_session_factory(db_url)
         with session_factory() as session:
-            item = session.execute(
-                _sel(Item).where(Item.name == name)
-            ).scalar_one()
+            item = session.execute(_sel(Item).where(Item.name == name)).scalar_one()
             # SQLite returns naive datetimes — re-attach UTC since we always store UTC
             dtstart = item.dtstart
             if dtstart is not None and dtstart.tzinfo is None:
@@ -789,14 +789,15 @@ END:VCALENDAR
         row1 = self._query_item(db_url, name)
         self.assertEqual(row1["summary"], "Original")
 
-        name, etag2 = store.import_one("upd.ics", "text/calendar", [ics_v2], replace_etag=etag1)
+        name, etag2 = store.import_one(
+            "upd.ics", "text/calendar", [ics_v2], replace_etag=etag1
+        )
         row2 = self._query_item(db_url, name)
         self.assertEqual(row2["summary"], "Updated")
         self.assertEqual(
             row2["dtstart"],
             datetime(2025, 2, 2, 10, 0, tzinfo=timezone.utc),
         )
-
 
     def test_vcard_fn_to_summary(self):
         """vCard FN should be stored as summary."""

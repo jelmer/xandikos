@@ -81,6 +81,11 @@ def add_create_collection_parser(parser):
         default=None,
         help="Storage backend to use (default: git).",
     )
+    parser.add_argument(
+        "--sql-url",
+        default=None,
+        help="SQLAlchemy database URL for the SQL backend. Overrides XANDIKOS_SQL_URL.",
+    )
 
 
 async def create_collection_main(args, parser):
@@ -90,6 +95,9 @@ async def create_collection_main(args, parser):
     logger = logging.getLogger(__name__)
 
     backend_name = getattr(args, "backend", None) or os.environ.get("XANDIKOS_BACKEND")
+
+    if getattr(args, "sql_url", None):
+        os.environ["XANDIKOS_SQL_URL"] = args.sql_url
 
     directory = args.directory
     backend = XandikosBackend(directory, backend=backend_name)
