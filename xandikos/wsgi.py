@@ -23,7 +23,6 @@ from logging import getLogger
 import os
 
 from .web import XandikosApp, XandikosBackend
-from .store.registry import get_backend as _get_backend
 
 logger = getLogger("xandikos")
 
@@ -43,13 +42,7 @@ else:
     autocreate = False
 
 backend_name = os.environ.get("XANDIKOS_BACKEND")
-
-_backend_cls = _get_backend(backend_name)
 _xandikos_path = os.environ.get("XANDIKOSPATH")
-if _xandikos_path is None and _backend_cls.uses_filesystem():
-    raise RuntimeError(
-        f"XANDIKOSPATH environment variable must be set for the {backend_name or 'git'!r} backend"
-    )
 
 backend = XandikosBackend(path=_xandikos_path, backend=backend_name)
 if _xandikos_path is not None and not os.path.isdir(_xandikos_path):

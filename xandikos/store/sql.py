@@ -137,6 +137,18 @@ class Item(Base):
     data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)  # raw file content
     etag: Mapped[str] = mapped_column(String(64), nullable=False)
 
+    dtstart: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    dtend: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    summary: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    rrule: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recurrence_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -153,6 +165,8 @@ class Item(Base):
     __table_args__ = (
         UniqueConstraint("collection_id", "name", name="uq_collection_item_name"),
         Index("ix_collection_uid", "collection_id", "uid"),
+        Index("ix_collection_dtstart", "collection_id", "dtstart"),
+        Index("ix_collection_dtend", "collection_id", "dtend"),
     )
 
     def __repr__(self) -> str:
@@ -233,11 +247,6 @@ class SQLStore(Store):
         return col
 
     # -- Factory classmethods --
-
-    @classmethod
-    def uses_filesystem(cls) -> bool:
-        """SQL store does not use the filesystem."""
-        return False
 
     @classmethod
     def _get_db_url(cls) -> str:
@@ -325,6 +334,16 @@ class SQLStore(Store):
         except (KeyError, NotImplementedError):
             uid = None
 
+        cal_fields: dict[str, object] = {
+            "dtstart": None, "dtend": None, "summary": None,
+            "rrule": None, "recurrence_end": None,
+        }
+        if hasattr(fi, "get_structured_fields"):
+            try:
+                cal_fields = fi.get_structured_fields()
+            except Exception:
+                logger.debug("Failed to extract structured fields from %s", name)
+
         normalized_data = b"".join(fi.normalized())
         new_etag = _compute_etag(normalized_data)
 
@@ -355,6 +374,11 @@ class SQLStore(Store):
                 item.etag = new_etag
                 item.content_type = content_type
                 item.uid = uid
+                item.dtstart = cal_fields["dtstart"]
+                item.dtend = cal_fields["dtend"]
+                item.summary = cal_fields["summary"]
+                item.rrule = cal_fields["rrule"]
+                item.recurrence_end = cal_fields["recurrence_end"]
             else:
                 if replace_etag is not None:
                     raise InvalidETag(name, replace_etag, "(no existing item)")
@@ -365,6 +389,11 @@ class SQLStore(Store):
                     content_type=content_type,
                     data=normalized_data,
                     etag=new_etag,
+                    dtstart=cal_fields["dtstart"],
+                    dtend=cal_fields["dtend"],
+                    summary=cal_fields["summary"],
+                    rrule=cal_fields["rrule"],
+                    recurrence_end=cal_fields["recurrence_end"],
                 )
                 session.add(item)
 

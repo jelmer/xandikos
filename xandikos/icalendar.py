@@ -1532,6 +1532,65 @@ class ICalendarFile(File):
                 pass
         raise KeyError
 
+    def get_structured_fields(self) -> dict[str, object]:
+        """Extract denormalized calendar fields for SQL storage.
+
+        Returns a dict with keys 'dtstart', 'dtend', 'summary', 'rrule',
+        'recurrence_end' — all nullable.
+        """
+        result: dict[str, object] = {
+            "dtstart": None,
+            "dtend": None,
+            "summary": None,
+            "rrule": None,
+            "recurrence_end": None,
+        }
+        for component in self.calendar.subcomponents:
+            comp_name = component.name
+            if comp_name not in ("VEVENT", "VTODO", "VJOURNAL"):
+                continue
+
+            # SUMMARY
+            summary = component.get("SUMMARY")
+            if summary is not None:
+                result["summary"] = str(summary)[:1024]
+
+            # DTSTART
+            dtstart_prop = component.get("DTSTART")
+            dtstart_dt = None
+            if dtstart_prop is not None:
+                dtstart_dt = dtstart_prop.dt
+                result["dtstart"] = _normalize_to_utc_datetime(dtstart_dt)
+
+            # DTEND / DUE / DURATION
+            if comp_name == "VEVENT":
+                dtend_prop = component.get("DTEND")
+                if dtend_prop is not None:
+                    result["dtend"] = _normalize_to_utc_datetime(dtend_prop.dt)
+                elif component.get("DURATION") is not None and dtstart_dt is not None:
+                    duration = component["DURATION"].dt
+                    result["dtend"] = _normalize_to_utc_datetime(dtstart_dt + duration)
+            elif comp_name == "VTODO":
+                due_prop = component.get("DUE")
+                if due_prop is not None:
+                    result["dtend"] = _normalize_to_utc_datetime(due_prop.dt)
+                elif component.get("DURATION") is not None and dtstart_dt is not None:
+                    duration = component["DURATION"].dt
+                    result["dtend"] = _normalize_to_utc_datetime(dtstart_dt + duration)
+            # VJOURNAL: no dtend
+
+            # RRULE + recurrence_end
+            rrule_prop = component.get("RRULE")
+            if rrule_prop is not None:
+                result["rrule"] = rrule_prop.to_ical().decode("utf-8")
+                result["recurrence_end"] = _compute_recurrence_end(
+                    rrule_prop, dtstart_dt
+                )
+
+            break  # only first relevant subcomponent
+
+        return result
+
     def _get_index(self, key: IndexKey) -> IndexValueIterator:
         # Track parent component for VALARM enrichment
         # Use the original calendar without expansion for indexing
@@ -1580,6 +1639,61 @@ class ICalendarFile(File):
                         yield ical
             else:
                 raise AssertionError(f"segments: {segments!r}")
+
+
+def _normalize_to_utc_datetime(dt: datetime | date) -> datetime:
+    """Normalize a date or datetime value to a UTC datetime.
+
+    - date → datetime at midnight UTC
+    - naive datetime → assumed UTC
+    - aware datetime → converted to UTC
+    """
+    if not isinstance(dt, datetime):
+        return datetime.combine(dt, time(), tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _compute_recurrence_end(rrule_prop, dtstart) -> datetime | None:
+    """Compute the last possible occurrence datetime from an RRULE.
+
+    Returns a UTC datetime for UNTIL or COUNT-based rules, None for infinite rules.
+    """
+    if dtstart is None:
+        return None
+
+    rrule_dict = rrule_prop
+    # icalendar vRecur parses to a dict-like (vRecur inherits dict)
+    if not isinstance(rrule_dict, dict):
+        return None
+
+    # UNTIL takes precedence
+    until = rrule_dict.get("UNTIL")
+    if until:
+        val = until[0] if isinstance(until, list) else until
+        return _normalize_to_utc_datetime(val)
+
+    # COUNT — expand via dateutil to find the last occurrence
+    count = rrule_dict.get("COUNT")
+    if count:
+        count_val = count[0] if isinstance(count, list) else count
+        try:
+            rrule_str = rrule_prop.to_ical().decode("utf-8")
+            dtstart_norm = _normalize_to_utc_datetime(dtstart)
+            rule = dateutil.rrule.rrulestr(rrule_str, dtstart=dtstart_norm)
+            last = None
+            for i, occ in enumerate(rule):
+                if i >= int(count_val):
+                    break
+                last = occ
+            if last is not None:
+                return _normalize_to_utc_datetime(last)
+        except (ValueError, TypeError):
+            pass
+
+    # No UNTIL, no COUNT → infinite recurrence
+    return None
 
 
 def as_tz_aware_ts(dt: datetime | date, default_timezone: str | timezone) -> datetime:

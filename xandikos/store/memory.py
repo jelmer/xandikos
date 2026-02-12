@@ -223,11 +223,6 @@ class MemoryStore(Store):
         self._source_url = url
 
     @classmethod
-    def uses_filesystem(cls) -> bool:
-        """Memory store does not use the filesystem."""
-        return False
-
-    @classmethod
     def open_from_path(cls, path: str, **kwargs) -> "MemoryStore":
         """Open a memory store (path is ignored)."""
         return cls()

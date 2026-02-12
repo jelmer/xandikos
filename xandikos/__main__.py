@@ -86,19 +86,12 @@ def add_create_collection_parser(parser):
 async def create_collection_main(args, parser):
     """Main function for the create-collection subcommand."""
     from .web import XandikosBackend
-    from .store.registry import get_backend
 
     logger = logging.getLogger(__name__)
 
     backend_name = getattr(args, "backend", None) or os.environ.get("XANDIKOS_BACKEND")
-    backend_cls = get_backend(backend_name)
 
     directory = args.directory
-    if directory is None and backend_cls.uses_filesystem():
-        parser.error(
-            f"-d/--directory is required for the {backend_name or 'git'!r} backend"
-        )
-
     backend = XandikosBackend(directory, backend=backend_name)
     collection_path = args.name
     collection_type = (

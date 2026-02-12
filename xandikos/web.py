@@ -1784,16 +1784,9 @@ async def main(options, parser):
         "XANDIKOS_BACKEND"
     )
 
-    # Resolve backend class to check if -d is required
-    backend_cls = get_backend(backend_name)
-
     directory = options.directory
     if directory is not None:
         directory = os.path.abspath(directory)
-    elif backend_cls.uses_filesystem():
-        parser.error(
-            f"-d/--directory is required for the {backend_name or 'git'!r} backend"
-        )
 
     backend = XandikosBackend(
         directory,

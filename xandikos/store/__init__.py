@@ -578,16 +578,6 @@ class Store:
         raise NotImplementedError(self.set_source_url)
 
     @classmethod
-    def uses_filesystem(cls) -> bool:
-        """Whether this backend requires a filesystem directory.
-
-        Returns True for filesystem-backed stores (git, vdir).
-        Returns False for stores that manage their own persistence (sql, memory).
-        Used to determine whether the -d/--directory flag is required.
-        """
-        return True
-
-    @classmethod
     def open_from_path(cls, path: str, **kwargs) -> "Store":
         """Open an existing store at a filesystem path.
 

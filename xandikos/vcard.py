@@ -62,6 +62,26 @@ class VCardFile(File):
                 ) from exc
         return self._addressbook
 
+    def get_structured_fields(self) -> dict[str, object]:
+        """Extract denormalized fields for SQL storage.
+
+        For vCards, only FN (Formatted Name) maps to summary.
+        """
+        result: dict[str, object] = {
+            "dtstart": None,
+            "dtend": None,
+            "summary": None,
+            "rrule": None,
+            "recurrence_end": None,
+        }
+        try:
+            fn = self.addressbook.fn
+            if fn and fn.value:
+                result["summary"] = str(fn.value)[:1024]
+        except AttributeError:
+            pass
+        return result
+
     def _get_index(self, key: IndexKey) -> IndexValueIterator:
         """Extract index values from a vCard file.
 
