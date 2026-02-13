@@ -800,7 +800,14 @@ class ComponentTimeRangeMatcher:
             dtstart_parsed = vDDDTypes.from_ical(dtstart_str)
             # Normalize UNTIL to be UTC if dtstart is timezone-aware
             rrule_str = _normalize_rrule_until(rrule_str, dtstart_parsed)
-            rrule = dateutil.rrule.rrulestr(rrule_str, dtstart=dtstart_parsed)
+            # If DTSTART is timezone-naive, ignore TZID in RRULE to avoid
+            # mismatched timezone-aware occurrences that can't be compared
+            rrule = dateutil.rrule.rrulestr(
+                rrule_str,
+                dtstart=dtstart_parsed,
+                ignoretz=isinstance(dtstart_parsed, datetime)
+                and dtstart_parsed.tzinfo is None,
+            )
         except (TypeError, ValueError) as e:
             # If RRULE parsing fails, log with context and return False
             uid_values = indexes.get("P=UID", [])
