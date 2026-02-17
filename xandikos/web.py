@@ -75,9 +75,8 @@ from xandikos.store import (
     Store,
 )
 
-from .icalendar import CalendarFilter, ICalendarFile
+from .icalendar import CalendarFilter
 from .store.git import GitStore, TreeGitStore
-from .vcard import VCardFile
 
 logger = logging.getLogger(__name__)
 
@@ -1148,7 +1147,7 @@ class PrincipalCollection(Collection, Principal):
         return p
 
 
-class XandikosBackend(FilesystemBackend):
+class SingleUserFilesystemBackend(FilesystemBackend):
     def __init__(
         self,
         path,
@@ -1464,7 +1463,7 @@ def run_simple_server(
       port: TCP Port to listen on (None to disable)
       socket_path: Unix domain socket path to listen on (None to disable)
     """
-    backend = XandikosBackend(directory)
+    backend = SingleUserFilesystemBackend(directory)
     backend._mark_as_principal(current_user_principal)
 
     if autocreate or defaults:
@@ -1643,7 +1642,7 @@ async def main(options, parser):
 
     logging.basicConfig(level=loglevel, format="%(message)s")
 
-    backend = XandikosBackend(
+    backend = SingleUserFilesystemBackend(
         os.path.abspath(options.directory),
         paranoid=options.paranoid,
         index_threshold=options.index_threshold,
