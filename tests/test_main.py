@@ -29,7 +29,7 @@ from unittest.mock import patch
 
 from xandikos.__main__ import add_create_collection_parser, create_collection_main, main
 from xandikos.store import STORE_TYPE_ADDRESSBOOK, STORE_TYPE_CALENDAR
-from xandikos.web import XandikosBackend
+from xandikos.web import SingleUserFilesystemBackend
 
 
 class CreateCollectionTests(unittest.TestCase):
@@ -109,7 +109,7 @@ class CreateCollectionTests(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.test_dir, "test-calendar")))
 
         # Verify the collection properties
-        backend = XandikosBackend(self.test_dir)
+        backend = SingleUserFilesystemBackend(self.test_dir)
         resource = backend.get_resource("/test-calendar")
         self.assertEqual(resource.store.get_type(), STORE_TYPE_CALENDAR)
         self.assertEqual(resource.store.get_displayname(), "Test Calendar")
@@ -136,7 +136,7 @@ class CreateCollectionTests(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.test_dir, "test-addressbook")))
 
         # Verify the collection properties
-        backend = XandikosBackend(self.test_dir)
+        backend = SingleUserFilesystemBackend(self.test_dir)
         resource = backend.get_resource("/test-addressbook")
         self.assertEqual(resource.store.get_type(), STORE_TYPE_ADDRESSBOOK)
         self.assertEqual(resource.store.get_displayname(), "Test Address Book")
@@ -181,7 +181,7 @@ class CreateCollectionTests(unittest.TestCase):
         self.assertEqual(result, 0)
 
         # Verify the collection was created
-        backend = XandikosBackend(self.test_dir)
+        backend = SingleUserFilesystemBackend(self.test_dir)
         resource = backend.get_resource("/minimal-cal")
         self.assertEqual(resource.store.get_type(), STORE_TYPE_CALENDAR)
 

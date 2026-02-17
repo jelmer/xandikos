@@ -79,11 +79,11 @@ def add_create_collection_parser(parser):
 
 async def create_collection_main(args, parser):
     """Main function for the create-collection subcommand."""
-    from .web import XandikosBackend
+    from .web import SingleUserFilesystemBackend
 
     logger = logging.getLogger(__name__)
 
-    backend = XandikosBackend(args.directory)
+    backend = SingleUserFilesystemBackend(args.directory)
     collection_path = args.name
     collection_type = (
         STORE_TYPE_CALENDAR if args.type == "calendar" else STORE_TYPE_ADDRESSBOOK

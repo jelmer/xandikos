@@ -19,7 +19,7 @@
 
 """Multi-user support for Xandikos.
 
-This module provides the MultiUserXandikosBackend class and related
+This module provides the MultiUserFilesystemBackend class and related
 functionality for running Xandikos in a multi-user mode where
 principals are automatically created for authenticated users.
 """
@@ -30,7 +30,7 @@ import os
 import signal
 
 from .web import (
-    XandikosBackend,
+    SingleUserFilesystemBackend,
     XandikosApp,
     WELLKNOWN_DAV_PATHS,
     RedirectDavHandler,
@@ -40,7 +40,7 @@ from .web import (
 from .webdav import ForbiddenError
 
 __all__ = [
-    "MultiUserXandikosBackend",
+    "MultiUserFilesystemBackend",
     "MultiUserXandikosApp",
     "InvalidUsernameError",
     "validate_username",
@@ -87,7 +87,7 @@ def validate_username(username: str) -> None:
         raise InvalidUsernameError("Username cannot be '.' or '..'")
 
 
-class MultiUserXandikosBackend(XandikosBackend):
+class MultiUserFilesystemBackend(SingleUserFilesystemBackend):
     """Backend that automatically creates principals for authenticated users."""
 
     def __init__(
@@ -143,7 +143,7 @@ class MultiUserXandikosApp(XandikosApp):
 
     def __init__(
         self,
-        backend: MultiUserXandikosBackend,
+        backend: MultiUserFilesystemBackend,
         current_user_principal: str,
         strict: bool = True,
         require_auth: bool = True,
@@ -373,7 +373,7 @@ async def main(options, parser):
 
     logging.basicConfig(level=loglevel, format="%(message)s")
 
-    backend = MultiUserXandikosBackend(
+    backend = MultiUserFilesystemBackend(
         os.path.abspath(options.directory),
         principal_path_prefix=options.principal_path_prefix,
         principal_path_suffix=options.principal_path_suffix,

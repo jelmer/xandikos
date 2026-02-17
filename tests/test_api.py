@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import unittest
 
-from xandikos.web import XandikosApp, XandikosBackend
+from xandikos.web import XandikosApp, SingleUserFilesystemBackend
 
 
 class WebTests(unittest.TestCase):
@@ -31,7 +31,7 @@ class WebTests(unittest.TestCase):
     def test_backend(self):
         path = tempfile.mkdtemp()
         try:
-            backend = XandikosBackend(path)
+            backend = SingleUserFilesystemBackend(path)
             backend.create_principal("foo", create_defaults=True)
             XandikosApp(backend, "foo")
         finally:
