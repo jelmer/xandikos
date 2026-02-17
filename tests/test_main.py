@@ -267,3 +267,24 @@ class MainCommandTests(unittest.TestCase):
         self.assertIn("--type", help_output)
         self.assertIn("--name", help_output)
         self.assertIn("--displayname", help_output)
+
+    def test_main_help_subcommand(self):
+        """Test that 'help' subcommand prints usage and returns 0."""
+        import sys
+        from io import StringIO
+
+        old_stdout = sys.stdout
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        try:
+            result = asyncio.run(main(["help"]))
+        finally:
+            sys.stdout = old_stdout
+
+        self.assertEqual(result, 0)
+        help_output = captured_output.getvalue()
+        # Should list all subcommands
+        self.assertIn("serve", help_output)
+        self.assertIn("create-collection", help_output)
+        self.assertIn("help", help_output)
