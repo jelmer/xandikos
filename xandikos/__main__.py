@@ -133,6 +133,8 @@ async def main(argv):
     )
     add_create_collection_parser(create_parser)
 
+    subparsers.add_parser("help", help="Show this help message and exit")
+
     set_default_subparser(parser, argv, "serve")
     args = parser.parse_args(argv)
 
@@ -142,6 +144,9 @@ async def main(argv):
         # Configure logging for create-collection subcommand
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         return await create_collection_main(args, parser)
+    elif args.subcommand == "help":
+        parser.print_help()
+        return 0
     else:
         parser.print_help()
         return 1
