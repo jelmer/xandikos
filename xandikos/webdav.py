@@ -89,10 +89,22 @@ class UnsupportedMediaType(Exception):
 
 
 class UnauthorizedError(Exception):
-    """Base class for unauthorized errors."""
+    """Base class for unauthorized errors (401)."""
 
     def __init__(self) -> None:
         super().__init__("Request unauthorized")
+
+
+class ForbiddenError(Exception):
+    """Error raised when access to a resource is forbidden (403).
+
+    This is distinct from UnauthorizedError (401) - ForbiddenError means
+    the user is authenticated but not allowed to access the resource.
+    """
+
+    def __init__(self, message: str = "Access forbidden") -> None:
+        super().__init__(message)
+        self.message = message
 
 
 class Response:
@@ -1343,6 +1355,7 @@ async def traverse_resource(
     base_href: str,
     depth: str,
     members: Callable[[Collection], Iterable[tuple[str, Resource]]] | None = None,
+    check_access: Callable[[str], bool] | None = None,
 ) -> AsyncIterable[tuple[str, Resource]]:
     """Traverse a resource.
 
@@ -1352,6 +1365,9 @@ async def traverse_resource(
       depth: Depth ("0", "1", "infinity")
       members: Function to use to get members of each
         collection.
+      check_access: Optional callback to check if a path is accessible.
+        Should return True if accessible, False otherwise.
+        If None, all resources are accessible.
     Returns: Iterator over (URL, Resource) tuples
     """
     if members is None:
@@ -1370,6 +1386,12 @@ async def traverse_resource(
             # mentions that a trailing slash *SHOULD* be added for
             # collections.
             href = ensure_trailing_slash(href)
+
+        # Check authorization for this resource
+        if check_access is not None and not check_access(href):
+            # Skip this resource and don't descend into it
+            continue
+
         yield (href, resource)
         if depth == "0":
             continue
@@ -1691,7 +1713,7 @@ def href_to_path(environ, href) -> str | None:
 
 
 def _get_resources_by_hrefs(
-    backend, environ, hrefs
+    backend, environ, hrefs, check_access=None
 ) -> Iterator[tuple[str, Resource | None]]:
     """Retrieve multiple resources by href.
 
@@ -1699,12 +1721,22 @@ def _get_resources_by_hrefs(
       backend: backend from which to retrieve resources
       environ: Environment dictionary
       hrefs: List of hrefs to resolve
+      check_access: Optional callback to check access for each path.
+                   Should raise ForbiddenError if access is denied.
     Returns: iterator over (href, resource) tuples
     """
     paths: dict[str, str] = {}
     for href in hrefs:
         path = href_to_path(environ, href)
         if path is not None:
+            # Check authorization for each path if callback provided
+            if check_access is not None:
+                try:
+                    check_access(environ, path, "REPORT")
+                except ForbiddenError:
+                    # If access denied, treat as if resource doesn't exist
+                    yield (href, None)
+                    continue
             paths[path] = href
         else:
             yield (href, None)
@@ -2052,6 +2084,9 @@ class MoveMethod(Method):
         if not dest_path.startswith("/"):
             dest_path = "/" + dest_path
 
+        # Check authorization for the destination path
+        app.check_access(environ, dest_path, request.method)
+
         # Check if source and destination are the same
         if source_path == dest_path:
             return Response(
@@ -2229,6 +2264,9 @@ class CopyMethod(Method):
         # Ensure destination path starts with /
         if not dest_path.startswith("/"):
             dest_path = "/" + dest_path
+
+        # Check authorization for the destination path
+        app.check_access(environ, dest_path, request.method)
 
         # Check if source and destination are the same
         if source_path == dest_path:
@@ -2423,7 +2461,12 @@ class ReportMethod(Method):
             return await reporter.report(
                 environ,
                 et,
-                functools.partial(_get_resources_by_hrefs, app.backend, environ),
+                functools.partial(
+                    _get_resources_by_hrefs,
+                    app.backend,
+                    environ,
+                    check_access=app.check_access,
+                ),
                 app.properties,
                 base_href,
                 r,
@@ -2460,7 +2503,23 @@ class PropfindMethod(Method):
                 raise BadRequestError(
                     "Received more than one element in propfind."
                 ) from exc
-        async for href, resource in traverse_resource(base_resource, base_href, depth):
+
+        # Create access check callback for filtering traversed resources
+        def check_resource_access(href: str) -> bool:
+            """Check if the current user can access the given href."""
+            # Convert href to path for authorization check
+            path = href_to_path(environ, href)
+            if path is None:
+                return False
+            try:
+                app.check_access(environ, path, "PROPFIND")
+                return True
+            except ForbiddenError:
+                return False
+
+        async for href, resource in traverse_resource(
+            base_resource, base_href, depth, check_access=check_resource_access
+        ):
             propstat = []
             if requested is None or requested.tag == "{DAV:}allprop":
                 propstat = get_all_properties(href, resource, app.properties, environ)
@@ -2863,7 +2922,47 @@ class WebDAVApp:
                 ret.append(name)
         return ret
 
+    def check_access(self, environ: dict, path: str, method: str) -> None:
+        """Check if the current user has access to perform the operation.
+
+        This method can be overridden by subclasses to implement
+        custom authorization logic.
+
+        Args:
+            environ: The WSGI/aiohttp environment dict
+            path: The resource path being accessed
+            method: The HTTP method being used (GET, PUT, DELETE, etc.)
+
+        Raises:
+            ForbiddenError: If access is denied
+            UnauthorizedError: If authentication is required but missing
+        """
+        # Default implementation allows all access
+        pass
+
     async def _handle_request(self, request, environ, start_response=None):
+        # Handle remote user authentication
+        remote_user = None
+        if hasattr(request, "headers"):
+            # aiohttp request
+            remote_user = request.headers.get("X-Remote-User")
+
+        if "ORIGINAL_ENVIRON" in environ:
+            # WSGI request
+            remote_user = environ["ORIGINAL_ENVIRON"].get("HTTP_X_REMOTE_USER")
+
+        if remote_user and hasattr(self.backend, "set_principal"):
+            environ["REMOTE_USER"] = remote_user
+            self.backend.set_principal(remote_user)
+
+        # Get the path for authorization check
+        path_info = request.match_info.get("path_info", "/")
+        if not path_info.startswith("/"):
+            path_info = "/" + path_info
+
+        # Check authorization before processing the request
+        self.check_access(environ, path_info, request.method)
+
         try:
             do = self.methods[request.method]
         except KeyError:
@@ -2896,6 +2995,11 @@ class WebDAVApp:
             return Response(
                 status="401 Unauthorized",
                 body=[("Please login.".encode(DEFAULT_ENCODING))],
+            )
+        except ForbiddenError as e:
+            return Response(
+                status="403 Forbidden",
+                body=[e.message.encode(DEFAULT_ENCODING)],
             )
 
     def handle_wsgi_request(self, environ, start_response):
