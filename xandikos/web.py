@@ -56,7 +56,7 @@ from xandikos import (
     webdav,
     xmpp,
 )
-from xandikos.fs import FilesystemBackend
+from xandikos.fs import FilesystemBackend, open_store_from_path
 from xandikos.store import (
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
@@ -119,7 +119,6 @@ WELLKNOWN_DAV_PATHS = {
     carddav.WELLKNOWN_CARDDAV_PATH,
 }
 
-STORE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
 CALENDAR_HOME_SET = ["calendars"]
 ADDRESSBOOK_HOME_SET = ["contacts"]
@@ -1135,14 +1134,6 @@ class PrincipalCollection(Collection, Principal):
             except FileExistsError:
                 pass
         return p
-
-
-@functools.lru_cache(maxsize=STORE_CACHE_SIZE)
-def open_store_from_path(path: str, **kwargs):
-    store = GitStore.open_from_path(path, **kwargs)
-    store.load_extra_file_handler(ICalendarFile)
-    store.load_extra_file_handler(VCardFile)
-    return store
 
 
 class XandikosBackend(FilesystemBackend):
