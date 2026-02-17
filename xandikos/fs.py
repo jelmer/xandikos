@@ -19,10 +19,24 @@
 
 """Filesystem-based backend base class."""
 
+import functools
 import os
 import shutil
 
 from xandikos import webdav
+from xandikos.icalendar import ICalendarFile
+from xandikos.store.git import GitStore
+from xandikos.vcard import VCardFile
+
+STORE_CACHE_SIZE = 128
+
+
+@functools.lru_cache(maxsize=STORE_CACHE_SIZE)
+def open_store_from_path(path: str, **kwargs):
+    store = GitStore.open_from_path(path, **kwargs)
+    store.load_extra_file_handler(ICalendarFile)
+    store.load_extra_file_handler(VCardFile)
+    return store
 
 
 class FilesystemBackend(webdav.Backend):
