@@ -29,6 +29,7 @@ from collections.abc import Iterable, Iterator
 from typing import Optional
 
 from .index import AutoIndexManager, IndexDict, IndexKey, IndexValueIterator
+from .registry import get_backend
 
 logger = getLogger("xandikos")
 
@@ -576,15 +577,64 @@ class Store:
         """Set the source URL."""
         raise NotImplementedError(self.set_source_url)
 
+    @classmethod
+    def open_from_path(cls, path: str, **kwargs) -> "Store":
+        """Open an existing store at a filesystem path.
 
-def open_store(location: str) -> Store:
+        Args:
+          path: Path to the store
+          **kwargs: Backend-specific options
+        Returns: A Store instance
+        Raises: NotStoreError if the path is not a valid store for this backend
+        """
+        raise NotImplementedError(cls.open_from_path)
+
+    @classmethod
+    def create(cls, path: str) -> "Store":
+        """Create a new, empty store at a filesystem path.
+
+        Args:
+          path: Path for the new store
+        Returns: A Store instance
+        """
+        raise NotImplementedError(cls.create)
+
+    @classmethod
+    def has_collections_under(cls, path: str) -> bool:
+        """Check if any collections exist under the given path prefix.
+
+        Used to determine if a path is a collection set (container of stores).
+        Filesystem-based backends return False here and rely on os.path.isdir()
+        in the web layer. Non-filesystem backends should override this.
+
+        Args:
+          path: Path prefix to check
+        Returns: True if collections exist under this path
+        """
+        return False
+
+    @classmethod
+    def list_children_under(cls, path: str) -> list[str]:
+        """List direct child collection names under a path prefix.
+
+        Used by collection set resources to enumerate subcollections.
+        Filesystem-based backends return [] here and rely on os.listdir()
+        in the web layer. Non-filesystem backends should override this.
+
+        Args:
+          path: Path prefix to list children of
+        Returns: List of child names
+        """
+        return []
+
+
+def open_store(location: str, backend: str | None = None) -> Store:
     """Open store from a location string.
 
     Args:
       location: Location string to open
+      backend: Backend name (default: from registry default)
     Returns: A `Store`
     """
-    # For now, just support opening git stores
-    from .git import GitStore
-
-    return GitStore.open_from_path(location)
+    cls = get_backend(backend)
+    return cls.open_from_path(location)

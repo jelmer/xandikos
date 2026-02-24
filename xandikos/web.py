@@ -36,8 +36,6 @@ import socket
 import urllib.parse
 from collections.abc import Iterable, Iterator
 from email.utils import parseaddr
-from dulwich.web import make_wsgi_chain
-from dulwich.server import DictBackend
 from itertools import takewhile
 
 import jinja2
@@ -76,7 +74,7 @@ from xandikos.store import (
 )
 
 from .icalendar import CalendarFilter, ICalendarFile
-from .store.git import GitStore, TreeGitStore
+from .store.registry import get_backend
 from .vcard import VCardFile
 
 logger = getLogger("xandikos")
@@ -360,7 +358,9 @@ class StoreBasedCollection:
     def get_displayname(self) -> str:
         displayname = self.store.get_displayname()
         if displayname is None:
-            return os.path.basename(self.store.repo.path)
+            if self.store.path:
+                return os.path.basename(self.store.path)
+            return ""
         return displayname
 
     def set_displayname(self, displayname: str) -> None:
@@ -407,8 +407,11 @@ class StoreBasedCollection:
                 raise KeyError(name)
             else:
                 # TODO: Properly allow removing subcollections
-                # _subcoll.destroy()
-                shutil.rmtree(os.path.join(self.store.path, name))
+                _subcoll.destroy()
+                if self.store.path is not None:
+                    subpath = os.path.join(self.store.path, name)
+                    if os.path.isdir(subpath):
+                        shutil.rmtree(subpath)
 
     async def create_member(
         self,
@@ -790,10 +793,11 @@ class CollectionSetResource(webdav.Collection):
 
     @classmethod
     def create(cls, backend, relpath):
-        path = backend._map_to_file_path(relpath)
-        if not os.path.isdir(path):
-            os.makedirs(path)
-            logger.info("Creating %s", path)
+        if backend.path is not None:
+            path = backend._map_to_file_path(relpath)
+            if not os.path.isdir(path):
+                os.makedirs(path)
+                logger.info("Creating %s", path)
         return cls(backend, relpath)
 
     def get_displayname(self):
@@ -818,20 +822,18 @@ class CollectionSetResource(webdav.Collection):
         return None
 
     def members(self):
-        p = self.backend._map_to_file_path(self.relpath)
-        for name in os.listdir(p):
-            if name.startswith("."):
-                continue
+        for name in self.backend._list_children(self.relpath):
             resource = self.get_member(name)
-            yield (name, resource)
+            if resource is not None:
+                yield (name, resource)
 
     def get_member(self, name):
         assert name != ""
         relpath = posixpath.join(self.relpath, name)
-        p = self.backend._map_to_file_path(relpath)
-        if not os.path.isdir(p):
+        resource = self.backend.get_resource(relpath)
+        if resource is None:
             raise KeyError(name)
-        return self.backend.get_resource(relpath)
+        return resource
 
     def get_headervalue(self):
         raise KeyError
@@ -860,9 +862,10 @@ class CollectionSetResource(webdav.Collection):
         self.get_member(name).destroy()
 
     def destroy(self):
-        p = self.backend._map_to_file_path(self.relpath)
-        # RFC2518, section 8.6.2 says this should recursively delete.
-        shutil.rmtree(p)
+        if self.backend.path is not None:
+            p = self.backend._map_to_file_path(self.relpath)
+            # RFC2518, section 8.6.2 says this should recursively delete.
+            shutil.rmtree(p)
 
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
@@ -1035,12 +1038,17 @@ class Principal(webdav.Principal):
         return ret
 
     def set_infit_settings(self, settings):
+        if self.backend.path is None:
+            # Non-filesystem backend: infit settings not supported
+            raise NotImplementedError("infit settings require a filesystem backend")
         relpath = posixpath.join(self.relpath, ".infit")
         p = self.backend._map_to_file_path(relpath)
         with open(p, "w") as f:
             f.write(settings)
 
     def get_infit_settings(self):
+        if self.backend.path is None:
+            raise KeyError
         relpath = posixpath.join(self.relpath, ".infit")
         p = self.backend._map_to_file_path(relpath)
         if not os.path.exists(p):
@@ -1134,8 +1142,19 @@ class PrincipalCollection(Collection, Principal):
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
-def open_store_from_path(path: str, **kwargs):
-    store = GitStore.open_from_path(path, **kwargs)
+def open_store_from_path(
+    path: str,
+    backend_cls: type[Store] | None = None,
+    double_check_indexes: bool = False,
+    index_threshold: int | None = None,
+):
+    if backend_cls is None:
+        backend_cls = get_backend()
+    store = backend_cls.open_from_path(
+        path,
+        double_check_indexes=double_check_indexes,
+        index_threshold=index_threshold,
+    )
     store.load_extra_file_handler(ICalendarFile)
     store.load_extra_file_handler(VCardFile)
     return store
@@ -1143,14 +1162,23 @@ def open_store_from_path(path: str, **kwargs):
 
 class XandikosBackend(webdav.Backend):
     def __init__(
-        self, path, *, paranoid: bool = False, index_threshold: int | None = None
+        self,
+        path,
+        *,
+        paranoid: bool = False,
+        index_threshold: int | None = None,
+        backend: str | None = None,
     ) -> None:
         self.path = path
         self._user_principals: set[str] = set()
         self.paranoid = paranoid
         self.index_threshold = index_threshold
+        self._backend_cls = get_backend(backend)
 
     def _map_to_file_path(self, relpath):
+        if self.path is None:
+            # Non-filesystem backend: use relpath as the logical path
+            return relpath.lstrip("/")
         return os.path.join(self.path, relpath.lstrip("/"))
 
     def _mark_as_principal(self, path):
@@ -1158,7 +1186,7 @@ class XandikosBackend(webdav.Backend):
 
     def create_collection(self, relpath):
         p = self._map_to_file_path(relpath)
-        return Collection(self, relpath, TreeGitStore.create(p))
+        return Collection(self, relpath, self._backend_cls.create(p))
 
     def create_principal(self, relpath, create_defaults=False):
         principal = PrincipalBare.create(self, relpath)
@@ -1170,6 +1198,23 @@ class XandikosBackend(webdav.Backend):
         """List all of the principals on this server."""
         return self._user_principals
 
+    def _is_container(self, relpath, file_path):
+        """Check if a path is a container (collection set or principal)."""
+        if self.path is not None and os.path.isdir(file_path):
+            return True
+        return self._backend_cls.has_collections_under(file_path)
+
+    def _list_children(self, relpath):
+        """List child resource names under a container path."""
+        file_path = self._map_to_file_path(relpath)
+        children = set()
+        if self.path is not None and os.path.isdir(file_path):
+            for name in os.listdir(file_path):
+                if not name.startswith("."):
+                    children.add(name)
+        children.update(self._backend_cls.list_children_under(file_path))
+        return sorted(children)
+
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
         if not relpath.startswith("/"):
@@ -1179,52 +1224,62 @@ class XandikosBackend(webdav.Backend):
         p = self._map_to_file_path(relpath)
         if p is None:
             return None
-        if os.path.isdir(p):
-            try:
-                store = open_store_from_path(
-                    p,
-                    double_check_indexes=self.paranoid,
-                    index_threshold=self.index_threshold,
-                )
-            except NotStoreError:
-                if relpath in self._user_principals:
-                    return PrincipalBare(self, relpath)
-                return CollectionSetResource(self, relpath)
-            else:
-                return {
-                    STORE_TYPE_CALENDAR: CalendarCollection,
-                    STORE_TYPE_ADDRESSBOOK: AddressbookCollection,
-                    STORE_TYPE_PRINCIPAL: PrincipalCollection,
-                    STORE_TYPE_SCHEDULE_INBOX: ScheduleInbox,
-                    STORE_TYPE_SCHEDULE_OUTBOX: ScheduleOutbox,
-                    STORE_TYPE_SUBSCRIPTION: SubscriptionCollection,
-                    STORE_TYPE_OTHER: Collection,
-                }[store.get_type()](self, relpath, store)
+
+        # 1. Try to open as a store (works for any backend)
+        try:
+            store = open_store_from_path(
+                p,
+                backend_cls=self._backend_cls,
+                double_check_indexes=self.paranoid,
+                index_threshold=self.index_threshold,
+            )
+        except NotStoreError:
+            pass
         else:
-            (basepath, name) = os.path.split(relpath)
-            assert name != "", f"path is {relpath!r}"
-            store = self.get_resource(basepath)
-            if store is None:
-                return None
-            if webdav.COLLECTION_RESOURCE_TYPE not in store.resource_types:
-                return None
-            try:
-                return store.get_member(name)
-            except KeyError:
-                return None
+            return {
+                STORE_TYPE_CALENDAR: CalendarCollection,
+                STORE_TYPE_ADDRESSBOOK: AddressbookCollection,
+                STORE_TYPE_PRINCIPAL: PrincipalCollection,
+                STORE_TYPE_SCHEDULE_INBOX: ScheduleInbox,
+                STORE_TYPE_SCHEDULE_OUTBOX: ScheduleOutbox,
+                STORE_TYPE_SUBSCRIPTION: SubscriptionCollection,
+                STORE_TYPE_OTHER: Collection,
+            }[store.get_type()](self, relpath, store)
+
+        # 2. Not a store — check if it's a principal or collection set
+        if self._is_container(relpath, p):
+            if relpath in self._user_principals:
+                return PrincipalBare(self, relpath)
+            return CollectionSetResource(self, relpath)
+
+        # 3. Try as item member of parent collection
+        (basepath, name) = os.path.split(relpath)
+        assert name != "", f"path is {relpath!r}"
+        parent = self.get_resource(basepath)
+        if parent is None:
+            return None
+        if webdav.COLLECTION_RESOURCE_TYPE not in parent.resource_types:
+            return None
+        try:
+            return parent.get_member(name)
+        except KeyError:
+            return None
 
     async def copy_collection(
         self, source_path: str, dest_path: str, overwrite: bool = True
     ) -> bool:
         """Copy a collection recursively."""
-        import shutil
-
         source_collection = self.get_resource(source_path)
         if source_collection is None:
             raise KeyError(source_path)
 
         if webdav.COLLECTION_RESOURCE_TYPE not in source_collection.resource_types:
             raise ValueError(f"Source '{source_path}' is not a collection")
+
+        if self.path is None:
+            raise NotImplementedError(
+                "copy_collection is not supported for non-filesystem backends"
+            )
 
         source_file_path = self._map_to_file_path(source_path)
         dest_file_path = self._map_to_file_path(dest_path)
@@ -1249,14 +1304,17 @@ class XandikosBackend(webdav.Backend):
         self, source_path: str, dest_path: str, overwrite: bool = True
     ) -> bool:
         """Move a collection recursively."""
-        import shutil
-
         source_collection = self.get_resource(source_path)
         if source_collection is None:
             raise KeyError(source_path)
 
         if webdav.COLLECTION_RESOURCE_TYPE not in source_collection.resource_types:
             raise ValueError(f"Source '{source_path}' is not a collection")
+
+        if self.path is None:
+            raise NotImplementedError(
+                "move_collection is not supported for non-filesystem backends"
+            )
 
         source_file_path = self._map_to_file_path(source_path)
         dest_file_path = self._map_to_file_path(dest_path)
@@ -1389,6 +1447,13 @@ class XandikosApp(webdav.WebDAVApp):
             return await super()._handle_request(request, environ)
 
     def _handle_git_request(self, request, environ, path, start_response):
+        try:
+            from .store.git import GitStore
+            from dulwich.web import make_wsgi_chain
+            from dulwich.server import DictBackend
+        except ImportError:
+            return webdav._send_not_found(request)
+
         resource_path = posixpath.join("/", *path)
         resource = self.backend.get_resource(resource_path)
         if not isinstance(resource, StoreBasedCollection) or not isinstance(
@@ -1636,8 +1701,7 @@ def add_parser(parser):
         "--directory",
         dest="directory",
         default=None,
-        required=True,
-        help="Directory to serve from.",
+        help="Directory to serve from (required for filesystem backends like git/vdir).",
     )
     parser.add_argument(
         "--current-user-principal",
@@ -1673,6 +1737,23 @@ def add_parser(parser):
         default=True,
     )
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
+    parser.add_argument(
+        "--backend",
+        default=None,
+        help=(
+            "Storage backend to use. Built-in options: git (default), vdir, memory, sql. "
+            "Can also be a fully-qualified Python class path."
+        ),
+    )
+    parser.add_argument(
+        "--sql-url",
+        default=None,
+        help=(
+            "SQLAlchemy database URL for the SQL backend. "
+            "Overrides XANDIKOS_SQL_URL environment variable. "
+            "Example: sqlite:///xandikos.db or postgresql://user:pass@localhost/xandikos"
+        ),
+    )
     # Hidden arguments. These may change without notice in between releases,
     # and are generally just meant for developers.
     parser.add_argument("--paranoid", action="store_true", help=argparse.SUPPRESS)
@@ -1685,6 +1766,9 @@ async def main(options, parser):
         # os.environ.
         os.environ["XANDIKOS_DUMP_DAV_XML"] = "1"
 
+    if options.sql_url:
+        os.environ["XANDIKOS_SQL_URL"] = options.sql_url
+
     if not options.route_prefix.endswith("/"):
         options.route_prefix += "/"
 
@@ -1695,24 +1779,33 @@ async def main(options, parser):
 
     logging.basicConfig(level=loglevel, format="%(message)s")
 
+    backend_name = getattr(options, "backend", None) or os.environ.get(
+        "XANDIKOS_BACKEND"
+    )
+
+    directory = options.directory
+    if directory is not None:
+        directory = os.path.abspath(directory)
+
     backend = XandikosBackend(
-        os.path.abspath(options.directory),
+        directory,
         paranoid=options.paranoid,
         index_threshold=options.index_threshold,
+        backend=backend_name,
     )
     backend._mark_as_principal(options.current_user_principal)
 
     if options.autocreate or options.defaults:
-        if not os.path.isdir(options.directory):
-            os.makedirs(options.directory)
+        if directory is not None and not os.path.isdir(directory):
+            os.makedirs(directory)
         backend.create_principal(
             options.current_user_principal, create_defaults=options.defaults
         )
 
-    if not os.path.isdir(options.directory):
+    if directory is not None and not os.path.isdir(directory):
         logger.warning(
             "%r does not exist. Run xandikos with --autocreate?",
-            options.directory,
+            directory,
         )
     if not backend.get_resource(options.current_user_principal):
         logger.warning(

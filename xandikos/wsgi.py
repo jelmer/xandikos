@@ -41,12 +41,15 @@ else:
     logger.warning("Unknown value for AUTOCREATE: %r", autocreate_str)
     autocreate = False
 
-backend = XandikosBackend(path=os.environ["XANDIKOSPATH"])
-if not os.path.isdir(backend.path):
+backend_name = os.environ.get("XANDIKOS_BACKEND")
+_xandikos_path = os.environ.get("XANDIKOSPATH")
+
+backend = XandikosBackend(path=_xandikos_path, backend=backend_name)
+if _xandikos_path is not None and not os.path.isdir(_xandikos_path):
     if autocreate:
-        os.makedirs(os.environ["XANDIKOSPATH"])
+        os.makedirs(_xandikos_path)
     else:
-        logger.warning("%r does not exist.", backend.path)
+        logger.warning("%r does not exist.", _xandikos_path)
 
 current_user_principal = os.environ.get("CURRENT_USER_PRINCIPAL", "/user/")
 if not backend.get_resource(current_user_principal):
@@ -56,10 +59,8 @@ if not backend.get_resource(current_user_principal):
         )
     else:
         logger.warning(
-            "default user principal '%s' does not exist. "
-            "Create directory %s or set AUTOCREATE variable?",
+            "default user principal '%s' does not exist. Set AUTOCREATE variable?",
             current_user_principal,
-            backend._map_to_file_path(current_user_principal),
         )
 
 backend._mark_as_principal(current_user_principal)
