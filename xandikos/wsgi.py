@@ -22,7 +22,7 @@
 from logging import getLogger
 import os
 
-from .web import XandikosApp, XandikosBackend
+from .web import XandikosApp, SingleUserFilesystemBackend
 
 logger = getLogger("xandikos")
 
@@ -41,7 +41,7 @@ else:
     logger.warning("Unknown value for AUTOCREATE: %r", autocreate_str)
     autocreate = False
 
-backend = XandikosBackend(path=os.environ["XANDIKOSPATH"])
+backend = SingleUserFilesystemBackend(path=os.environ["XANDIKOSPATH"])
 if not os.path.isdir(backend.path):
     if autocreate:
         os.makedirs(os.environ["XANDIKOSPATH"])

@@ -27,7 +27,11 @@ import unittest
 from xandikos import caldav
 from xandikos.icalendar import ICalendarFile
 from xandikos.store.git import TreeGitStore
-from xandikos.web import CalendarCollection, XandikosBackend, XandikosApp
+from xandikos.web import (
+    CalendarCollection,
+    SingleUserFilesystemBackend,
+    XandikosApp,
+)
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -53,7 +57,7 @@ class CalendarCollectionTests(unittest.TestCase):
 
         self.store = TreeGitStore.create(os.path.join(self.tempdir, "c"))
         self.store.load_extra_file_handler(ICalendarFile)
-        self.backend = XandikosBackend(self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
 
         self.cal = CalendarCollection(self.backend, "c", self.store)
 
@@ -322,7 +326,7 @@ class CalendarCollectionMigrationTests(unittest.TestCase):
 
         self.store = TreeGitStore.create(os.path.join(self.tempdir, "c"))
         self.store.load_extra_file_handler(ICalendarFile)
-        self.backend = XandikosBackend(self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
         self.cal = CalendarCollection(self.backend, "c", self.store)
 
     def test_migration_with_existing_config_file(self):

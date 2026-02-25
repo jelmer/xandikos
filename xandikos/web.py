@@ -25,7 +25,6 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import asyncio
-import functools
 import hashlib
 import logging
 from logging import getLogger
@@ -56,6 +55,7 @@ from xandikos import (
     webdav,
     xmpp,
 )
+from xandikos.fs import FilesystemBackend, open_store_from_path
 from xandikos.store import (
     STORE_TYPE_ADDRESSBOOK,
     STORE_TYPE_CALENDAR,
@@ -75,9 +75,8 @@ from xandikos.store import (
     Store,
 )
 
-from .icalendar import CalendarFilter, ICalendarFile
+from .icalendar import CalendarFilter
 from .store.git import GitStore, TreeGitStore
-from .vcard import VCardFile
 
 logger = getLogger("xandikos")
 
@@ -118,7 +117,6 @@ WELLKNOWN_DAV_PATHS = {
     carddav.WELLKNOWN_CARDDAV_PATH,
 }
 
-STORE_CACHE_SIZE = 128
 # TODO(jelmer): Make these configurable/dynamic
 CALENDAR_HOME_SET = ["calendars"]
 ADDRESSBOOK_HOME_SET = ["contacts"]
@@ -894,8 +892,9 @@ class RootPage(webdav.Resource):
 
     resource_types: list[str] = []
 
-    def __init__(self, backend) -> None:
+    def __init__(self, backend, show_principals: bool = True) -> None:
         self.backend = backend
+        self.show_principals = show_principals
 
     def render(self, self_url, accepted_content_types, accepted_content_languages):
         content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
@@ -953,10 +952,12 @@ class RootPage(webdav.Resource):
             img.save(buffer, format="PNG")
             qr_code_data = base64.b64encode(buffer.getvalue()).decode()
 
+        principals = self.backend.find_principals() if self.show_principals else []
+
         return render_jinja_page(
             "root.html",
             accepted_content_languages,
-            principals=self.backend.find_principals(),
+            principals=principals,
             self_url=self_url,
             caldav_url=caldav_url,
             carddav_url=carddav_url,
@@ -1133,25 +1134,22 @@ class PrincipalCollection(Collection, Principal):
         return p
 
 
-@functools.lru_cache(maxsize=STORE_CACHE_SIZE)
-def open_store_from_path(path: str, **kwargs):
-    store = GitStore.open_from_path(path, **kwargs)
-    store.load_extra_file_handler(ICalendarFile)
-    store.load_extra_file_handler(VCardFile)
-    return store
-
-
-class XandikosBackend(webdav.Backend):
+class SingleUserFilesystemBackend(FilesystemBackend):
     def __init__(
-        self, path, *, paranoid: bool = False, index_threshold: int | None = None
+        self,
+        path,
+        *,
+        paranoid: bool = False,
+        index_threshold: int | None = None,
+        autocreate: bool = False,
+        show_principals_on_root: bool = True,
     ) -> None:
-        self.path = path
+        super().__init__(path)
         self._user_principals: set[str] = set()
         self.paranoid = paranoid
         self.index_threshold = index_threshold
-
-    def _map_to_file_path(self, relpath):
-        return os.path.join(self.path, relpath.lstrip("/"))
+        self.autocreate = autocreate
+        self.show_principals_on_root = show_principals_on_root
 
     def _mark_as_principal(self, path):
         self._user_principals.add(posixpath.normpath(path))
@@ -1175,7 +1173,7 @@ class XandikosBackend(webdav.Backend):
         if not relpath.startswith("/"):
             raise ValueError("relpath %r should start with /")
         if relpath == "/":
-            return RootPage(self)
+            return RootPage(self, show_principals=self.show_principals_on_root)
         p = self._map_to_file_path(relpath)
         if p is None:
             return None
@@ -1212,70 +1210,6 @@ class XandikosBackend(webdav.Backend):
                 return store.get_member(name)
             except KeyError:
                 return None
-
-    async def copy_collection(
-        self, source_path: str, dest_path: str, overwrite: bool = True
-    ) -> bool:
-        """Copy a collection recursively."""
-        import shutil
-
-        source_collection = self.get_resource(source_path)
-        if source_collection is None:
-            raise KeyError(source_path)
-
-        if webdav.COLLECTION_RESOURCE_TYPE not in source_collection.resource_types:
-            raise ValueError(f"Source '{source_path}' is not a collection")
-
-        source_file_path = self._map_to_file_path(source_path)
-        dest_file_path = self._map_to_file_path(dest_path)
-
-        # Check if destination exists
-        did_overwrite = False
-        if os.path.exists(dest_file_path):
-            if not overwrite:
-                raise FileExistsError(f"Collection '{dest_path}' already exists")
-            # Remove existing destination (file or directory)
-            did_overwrite = True
-            if os.path.isdir(dest_file_path):
-                shutil.rmtree(dest_file_path)
-            else:
-                os.remove(dest_file_path)
-
-        # Copy the entire directory tree
-        shutil.copytree(source_file_path, dest_file_path)
-        return did_overwrite
-
-    async def move_collection(
-        self, source_path: str, dest_path: str, overwrite: bool = True
-    ) -> bool:
-        """Move a collection recursively."""
-        import shutil
-
-        source_collection = self.get_resource(source_path)
-        if source_collection is None:
-            raise KeyError(source_path)
-
-        if webdav.COLLECTION_RESOURCE_TYPE not in source_collection.resource_types:
-            raise ValueError(f"Source '{source_path}' is not a collection")
-
-        source_file_path = self._map_to_file_path(source_path)
-        dest_file_path = self._map_to_file_path(dest_path)
-
-        # Check if destination exists
-        did_overwrite = False
-        if os.path.exists(dest_file_path):
-            if not overwrite:
-                raise FileExistsError(f"Collection '{dest_path}' already exists")
-            did_overwrite = True
-            # Remove existing destination (file or directory)
-            if os.path.isdir(dest_file_path):
-                shutil.rmtree(dest_file_path)
-            else:
-                os.remove(dest_file_path)
-
-        # Move the entire directory tree
-        shutil.move(source_file_path, dest_file_path)
-        return did_overwrite
 
 
 class XandikosApp(webdav.WebDAVApp):
@@ -1516,7 +1450,7 @@ def run_simple_server(
       port: TCP Port to listen on (None to disable)
       socket_path: Unix domain socket path to listen on (None to disable)
     """
-    backend = XandikosBackend(directory)
+    backend = SingleUserFilesystemBackend(directory)
     backend._mark_as_principal(current_user_principal)
 
     if autocreate or defaults:
@@ -1695,7 +1629,7 @@ async def main(options, parser):
 
     logging.basicConfig(level=loglevel, format="%(message)s")
 
-    backend = XandikosBackend(
+    backend = SingleUserFilesystemBackend(
         os.path.abspath(options.directory),
         paranoid=options.paranoid,
         index_threshold=options.index_threshold,

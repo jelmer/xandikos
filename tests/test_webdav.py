@@ -1964,6 +1964,9 @@ class WebTests(WebTestCase):
                 path = environ["PATH_INFO"]
                 return path, path, backend.get_resource(path)
 
+            def check_access(self, environ, path, method):
+                pass  # No authorization checks in this test
+
         app_instance = TestApp()
 
         from xandikos.webdav import CopyMethod, WSGIRequest
