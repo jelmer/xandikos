@@ -1,0 +1,11 @@
+# Requirements for pycaldav compatibility tests
+# Pin icalendar to version compatible with pycaldav v1.2.1
+icalendar>=5.0,<6.0
+pytest
+lxml
+requests
+vobject
+recurring-ical-events
+python-dateutil
+pytz
+tzlocal

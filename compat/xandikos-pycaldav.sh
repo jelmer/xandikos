@@ -28,8 +28,12 @@ fi
 source "${VENV_DIR}/bin/activate"
 
 # Install pycaldav and test dependencies in the virtual environment
+# Install from requirements file first to pin icalendar version
+pip install -r $(dirname $0)/pycaldav-requirements.txt
+
 pushd $(dirname $0)/pycaldav
-pip install -e . pytest
+# Install pycaldav without dependencies to prevent icalendar upgrade
+pip install -e . --no-deps
 popd
 
 # Deactivate venv before running xandikos so it uses system Python
