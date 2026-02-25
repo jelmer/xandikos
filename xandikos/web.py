@@ -25,7 +25,6 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import asyncio
-import functools
 import hashlib
 import logging
 from logging import getLogger

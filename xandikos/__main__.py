@@ -155,6 +155,9 @@ async def main(argv):
         parser.print_help()
         return 0
     elif args.subcommand == "multi-user":
+        logging.warn(
+            "Multi-user mode is experimental, may not be stable and not yet provide sufficient isolation between users. Use with caution."
+        )
         return await multi_user.main(args, parser)
     else:
         parser.print_help()
