@@ -27,7 +27,7 @@ from typing import Protocol, overload
 from zoneinfo import ZoneInfo
 
 import dateutil.rrule
-from icalendar.cal import Calendar, Component, component_factory
+from icalendar.cal import Calendar, Component
 from icalendar.parser import Parameters
 from icalendar.prop import (
     TypesFactory,
@@ -168,14 +168,18 @@ def calendar_component_delta(old_cal, new_cal):
             if not by_content.pop(component.to_ical(), None):
                 # Not previously present
                 yield (
-                    by_idx.get(idx, component_factory[component.name]()),
+                    by_idx.get(idx, None),
                     component,
                 )
             by_idx.pop(idx, None)
         else:
             yield (old_component, component)
+    # Yield deleted components with UIDs
+    for old_component in by_uid.values():
+        yield (old_component, None)
+    # Yield deleted components without UIDs
     for old_component in by_idx.values():
-        yield (old_component, component_factory[old_component.name]())
+        yield (old_component, None)
 
 
 def calendar_prop_delta(old_component, new_component):
