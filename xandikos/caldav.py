@@ -63,6 +63,7 @@ SCHEDULE_OUTBOX_RESOURCE_TYPE = "{%s}schedule-outbox" % NAMESPACE
 
 # Feature to advertise to indicate CalDAV support.
 FEATURE = "calendar-access"
+MANAGED_ATTACHMENTS_FEATURE = "calendar-managed-attachments"
 
 TRANSPARENCY_TRANSPARENT = "transparent"
 TRANSPARENCY_OPAQUE = "opaque"
@@ -212,6 +213,55 @@ class Calendar(webdav.Collection):
 
     def get_updated_by(self):
         raise NotImplementedError(self.get_updated_by)
+
+    def supports_managed_attachments(self):
+        """Return True if this calendar supports managed attachments."""
+        return False
+
+    def create_attachment(self, attachment_data, content_type, filename=None):
+        """Create a new attachment and return its managed ID and URL.
+
+        Args:
+            attachment_data: The binary attachment data
+            content_type: MIME content type of the attachment
+            filename: Optional filename for the attachment
+
+        Returns:
+            (managed_id, attachment_url): Tuple of managed ID and URL
+        """
+        raise NotImplementedError(self.create_attachment)
+
+    def get_attachment(self, managed_id):
+        """Get attachment data by managed ID.
+
+        Args:
+            managed_id: The managed ID of the attachment
+
+        Returns:
+            (attachment_data, content_type, filename): Attachment details
+        """
+        raise NotImplementedError(self.get_attachment)
+
+    def delete_attachment(self, managed_id):
+        """Delete an attachment by managed ID.
+
+        Args:
+            managed_id: The managed ID of the attachment to delete
+        """
+        raise NotImplementedError(self.delete_attachment)
+
+    def update_attachment(
+        self, managed_id, attachment_data, content_type, filename=None
+    ):
+        """Update an existing attachment.
+
+        Args:
+            managed_id: The managed ID of the attachment to update
+            attachment_data: The new binary attachment data
+            content_type: MIME content type of the attachment
+            filename: Optional filename for the attachment
+        """
+        raise NotImplementedError(self.update_attachment)
 
 
 class Subscription:
@@ -1476,3 +1526,358 @@ class MkcalendarMethod(webdav.Method):
             )
         else:
             return webdav.Response(status="201 Created")
+
+
+class CalendarAttachmentPostMethod(webdav.Method):
+    """POST method for CalDAV managed attachments.
+
+    Implements RFC 8607 - CalDAV Managed Attachments.
+    """
+
+    @property
+    def name(self):
+        return "POST"
+
+    async def handle(self, request, environ, app):
+        import urllib.parse
+
+        href, path, resource = app._get_resource_from_environ(request, environ)
+        if resource is None:
+            return webdav._send_not_found(request)
+
+        # Parse query parameters to determine the action
+        query_params = urllib.parse.parse_qs(urllib.parse.urlparse(request.path).query)
+        action = query_params.get("action", [None])[0]
+        managed_id = query_params.get("managed-id", [None])[0]
+        rid = query_params.get("rid", [None])[0]  # For recurring events
+
+        # Get the calendar containing this resource
+        calendar = None
+        collection = getattr(resource, "collection", None)
+        if collection is not None and collection.supports_managed_attachments():
+            calendar = collection
+        elif resource.supports_managed_attachments():
+            calendar = resource
+
+        if calendar is None:
+            return webdav._send_simple_dav_error(
+                request,
+                "403 Forbidden",
+                error=ET.Element("{%s}supported-feature" % NAMESPACE),
+                description="Resource does not support managed attachments",
+            )
+
+        if action == "attachment-add":
+            return await self._handle_attachment_add(request, calendar, resource, rid)
+        elif action == "attachment-update":
+            return await self._handle_attachment_update(
+                request, calendar, resource, managed_id, rid
+            )
+        elif action == "attachment-remove":
+            return await self._handle_attachment_remove(
+                request, calendar, resource, managed_id, rid
+            )
+        else:
+            return webdav._send_simple_dav_error(
+                request,
+                "400 Bad Request",
+                error=ET.Element("{DAV:}bad-request"),
+                description="Missing or invalid 'action' parameter",
+            )
+
+    async def _handle_attachment_add(self, request, calendar, resource, rid=None):
+        """Handle attachment-add action."""
+        # Read attachment data
+        attachment_data = await webdav._readBody(request)
+        if not attachment_data:
+            return webdav._send_simple_dav_error(
+                request,
+                "400 Bad Request",
+                error=ET.Element("{DAV:}bad-request"),
+                description="Empty attachment data",
+            )
+
+        # Check attachment size limits
+        try:
+            max_size = calendar.get_max_attachment_size()
+            if max_size and len(attachment_data) > max_size:
+                return webdav._send_simple_dav_error(
+                    request,
+                    "413 Request Entity Too Large",
+                    error=ET.Element("{%s}max-attachment-size" % NAMESPACE),
+                    description=f"Attachment size {len(attachment_data)} exceeds limit {max_size}",
+                )
+        except NotImplementedError:
+            # No size limit defined
+            pass
+
+        content_type = request.content_type or "application/octet-stream"
+        filename = request.headers.get("X-Filename")  # Custom header for filename
+
+        try:
+            # Create the attachment
+            managed_id, attachment_url = calendar.create_attachment(
+                attachment_data, content_type, filename
+            )
+        except NotImplementedError:
+            return webdav._send_simple_dav_error(
+                request,
+                "501 Not Implemented",
+                error=ET.Element("{%s}supported-feature" % NAMESPACE),
+                description="Managed attachments not implemented",
+            )
+        except webdav.OutOfSpaceError:
+            return webdav._send_simple_dav_error(
+                request,
+                "507 Insufficient Storage",
+                error=ET.Element("{DAV:}insufficient-storage"),
+                description="Insufficient storage for attachment",
+            )
+
+        try:
+            # Update the calendar resource to include the ATTACH property
+            from . import attachments
+
+            cal = await calendar_from_resource(resource)
+            if not cal:
+                raise ValueError("Resource is not a valid calendar")
+
+            await attachments.update_calendar_with_attachment(
+                resource,
+                cal,
+                managed_id,
+                attachment_url,
+                content_type,
+                filename,
+                len(attachment_data),
+                rid,
+            )
+        except ValueError as e:
+            # Clean up the created attachment if we can't update the calendar
+            try:
+                calendar.delete_attachment(managed_id)
+            except NotImplementedError:
+                # Calendar doesn't support deleting attachments, continue
+                pass
+            except KeyError:
+                # Attachment already doesn't exist, continue
+                pass
+            return webdav._send_simple_dav_error(
+                request,
+                "400 Bad Request",
+                error=ET.Element("{DAV:}bad-request"),
+                description=str(e),
+            )
+
+        # Return success response with attachment URL
+        response_body = ET.Element("{%s}attachment-response" % NAMESPACE)
+        href_elem = ET.SubElement(response_body, "{DAV:}href")
+        href_elem.text = attachment_url
+
+        return webdav._send_xml_response(
+            "201 Created", response_body, webdav.DEFAULT_ENCODING
+        )
+
+    async def _handle_attachment_update(
+        self, request, calendar, resource, managed_id, rid=None
+    ):
+        """Handle attachment-update action."""
+        if not managed_id:
+            return webdav._send_simple_dav_error(
+                request,
+                "400 Bad Request",
+                error=ET.Element("{DAV:}bad-request"),
+                description="Missing 'managed-id' parameter for update",
+            )
+
+        # Read new attachment data
+        attachment_data = await webdav._readBody(request)
+        if not attachment_data:
+            return webdav._send_simple_dav_error(
+                request,
+                "400 Bad Request",
+                error=ET.Element("{DAV:}bad-request"),
+                description="Empty attachment data",
+            )
+
+        content_type = request.content_type or "application/octet-stream"
+        filename = request.headers.get("X-Filename")
+
+        try:
+            # Update the attachment
+            calendar.update_attachment(
+                managed_id, attachment_data, content_type, filename
+            )
+        except NotImplementedError:
+            return webdav._send_simple_dav_error(
+                request,
+                "501 Not Implemented",
+                error=ET.Element("{%s}supported-feature" % NAMESPACE),
+                description="Attachment updates not implemented",
+            )
+        except KeyError:
+            return webdav._send_simple_dav_error(
+                request,
+                "404 Not Found",
+                error=ET.Element("{DAV:}not-found"),
+                description=f"Attachment with managed-id '{managed_id}' not found",
+            )
+        except webdav.OutOfSpaceError:
+            return webdav._send_simple_dav_error(
+                request,
+                "507 Insufficient Storage",
+                error=ET.Element("{DAV:}insufficient-storage"),
+                description="Insufficient storage for attachment update",
+            )
+
+        try:
+            # Update the calendar resource ATTACH property
+            from . import attachments
+
+            cal = await calendar_from_resource(resource)
+            if not cal:
+                raise ValueError("Resource is not a valid calendar")
+
+            # First remove old attach property, then add new one
+            component = attachments.find_calendar_component(cal, rid)
+            if component:
+                attachments.remove_attach_from_component(component, managed_id)
+                attach_prop = attachments.create_attach_property(
+                    f"{calendar.href}?action=attachment&managed-id={managed_id}",
+                    managed_id,
+                    len(attachment_data),
+                    content_type,
+                    filename,
+                )
+                attachments.add_attach_to_component(component, attach_prop)
+                await resource.set_body(cal.to_ical(), replace_etag=True)
+            else:
+                raise ValueError("No suitable component found")
+        except ValueError as e:
+            return webdav._send_simple_dav_error(
+                request,
+                "400 Bad Request",
+                error=ET.Element("{DAV:}bad-request"),
+                description=str(e),
+            )
+
+        return webdav.Response(status="204 No Content")
+
+    async def _handle_attachment_remove(
+        self, request, calendar, resource, managed_id, rid=None
+    ):
+        """Handle attachment-remove action."""
+        if not managed_id:
+            return webdav._send_simple_dav_error(
+                request,
+                "400 Bad Request",
+                error=ET.Element("{DAV:}bad-request"),
+                description="Missing 'managed-id' parameter for removal",
+            )
+
+        try:
+            # Delete the attachment
+            calendar.delete_attachment(managed_id)
+        except NotImplementedError:
+            return webdav._send_simple_dav_error(
+                request,
+                "501 Not Implemented",
+                error=ET.Element("{%s}supported-feature" % NAMESPACE),
+                description="Attachment removal not implemented",
+            )
+        except KeyError:
+            return webdav._send_simple_dav_error(
+                request,
+                "404 Not Found",
+                error=ET.Element("{DAV:}not-found"),
+                description=f"Attachment with managed-id '{managed_id}' not found",
+            )
+
+        try:
+            # Remove the ATTACH property from the calendar resource
+            from . import attachments
+
+            cal = await calendar_from_resource(resource)
+            if not cal:
+                raise ValueError("Resource is not a valid calendar")
+
+            await attachments.remove_attachment_from_calendar(
+                resource, cal, managed_id, rid
+            )
+        except ValueError as e:
+            return webdav._send_simple_dav_error(
+                request,
+                "400 Bad Request",
+                error=ET.Element("{DAV:}bad-request"),
+                description=str(e),
+            )
+
+        return webdav.Response(status="204 No Content")
+
+
+class CalendarAttachmentGetMethod(webdav.Method):
+    """GET method for CalDAV managed attachments.
+
+    Handles retrieval of attachments via GET requests with managed-id parameter.
+    """
+
+    @property
+    def name(self):
+        return "GET"
+
+    async def handle(self, request, environ, app):
+        import urllib.parse
+
+        # Parse query parameters
+        query_params = urllib.parse.parse_qs(urllib.parse.urlparse(request.path).query)
+        action = query_params.get("action", [None])[0]
+        managed_id = query_params.get("managed-id", [None])[0]
+
+        # Only handle attachment retrieval requests
+        if action != "attachment" or not managed_id:
+            # Let the default GET method handle this
+            return await webdav.GetMethod().handle(request, environ, app)
+
+        href, path, resource = app._get_resource_from_environ(request, environ)
+        if resource is None:
+            return webdav._send_not_found(request)
+
+        # Get the calendar containing this resource
+        calendar = None
+        collection = getattr(resource, "collection", None)
+        if collection is not None and collection.supports_managed_attachments():
+            calendar = collection
+        elif resource.supports_managed_attachments():
+            calendar = resource
+
+        if calendar is None:
+            return webdav._send_simple_dav_error(
+                request,
+                "403 Forbidden",
+                error=ET.Element("{%s}supported-feature" % NAMESPACE),
+                description="Resource does not support managed attachments",
+            )
+
+        try:
+            attachment_data, content_type, filename = calendar.get_attachment(
+                managed_id
+            )
+        except KeyError:
+            return webdav._send_simple_dav_error(
+                request,
+                "404 Not Found",
+                error=ET.Element("{DAV:}not-found"),
+                description=f"Attachment with managed-id '{managed_id}' not found",
+            )
+
+        headers = [
+            ("Content-Type", content_type),
+            ("Content-Length", str(len(attachment_data))),
+        ]
+
+        if filename:
+            headers.append(
+                ("Content-Disposition", f'attachment; filename="{filename}"')
+            )
+
+        return webdav.Response(status="200 OK", headers=headers, body=[attachment_data])
