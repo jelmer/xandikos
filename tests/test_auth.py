@@ -122,11 +122,11 @@ class AuthenticationTests(unittest.TestCase):
         # Create a mock aiohttp request
         mock_request = AsyncMock()
         mock_headers = MagicMock()
-        mock_headers.get.side_effect = (
-            lambda k, d=None: "aiohttpuser" if k == "X-Remote-User" else d
+        mock_headers.get.side_effect = lambda k, d=None: (
+            "aiohttpuser" if k == "X-Remote-User" else d
         )
-        mock_headers.__getitem__.side_effect = (
-            lambda k: "aiohttpuser" if k == "X-Remote-User" else None
+        mock_headers.__getitem__.side_effect = lambda k: (
+            "aiohttpuser" if k == "X-Remote-User" else None
         )
         mock_request.headers = mock_headers
         mock_request.method = "OPTIONS"
@@ -199,11 +199,11 @@ class IntegrationTests(unittest.TestCase):
         # Create a mock aiohttp request with auth
         mock_request = AsyncMock()
         mock_headers = MagicMock()
-        mock_headers.get.side_effect = (
-            lambda k, d=None: "alice" if k == "X-Remote-User" else d
+        mock_headers.get.side_effect = lambda k, d=None: (
+            "alice" if k == "X-Remote-User" else d
         )
-        mock_headers.__getitem__.side_effect = (
-            lambda k: "alice" if k == "X-Remote-User" else None
+        mock_headers.__getitem__.side_effect = lambda k: (
+            "alice" if k == "X-Remote-User" else None
         )
         mock_request.headers = mock_headers
         mock_request.method = "PROPFIND"
