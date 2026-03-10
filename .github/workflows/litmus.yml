@@ -23,7 +23,7 @@ jobs:
     - name: Install build dependencies for litmus
       run: |
         sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
+        sudo apt-get install -y autoconf automake libtool libneon27-gnutls-dev
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools
