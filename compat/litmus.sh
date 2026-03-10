@@ -7,15 +7,8 @@ fi
 if [ -n "$TESTS" ]; then
 	TEST_ARG=TESTS="$TESTS"
 fi
-# Use realpath if available, otherwise fall back to a compatible approach
-if which realpath >/dev/null 2>&1; then
-    SRCPATH="$(dirname $(realpath $0))"
-else
-    # macOS compatible way
-    SRCPATH="$(cd $(dirname $0) && pwd)"
-fi
-VERSION=${LITMUS_VERSION:-0.13}
-LITMUS_URL="${LITMUS_URL:-http://www.webdav.org/neon/litmus/litmus-${VERSION}.tar.gz}"
+VERSION=${LITMUS_VERSION:-0.17}
+LITMUS_REPO="${LITMUS_REPO:-https://github.com/notroj/litmus.git}"
 
 scratch=$(mktemp -d)
 function finish() {
@@ -24,19 +17,12 @@ function finish() {
 trap finish EXIT
 pushd "${scratch}"
 
-if [ -f "${SRCPATH}/litmus-${VERSION}.tar.gz" ]; then
-	cp "${SRCPATH}/litmus-${VERSION}.tar.gz" .
-else
-	curl -L -o "litmus-${VERSION}.tar.gz" "${LITMUS_URL}"
-fi
-# Use shasum on macOS, sha256sum on Linux
-if which sha256sum >/dev/null 2>&1; then
-	sha256sum -c ${SRCPATH}/litmus-${VERSION}.tar.gz.sha256sum
-else
-	shasum -a 256 -c ${SRCPATH}/litmus-${VERSION}.tar.gz.sha256sum
-fi
-tar xvfz litmus-${VERSION}.tar.gz
+git clone --recurse-submodules --depth=1 --branch="${VERSION}" "${LITMUS_REPO}" "litmus-${VERSION}"
 pushd litmus-${VERSION}
+# Generate configure script if not present (GitHub archive)
+if [ ! -f configure ] && [ -f autogen.sh ]; then
+	./autogen.sh
+fi
 # Configure with macOS-specific flags if needed
 if [ "$(uname)" = "Darwin" ]; then
 	# Fix socket() test for macOS - configure uses socket() without parameters
