@@ -28,7 +28,8 @@ import logging
 from zoneinfo import ZoneInfo
 
 from icalendar.cal import Calendar as ICalendar
-from icalendar.cal import Component, FreeBusy, component_factory
+from icalendar.cal import Component, FreeBusy
+from icalendar import ComponentFactory
 from icalendar.prop import vDDDTypes, vPeriod
 
 from . import davcommon, webdav
@@ -40,6 +41,8 @@ from .icalendar import (
     limit_calendar_recurrence_set,
     limit_calendar_freebusy_set,
 )
+
+component_factory = ComponentFactory()
 
 logger = logging.getLogger(__name__)
 
