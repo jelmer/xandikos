@@ -14,8 +14,8 @@ else
     # macOS compatible way
     SRCPATH="$(cd $(dirname $0) && pwd)"
 fi
-VERSION=${LITMUS_VERSION:-0.13}
-LITMUS_URL="${LITMUS_URL:-http://www.webdav.org/neon/litmus/litmus-${VERSION}.tar.gz}"
+VERSION=${LITMUS_VERSION:-0.17}
+LITMUS_URL="${LITMUS_URL:-https://github.com/notroj/litmus/archive/refs/tags/${VERSION}.tar.gz}"
 
 scratch=$(mktemp -d)
 function finish() {
@@ -37,6 +37,10 @@ else
 fi
 tar xvfz litmus-${VERSION}.tar.gz
 pushd litmus-${VERSION}
+# Generate configure script if not present (GitHub archive)
+if [ ! -f configure ] && [ -f autogen.sh ]; then
+	./autogen.sh
+fi
 # Configure with macOS-specific flags if needed
 if [ "$(uname)" = "Darwin" ]; then
 	# Fix socket() test for macOS - configure uses socket() without parameters
