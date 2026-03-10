@@ -56,20 +56,13 @@ class TestXandikosCompatibility(unittest.TestCase):
         #
         # Known limitations/unsupported features:
         xandikos_features = FeatureSet({
-            # Category search with full string matching is not supported
-            # (e.g., "hands,feet,head" won't match an event with those exact categories)
-            "search.category.fullstring": "unsupported",
-
             # Component type filtering is required - searches must specify event=True or todo=True
-            # (can't search without explicit component type specification)
-            "search.comp-type-optional": "unsupported",
+            "search.comp-type.optional": "unsupported",
 
-            # Recurring task queries with status filters fail when querying future recurrences
-            # (searching for pending recurring tasks doesn't include implicit future occurrences)
-            "search.recurrences.includes-implicit.todo.pending": "unsupported",
+            # Principal property search returns 403 (not implemented)
+            "principal-search": "ungraceful",
 
             # Server-side recurrence expansion is buggy for tasks and event exceptions
-            # (expanded recurring todos and events with exceptions may not be handled correctly)
             "search.recurrences.expanded.todo": "unsupported",
             "search.recurrences.expanded.exception": "unsupported",
         })
