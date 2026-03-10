@@ -23,7 +23,7 @@ from logging import getLogger
 from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta, timezone
 from collections.abc import Callable
-from typing import Protocol, overload
+from typing import Any, Protocol, overload
 from zoneinfo import ZoneInfo
 
 import dateutil.rrule
@@ -980,7 +980,7 @@ class TextMatcher:
         match_type: str = "contains",
     ) -> None:
         self.name = name
-        self.type_fn = TYPES_FACTORY.for_property(name)
+        self.type_fn: Any = TYPES_FACTORY.for_property(name)
         assert isinstance(text, str)
         self.text = text
         if collation is None:
@@ -1691,8 +1691,12 @@ def _normalize_rrule_until(rrule_str: str, dtstart: date | datetime) -> str:
         return rrule_str
 
     parsed = vRecur.from_ical(rrule_str)
-    until_list = parsed.get("UNTIL", [])
 
+    if "UNTIL" not in parsed:
+        return rrule_str
+
+    until_list = parsed["UNTIL"]
+    assert isinstance(until_list, list)
     if not until_list:
         return rrule_str
 
