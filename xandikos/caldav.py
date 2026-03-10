@@ -1008,8 +1008,12 @@ def extract_freebusy(comp, tzify):
         return None
     if "DTEND" in comp:
         ret = vPeriod((tzify(comp["DTSTART"].dt), tzify(comp["DTEND"].dt)))
-    if "DURATION" in comp:
+    elif "DURATION" in comp:
         ret = vPeriod((tzify(comp["DTSTART"].dt), comp["DURATION"].dt))
+    else:
+        # Per RFC 5545, events without DTEND or DURATION have zero duration
+        start = tzify(comp["DTSTART"].dt)
+        ret = vPeriod((start, datetime.timedelta(0)))
     if kind != "BUSY":
         ret.params["FBTYPE"] = kind
     return ret
