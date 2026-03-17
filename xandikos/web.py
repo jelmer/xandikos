@@ -719,8 +719,45 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         return caldav.TRANSPARENCY_OPAQUE
 
     def get_managed_attachments_server_url(self):
-        # TODO(jelmer)
-        raise KeyError
+        # Return the attachment server URL for this calendar
+        # For simplicity, we'll use the same server as the calendar collection
+        return self.href + "?action=attachment"
+
+    def supports_managed_attachments(self):
+        """Return True if this calendar supports managed attachments."""
+        return True
+
+    def _get_attachment_store(self):
+        """Get the attachment store for this calendar."""
+        from . import attachments
+
+        if not hasattr(self, "_attachment_store"):
+            self._attachment_store = attachments.AttachmentStore(self.store.path)
+        return self._attachment_store
+
+    def create_attachment(self, attachment_data, content_type, filename=None):
+        """Create a new attachment and return its managed ID and URL."""
+        store = self._get_attachment_store()
+        managed_id = store.create(attachment_data, content_type, filename)
+        attachment_url = f"{self.href}?action=attachment&managed-id={managed_id}"
+        return managed_id, attachment_url
+
+    def get_attachment(self, managed_id):
+        """Get attachment data by managed ID."""
+        store = self._get_attachment_store()
+        return store.get(managed_id)
+
+    def delete_attachment(self, managed_id):
+        """Delete an attachment by managed ID."""
+        store = self._get_attachment_store()
+        store.delete(managed_id)
+
+    def update_attachment(
+        self, managed_id, attachment_data, content_type, filename=None
+    ):
+        """Update an existing attachment."""
+        store = self._get_attachment_store()
+        store.update(managed_id, attachment_data, content_type, filename)
 
     def calendar_query(self, create_filter_fn):
         filter = create_filter_fn(CalendarFilter)
@@ -1308,6 +1345,8 @@ class XandikosApp(webdav.WebDAVApp):
         self.register_methods(
             [
                 caldav.MkcalendarMethod(),
+                caldav.CalendarAttachmentPostMethod(),
+                caldav.CalendarAttachmentGetMethod(),
             ]
         )
 
