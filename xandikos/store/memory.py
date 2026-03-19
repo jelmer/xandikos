@@ -90,8 +90,8 @@ class MemoryStore(Store):
         content_type: str,
         data: Iterable[bytes],
         message: str | None = None,
-        author: str | None = None,
         replace_etag: str | None = None,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> tuple[str, str]:
         """Import a single item."""
@@ -132,8 +132,8 @@ class MemoryStore(Store):
         self,
         name: str,
         message: str | None = None,
-        author: str | None = None,
         etag: str | None = None,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> None:
         """Delete an item."""

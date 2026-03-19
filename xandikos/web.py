@@ -226,7 +226,7 @@ class ObjectResource(webdav.Resource):
         file = await self.get_file()
         return file.content
 
-    async def set_body(self, data, replace_etag=None, requester=None):
+    async def set_body(self, data, replace_etag=None, remote_user=None, requester=None):
         try:
             (name, etag) = await asyncio.to_thread(
                 self.store.import_one,
@@ -234,6 +234,7 @@ class ObjectResource(webdav.Resource):
                 self.content_type,
                 data,
                 replace_etag=extract_strong_etag(replace_etag),
+                remote_user=remote_user,
                 requester=requester,
             )
         except InvalidFileContents as exc:
@@ -394,11 +395,14 @@ class StoreBasedCollection:
             return self._get_subcollection(name)
         raise KeyError(name)
 
-    def delete_member(self, name, etag=None, requester=None):
+    def delete_member(self, name, etag=None, remote_user=None, requester=None):
         assert name != ""
         try:
             self.store.delete_one(
-                name, etag=extract_strong_etag(etag), requester=requester
+                name,
+                etag=extract_strong_etag(etag),
+                remote_user=remote_user,
+                requester=requester,
             )
         except NoSuchItem:
             try:
@@ -416,6 +420,7 @@ class StoreBasedCollection:
         name: str,
         contents: Iterable[bytes],
         content_type: str,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> tuple[str, str]:
         # Check if member already exists and raise FileExistsError if it does
@@ -429,7 +434,11 @@ class StoreBasedCollection:
 
         try:
             (name, etag) = self.store.import_one(
-                name, content_type, contents, requester=requester
+                name,
+                content_type,
+                contents,
+                remote_user=remote_user,
+                requester=requester,
             )
         except InvalidFileContents as exc:
             error_tag, error_message = get_validation_error(exc)
@@ -856,7 +865,7 @@ class CollectionSetResource(webdav.Collection):
         # TODO(jelmer): Find last modified time using store function
         raise KeyError
 
-    def delete_member(self, name, etag=None, requester=None):
+    def delete_member(self, name, etag=None, remote_user=None, requester=None):
         # This doesn't have any non-collection members.
         self.get_member(name).destroy()
 
@@ -998,7 +1007,7 @@ class RootPage(webdav.Resource):
     def get_member(self, name):
         return self.backend.get_resource("/" + name)
 
-    def delete_member(self, name, etag=None, requester=None):
+    def delete_member(self, name, etag=None, remote_user=None, requester=None):
         # This doesn't have any non-collection members.
         self.get_member("/" + name).destroy()
 

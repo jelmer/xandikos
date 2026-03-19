@@ -400,6 +400,37 @@ class BaseGitStoreTest(BaseStoreTest):
         entry = next(iter(walker))
         return entry.commit.message.decode("utf-8")
 
+    def test_import_remote_user_in_commit_message(self):
+        gc = self.create_store()
+        gc.import_one(
+            "foo.ics",
+            "text/calendar",
+            [EXAMPLE_VCALENDAR1],
+            remote_user="alice",
+        )
+        message = self._get_last_commit_message(gc)
+        self.assertIn("Remote-User: alice", message)
+
+    def test_import_no_remote_user_in_commit_message(self):
+        gc = self.create_store()
+        gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        message = self._get_last_commit_message(gc)
+        self.assertNotIn("Remote-User:", message)
+
+    def test_delete_remote_user_in_commit_message(self):
+        gc = self.create_store()
+        gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        gc.delete_one("foo.ics", remote_user="alice")
+        message = self._get_last_commit_message(gc)
+        self.assertIn("Remote-User: alice", message)
+
+    def test_delete_no_remote_user_in_commit_message(self):
+        gc = self.create_store()
+        gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        gc.delete_one("foo.ics")
+        message = self._get_last_commit_message(gc)
+        self.assertNotIn("Remote-User:", message)
+
     def test_import_requester_in_commit_message(self):
         gc = self.create_store()
         gc.import_one(
