@@ -549,12 +549,17 @@ class Resource:
         raise NotImplementedError(self.get_content_language)
 
     async def set_body(
-        self, body: Iterable[bytes], replace_etag: str | None = None
+        self,
+        body: Iterable[bytes],
+        replace_etag: str | None = None,
+        requester: str | None = None,
     ) -> str:
         """Set resource contents.
 
         Args:
           body: Iterable over bytestrings
+          replace_etag: Optional etag of object to replace
+          requester: Optional User-Agent or client information
         Returns: New ETag
         """
         raise NotImplementedError(self.set_body)
@@ -988,12 +993,15 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.get_member)
 
-    def delete_member(self, name: str, etag: str | None = None) -> None:
+    def delete_member(
+        self, name: str, etag: str | None = None, requester: str | None = None
+    ) -> None:
         """Delete a member with a specific name.
 
         Args:
           name: Member name
           etag: Optional required etag
+          requester: Optional User-Agent or client information
         Raises:
           KeyError: when the item doesn't exist
         """
@@ -1023,6 +1031,7 @@ class Collection(Resource):
         destination: "Collection",
         destination_name: str,
         overwrite: bool = True,
+        requester: str | None = None,
     ) -> bool:
         """Move a member from this collection to a different collection.
 
@@ -1034,6 +1043,7 @@ class Collection(Resource):
           destination: Destination collection
           destination_name: Name in destination collection
           overwrite: Whether to overwrite if destination exists
+          requester: Optional User-Agent or client information
         Returns:
           True if an existing resource was overwritten, False if created new
         Raises:
@@ -1051,18 +1061,22 @@ class Collection(Resource):
 
         # Try to create at destination first
         try:
-            await destination.create_member(destination_name, [body], content_type)
+            await destination.create_member(
+                destination_name, [body], content_type, requester=requester
+            )
             # Delete source from this collection only after successful creation
-            self.delete_member(name, etag)
+            self.delete_member(name, etag, requester=requester)
             return False  # Created new
         except FileExistsError:
             if not overwrite:
                 raise
             # Delete existing and retry
-            destination.delete_member(destination_name)
-            await destination.create_member(destination_name, [body], content_type)
+            destination.delete_member(destination_name, requester=requester)
+            await destination.create_member(
+                destination_name, [body], content_type, requester=requester
+            )
             # Delete source from this collection only after successful creation
-            self.delete_member(name, etag)
+            self.delete_member(name, etag, requester=requester)
             return True  # Overwrote existing
 
     async def copy_member(
@@ -1071,6 +1085,7 @@ class Collection(Resource):
         destination: "Collection",
         destination_name: str,
         overwrite: bool = True,
+        requester: str | None = None,
     ) -> bool:
         """Copy a member from this collection to a different collection.
 
@@ -1082,6 +1097,7 @@ class Collection(Resource):
           destination: Destination collection
           destination_name: Name in destination collection
           overwrite: Whether to overwrite if destination exists
+          requester: Optional User-Agent or client information
         Returns:
           True if an existing resource was overwritten, False if created new
         Raises:
@@ -1098,14 +1114,18 @@ class Collection(Resource):
 
         # Try to create at destination
         try:
-            await destination.create_member(destination_name, [body], content_type)
+            await destination.create_member(
+                destination_name, [body], content_type, requester=requester
+            )
             return False  # Created new
         except FileExistsError:
             if not overwrite:
                 raise
             # Delete existing and retry
-            destination.delete_member(destination_name)
-            await destination.create_member(destination_name, [body], content_type)
+            destination.delete_member(destination_name, requester=requester)
+            await destination.create_member(
+                destination_name, [body], content_type, requester=requester
+            )
             return True  # Overwrote existing
 
     def get_sync_token(self) -> str:
@@ -1923,7 +1943,11 @@ class DeleteMethod(Method):
         if_match = request.headers.get("If-Match", None)
         if if_match is not None and not etag_matches(if_match, current_etag):
             return Response(status=412, reason="Precondition Failed")
-        pr.delete_member(item_name, current_etag)
+        pr.delete_member(
+            item_name,
+            current_etag,
+            requester=request.headers.get("User-Agent"),
+        )
         return Response(status=204, reason="No Content")
 
 
@@ -1987,7 +2011,11 @@ class PutMethod(Method):
         if r is not None:
             # Item already exists; update it
             try:
-                new_etag = await r.set_body(new_contents, current_etag)
+                new_etag = await r.set_body(
+                    new_contents,
+                    current_etag,
+                    requester=request.headers.get("User-Agent"),
+                )
             except ResourceLocked:
                 return Response(status=423, reason="Resource Locked")
             except PreconditionFailure as e:
@@ -2183,7 +2211,11 @@ class MoveMethod(Method):
         try:
             # Use the move_member method
             did_overwrite = await source_container.move_member(
-                source_name, dest_container, dest_name, overwrite
+                source_name,
+                dest_container,
+                dest_name,
+                overwrite,
+                requester=request.headers.get("User-Agent"),
             )
 
             # RFC 4918 Section 9.9.1: Return 204 when overwriting, 201 when creating new
@@ -2319,7 +2351,10 @@ class CopyMethod(Method):
                             )
                         # Delete existing collection before creating
                         # TODO: This should be atomic
-                        dest_container.delete_member(dest_name)
+                        dest_container.delete_member(
+                            dest_name,
+                            requester=request.headers.get("User-Agent"),
+                        )
                         app.backend.create_collection(dest_path)
                         # RFC 4918 Section 9.8.5: Return 204 when overwriting
                         return Response(status=204, reason="No Content")
@@ -2400,7 +2435,11 @@ class CopyMethod(Method):
         try:
             # Use the copy_member method
             did_overwrite = await source_container.copy_member(
-                source_name, dest_container, dest_name, overwrite
+                source_name,
+                dest_container,
+                dest_name,
+                overwrite,
+                requester=request.headers.get("User-Agent"),
             )
 
             # RFC 4918 Section 9.8.5: Return 204 when overwriting, 201 when creating new

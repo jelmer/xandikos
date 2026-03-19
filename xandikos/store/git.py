@@ -722,14 +722,15 @@ class BareGitStore(GitStore):
             self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING), author=author)
         return b.id
 
-    def delete_one(self, name, message=None, author=None, etag=None):
+    def delete_one(self, name, message=None, author=None, etag=None, requester=None):
         """Delete an item.
 
         Args:
           name: Filename to delete
-          message; Commit message
+          message: Commit message
           author: Optional author to store
           etag: Optional mandatory etag of object to remove
+          requester: Optional User-Agent or client information
         Raises:
           NoSuchItem: when the item doesn't exist
           InvalidETag: If the specified ETag doesn't match the current
@@ -751,6 +752,8 @@ class BareGitStore(GitStore):
                 self.extra_file_handlers,
             )
             message = "Delete " + fi.describe(name)
+        if requester is not None:
+            message = message + "\n\nRequester: " + requester
         self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING), author=author)
 
     @classmethod
@@ -853,6 +856,7 @@ class TreeGitStore(GitStore):
         message: str | None = None,
         author: str | None = None,
         etag: str | None = None,
+        requester: str | None = None,
     ) -> None:
         """Delete an item.
 
@@ -861,6 +865,7 @@ class TreeGitStore(GitStore):
           message: Commit message
           author: Optional author
           etag: Optional mandatory etag of object to remove
+          requester: Optional User-Agent or client information
         Raise:
           NoSuchItem: when the item doesn't exist
           InvalidETag: If the specified ETag doesn't match the current
@@ -877,6 +882,8 @@ class TreeGitStore(GitStore):
         if message is None:
             fi = open_by_extension(current_blob.chunked, name, self.extra_file_handlers)
             message = "Delete " + fi.describe(name)
+        if requester is not None:
+            message = message + "\n\nRequester: " + requester
         if etag is not None:
             with open(p, "rb") as f:
                 current_etag = current_blob.id

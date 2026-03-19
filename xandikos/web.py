@@ -226,7 +226,7 @@ class ObjectResource(webdav.Resource):
         file = await self.get_file()
         return file.content
 
-    async def set_body(self, data, replace_etag=None):
+    async def set_body(self, data, replace_etag=None, requester=None):
         try:
             (name, etag) = await asyncio.to_thread(
                 self.store.import_one,
@@ -234,6 +234,7 @@ class ObjectResource(webdav.Resource):
                 self.content_type,
                 data,
                 replace_etag=extract_strong_etag(replace_etag),
+                requester=requester,
             )
         except InvalidFileContents as exc:
             error_tag, error_message = get_validation_error(exc)
@@ -393,10 +394,12 @@ class StoreBasedCollection:
             return self._get_subcollection(name)
         raise KeyError(name)
 
-    def delete_member(self, name, etag=None):
+    def delete_member(self, name, etag=None, requester=None):
         assert name != ""
         try:
-            self.store.delete_one(name, etag=extract_strong_etag(etag))
+            self.store.delete_one(
+                name, etag=extract_strong_etag(etag), requester=requester
+            )
         except NoSuchItem:
             try:
                 _subcoll = self._get_subcollection(name)
@@ -853,7 +856,7 @@ class CollectionSetResource(webdav.Collection):
         # TODO(jelmer): Find last modified time using store function
         raise KeyError
 
-    def delete_member(self, name, etag=None):
+    def delete_member(self, name, etag=None, requester=None):
         # This doesn't have any non-collection members.
         self.get_member(name).destroy()
 
@@ -995,7 +998,7 @@ class RootPage(webdav.Resource):
     def get_member(self, name):
         return self.backend.get_resource("/" + name)
 
-    def delete_member(self, name, etag=None):
+    def delete_member(self, name, etag=None, requester=None):
         # This doesn't have any non-collection members.
         self.get_member("/" + name).destroy()
 

@@ -395,6 +395,42 @@ class BaseGitStoreTest(BaseStoreTest):
         gc = self.create_store()
         self.assertEqual([], gc.subdirectories())
 
+    def _get_last_commit_message(self, gc):
+        walker = gc.repo.get_walker(include=[gc.repo.refs[gc.ref]])
+        entry = next(iter(walker))
+        return entry.commit.message.decode("utf-8")
+
+    def test_import_requester_in_commit_message(self):
+        gc = self.create_store()
+        gc.import_one(
+            "foo.ics",
+            "text/calendar",
+            [EXAMPLE_VCALENDAR1],
+            requester="iOS/26.3.1 remindd/3900.1",
+        )
+        message = self._get_last_commit_message(gc)
+        self.assertIn("Requester: iOS/26.3.1 remindd/3900.1", message)
+
+    def test_import_no_requester_in_commit_message(self):
+        gc = self.create_store()
+        gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        message = self._get_last_commit_message(gc)
+        self.assertNotIn("Requester:", message)
+
+    def test_delete_requester_in_commit_message(self):
+        gc = self.create_store()
+        gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        gc.delete_one("foo.ics", requester="iOS/26.3.1 remindd/3900.1")
+        message = self._get_last_commit_message(gc)
+        self.assertIn("Requester: iOS/26.3.1 remindd/3900.1", message)
+
+    def test_delete_no_requester_in_commit_message(self):
+        gc = self.create_store()
+        gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        gc.delete_one("foo.ics")
+        message = self._get_last_commit_message(gc)
+        self.assertNotIn("Requester:", message)
+
     def test_import_only_once(self):
         gc = self.create_store()
         (name1, etag1) = gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
