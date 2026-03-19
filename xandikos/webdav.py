@@ -988,12 +988,18 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.get_member)
 
-    def delete_member(self, name: str, etag: str | None = None) -> None:
+    def delete_member(
+        self,
+        name: str,
+        etag: str | None = None,
+        author: str | None = None,
+    ) -> None:
         """Delete a member with a specific name.
 
         Args:
           name: Member name
           etag: Optional required etag
+          author: Optional user name of the actor
         Raises:
           KeyError: when the item doesn't exist
         """
@@ -1005,6 +1011,7 @@ class Collection(Resource):
         contents: Iterable[bytes],
         content_type: str,
         requester: str | None = None,
+        author: str | None = None,
     ) -> tuple[str, str]:
         """Create a new member with specified name and contents.
 
@@ -1023,6 +1030,7 @@ class Collection(Resource):
         destination: "Collection",
         destination_name: str,
         overwrite: bool = True,
+        author: str | None = None,
     ) -> bool:
         """Move a member from this collection to a different collection.
 
@@ -1051,18 +1059,28 @@ class Collection(Resource):
 
         # Try to create at destination first
         try:
-            await destination.create_member(destination_name, [body], content_type)
+            await destination.create_member(
+                destination_name,
+                [body],
+                content_type,
+                author=author,
+            )
             # Delete source from this collection only after successful creation
-            self.delete_member(name, etag)
+            self.delete_member(name, etag, author=author)
             return False  # Created new
         except FileExistsError:
             if not overwrite:
                 raise
             # Delete existing and retry
-            destination.delete_member(destination_name)
-            await destination.create_member(destination_name, [body], content_type)
+            destination.delete_member(destination_name, author=author)
+            await destination.create_member(
+                destination_name,
+                [body],
+                content_type,
+                author=author,
+            )
             # Delete source from this collection only after successful creation
-            self.delete_member(name, etag)
+            self.delete_member(name, etag, author=author)
             return True  # Overwrote existing
 
     async def copy_member(
@@ -1071,6 +1089,7 @@ class Collection(Resource):
         destination: "Collection",
         destination_name: str,
         overwrite: bool = True,
+        author: str | None = None,
     ) -> bool:
         """Copy a member from this collection to a different collection.
 
@@ -1098,14 +1117,24 @@ class Collection(Resource):
 
         # Try to create at destination
         try:
-            await destination.create_member(destination_name, [body], content_type)
+            await destination.create_member(
+                destination_name,
+                [body],
+                content_type,
+                author=author,
+            )
             return False  # Created new
         except FileExistsError:
             if not overwrite:
                 raise
             # Delete existing and retry
-            destination.delete_member(destination_name)
-            await destination.create_member(destination_name, [body], content_type)
+            destination.delete_member(destination_name, author=author)
+            await destination.create_member(
+                destination_name,
+                [body],
+                content_type,
+                author=author,
+            )
             return True  # Overwrote existing
 
     def get_sync_token(self) -> str:
@@ -1923,7 +1952,7 @@ class DeleteMethod(Method):
         if_match = request.headers.get("If-Match", None)
         if if_match is not None and not etag_matches(if_match, current_etag):
             return Response(status=412, reason="Precondition Failed")
-        pr.delete_member(item_name, current_etag)
+        pr.delete_member(item_name, current_etag, author=environ.get("REMOTE_USER"))
         return Response(status=204, reason="No Content")
 
 
@@ -1952,6 +1981,7 @@ class PostMethod(Method):
                 new_contents,
                 content_type,
                 requester=request.headers.get("User-Agent"),
+                author=environ.get("REMOTE_USER"),
             )
         except PreconditionFailure as e:
             return _send_simple_dav_error(
@@ -1987,7 +2017,11 @@ class PutMethod(Method):
         if r is not None:
             # Item already exists; update it
             try:
-                new_etag = await r.set_body(new_contents, current_etag)
+                new_etag = await r.set_body(
+                    new_contents,
+                    current_etag,
+                    author=environ.get("REMOTE_USER"),
+                )
             except ResourceLocked:
                 return Response(status=423, reason="Resource Locked")
             except PreconditionFailure as e:
@@ -2019,6 +2053,7 @@ class PutMethod(Method):
                 new_contents,
                 content_type,
                 requester=request.headers.get("User-Agent"),
+                author=environ.get("REMOTE_USER"),
             )
         except PreconditionFailure as e:
             return _send_simple_dav_error(

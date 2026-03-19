@@ -268,7 +268,7 @@ class WebTests(WebTestCase):
         new_body = []
 
         class TestResource(Resource):
-            async def set_body(self, body, replace_etag=None):
+            async def set_body(self, body, replace_etag=None, author=None):
                 new_body.extend(body)
 
             async def get_etag(self):
@@ -307,10 +307,10 @@ class WebTests(WebTestCase):
             def get_member(self, name):
                 raise KeyError(name)
 
-            def delete_member(self, name, etag=None):
+            def delete_member(self, name, etag=None, author=None):
                 raise KeyError(name)
 
-            async def create_member(self, name, contents, content_type, requester=None):
+            async def create_member(self, name, contents, content_type, requester=None, author=None):
                 return ("new_item", '"new_etag"')
 
             def get_ctag(self):
@@ -607,7 +607,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"test-etag-123"'
 
-            async def set_body(self, body, replace_etag=None):
+            async def set_body(self, body, replace_etag=None, author=None):
                 return '"new-etag"'
 
         app = self.makeApp({"/resource": TestResource()}, [])
@@ -623,7 +623,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"test-etag-123"'
 
-            async def set_body(self, body, replace_etag=None):
+            async def set_body(self, body, replace_etag=None, author=None):
                 return '"new-etag"'
 
         app = self.makeApp({"/resource": TestResource()}, [])
@@ -639,7 +639,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"test-etag-123"'
 
-            async def set_body(self, body, replace_etag=None):
+            async def set_body(self, body, replace_etag=None, author=None):
                 return '"new-etag"'
 
         app = self.makeApp({"/resource": TestResource()}, [])
@@ -651,7 +651,7 @@ class WebTests(WebTestCase):
         created_items = []
 
         class TestCollection(Collection):
-            async def create_member(self, name, contents, content_type, requester=None):
+            async def create_member(self, name, contents, content_type, requester=None, author=None):
                 created_items.append(name)
                 return (name, '"new-etag"')
 
@@ -673,7 +673,7 @@ class WebTests(WebTestCase):
         created_items = []
 
         class TestCollection(Collection):
-            async def create_member(self, name, contents, content_type, requester=None):
+            async def create_member(self, name, contents, content_type, requester=None, author=None):
                 created_items.append(name)
                 return (name, '"new-etag"')
 
@@ -697,7 +697,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"test-etag-123"'
 
-            async def set_body(self, body, replace_etag=None):
+            async def set_body(self, body, replace_etag=None, author=None):
                 return '"new-etag"'
 
         app = self.makeApp({"/resource": TestResource()}, [])
@@ -711,7 +711,7 @@ class WebTests(WebTestCase):
         created_items = []
 
         class TestCollection(Collection):
-            async def create_member(self, name, contents, content_type, requester=None):
+            async def create_member(self, name, contents, content_type, requester=None, author=None):
                 created_items.append(name)
                 return (name, '"new-etag"')
 
@@ -735,7 +735,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"test-etag-123"'
 
-            async def set_body(self, body, replace_etag=None):
+            async def set_body(self, body, replace_etag=None, author=None):
                 return '"new-etag"'
 
         app = self.makeApp({"/resource": TestResource()}, [])
@@ -754,7 +754,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"parent-etag"'
 
-            def delete_member(self, name, etag=None):
+            def delete_member(self, name, etag=None, author=None):
                 deleted_items.append((name, etag))
 
             def get_member(self, name):
@@ -952,7 +952,7 @@ class WebTests(WebTestCase):
             def get_member(self, name):
                 raise KeyError(name)
 
-            def delete_member(self, name, etag=None):
+            def delete_member(self, name, etag=None, author=None):
                 deleted_items.append((name, etag))
 
         app = self.makeApp({"/": TestCollection(), "/emptycol": TestCollection()}, [])
@@ -992,7 +992,7 @@ class WebTests(WebTestCase):
                     return TestCollection(has_members=True)
                 raise KeyError(name)
 
-            def delete_member(self, name, etag=None):
+            def delete_member(self, name, etag=None, author=None):
                 deleted_items.append((name, etag))
 
         app = self.makeApp(
@@ -1039,7 +1039,7 @@ class WebTests(WebTestCase):
                     return self._children[name]
                 raise KeyError(name)
 
-            def delete_member(self, name, etag=None):
+            def delete_member(self, name, etag=None, author=None):
                 deleted_items.append((name, etag))
 
         subcol = TestCollection()
@@ -1059,7 +1059,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"foo"'
 
-            def delete_member(unused_self, name, etag=None):
+            def delete_member(unused_self, name, etag=None, author=None):
                 self.assertEqual(name, "resource")
 
         app = self.makeApp({"/": TestResource(), "/resource": TestResource()}, [])
@@ -1084,7 +1084,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"foo"'
 
-            def delete_member(unused_self, name, etag=None):
+            def delete_member(unused_self, name, etag=None, author=None):
                 deleted_items.append(name)
 
         # Create resources for the test
@@ -1109,7 +1109,7 @@ class WebTests(WebTestCase):
 
         class TestResource(Collection):
             async def create_member(
-                unused_self, name, contents, content_type, requester=None
+                unused_self, name, contents, content_type, requester=None, author=None
             ):
                 created_items.append((name, contents))
                 return (name, '"new-etag"')
@@ -1130,7 +1130,7 @@ class WebTests(WebTestCase):
             async def get_etag(self):
                 return '"existing-etag"'
 
-            async def set_body(self, data, replace_etag=None):
+            async def set_body(self, data, replace_etag=None, author=None):
                 # Simulate a precondition failure (e.g., invalid calendar data)
                 raise webdav.PreconditionFailure(
                     "{urn:ietf:params:xml:ns:caldav}valid-calendar-data",
@@ -2739,13 +2739,13 @@ class CollectionMoveMemberTests(unittest.TestCase):
                     return self.members[name]
                 raise KeyError(name)
 
-            def delete_member(self, name, etag=None):
+            def delete_member(self, name, etag=None, author=None):
                 if name not in self.members:
                     raise KeyError(name)
                 del self.members[name]
                 self.deleted.append((name, etag))
 
-            async def create_member(self, name, contents, content_type, requester=None):
+            async def create_member(self, name, contents, content_type, requester=None, author=None):
                 body = b"".join(contents)
                 self.members[name] = TestResource(body, content_type)
                 self.created.append((name, body, content_type))
@@ -2794,7 +2794,7 @@ class CollectionMoveMemberTests(unittest.TestCase):
                     return self.members[name]
                 raise KeyError(name)
 
-            async def create_member(self, name, contents, content_type, requester=None):
+            async def create_member(self, name, contents, content_type, requester=None, author=None):
                 if name in self.members:
                     raise FileExistsError(f"{name} already exists")
                 return (name, '"new-etag"')
@@ -2845,7 +2845,7 @@ class CollectionCopyMemberTests(unittest.TestCase):
                     return self.members[name]
                 raise KeyError(name)
 
-            async def create_member(self, name, contents, content_type, requester=None):
+            async def create_member(self, name, contents, content_type, requester=None, author=None):
                 body = b"".join(contents)
                 self.members[name] = TestResource(body, content_type)
                 self.created.append((name, body, content_type))
@@ -2893,7 +2893,7 @@ class CollectionCopyMemberTests(unittest.TestCase):
                     return self.members[name]
                 raise KeyError(name)
 
-            async def create_member(self, name, contents, content_type, requester=None):
+            async def create_member(self, name, contents, content_type, requester=None, author=None):
                 if name in self.members:
                     raise FileExistsError(f"Member {name} already exists")
                 self.members[name] = TestResource()
@@ -2985,7 +2985,7 @@ class ChunkedTransferEncodingTests(WebTestCase):
             async def get_body(self):
                 return [self.contents] if self.contents else []
 
-            async def set_body(self, data, replace_etag=None):
+            async def set_body(self, data, replace_etag=None, author=None):
                 self.contents = b"".join(data)
 
             def get_last_modified(self):
@@ -3024,7 +3024,7 @@ class ChunkedTransferEncodingTests(WebTestCase):
             async def get_body(self):
                 return [self.contents] if self.contents else []
 
-            async def set_body(self, data, replace_etag=None):
+            async def set_body(self, data, replace_etag=None, author=None):
                 self.contents = b"".join(data)
 
             def get_last_modified(self):
@@ -3062,7 +3062,7 @@ class ChunkedTransferEncodingTests(WebTestCase):
             async def get_body(self):
                 return [self.contents] if self.contents else []
 
-            async def set_body(self, data, replace_etag=None):
+            async def set_body(self, data, replace_etag=None, author=None):
                 self.contents = b"".join(data)
 
             def get_last_modified(self):
@@ -3103,7 +3103,7 @@ class ChunkedTransferEncodingTests(WebTestCase):
             async def get_body(self):
                 return [self.contents] if self.contents else []
 
-            async def set_body(self, data, replace_etag=None):
+            async def set_body(self, data, replace_etag=None, author=None):
                 self.contents = b"".join(data)
 
             def get_last_modified(self):
