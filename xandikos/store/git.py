@@ -20,6 +20,7 @@
 """Git store."""
 
 import configparser
+import email.utils
 import errno
 import functools
 from logging import getLogger
@@ -35,6 +36,7 @@ import dulwich.repo
 from dulwich.file import FileLocked
 from dulwich.index import IndexEntry, index_entry_from_stat, locked_index
 from dulwich.objects import Blob, Commit, Tree
+from dulwich.porcelain import get_user_identity
 
 from . import (
     DEFAULT_MIME_TYPE,
@@ -238,6 +240,16 @@ class GitStore(Store):
         self._parsed_file_cache = functools.lru_cache(maxsize=100)(
             self._parse_file_by_sha
         )
+
+    def _normalize_author(self, author):
+        """Normalize author input to dulwich commit author bytes."""
+        if author is None:
+            return get_user_identity(self.repo.get_config_stack())
+
+        if not isinstance(author, str):
+            raise TypeError("author must be str or None")
+
+        return email.utils.formataddr((author, 'xandikos@xandikos')).encode("utf-8")
 
     def _parse_file_by_sha(self, sha: str, content_type: str | None, name: str):
         """Parse a file by its SHA, used for caching."""
@@ -658,22 +670,20 @@ class BareGitStore(GitStore):
         Args:
             tree_id: Tree object ID
             message: Commit message (bytes)
-            author: Optional author (bytes)
+            author: Optional author (str)
 
         Returns:
             Commit SHA
         """
         import time
-        from dulwich.porcelain import get_user_identity
 
         c = Commit()
         c.tree = tree_id
 
-        if author is None:
-            author = get_user_identity(self.repo.get_config_stack())
+        normalized_author = self._normalize_author(author)
 
-        c.author = author
-        c.committer = author
+        c.author = normalized_author
+        c.committer = normalized_author
         c.author_time = int(time.time())
         c.commit_time = c.author_time
         c.author_timezone = 0
@@ -795,8 +805,9 @@ class TreeGitStore(GitStore):
 
     def _commit_tree(self, index, message, author=None):
         tree = index.commit(self.repo.object_store)
+        normalized_author = self._normalize_author(author)
         return self.repo.get_worktree().commit(
-            message=message, author=author, tree=tree
+            message=message, author=normalized_author, tree=tree
         )
 
     def _import_one(

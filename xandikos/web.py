@@ -226,7 +226,7 @@ class ObjectResource(webdav.Resource):
         file = await self.get_file()
         return file.content
 
-    async def set_body(self, data, replace_etag=None):
+    async def set_body(self, data, replace_etag=None, author=None):
         try:
             (name, etag) = await asyncio.to_thread(
                 self.store.import_one,
@@ -234,6 +234,7 @@ class ObjectResource(webdav.Resource):
                 self.content_type,
                 data,
                 replace_etag=extract_strong_etag(replace_etag),
+                author=author,
             )
         except InvalidFileContents as exc:
             error_tag, error_message = get_validation_error(exc)
@@ -393,10 +394,14 @@ class StoreBasedCollection:
             return self._get_subcollection(name)
         raise KeyError(name)
 
-    def delete_member(self, name, etag=None):
+    def delete_member(self, name, etag=None, author=None):
         assert name != ""
         try:
-            self.store.delete_one(name, etag=extract_strong_etag(etag))
+            self.store.delete_one(
+                name,
+                etag=extract_strong_etag(etag),
+                author=author,
+            )
         except NoSuchItem:
             try:
                 _subcoll = self._get_subcollection(name)
@@ -414,6 +419,7 @@ class StoreBasedCollection:
         contents: Iterable[bytes],
         content_type: str,
         requester: str | None = None,
+        author: str | None = None,
     ) -> tuple[str, str]:
         # Check if member already exists and raise FileExistsError if it does
         try:
@@ -426,7 +432,11 @@ class StoreBasedCollection:
 
         try:
             (name, etag) = self.store.import_one(
-                name, content_type, contents, requester=requester
+                name,
+                content_type,
+                contents,
+                requester=requester,
+                author=author,
             )
         except InvalidFileContents as exc:
             error_tag, error_message = get_validation_error(exc)

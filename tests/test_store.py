@@ -435,6 +435,31 @@ class BareGitStoreTest(BaseGitStoreTest, unittest.TestCase):
         gc = BareGitStore.create_memory()
         self.assertIsInstance(gc, GitStore)
 
+    def test_import_one_with_author_username(self):
+        gc = self.create_store()
+        (name, etag) = gc.import_one(
+            "foo.ics",
+            "text/calendar",
+            [EXAMPLE_VCALENDAR1],
+            author="alice",
+        )
+        walker = gc.repo.get_walker(include=[gc.repo.refs[gc.ref]])
+        commits = list(walker)
+        self.assertEqual(1, len(commits))
+        commit = commits[0].commit
+        self.assertEqual(b"alice <xandikos@xandikos>", commit.author)
+        self.assertEqual(commit.author, commit.committer)
+
+    def test_import_one_with_author_bytes_raises(self):
+        gc = self.create_store()
+        with self.assertRaises(TypeError):
+            gc.import_one(
+                "foo.ics",
+                "text/calendar",
+                [EXAMPLE_VCALENDAR1],
+                author=b"alice <xandikos@xandikos>",
+            )
+
     def add_blob(self, gc, name, contents):
         b = Blob.from_string(contents)
         t = Tree()
