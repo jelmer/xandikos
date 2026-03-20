@@ -134,6 +134,7 @@ class MemoryStore(Store):
         message: str | None = None,
         author: str | None = None,
         etag: str | None = None,
+        requester: str | None = None,
     ) -> None:
         """Delete an item."""
         if name not in self._items:

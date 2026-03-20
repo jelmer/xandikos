@@ -350,7 +350,7 @@ class VdirStore(Store):
         """Destroy this store."""
         shutil.rmtree(self.path)
 
-    def delete_one(self, name, message=None, author=None, etag=None):
+    def delete_one(self, name, message=None, author=None, etag=None, requester=None):
         """Delete an item.
 
         Args:

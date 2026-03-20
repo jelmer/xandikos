@@ -467,6 +467,7 @@ class Store:
         message: str | None = None,
         author: str | None = None,
         etag: str | None = None,
+        requester: str | None = None,
     ) -> None:
         """Delete an item.
 
@@ -475,6 +476,7 @@ class Store:
           message: Commit message
           author: Optional author
           etag: Optional mandatory etag of object to remove
+          requester: Optional User-Agent or client information
         Raises:
           NoSuchItem: when the item doesn't exist
           InvalidETag: If the specified ETag doesn't match the current
