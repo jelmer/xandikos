@@ -994,13 +994,18 @@ class Collection(Resource):
         raise NotImplementedError(self.get_member)
 
     def delete_member(
-        self, name: str, etag: str | None = None, requester: str | None = None
+        self,
+        name: str,
+        etag: str | None = None,
+        remote_user: str | None = None,
+        requester: str | None = None,
     ) -> None:
         """Delete a member with a specific name.
 
         Args:
           name: Member name
           etag: Optional required etag
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Raises:
           KeyError: when the item doesn't exist
@@ -1012,6 +1017,7 @@ class Collection(Resource):
         name: str,
         contents: Iterable[bytes],
         content_type: str,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> tuple[str, str]:
         """Create a new member with specified name and contents.
@@ -1020,6 +1026,7 @@ class Collection(Resource):
           name: Member name (can be None)
           contents: Chunked contents
           content_type: Content type of the member
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Returns: (name, etag) for the new member
         """
@@ -1031,6 +1038,7 @@ class Collection(Resource):
         destination: "Collection",
         destination_name: str,
         overwrite: bool = True,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> bool:
         """Move a member from this collection to a different collection.
@@ -1043,6 +1051,7 @@ class Collection(Resource):
           destination: Destination collection
           destination_name: Name in destination collection
           overwrite: Whether to overwrite if destination exists
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Returns:
           True if an existing resource was overwritten, False if created new
@@ -1062,21 +1071,31 @@ class Collection(Resource):
         # Try to create at destination first
         try:
             await destination.create_member(
-                destination_name, [body], content_type, requester=requester
+                destination_name,
+                [body],
+                content_type,
+                remote_user=remote_user,
+                requester=requester,
             )
             # Delete source from this collection only after successful creation
-            self.delete_member(name, etag, requester=requester)
+            self.delete_member(name, etag, remote_user=remote_user, requester=requester)
             return False  # Created new
         except FileExistsError:
             if not overwrite:
                 raise
             # Delete existing and retry
-            destination.delete_member(destination_name, requester=requester)
+            destination.delete_member(
+                destination_name, remote_user=remote_user, requester=requester
+            )
             await destination.create_member(
-                destination_name, [body], content_type, requester=requester
+                destination_name,
+                [body],
+                content_type,
+                remote_user=remote_user,
+                requester=requester,
             )
             # Delete source from this collection only after successful creation
-            self.delete_member(name, etag, requester=requester)
+            self.delete_member(name, etag, remote_user=remote_user, requester=requester)
             return True  # Overwrote existing
 
     async def copy_member(
@@ -1085,6 +1104,7 @@ class Collection(Resource):
         destination: "Collection",
         destination_name: str,
         overwrite: bool = True,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> bool:
         """Copy a member from this collection to a different collection.
@@ -1097,6 +1117,7 @@ class Collection(Resource):
           destination: Destination collection
           destination_name: Name in destination collection
           overwrite: Whether to overwrite if destination exists
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Returns:
           True if an existing resource was overwritten, False if created new
@@ -1115,16 +1136,26 @@ class Collection(Resource):
         # Try to create at destination
         try:
             await destination.create_member(
-                destination_name, [body], content_type, requester=requester
+                destination_name,
+                [body],
+                content_type,
+                remote_user=remote_user,
+                requester=requester,
             )
             return False  # Created new
         except FileExistsError:
             if not overwrite:
                 raise
             # Delete existing and retry
-            destination.delete_member(destination_name, requester=requester)
+            destination.delete_member(
+                destination_name, remote_user=remote_user, requester=requester
+            )
             await destination.create_member(
-                destination_name, [body], content_type, requester=requester
+                destination_name,
+                [body],
+                content_type,
+                remote_user=remote_user,
+                requester=requester,
             )
             return True  # Overwrote existing
 
@@ -1946,6 +1977,7 @@ class DeleteMethod(Method):
         pr.delete_member(
             item_name,
             current_etag,
+            remote_user=environ.get("REMOTE_USER"),
             requester=request.headers.get("User-Agent"),
         )
         return Response(status=204, reason="No Content")
@@ -1975,6 +2007,7 @@ class PostMethod(Method):
                 None,
                 new_contents,
                 content_type,
+                remote_user=environ.get("REMOTE_USER"),
                 requester=request.headers.get("User-Agent"),
             )
         except PreconditionFailure as e:
@@ -2014,6 +2047,7 @@ class PutMethod(Method):
                 new_etag = await r.set_body(
                     new_contents,
                     current_etag,
+                    remote_user=environ.get("REMOTE_USER"),
                     requester=request.headers.get("User-Agent"),
                 )
             except ResourceLocked:
@@ -2046,6 +2080,7 @@ class PutMethod(Method):
                 name,
                 new_contents,
                 content_type,
+                remote_user=environ.get("REMOTE_USER"),
                 requester=request.headers.get("User-Agent"),
             )
         except PreconditionFailure as e:
@@ -2215,6 +2250,7 @@ class MoveMethod(Method):
                 dest_container,
                 dest_name,
                 overwrite,
+                remote_user=environ.get("REMOTE_USER"),
                 requester=request.headers.get("User-Agent"),
             )
 
@@ -2353,6 +2389,7 @@ class CopyMethod(Method):
                         # TODO: This should be atomic
                         dest_container.delete_member(
                             dest_name,
+                            remote_user=environ.get("REMOTE_USER"),
                             requester=request.headers.get("User-Agent"),
                         )
                         app.backend.create_collection(dest_path)
@@ -2439,6 +2476,7 @@ class CopyMethod(Method):
                 dest_container,
                 dest_name,
                 overwrite,
+                remote_user=environ.get("REMOTE_USER"),
                 requester=request.headers.get("User-Agent"),
             )
 

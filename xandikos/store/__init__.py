@@ -440,8 +440,8 @@ class Store:
         content_type: str,
         data: Iterable[bytes],
         message: str | None = None,
-        author: str | None = None,
         replace_etag: str | None = None,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> tuple[str, str]:
         """Import a single object.
@@ -451,8 +451,8 @@ class Store:
           content_type: Content type of the object
           data: serialized object as list of bytes
           message: Commit message
-          author: Optional author
           replace_etag: Etag to replace
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Raise:
           NameExists: when the name already exists
@@ -465,8 +465,8 @@ class Store:
         self,
         name: str,
         message: str | None = None,
-        author: str | None = None,
         etag: str | None = None,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> None:
         """Delete an item.
@@ -474,8 +474,8 @@ class Store:
         Args:
           name: Filename to delete
           message: Commit message
-          author: Optional author
           etag: Optional mandatory etag of object to remove
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Raises:
           NoSuchItem: when the item doesn't exist

@@ -35,6 +35,7 @@ import dulwich.repo
 from dulwich.file import FileLocked
 from dulwich.index import IndexEntry, index_entry_from_stat, locked_index
 from dulwich.objects import Blob, Commit, Tree
+from dulwich.porcelain import get_user_identity
 
 from . import (
     DEFAULT_MIME_TYPE,
@@ -273,7 +274,6 @@ class GitStore(Store):
         name: str,
         data: Iterable[bytes],
         message: str,
-        author: str | None = None,
     ):
         raise NotImplementedError(self._import_one)
 
@@ -332,8 +332,8 @@ class GitStore(Store):
         content_type: str,
         data: Iterable[bytes],
         message: str | None = None,
-        author: str | None = None,
         replace_etag: str | None = None,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> tuple[str, str]:
         """Import a single object.
@@ -343,8 +343,8 @@ class GitStore(Store):
           content_type: Content type
           data: serialized object as list of bytes
           message: Commit message
-          author: Optional author
           replace_etag: optional etag of object to replace
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Raises:
           InvalidETag: when the name already exists but with different etag
@@ -373,11 +373,14 @@ class GitStore(Store):
                 old_fi = None
             message = "\n".join(fi.describe_delta(name, old_fi))
 
-        # Add requester information to commit message in RFC822 style
-        if requester is not None:
-            message = message + "\n\nRequester: " + requester
+        if remote_user is not None or requester is not None:
+            message += "\n"
+            if remote_user is not None:
+                message += f"\nRemote-User: {remote_user}"
+            if requester is not None:
+                message += f"\nRequester: {requester}"
 
-        etag = self._import_one(name, fi.normalized(), message, author=author)
+        etag = self._import_one(name, fi.normalized(), message)
         return (name, etag.decode("ascii"))
 
     def _get_raw(self, name, etag=None):
@@ -652,30 +655,28 @@ class BareGitStore(GitStore):
         repo = dulwich.repo.MemoryRepo()
         return cls(repo)
 
-    def _commit_tree(self, tree_id, message, author=None):
+    def _commit_tree(self, tree_id, message):
         """Create a commit for the given tree.
 
         Args:
             tree_id: Tree object ID
             message: Commit message (bytes)
-            author: Optional author (bytes)
 
         Returns:
             Commit SHA
         """
         import time
-        from dulwich.porcelain import get_user_identity
 
         c = Commit()
         c.tree = tree_id
 
-        if author is None:
-            author = get_user_identity(self.repo.get_config_stack())
+        author = get_user_identity(self.repo.get_config_stack())
+        timestamp = int(time.time())
 
         c.author = author
         c.committer = author
-        c.author_time = int(time.time())
-        c.commit_time = c.author_time
+        c.author_time = timestamp
+        c.commit_time = timestamp
         c.author_timezone = 0
         c.commit_timezone = 0
         c.encoding = b"UTF-8"
@@ -700,7 +701,6 @@ class BareGitStore(GitStore):
         name: str,
         data: Iterable[bytes],
         message: str,
-        author: str | None = None,
     ) -> bytes:
         """Import a single object.
 
@@ -708,7 +708,6 @@ class BareGitStore(GitStore):
           name: Optional name of the object
           data: serialized object as bytes
           message: optional commit message
-          author: optional author
         Returns: etag
         """
         b = Blob()
@@ -719,17 +718,19 @@ class BareGitStore(GitStore):
         tree[name_enc] = (0o644 | stat.S_IFREG, b.id)
         self.repo.object_store.add_objects([(tree, ""), (b, name_enc)])
         if tree.id != old_tree_id:
-            self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING), author=author)
+            self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING))
         return b.id
 
-    def delete_one(self, name, message=None, author=None, etag=None, requester=None):
+    def delete_one(
+        self, name, message=None, etag=None, remote_user=None, requester=None
+    ):
         """Delete an item.
 
         Args:
           name: Filename to delete
           message: Commit message
-          author: Optional author to store
           etag: Optional mandatory etag of object to remove
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Raises:
           NoSuchItem: when the item doesn't exist
@@ -752,9 +753,13 @@ class BareGitStore(GitStore):
                 self.extra_file_handlers,
             )
             message = "Delete " + fi.describe(name)
-        if requester is not None:
-            message = message + "\n\nRequester: " + requester
-        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING), author=author)
+        if remote_user is not None or requester is not None:
+            message += "\n"
+            if remote_user is not None:
+                message += f"\nRemote-User: {remote_user}"
+            if requester is not None:
+                message += f"\nRequester: {requester}"
+        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING))
 
     @classmethod
     def create(cls, path):
@@ -796,10 +801,11 @@ class TreeGitStore(GitStore):
         name = name.encode(DEFAULT_ENCODING)
         return index[name].sha.decode("ascii")
 
-    def _commit_tree(self, index, message, author=None):
+    def _commit_tree(self, index, message):
         tree = index.commit(self.repo.object_store)
         return self.repo.get_worktree().commit(
-            message=message, author=author, tree=tree
+            message=message,
+            tree=tree,
         )
 
     def _import_one(
@@ -807,7 +813,6 @@ class TreeGitStore(GitStore):
         name: str,
         data: Iterable[bytes],
         message: str,
-        author: str | None = None,
     ) -> bytes:
         """Import a single object.
 
@@ -815,7 +820,6 @@ class TreeGitStore(GitStore):
           name: name of the object
           data: serialized object as list of bytes
           message: Commit message
-          author: Optional author
         Returns: etag
         """
         try:
@@ -839,9 +843,7 @@ class TreeGitStore(GitStore):
                 ):
                     self.repo.object_store.add_object(blob)
                     index[encoded_name] = index_entry_from_stat(st, blob.id)
-                    self._commit_tree(
-                        index, message.encode(DEFAULT_ENCODING), author=author
-                    )
+                    self._commit_tree(index, message.encode(DEFAULT_ENCODING))
                 return blob.id
         except FileLocked as exc:
             raise LockedError(name) from exc
@@ -854,8 +856,8 @@ class TreeGitStore(GitStore):
         self,
         name: str,
         message: str | None = None,
-        author: str | None = None,
         etag: str | None = None,
+        remote_user: str | None = None,
         requester: str | None = None,
     ) -> None:
         """Delete an item.
@@ -863,8 +865,8 @@ class TreeGitStore(GitStore):
         Args:
           name: Filename to delete
           message: Commit message
-          author: Optional author
           etag: Optional mandatory etag of object to remove
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Raise:
           NoSuchItem: when the item doesn't exist
@@ -882,8 +884,12 @@ class TreeGitStore(GitStore):
         if message is None:
             fi = open_by_extension(current_blob.chunked, name, self.extra_file_handlers)
             message = "Delete " + fi.describe(name)
-        if requester is not None:
-            message = message + "\n\nRequester: " + requester
+        if remote_user is not None or requester is not None:
+            message += "\n"
+            if remote_user is not None:
+                message += f"\nRemote-User: {remote_user}"
+            if requester is not None:
+                message += f"\nRequester: {requester}"
         if etag is not None:
             with open(p, "rb") as f:
                 current_etag = current_blob.id
@@ -893,9 +899,7 @@ class TreeGitStore(GitStore):
             with locked_index(self.repo.index_path()) as index:
                 os.unlink(p)
                 del index[name.encode(DEFAULT_ENCODING)]
-                self._commit_tree(
-                    index, message.encode(DEFAULT_ENCODING), author=author
-                )
+                self._commit_tree(index, message.encode(DEFAULT_ENCODING))
         except FileLocked:
             raise LockedError(name)
 

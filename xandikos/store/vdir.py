@@ -157,8 +157,8 @@ class VdirStore(Store):
         content_type,
         data,
         message=None,
-        author=None,
         replace_etag=None,
+        remote_user=None,
         requester=None,
     ):
         """Import a single object.
@@ -168,8 +168,8 @@ class VdirStore(Store):
           content_type: Content type
           data: serialized object as list of bytes
           message: Commit message
-          author: Optional author
           replace_etag: optional etag of object to replace
+          remote_user: Optional user name of the actor
           requester: Optional User-Agent or client information
         Raises:
           InvalidETag: when the name already exists but with different etag
@@ -350,14 +350,17 @@ class VdirStore(Store):
         """Destroy this store."""
         shutil.rmtree(self.path)
 
-    def delete_one(self, name, message=None, author=None, etag=None, requester=None):
+    def delete_one(
+        self, name, message=None, etag=None, remote_user=None, requester=None
+    ):
         """Delete an item.
 
         Args:
           name: Filename to delete
           message: Commit message
-          author: Optional author
           etag: Optional mandatory etag of object to remove
+          remote_user: Optional user name of the actor
+          requester: Optional User-Agent or client information
         Raises:
           NoSuchItem: when the item doesn't exist
           InvalidETag: If the specified ETag doesn't match the current
