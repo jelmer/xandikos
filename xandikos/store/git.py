@@ -613,15 +613,28 @@ class GitStore(Store):
 class BareGitStore(GitStore):
     """A Store backed by a bare git repository."""
 
+    def __init__(self, repo, **kwargs) -> None:
+        super().__init__(repo, **kwargs)
+        self._cached_tree = None
+        self._cached_ref_target = None
+
     def _get_current_tree(self):
         try:
-            ref_object = self.repo[self.ref]
+            current_ref = self.repo.refs[self.ref]
         except KeyError:
+            self._cached_tree = None
+            self._cached_ref_target = None
             return Tree()
+        if current_ref == self._cached_ref_target and self._cached_tree is not None:
+            return self._cached_tree
+        ref_object = self.repo[current_ref]
         if isinstance(ref_object, Tree):
-            return ref_object
+            tree = ref_object
         else:
-            return self.repo.object_store[ref_object.tree]
+            tree = self.repo.object_store[ref_object.tree]
+        self._cached_tree = tree
+        self._cached_ref_target = current_ref
+        return tree
 
     def get_etag(self, name):
         tree = self._get_current_tree()
