@@ -522,6 +522,29 @@ class BareGitStoreTest(BaseGitStoreTest, unittest.TestCase):
         self.add_blob(gc, "foo.ics", EXAMPLE_VCALENDAR1)
         self.assertEqual(gc._get_current_tree().id.decode("ascii"), gc.get_ctag())
 
+    def test_tree_caching(self):
+        """Test that the current tree is cached and not re-read on every call."""
+        gc = self.create_store()
+        (name1, etag1) = gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one("bar.ics", "text/calendar", [EXAMPLE_VCALENDAR2])
+
+        # First call populates the cache
+        self.assertEqual(etag1, gc.get_etag("foo.ics"))
+
+        # Subsequent calls should return the same tree object
+        tree1 = gc._get_current_tree()
+        tree2 = gc._get_current_tree()
+        self.assertIs(tree1, tree2)
+
+        # After a write, cache should be invalidated (ref changes)
+        gc.delete_one("bar.ics")
+        tree3 = gc._get_current_tree()
+        self.assertIsNot(tree1, tree3)
+
+        # get_etag still works for remaining item
+        self.assertEqual(etag1, gc.get_etag("foo.ics"))
+        self.assertRaises(KeyError, gc.get_etag, "bar.ics")
+
 
 class TreeGitStoreTest(BaseGitStoreTest, unittest.TestCase):
     kls = TreeGitStore
