@@ -1,6 +1,7 @@
 # Requirements for pycaldav compatibility tests
-# Pin icalendar to version compatible with pycaldav v1.2.1
-icalendar>=5.0,<8.0
+# Pin icalendar <7.0: pycaldav uses icalendar.cal.component_factory as a dict,
+# but in icalendar 7.x it became a module (need ComponentFactory() instead).
+icalendar>=5.0,<7.0
 pytest
 lxml
 requests
