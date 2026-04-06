@@ -26,7 +26,7 @@ import tempfile
 import unittest
 
 from xandikos.multi_user import (
-    MultiUserXandikosBackend,
+    MultiUserFilesystemBackend,
     MultiUserXandikosApp,
     InvalidUsernameError,
     validate_username,
@@ -40,8 +40,8 @@ from xandikos.store import (
 from xandikos.webdav import ForbiddenError
 
 
-class MultiUserXandikosBackendTests(unittest.TestCase):
-    """Tests for MultiUserXandikosBackend."""
+class MultiUserFilesystemBackendTests(unittest.TestCase):
+    """Tests for MultiUserFilesystemBackend."""
 
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
@@ -51,7 +51,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_init_default_paths(self):
         """Test initialization with default path settings."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         self.assertEqual(backend.principal_path_prefix, "/")
         self.assertEqual(backend.principal_path_suffix, "/")
@@ -59,7 +59,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_init_custom_paths(self):
         """Test initialization with custom path settings."""
-        backend = MultiUserXandikosBackend(
+        backend = MultiUserFilesystemBackend(
             self.test_dir,
             principal_path_prefix="/users/",
             principal_path_suffix="/dav/",
@@ -70,7 +70,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_init_with_kwargs(self):
         """Test that additional kwargs are passed to parent class."""
-        backend = MultiUserXandikosBackend(
+        backend = MultiUserFilesystemBackend(
             self.test_dir,
             paranoid=True,
             index_threshold=100,
@@ -81,12 +81,12 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_show_principals_on_root_default(self):
         """Test that show_principals_on_root defaults to True."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         self.assertTrue(backend.show_principals_on_root)
 
     def test_show_principals_on_root_can_be_disabled(self):
         """Test that show_principals_on_root can be set to False."""
-        backend = MultiUserXandikosBackend(
+        backend = MultiUserFilesystemBackend(
             self.test_dir,
             show_principals_on_root=False,
         )
@@ -94,7 +94,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_creates_principal(self):
         """Test that set_principal creates a new principal."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("alice")
 
         resource = backend.get_resource("/alice/")
@@ -102,7 +102,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_marks_as_principal(self):
         """Test that set_principal marks the path as a principal."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("alice")
 
         # _mark_as_principal normalizes paths
@@ -110,7 +110,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_with_custom_prefix(self):
         """Test set_principal with custom prefix."""
-        backend = MultiUserXandikosBackend(
+        backend = MultiUserFilesystemBackend(
             self.test_dir, principal_path_prefix="/users/"
         )
         backend.set_principal("bob")
@@ -121,7 +121,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_with_custom_suffix(self):
         """Test set_principal with custom suffix."""
-        backend = MultiUserXandikosBackend(
+        backend = MultiUserFilesystemBackend(
             self.test_dir, principal_path_suffix="/principal/"
         )
         backend.set_principal("charlie")
@@ -132,7 +132,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_with_custom_prefix_and_suffix(self):
         """Test set_principal with both custom prefix and suffix."""
-        backend = MultiUserXandikosBackend(
+        backend = MultiUserFilesystemBackend(
             self.test_dir,
             principal_path_prefix="/accounts/",
             principal_path_suffix="/home/",
@@ -145,7 +145,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_override_prefix(self):
         """Test overriding prefix at method call time."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("eve", principal_path_prefix="/special/")
 
         resource = backend.get_resource("/special/eve/")
@@ -154,7 +154,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_override_suffix(self):
         """Test overriding suffix at method call time."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("frank", principal_path_suffix="/user/")
 
         resource = backend.get_resource("/frank/user/")
@@ -163,7 +163,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_override_both(self):
         """Test overriding both prefix and suffix at method call time."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal(
             "grace",
             principal_path_prefix="/custom/",
@@ -176,7 +176,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_idempotent(self):
         """Test that calling set_principal twice is idempotent."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("henry")
         resource1 = backend.get_resource("/henry/")
@@ -189,7 +189,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_multiple_users(self):
         """Test creating multiple users."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         users = ["alice", "bob", "charlie", "dave", "eve"]
         for user in users:
@@ -202,7 +202,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_creates_defaults(self):
         """Test that set_principal creates default calendar and addressbook."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("ivan")
 
         # Check calendar was created
@@ -222,7 +222,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_with_special_characters(self):
         """Test usernames with special characters."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         # Test with underscores
         backend.set_principal("john_doe")
@@ -238,7 +238,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_set_principal_case_sensitive(self):
         """Test that usernames are case-sensitive."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("Alice")
         backend.set_principal("alice")
@@ -249,12 +249,12 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_find_principals_empty(self):
         """Test find_principals returns empty set initially."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         self.assertEqual(backend.find_principals(), set())
 
     def test_find_principals_after_set(self):
         """Test find_principals returns created principals."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("user1")
         backend.set_principal("user2")
@@ -264,8 +264,8 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
         self.assertIn("/user2", principals)
 
     def test_inherits_from_xandikos_backend(self):
-        """Test that MultiUserXandikosBackend has XandikosBackend methods."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        """Test that MultiUserFilesystemBackend has XandikosBackend methods."""
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         # Should have methods from XandikosBackend
         self.assertTrue(hasattr(backend, "get_resource"))
@@ -275,7 +275,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_create_collection_after_principal(self):
         """Test creating additional collections after principal setup."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("kate")
 
         # Create an additional calendar
@@ -284,7 +284,7 @@ class MultiUserXandikosBackendTests(unittest.TestCase):
 
     def test_empty_username_rejected(self):
         """Test that empty usernames are rejected for security."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         with self.assertRaises(InvalidUsernameError):
             backend.set_principal("")
 
@@ -524,7 +524,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
     def test_user_isolation(self):
         """Test that users have isolated data spaces."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("user1")
         backend.set_principal("user2")
@@ -544,7 +544,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
     def test_user_directory_structure(self):
         """Test that correct directory structure is created."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("testuser")
 
         # Check directory structure exists on disk
@@ -559,7 +559,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
     def test_nested_principal_paths(self):
         """Test principals with deeply nested paths."""
-        backend = MultiUserXandikosBackend(
+        backend = MultiUserFilesystemBackend(
             self.test_dir,
             principal_path_prefix="/org/company/users/",
             principal_path_suffix="/profile/",
@@ -577,7 +577,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
     def test_concurrent_user_creation(self):
         """Test creating many users."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         # Create many users
         for i in range(50):
@@ -592,7 +592,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
     def test_principal_with_numeric_name(self):
         """Test principal with numeric username."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("12345")
 
         resource = backend.get_resource("/12345/")
@@ -600,7 +600,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
     def test_principal_calendar_operations(self):
         """Test basic calendar operations after principal creation."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("caluser")
 
         calendar = backend.get_resource("/caluser/calendars/calendar/")
@@ -615,7 +615,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
     def test_principal_addressbook_operations(self):
         """Test basic addressbook operations after principal creation."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("addruser")
 
         addressbook = backend.get_resource("/addruser/contacts/addressbook/")
@@ -639,7 +639,7 @@ class UserAccessControlTests(unittest.TestCase):
         """Test that current_user_principal uses REMOTE_USER substitution."""
         from xandikos.web import XandikosApp
 
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
         backend.set_principal("alice")
 
         # Create app with template for current_user_principal
@@ -653,7 +653,7 @@ class UserAccessControlTests(unittest.TestCase):
 
     def test_users_have_separate_calendar_homes(self):
         """Test that each user has a separate calendar home path."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -672,7 +672,7 @@ class UserAccessControlTests(unittest.TestCase):
 
     def test_users_have_separate_addressbook_homes(self):
         """Test that each user has a separate addressbook home path."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -691,7 +691,7 @@ class UserAccessControlTests(unittest.TestCase):
 
     def test_user_data_stored_in_separate_directories(self):
         """Test that user data is stored in physically separate directories."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -713,7 +713,7 @@ class UserAccessControlTests(unittest.TestCase):
         enforce access control. This is intentional as access control
         is expected to be handled by a reverse proxy.
         """
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -727,7 +727,7 @@ class UserAccessControlTests(unittest.TestCase):
 
     def test_principal_path_determines_user_home(self):
         """Test that principal path correctly determines user's home location."""
-        backend = MultiUserXandikosBackend(
+        backend = MultiUserFilesystemBackend(
             self.test_dir,
             principal_path_prefix="/users/",
             principal_path_suffix="/",
@@ -748,7 +748,7 @@ class UserAccessControlTests(unittest.TestCase):
 
     def test_find_principals_returns_all_users(self):
         """Test that find_principals returns all registered users."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -763,7 +763,7 @@ class UserAccessControlTests(unittest.TestCase):
 
     def test_each_user_gets_own_inbox(self):
         """Test that each user has their own schedule inbox."""
-        backend = MultiUserXandikosBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -786,7 +786,7 @@ class MultiUserXandikosAppAuthorizationTests(unittest.TestCase):
 
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.backend = MultiUserXandikosBackend(self.test_dir)
+        self.backend = MultiUserFilesystemBackend(self.test_dir)
         self.backend.set_principal("alice")
         self.backend.set_principal("bob")
         self.app = MultiUserXandikosApp(
@@ -918,7 +918,7 @@ class MultiUserXandikosAppCustomPrefixTests(unittest.TestCase):
 
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.backend = MultiUserXandikosBackend(
+        self.backend = MultiUserFilesystemBackend(
             self.test_dir,
             principal_path_prefix="/users/",
             principal_path_suffix="/home/",
@@ -1033,7 +1033,7 @@ class SecurityTests(unittest.TestCase):
 
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.backend = MultiUserXandikosBackend(self.test_dir)
+        self.backend = MultiUserFilesystemBackend(self.test_dir)
         self.backend.set_principal("alice")
         self.backend.set_principal("bob")
         self.app = MultiUserXandikosApp(
@@ -1138,7 +1138,7 @@ class PropfindAuthorizationTests(unittest.TestCase):
 
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.backend = MultiUserXandikosBackend(self.test_dir)
+        self.backend = MultiUserFilesystemBackend(self.test_dir)
         self.backend.set_principal("alice")
         self.backend.set_principal("bob")
         self.app = MultiUserXandikosApp(
@@ -1307,7 +1307,7 @@ class ModuleExportsTests(unittest.TestCase):
         """Test that expected symbols are exported."""
         from xandikos import multi_user
 
-        self.assertTrue(hasattr(multi_user, "MultiUserXandikosBackend"))
+        self.assertTrue(hasattr(multi_user, "MultiUserFilesystemBackend"))
         self.assertTrue(hasattr(multi_user, "MultiUserXandikosApp"))
         self.assertTrue(hasattr(multi_user, "InvalidUsernameError"))
         self.assertTrue(hasattr(multi_user, "validate_username"))
@@ -1318,7 +1318,7 @@ class ModuleExportsTests(unittest.TestCase):
         """Test __all__ contains expected exports."""
         from xandikos.multi_user import __all__
 
-        self.assertIn("MultiUserXandikosBackend", __all__)
+        self.assertIn("MultiUserFilesystemBackend", __all__)
         self.assertIn("MultiUserXandikosApp", __all__)
         self.assertIn("InvalidUsernameError", __all__)
         self.assertIn("validate_username", __all__)
@@ -1326,10 +1326,10 @@ class ModuleExportsTests(unittest.TestCase):
         self.assertIn("main", __all__)
 
     def test_multi_user_backend_importable(self):
-        """Test that MultiUserXandikosBackend can be imported directly."""
-        from xandikos.multi_user import MultiUserXandikosBackend
+        """Test that MultiUserFilesystemBackend can be imported directly."""
+        from xandikos.multi_user import MultiUserFilesystemBackend
 
-        self.assertIsNotNone(MultiUserXandikosBackend)
+        self.assertIsNotNone(MultiUserFilesystemBackend)
 
     def test_add_parser_importable(self):
         """Test that add_parser can be imported directly."""

@@ -27,7 +27,7 @@ from unittest.mock import MagicMock, AsyncMock
 from wsgiref.util import setup_testing_defaults
 
 from xandikos.webdav import WebDAVApp
-from xandikos.multi_user import MultiUserXandikosBackend
+from xandikos.multi_user import MultiUserFilesystemBackend
 
 
 class MockBackend:
@@ -192,8 +192,8 @@ class IntegrationTests(unittest.TestCase):
         asyncio.set_event_loop(asyncio.new_event_loop())
 
     def test_multiuser_backend_with_aiohttp_auth(self):
-        """Test MultiUserXandikosBackend with aiohttp authentication."""
-        backend = MultiUserXandikosBackend(self.d)
+        """Test MultiUserFilesystemBackend with aiohttp authentication."""
+        backend = MultiUserFilesystemBackend(self.d)
         app = WebDAVApp(backend)
 
         # Create a mock aiohttp request with auth
