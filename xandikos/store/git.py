@@ -261,13 +261,13 @@ class GitStore(Store):
     ):
         """Get file with caching based on blob SHA."""
         if etag is None:
-            etag = self._get_etag(name)
+            etag = self.get_etag(name)
 
         # Use cached parsing based on blob SHA
         return self._parsed_file_cache(etag, content_type, name)
 
-    def _get_etag(self, name: str) -> str:
-        raise NotImplementedError(self._get_etag)
+    def get_etag(self, name: str) -> str:
+        raise NotImplementedError(self.get_etag)
 
     def _import_one(
         self,
@@ -319,7 +319,7 @@ class GitStore(Store):
                     raise DuplicateUidError(uid, existing_name, name)
 
         try:
-            etag = self._get_etag(name)
+            etag = self.get_etag(name)
         except KeyError:
             etag = None
         if replace_etag is not None and etag != replace_etag:
@@ -392,7 +392,7 @@ class GitStore(Store):
         Returns: raw contents as chunks
         """
         if etag is None:
-            etag = self._get_etag(name)
+            etag = self.get_etag(name)
         blob = self.repo.object_store[etag.encode("ascii")]
         return blob.chunked
 
@@ -623,7 +623,7 @@ class BareGitStore(GitStore):
         else:
             return self.repo.object_store[ref_object.tree]
 
-    def _get_etag(self, name):
+    def get_etag(self, name):
         tree = self._get_current_tree()
         name = name.encode(DEFAULT_ENCODING)
         return tree[name][1].decode("ascii")
@@ -796,7 +796,7 @@ class TreeGitStore(GitStore):
         repo._autogc_disabled = True
         return cls(repo)
 
-    def _get_etag(self, name):
+    def get_etag(self, name):
         index = self.repo.open_index()
         name = name.encode(DEFAULT_ENCODING)
         return index[name].sha.decode("ascii")

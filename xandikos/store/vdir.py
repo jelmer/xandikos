@@ -72,7 +72,7 @@ class VdirStore(Store):
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.path!r})"
 
-    def _get_etag(self, name):
+    def get_etag(self, name):
         path = os.path.join(self.path, name)
         md5 = hashlib.md5()
         try:
@@ -144,7 +144,7 @@ class VdirStore(Store):
                     raise DuplicateUidError(uid, existing_name, name)
 
         try:
-            etag = self._get_etag(name)
+            etag = self.get_etag(name)
         except KeyError:
             etag = None
         if replace_etag is not None and etag != replace_etag:
@@ -210,7 +210,7 @@ class VdirStore(Store):
             for chunk in fi.normalized():
                 f.write(chunk)
         os.replace(tmppath, path)
-        return (name, self._get_etag(name))
+        return (name, self.get_etag(name))
 
     def iter_with_etag(self, ctag=None):
         """Iterate over all items in the store with etag.
@@ -230,7 +230,7 @@ class VdirStore(Store):
                 content_type = "text/vcard"
             else:
                 continue
-            yield (name, content_type, self._get_etag(name))
+            yield (name, content_type, self.get_etag(name))
 
     @classmethod
     def create(cls, path: str) -> "VdirStore":
@@ -368,7 +368,7 @@ class VdirStore(Store):
         path = os.path.join(self.path, name)
         if etag is not None:
             try:
-                current_etag = self._get_etag(name)
+                current_etag = self.get_etag(name)
             except KeyError:
                 raise NoSuchItem(name)
             if etag != current_etag:
