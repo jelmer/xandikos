@@ -388,12 +388,13 @@ class StoreBasedCollection:
 
     def get_member(self, name):
         assert name != ""
-        for fname, content_type, fetag in self.store.iter_with_etag():
-            if name == fname:
-                return self._get_resource(name, content_type, fetag)
-        if name in self.store.subdirectories():
-            return self._get_subcollection(name)
-        raise KeyError(name)
+        try:
+            (content_type, etag) = self.store.get_file_meta(name)
+        except KeyError:
+            if name in self.store.subdirectories():
+                return self._get_subcollection(name)
+            raise KeyError(name)
+        return self._get_resource(name, content_type, etag)
 
     def delete_member(self, name, etag=None, remote_user=None, requester=None):
         assert name != ""

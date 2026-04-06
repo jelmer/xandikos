@@ -430,6 +430,32 @@ class Store:
         """
         raise NotImplementedError(self._get_raw)
 
+    def get_etag(self, name: str) -> str:
+        """Return the etag for a single item.
+
+        Args:
+          name: Name of the item
+        Returns: Etag as string
+        Raises:
+          KeyError: If the item doesn't exist
+        """
+        raise NotImplementedError(self.get_etag)
+
+    def get_file_meta(self, name: str) -> tuple[str, str]:
+        """Return the content type and etag for a single item.
+
+        Args:
+          name: Name of the item
+        Returns: (content_type, etag) tuple
+        Raises:
+          KeyError: If the item doesn't exist
+        """
+        etag = self.get_etag(name)
+        (mime_type, _) = MIMETYPES.guess_type(name)
+        if mime_type is None:
+            mime_type = DEFAULT_MIME_TYPE
+        return (mime_type, etag)
+
     def get_ctag(self) -> str:
         """Return the ctag for this store."""
         raise NotImplementedError(self.get_ctag)
