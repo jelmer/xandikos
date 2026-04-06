@@ -562,6 +562,39 @@ class TreeGitStoreTest(BaseGitStoreTest, unittest.TestCase):
         gc.repo.get_worktree().stage(name.encode("utf-8"))
         return Blob.from_string(contents).id.decode("ascii")
 
+    def test_index_caching(self):
+        """Test that the git index is cached and not re-read on every call."""
+        gc = self.create_store()
+        (name1, etag1) = gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        (name2, etag2) = gc.import_one("bar.ics", "text/calendar", [EXAMPLE_VCALENDAR2])
+
+        # First call populates the cache
+        self.assertEqual(etag1, gc.get_etag("foo.ics"))
+
+        # Subsequent calls should use cached index (same object)
+        idx1 = gc._open_index()
+        idx2 = gc._open_index()
+        self.assertIs(idx1, idx2)
+
+        # After a write, cache should be invalidated
+        gc.delete_one("bar.ics")
+        idx3 = gc._open_index()
+        self.assertIsNot(idx1, idx3)
+
+        # get_etag still works for remaining item
+        self.assertEqual(etag1, gc.get_etag("foo.ics"))
+        self.assertRaises(KeyError, gc.get_etag, "bar.ics")
+
+    def test_index_cache_invalidated_on_delete(self):
+        gc = self.create_store()
+        (name1, etag1) = gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+
+        idx_before = gc._open_index()
+        gc.delete_one("foo.ics")
+        idx_after = gc._open_index()
+        self.assertIsNot(idx_before, idx_after)
+        self.assertRaises(KeyError, gc.get_etag, "foo.ics")
+
 
 class ExtractRegularUIDTests(unittest.TestCase):
     def test_extract_no_uid(self):

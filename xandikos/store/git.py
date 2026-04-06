@@ -798,6 +798,32 @@ class BareGitStore(GitStore):
 class TreeGitStore(GitStore):
     """A Store that backs onto a treefull Git repository."""
 
+    def __init__(self, repo, **kwargs) -> None:
+        super().__init__(repo, **kwargs)
+        self._cached_index = None
+        self._cached_index_stat = None
+
+    def _open_index(self):
+        """Return a cached git index, re-reading only if the file changed."""
+        index_path = self.repo.index_path()
+        try:
+            st = os.stat(index_path)
+        except FileNotFoundError:
+            self._cached_index = None
+            self._cached_index_stat = None
+            return self.repo.open_index()
+        current_stat = (st.st_mtime_ns, st.st_size)
+        if self._cached_index is not None and self._cached_index_stat == current_stat:
+            return self._cached_index
+        index = self.repo.open_index()
+        self._cached_index = index
+        self._cached_index_stat = current_stat
+        return index
+
+    def _invalidate_index_cache(self):
+        self._cached_index = None
+        self._cached_index_stat = None
+
     @classmethod
     def create(cls, path, bare=True):
         """Create a new store backed by a Git repository on disk.
@@ -810,7 +836,7 @@ class TreeGitStore(GitStore):
         return cls(repo)
 
     def get_etag(self, name):
-        index = self.repo.open_index()
+        index = self._open_index()
         name = name.encode(DEFAULT_ENCODING)
         return index[name].sha.decode("ascii")
 
@@ -857,13 +883,15 @@ class TreeGitStore(GitStore):
                     self.repo.object_store.add_object(blob)
                     index[encoded_name] = index_entry_from_stat(st, blob.id)
                     self._commit_tree(index, message.encode(DEFAULT_ENCODING))
-                return blob.id
         except FileLocked as exc:
             raise LockedError(name) from exc
         except OSError as exc:
             if exc.errno == errno.ENOSPC:
                 raise OutOfSpaceError() from exc
             raise
+        finally:
+            self._invalidate_index_cache()
+        return blob.id
 
     def delete_one(
         self,
@@ -915,10 +943,12 @@ class TreeGitStore(GitStore):
                 self._commit_tree(index, message.encode(DEFAULT_ENCODING))
         except FileLocked:
             raise LockedError(name)
+        finally:
+            self._invalidate_index_cache()
 
     def get_ctag(self) -> str:
         """Return the ctag for this store."""
-        index = self.repo.open_index()
+        index = self._open_index()
         return index.commit(self.repo.object_store).decode("ascii")
 
     def _iterblobs(self, ctag=None):
@@ -937,7 +967,7 @@ class TreeGitStore(GitStore):
                     continue
                 yield (name, mode, sha)
         else:
-            index = self.repo.open_index()
+            index = self._open_index()
             for name, sha, mode in index.iterobjects():
                 name = name.decode(DEFAULT_ENCODING)
                 if is_metadata_file(name):
