@@ -1,3 +1,41 @@
+0.3.5	2026-04-06
+
+ * Add multi-user mode with automatic principal creation and
+   path-based authorization. (Jelmer Vernooĳ, #469)
+
+ * Add help subcommand. (Jelmer Vernooĳ)
+
+ * Support icalendar 7.x. (Jelmer Vernooĳ, #596)
+
+ * Cache the git index in TreeGitStore to avoid re-reading from disk.
+   (Jelmer Vernooĳ, #613)
+
+ * Cache the current tree in BareGitStore to avoid repeated object lookups.
+   (Jelmer Vernooĳ, #614)
+
+ * Use direct etag lookup in get_member() instead of linear scan.
+   (Jelmer Vernooĳ, #612)
+
+ * Log Remote-User in git commit message. (Yufei Zhang, #602)
+
+ * Pass requester (User-Agent) through to git commit messages for all
+   operations. (Jelmer Vernooĳ, #603)
+
+ * Rename backends and factor out FilesystemBackend base class.
+   (Jelmer Vernooĳ, #469)
+
+ * Add --hide-principals flag to hide principals list on root page.
+   (Jelmer Vernooĳ, #469)
+
+ * Drop Python 3.8 support. (Jelmer Vernooĳ)
+
+ * Fix icalendar compatibility with older versions by removing
+   component_factory dependency. (Jelmer Vernooĳ, #589)
+
+ * Fix logging. (Jelmer Vernooĳ, #579)
+
+ * Fix sup5 formatting. (Jelmer Vernooĳ, #578)
+
 0.3.4	2026-01-24
 
  * Add --socket-mode and --socket-group flags to set Unix domain socket
