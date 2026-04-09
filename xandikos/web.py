@@ -1667,7 +1667,10 @@ async def main(options, parser):
             options.current_user_principal,
         )
 
-    logger.info("Xandikos %s", ".".join(map(str, xandikos_version)))
+    from .__main__ import _get_package_versions
+
+    version_str = ", ".join(f"{pkg} {ver}" for pkg, ver in _get_package_versions())
+    logger.info("%s", version_str)
 
     main_app = XandikosApp(
         backend,
