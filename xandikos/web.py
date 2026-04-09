@@ -25,6 +25,7 @@ the carddav support, the caldav support and the DAV store.
 """
 
 import asyncio
+import functools
 import hashlib
 import logging
 from logging import getLogger
@@ -516,6 +517,7 @@ class StoreBasedCollection:
     def destroy(self) -> None:
         # RFC2518, section 8.6.2 says this should recursively delete.
         self.store.destroy()
+        self.backend._open_store.cache_clear()
 
     async def get_body(self):
         raise NotImplementedError(self.get_body)
@@ -874,6 +876,7 @@ class CollectionSetResource(webdav.Collection):
         p = self.backend._map_to_file_path(self.relpath)
         # RFC2518, section 8.6.2 says this should recursively delete.
         shutil.rmtree(p)
+        self.backend._open_store.cache_clear()
 
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
@@ -1163,13 +1166,24 @@ class SingleUserFilesystemBackend(FilesystemBackend):
         self.index_threshold = index_threshold
         self.autocreate = autocreate
         self.show_principals_on_root = show_principals_on_root
+        self._open_store = functools.lru_cache(maxsize=16)(self._open_store_uncached)
+
+    def _open_store_uncached(self, path: str):
+        """Open a store from a filesystem path, uncached."""
+        return open_store_from_path(
+            path,
+            double_check_indexes=self.paranoid,
+            index_threshold=self.index_threshold,
+        )
 
     def _mark_as_principal(self, path):
         self._user_principals.add(posixpath.normpath(path))
 
     def create_collection(self, relpath):
         p = self._map_to_file_path(relpath)
-        return Collection(self, relpath, TreeGitStore.create(p))
+        store = TreeGitStore.create(p)
+        self._open_store.cache_clear()
+        return Collection(self, relpath, store)
 
     def create_principal(self, relpath, create_defaults=False):
         principal = PrincipalBare.create(self, relpath)
@@ -1192,11 +1206,7 @@ class SingleUserFilesystemBackend(FilesystemBackend):
             return None
         if os.path.isdir(p):
             try:
-                store = open_store_from_path(
-                    p,
-                    double_check_indexes=self.paranoid,
-                    index_threshold=self.index_threshold,
-                )
+                store = self._open_store(p)
             except NotStoreError:
                 if relpath in self._user_principals:
                     return PrincipalBare(self, relpath)
