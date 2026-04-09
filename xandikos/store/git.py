@@ -801,7 +801,7 @@ class TreeGitStore(GitStore):
     def __init__(self, repo, **kwargs) -> None:
         super().__init__(repo, **kwargs)
         self._cached_index = None
-        self._cached_index_stat = None
+        self._cached_index_stat: tuple[int, int] | None = None
         self._cached_ctag: str | None = None
 
     def _open_index(self) -> tuple["dulwich.index.Index", str | None]:
