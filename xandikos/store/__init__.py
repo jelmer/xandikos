@@ -370,8 +370,8 @@ class Store:
             else:
                 if file_values is None:
                     continue
-                file = self.get_file(name, content_type, etag)
                 if self.double_check_indexes:
+                    file = self.get_file(name, content_type, etag)
                     if file_values != file.get_indexes(keys):
                         raise AssertionError(
                             f"{file_values!r} != {file.get_indexes(keys)!r}"
@@ -390,10 +390,10 @@ class Store:
                         pass
                 try:
                     if filter.check_from_indexes(name, file_values):
-                        file = self.get_file(name, content_type, etag)
-                        yield (name, file, etag)
+                        yield (name, self.get_file(name, content_type, etag), etag)
                 except InsufficientIndexDataError:
                     # Fallback to full file check when index data is insufficient
+                    file = self.get_file(name, content_type, etag)
                     if filter.check(name, file):
                         yield (name, file, etag)
 
