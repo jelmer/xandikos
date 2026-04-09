@@ -61,6 +61,12 @@ class MemoryStore(Store):
             raise KeyError(name)
         return self._items[name][1]
 
+    def get_etag(self, name: str) -> str:
+        """Return the etag for a single item."""
+        if name not in self._items:
+            raise KeyError(name)
+        return self._items[name][2]
+
     def iter_with_etag(self, ctag: str | None = None):
         """Iterate over all items with etag."""
         for name, (content_type, data, etag) in self._items.items():

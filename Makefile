@@ -71,5 +71,8 @@ container:
 	buildah push jvernooij/xandikos
 	buildah push ghcr.io/jelmer/xandikos
 
+benchmark:
+	$(PYTHON) -m pytest benchmarks/ --override-ini="python_files=bench_*.py" --benchmark-disable-gc
+
 reformat:
 	ruff format .
