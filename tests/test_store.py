@@ -572,13 +572,13 @@ class TreeGitStoreTest(BaseGitStoreTest, unittest.TestCase):
         self.assertEqual(etag1, gc.get_etag("foo.ics"))
 
         # Subsequent calls should use cached index (same object)
-        idx1 = gc._open_index()
-        idx2 = gc._open_index()
+        idx1, ctag1 = gc._open_index()
+        idx2, ctag2 = gc._open_index()
         self.assertIs(idx1, idx2)
 
         # After a write, cache should be invalidated
         gc.delete_one("bar.ics")
-        idx3 = gc._open_index()
+        idx3, _ctag3 = gc._open_index()
         self.assertIsNot(idx1, idx3)
 
         # get_etag still works for remaining item
@@ -589,9 +589,9 @@ class TreeGitStoreTest(BaseGitStoreTest, unittest.TestCase):
         gc = self.create_store()
         (name1, etag1) = gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
 
-        idx_before = gc._open_index()
+        idx_before, _ctag_before = gc._open_index()
         gc.delete_one("foo.ics")
-        idx_after = gc._open_index()
+        idx_after, _ctag_after = gc._open_index()
         self.assertIsNot(idx_before, idx_after)
         self.assertRaises(KeyError, gc.get_etag, "foo.ics")
 

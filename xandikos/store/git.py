@@ -801,28 +801,35 @@ class TreeGitStore(GitStore):
     def __init__(self, repo, **kwargs) -> None:
         super().__init__(repo, **kwargs)
         self._cached_index = None
-        self._cached_index_stat = None
+        self._cached_index_stat: tuple[int, int] | None = None
+        self._cached_ctag: str | None = None
 
-    def _open_index(self):
-        """Return a cached git index, re-reading only if the file changed."""
+    def _open_index(self) -> tuple["dulwich.index.Index", str | None]:
+        """Return a cached git index and ctag, re-reading only if the file changed.
+
+        Returns: (index, ctag) tuple where ctag may be None if not yet computed.
+        """
         index_path = self.repo.index_path()
         try:
             st = os.stat(index_path)
         except FileNotFoundError:
             self._cached_index = None
             self._cached_index_stat = None
-            return self.repo.open_index()
+            self._cached_ctag = None
+            return self.repo.open_index(), None
         current_stat = (st.st_mtime_ns, st.st_size)
         if self._cached_index is not None and self._cached_index_stat == current_stat:
-            return self._cached_index
+            return self._cached_index, self._cached_ctag
         index = self.repo.open_index()
         self._cached_index = index
         self._cached_index_stat = current_stat
-        return index
+        self._cached_ctag = None
+        return index, None
 
     def _invalidate_index_cache(self):
         self._cached_index = None
         self._cached_index_stat = None
+        self._cached_ctag = None
 
     @classmethod
     def create(cls, path, bare=True):
@@ -836,7 +843,7 @@ class TreeGitStore(GitStore):
         return cls(repo)
 
     def get_etag(self, name):
-        index = self._open_index()
+        index, _ctag = self._open_index()
         name = name.encode(DEFAULT_ENCODING)
         return index[name].sha.decode("ascii")
 
@@ -948,8 +955,12 @@ class TreeGitStore(GitStore):
 
     def get_ctag(self) -> str:
         """Return the ctag for this store."""
-        index = self._open_index()
-        return index.commit(self.repo.object_store).decode("ascii")
+        index, ctag = self._open_index()
+        if ctag is not None:
+            return ctag
+        ctag = index.commit(self.repo.object_store).decode("ascii")
+        self._cached_ctag = ctag
+        return ctag
 
     def _iterblobs(self, ctag=None):
         """Iterate over all items in the store with etag.
@@ -967,7 +978,7 @@ class TreeGitStore(GitStore):
                     continue
                 yield (name, mode, sha)
         else:
-            index = self._open_index()
+            index, _ctag = self._open_index()
             for name, sha, mode in index.iterobjects():
                 name = name.decode(DEFAULT_ENCODING)
                 if is_metadata_file(name):
