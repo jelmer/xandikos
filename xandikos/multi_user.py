@@ -358,8 +358,6 @@ def add_parser(parser):
 
 async def main(options, parser):
     """Main entry point for multi-user mode."""
-    from xandikos import __version__ as xandikos_version
-
     if options.dump_dav_xml:
         os.environ["XANDIKOS_DUMP_DAV_XML"] = "1"
 
@@ -386,7 +384,10 @@ async def main(options, parser):
         os.makedirs(options.directory)
         logging.info("Created data directory: %s", options.directory)
 
-    logging.info("Xandikos %s (multi-user mode)", ".".join(map(str, xandikos_version)))
+    from .__main__ import _get_package_versions
+
+    version_str = ", ".join(f"{pkg} {ver}" for pkg, ver in _get_package_versions())
+    logging.info("%s (multi-user mode)", version_str)
 
     main_app = MultiUserXandikosApp(
         backend,

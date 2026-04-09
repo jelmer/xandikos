@@ -164,9 +164,32 @@ async def main(argv):
         return 1
 
 
+def _get_package_versions() -> list[tuple[str, str]]:
+    """Return versions of key packages for diagnostic output."""
+    packages = ["xandikos", "dulwich", "vobject", "icalendar", "aiohttp", "defusedxml"]
+    versions = []
+    for pkg in packages:
+        try:
+            from importlib.metadata import version
+
+            versions.append((pkg, version(pkg)))
+        except Exception:
+            versions.append((pkg, "not installed"))
+    return versions
+
+
 def cli_main():
     """Entry point for the command-line interface (for setuptools console_scripts)."""
-    sys.exit(asyncio.run(main(sys.argv[1:])))
+    try:
+        sys.exit(asyncio.run(main(sys.argv[1:])))
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        sys.stderr.write("\nInstalled package versions:\n")
+        for pkg, ver in _get_package_versions():
+            sys.stderr.write(f"  {pkg}: {ver}\n")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
