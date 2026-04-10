@@ -497,6 +497,7 @@ class CalendarFilterTests(unittest.TestCase):
                 ["C=VCALENDAR/C=VTODO/P=DURATION"],
                 ["C=VCALENDAR/C=VTODO/P=CREATED"],
                 ["C=VCALENDAR/C=VTODO/P=COMPLETED"],
+                ["C=VCALENDAR/C=VTODO/P=RRULE"],
                 ["C=VCALENDAR/C=VTODO"],
             ],
         )
@@ -512,6 +513,7 @@ class CalendarFilterTests(unittest.TestCase):
                     "C=VCALENDAR/C=VTODO/P=DUE": [],
                     "C=VCALENDAR/C=VTODO/P=DURATION": [],
                     "C=VCALENDAR/C=VTODO/P=COMPLETED": [],
+                    "C=VCALENDAR/C=VTODO/P=RRULE": [],
                     "C=VCALENDAR/C=VTODO/P=DTSTART": [],
                 },
             )
@@ -526,6 +528,7 @@ class CalendarFilterTests(unittest.TestCase):
                     "C=VCALENDAR/C=VTODO/P=DUE": [],
                     "C=VCALENDAR/C=VTODO/P=DURATION": [],
                     "C=VCALENDAR/C=VTODO/P=COMPLETED": [],
+                    "C=VCALENDAR/C=VTODO/P=RRULE": [],
                     "C=VCALENDAR/C=VTODO/P=DTSTART": [],
                 },
             )
@@ -547,6 +550,7 @@ class CalendarFilterTests(unittest.TestCase):
                     "C=VCALENDAR/C=VTODO/P=DUE": [],
                     "C=VCALENDAR/C=VTODO/P=DURATION": [],
                     "C=VCALENDAR/C=VTODO/P=COMPLETED": [],
+                    "C=VCALENDAR/C=VTODO/P=RRULE": [],
                     "C=VCALENDAR/C=VTODO/P=DTSTART": [],
                 },
             )

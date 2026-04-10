@@ -281,13 +281,13 @@ class RRuleIndexUsageTest(unittest.TestCase):
 
         index_keys = matcher.index_keys()
 
-        # Should NOT include RRULE for VTODO
+        # Should include RRULE for VTODO
         all_props = []
         for key_set in index_keys:
             all_props.extend(key_set)
 
-        self.assertNotIn(
-            "P=RRULE", all_props, "VTODO time-range filter should not include RRULE"
+        self.assertIn(
+            "P=RRULE", all_props, "VTODO time-range filter should include RRULE"
         )
 
     def test_rrule_expansion_boundaries(self):

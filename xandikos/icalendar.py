@@ -856,24 +856,30 @@ class ComponentTimeRangeMatcher:
     def _calculate_event_duration(
         self, indexes: SubIndexDict, dtstart_parsed, decode_bytes
     ):
-        """Calculate event duration from DURATION or DTEND properties."""
+        """Calculate event duration from DURATION, DTEND, or DUE properties."""
         duration_values = indexes.get("P=DURATION", [])
         dtend_values = indexes.get("P=DTEND", [])
+        due_values = indexes.get("P=DUE", [])
 
         if duration_values and duration_values[0]:
             duration_value = duration_values[0]
             if isinstance(duration_value, bytes):
                 duration_str = decode_bytes(duration_value, "DURATION")
                 return vDuration.from_ical(duration_str)
-        elif dtend_values and dtend_values[0]:
-            dtend_value = dtend_values[0]
-            if isinstance(dtend_value, bytes):
-                dtend_str = decode_bytes(dtend_value, "DTEND")
-                dtend_parsed_val = vDDDTypes.from_ical(dtend_str)
+
+        # Check DTEND (for VEVENT) or DUE (for VTODO)
+        end_values = dtend_values if (dtend_values and dtend_values[0]) else due_values
+        if end_values and end_values[0]:
+            end_value = end_values[0]
+            if isinstance(end_value, bytes):
+                end_str = decode_bytes(
+                    end_value, "DTEND" if end_values is dtend_values else "DUE"
+                )
+                end_parsed_val = vDDDTypes.from_ical(end_str)
                 if isinstance(dtstart_parsed, datetime) and isinstance(
-                    dtend_parsed_val, datetime
+                    end_parsed_val, datetime
                 ):
-                    return dtend_parsed_val - dtstart_parsed
+                    return end_parsed_val - dtstart_parsed
         return None
 
     def _get_occurrences_in_range(self, rrule, dtstart_parsed, query_start, query_end):
@@ -936,7 +942,7 @@ class ComponentTimeRangeMatcher:
             else:
                 occurrence_dict = {"DTSTART": MockProperty(occurrence)}
 
-            # Add DTEND or DURATION to the occurrence
+            # Add DTEND/DUE or DURATION to the occurrence
             if duration_values and duration_values[0]:
                 duration_value = duration_values[0]
                 if isinstance(duration_value, bytes):
@@ -944,7 +950,9 @@ class ComponentTimeRangeMatcher:
                     duration_obj = vDuration.from_ical(duration_str)
                     occurrence_dict["DURATION"] = MockProperty(duration_obj)
             elif event_duration:
-                occurrence_dict["DTEND"] = MockProperty(occurrence + event_duration)
+                # Use DUE for VTODO, DTEND for other components
+                end_prop = "DUE" if self.comp == "VTODO" else "DTEND"
+                occurrence_dict[end_prop] = MockProperty(occurrence + event_duration)
 
             # Test this occurrence against the time range
             if component_handler(self.start, self.end, occurrence_dict, tzify):
@@ -955,7 +963,7 @@ class ComponentTimeRangeMatcher:
         if self.comp == "VEVENT":
             props = ["DTSTART", "DTEND", "DURATION", "RRULE"]
         elif self.comp == "VTODO":
-            props = ["DTSTART", "DUE", "DURATION", "CREATED", "COMPLETED"]
+            props = ["DTSTART", "DUE", "DURATION", "CREATED", "COMPLETED", "RRULE"]
         elif self.comp == "VJOURNAL":
             props = ["DTSTART"]
         elif self.comp == "VFREEBUSY":
