@@ -62,8 +62,7 @@ class TestXandikosCompatibility(unittest.TestCase):
             # Principal property search returns 403 (not implemented)
             "principal-search": "ungraceful",
 
-            # Server-side recurrence expansion is buggy for tasks and event exceptions
-            "search.recurrences.expanded.todo": "unsupported",
+            # Server-side recurrence expansion is buggy for event exceptions
             "search.recurrences.expanded.exception": "unsupported",
         })
 
