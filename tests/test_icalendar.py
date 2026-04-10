@@ -38,6 +38,7 @@ from xandikos.icalendar import (
     _event_overlaps_range,
     _normalize_rrule_until,
     apply_time_range_vevent,
+    apply_time_range_vtodo,
     apply_time_range_valarm,
     apply_time_range_vavailability,
     apply_time_range_available,
@@ -1235,6 +1236,71 @@ class ApplyTimeRangeVeventTests(unittest.TestCase):
             datetime.now(timezone.utc),
             ev,
             self._tzify,
+        )
+
+
+class ApplyTimeRangeVtodoTests(unittest.TestCase):
+    def _tzify(self, dt):
+        return as_tz_aware_ts(dt, ZoneInfo("UTC"))
+
+    def test_dtstart_and_due_outside_range(self):
+        """VTODO with DTSTART and DUE entirely after the search range."""
+        todo = Todo()
+        todo.add("DTSTART", datetime(2000, 3, 15, 12, 0, 0, tzinfo=timezone.utc))
+        todo.add("DUE", datetime(2000, 3, 15, 13, 0, 0, tzinfo=timezone.utc))
+
+        self.assertFalse(
+            apply_time_range_vtodo(
+                datetime(2000, 1, 9, tzinfo=timezone.utc),
+                datetime(2000, 1, 10, tzinfo=timezone.utc),
+                todo,
+                self._tzify,
+            )
+        )
+
+    def test_dtstart_and_due_before_range(self):
+        """VTODO with DTSTART and DUE entirely before the search range."""
+        todo = Todo()
+        todo.add("DTSTART", datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc))
+        todo.add("DUE", datetime(2000, 1, 2, 12, 0, 0, tzinfo=timezone.utc))
+
+        self.assertFalse(
+            apply_time_range_vtodo(
+                datetime(2000, 3, 1, tzinfo=timezone.utc),
+                datetime(2000, 3, 2, tzinfo=timezone.utc),
+                todo,
+                self._tzify,
+            )
+        )
+
+    def test_dtstart_and_due_overlapping_range(self):
+        """VTODO with DTSTART and DUE overlapping the search range."""
+        todo = Todo()
+        todo.add("DTSTART", datetime(2000, 1, 5, tzinfo=timezone.utc))
+        todo.add("DUE", datetime(2000, 1, 15, tzinfo=timezone.utc))
+
+        self.assertTrue(
+            apply_time_range_vtodo(
+                datetime(2000, 1, 9, tzinfo=timezone.utc),
+                datetime(2000, 1, 10, tzinfo=timezone.utc),
+                todo,
+                self._tzify,
+            )
+        )
+
+    def test_dtstart_and_due_containing_range(self):
+        """Search range entirely within VTODO's DTSTART..DUE."""
+        todo = Todo()
+        todo.add("DTSTART", datetime(2000, 1, 1, tzinfo=timezone.utc))
+        todo.add("DUE", datetime(2000, 2, 1, tzinfo=timezone.utc))
+
+        self.assertTrue(
+            apply_time_range_vtodo(
+                datetime(2000, 1, 9, tzinfo=timezone.utc),
+                datetime(2000, 1, 10, tzinfo=timezone.utc),
+                todo,
+                self._tzify,
+            )
         )
 
 
