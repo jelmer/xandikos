@@ -1161,6 +1161,61 @@ END:VCALENDAR
         result = filter_unbounded.check_from_indexes("test.ics", indexes)
         self.assertTrue(result)
 
+    def test_vcalendar_time_range_without_comp_type(self):
+        """Time-range on VCALENDAR (no child comp-filter) matches subcomponents."""
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_time_range(
+            self._tzify(datetime(2015, 3, 10, 22, 35, 12)),
+            self._tzify(datetime(2015, 3, 18, 22, 35, 12)),
+        )
+        # Naive path should match (the VTODO has CREATED=2015-03-14)
+        self.assertTrue(filter.check("file", self.cal))
+
+    def test_vcalendar_time_range_without_comp_type_no_match(self):
+        """Time-range on VCALENDAR returns False when nothing matches."""
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_time_range(
+            self._tzify(datetime(2010, 1, 1)),
+            self._tzify(datetime(2010, 1, 2)),
+        )
+        self.assertFalse(filter.check("file", self.cal))
+
+    def test_vcalendar_time_range_index_path(self):
+        """Index-based matching works for time-range on VCALENDAR."""
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_time_range(
+            self._tzify(datetime(2015, 3, 10, 22, 35, 12)),
+            self._tzify(datetime(2015, 3, 18, 22, 35, 12)),
+        )
+        # Index keys should include keys for multiple component types
+        keys = filter.index_keys()
+        key_strs = [k for ks in keys for k in ks]
+        self.assertTrue(
+            any("C=VEVENT" in k for k in key_strs),
+            "Should include VEVENT index keys",
+        )
+        self.assertTrue(
+            any("C=VTODO" in k for k in key_strs),
+            "Should include VTODO index keys",
+        )
+
+        # Index-based match with VTODO data
+        self.assertTrue(
+            filter.check_from_indexes(
+                "file",
+                {
+                    "C=VCALENDAR": [True],
+                    "C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"],
+                    "C=VCALENDAR/C=VTODO": [True],
+                    "C=VCALENDAR/C=VTODO/P=DTSTART": [],
+                    "C=VCALENDAR/C=VTODO/P=DUE": [],
+                    "C=VCALENDAR/C=VTODO/P=DURATION": [],
+                    "C=VCALENDAR/C=VTODO/P=COMPLETED": [],
+                    "C=VCALENDAR/C=VTODO/P=RRULE": [],
+                },
+            )
+        )
+
 
 class TextMatchTest(unittest.TestCase):
     def test_default_collation(self):

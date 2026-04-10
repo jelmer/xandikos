@@ -684,6 +684,14 @@ class ComponentTimeRangeMatcher:
     def match(self, comp: Component, tzify: TzifyFunction):
         if comp.name is None:
             raise ValueError("Component has no name in time-range filter")
+        if comp.name == "VCALENDAR":
+            # When time-range is on VCALENDAR itself (no child comp-filter),
+            # match if any subcomponent falls within the time range.
+            return any(
+                self.match(sub, tzify)
+                for sub in comp.subcomponents
+                if sub.name in self.component_handlers
+            )
         try:
             component_handler = self.component_handlers[comp.name]
         except KeyError:
@@ -701,6 +709,21 @@ class ComponentTimeRangeMatcher:
             tzify: Timezone conversion function
             context: Optional context string (e.g. filename) for error/warning reporting
         """
+        if self.comp == "VCALENDAR":
+            # When time-range is on VCALENDAR, try each subcomponent type.
+            for comp_name in self.component_handlers:
+                sub = create_subindexes(indexes, "C=" + comp_name)
+                if sub:
+                    matcher = ComponentTimeRangeMatcher(
+                        self.start, self.end, comp=comp_name
+                    )
+                    try:
+                        if matcher.match_indexes(sub, tzify, context):
+                            return True
+                    except InsufficientIndexDataError:
+                        raise
+            return False
+
         # Check if we have RRULE - if so, expand and test occurrences
         rrule_values = indexes.get("P=RRULE")
         if rrule_values and rrule_values[0]:
@@ -960,6 +983,15 @@ class ComponentTimeRangeMatcher:
         return False
 
     def index_keys(self) -> list[list[str]]:
+        if self.comp == "VCALENDAR":
+            # When time-range is on VCALENDAR, we need index keys for all
+            # component types that could match.
+            keys: list[list[str]] = []
+            for comp_name in ("VEVENT", "VTODO", "VJOURNAL"):
+                sub = ComponentTimeRangeMatcher(self.start, self.end, comp=comp_name)
+                for key_set in sub.index_keys():
+                    keys.append(["C=" + comp_name + "/" + k for k in key_set])
+            return keys
         if self.comp == "VEVENT":
             props = ["DTSTART", "DTEND", "DURATION", "RRULE"]
         elif self.comp == "VTODO":
