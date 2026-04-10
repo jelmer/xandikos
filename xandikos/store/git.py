@@ -276,6 +276,10 @@ class GitStore(Store):
         # Set of blob ids that have already been scanned
         self._fname_to_uid: dict[str, tuple[str, str]] = {}
 
+        # Cache for guessed store type (when not set in git config)
+        self._guessed_type: str | None = None
+        self._guessed_type_ctag: str | None = None
+
         # Cache parsed files by blob SHA - avoids reparsing identical content
         self._parsed_file_cache = functools.lru_cache(maxsize=100)(
             self._parse_file_by_sha
@@ -610,11 +614,18 @@ class GitStore(Store):
         """Get store type.
 
         This looks in git config first, then falls back to guessing.
+        The guessed result is cached and invalidated when the ctag changes.
         """
         try:
             return self.config.get_type()
         except KeyError:
-            return super().get_type()
+            ctag = self.get_ctag()
+            if self._guessed_type is not None and self._guessed_type_ctag == ctag:
+                return self._guessed_type
+            store_type = super().get_type()
+            self._guessed_type = store_type
+            self._guessed_type_ctag = ctag
+            return store_type
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.
