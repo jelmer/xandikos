@@ -404,9 +404,7 @@ def apply_time_range_vtodo(start, end, comp, tzify):
                 end > tzify(dtstart.dt) or end >= tzify(dtstart.dt) + duration.dt
             )
         elif due and not duration:
-            return (start <= tzify(dtstart.dt) or start < tzify(due.dt)) and (
-                end > tzify(dtstart.dt) or end < tzify(due.dt)
-            )
+            return start < tzify(due.dt) and end > tzify(dtstart.dt)
         else:
             return start <= tzify(dtstart.dt) and end > tzify(dtstart.dt)
 
