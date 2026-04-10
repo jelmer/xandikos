@@ -82,6 +82,10 @@ if [ -n "$INDEX_THRESHOLD" ]; then
     ARGS+=("--index-threshold=$INDEX_THRESHOLD")
 fi
 
+if [ "$EAGER" = "true" ] || [ "$EAGER" = "1" ]; then
+    ARGS+=("--eager")
+fi
+
 if [ "$NO_DETECT_SYSTEMD" = "true" ] || [ "$NO_DETECT_SYSTEMD" = "1" ]; then
     ARGS+=("--no-detect-systemd")
 fi
