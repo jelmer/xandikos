@@ -1,7 +1,7 @@
 """Test for the time-range filtering regression in Store._iter_with_filter_indexes."""
 
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from xandikos.icalendar import (
     ICalendarFile,
@@ -183,6 +183,48 @@ class TimeRangeFilterRegressionTest(unittest.TestCase):
         self.assertFalse(
             cal_filter.check_from_indexes("test.ics", non_matching_indexes)
         )
+
+    def test_allday_recurring_event_index_with_nonutc_timezone(self):
+        """Test that index-based time-range filtering works for all-day recurring events.
+
+        When the calendar's default timezone has a positive UTC offset,
+        the index path used to convert date-only DTSTART to a datetime at
+        midnight UTC, causing apply_time_range_vevent to use point-in-time
+        comparison instead of the all-day (1-day range) comparison. This
+        made the index check return False while the full file check returned
+        True.
+        """
+        store = BareGitStore.create_memory()
+        store.load_extra_file_handler(ICalendarFile)
+        store.index_manager.indexing_threshold = 0
+
+        yearly_allday = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"SUMMARY:yearly recurring all-day event\r\n"
+            b"DTSTART;VALUE=DATE:20000201\r\n"
+            b"UID:yearly_allday\r\n"
+            b"RRULE:FREQ=YEARLY\r\n"
+            b"END:VEVENT\r\nEND:VCALENDAR"
+        )
+        store.import_one("yearly.ics", "text/calendar", [yearly_allday])
+
+        # Use a timezone with positive UTC offset (e.g. UTC+1)
+        # This is the scenario that triggered the bug
+        utc_plus_1 = timezone(timedelta(hours=1))
+        start = datetime(2001, 2, 1, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2001, 2, 2, 0, 0, 0, tzinfo=timezone.utc)
+
+        cal_filter = CalendarFilter(utc_plus_1)
+        comp_filter = ComponentFilter("VCALENDAR")
+        event_filter = ComponentFilter("VEVENT")
+        event_filter.time_range = ComponentTimeRangeMatcher(start, end, comp="VEVENT")
+        comp_filter.children.append(event_filter)
+        cal_filter.children.append(comp_filter)
+
+        matches = list(store.iter_with_filter(cal_filter))
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0][0], "yearly.ics")
 
 
 if __name__ == "__main__":

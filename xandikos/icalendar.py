@@ -874,6 +874,7 @@ class ComponentTimeRangeMatcher:
             component_handler,
             tzify,
             decode_bytes,
+            dtstart_parsed=dtstart_parsed,
         )
 
     def _calculate_event_duration(
@@ -946,6 +947,7 @@ class ComponentTimeRangeMatcher:
         component_handler,
         tzify,
         decode_bytes,
+        dtstart_parsed: date | datetime | None = None,
     ):
         """Test each occurrence against the time range filter."""
 
@@ -956,14 +958,16 @@ class ComponentTimeRangeMatcher:
         duration_values = indexes.get("P=DURATION", [])
 
         for occurrence in occurrences:
-            # Create occurrence dictionary for component handler
-            if isinstance(occurrence, date) and not isinstance(occurrence, datetime):
-                occurrence_dt = datetime.combine(occurrence, time()).replace(
-                    tzinfo=timezone.utc
-                )
-                occurrence_dict = {"DTSTART": MockProperty(occurrence_dt)}
-            else:
-                occurrence_dict = {"DTSTART": MockProperty(occurrence)}
+            # The rrule library always produces datetime objects, even for
+            # date-only events.  Convert back to match the original DTSTART
+            # type so that the component handler (e.g. apply_time_range_vevent)
+            # uses the correct logic: all-day events get a 1-day implicit
+            # duration, while datetime events use point-in-time comparison.
+            if dtstart_parsed is not None and not isinstance(dtstart_parsed, datetime):
+                # Date-only: extract just the date part
+                if isinstance(occurrence, datetime):
+                    occurrence = occurrence.date()
+            occurrence_dict = {"DTSTART": MockProperty(occurrence)}
 
             # Add DTEND/DUE or DURATION to the occurrence
             if duration_values and duration_values[0]:
