@@ -66,6 +66,36 @@ logger = getLogger("xandikos")
 class RepoCollectionMetadata(CollectionMetadata):
     def __init__(self, repo) -> None:
         self._repo = repo
+        self._cached_config = None
+        self._cached_config_stat: tuple[float, int] | None = None
+
+    def _get_config(self):
+        """Return the repo config, re-reading only if the file changed."""
+        if self._cached_config is not None:
+            config_path = getattr(self._cached_config, "path", None)
+            if config_path is not None:
+                try:
+                    st = os.stat(config_path)
+                    current_stat = (st.st_mtime, st.st_size)
+                except FileNotFoundError:
+                    current_stat = None
+            else:
+                current_stat = None
+            if self._cached_config_stat == current_stat:
+                return self._cached_config
+
+        config = self._repo.get_config()
+        config_path = getattr(config, "path", None)
+        if config_path is not None:
+            try:
+                st = os.stat(config_path)
+                self._cached_config_stat = (st.st_mtime, st.st_size)
+            except FileNotFoundError:
+                self._cached_config_stat = None
+        else:
+            self._cached_config_stat = None
+        self._cached_config = config
+        return config
 
     @classmethod
     def present(cls, repo):
@@ -73,14 +103,14 @@ class RepoCollectionMetadata(CollectionMetadata):
         return config.has_section((b"xandikos",))
 
     def get_source_url(self):
-        config = self._repo.get_config()
+        config = self._get_config()
         url = config.get(b"xandikos", b"source")
         if not url:
             raise KeyError
         return url.decode(DEFAULT_ENCODING)
 
     def set_source_url(self, url):
-        config = self._repo.get_config()
+        config = self._get_config()
         if url is not None:
             config.set(b"xandikos", b"source", url.encode(DEFAULT_ENCODING))
         else:
@@ -88,14 +118,14 @@ class RepoCollectionMetadata(CollectionMetadata):
         self._write_config(config)
 
     def get_color(self):
-        config = self._repo.get_config()
+        config = self._get_config()
         color = config.get(b"xandikos", b"color")
         if color == b"":
             raise KeyError
         return color.decode(DEFAULT_ENCODING)
 
     def set_color(self, color):
-        config = self._repo.get_config()
+        config = self._get_config()
         if color is not None:
             config.set(b"xandikos", b"color", color.encode(DEFAULT_ENCODING))
         else:
@@ -106,16 +136,27 @@ class RepoCollectionMetadata(CollectionMetadata):
         f = BytesIO()
         config.write_to_file(f)
         self._repo._put_named_file("config", f.getvalue())
+        # Update cache after write
+        self._cached_config = config
+        config_path = getattr(config, "path", None)
+        if config_path is not None:
+            try:
+                st = os.stat(config_path)
+                self._cached_config_stat = (st.st_mtime, st.st_size)
+            except FileNotFoundError:
+                self._cached_config_stat = None
+        else:
+            self._cached_config_stat = None
 
     def get_displayname(self):
-        config = self._repo.get_config()
+        config = self._get_config()
         displayname = config.get(b"xandikos", b"displayname")
         if displayname == b"":
             raise KeyError
         return displayname.decode(DEFAULT_ENCODING)
 
     def set_displayname(self, displayname):
-        config = self._repo.get_config()
+        config = self._get_config()
         if displayname is not None:
             config.set(
                 b"xandikos",
@@ -139,14 +180,14 @@ class RepoCollectionMetadata(CollectionMetadata):
             self._repo.set_description(b"")
 
     def get_comment(self):
-        config = self._repo.get_config()
+        config = self._get_config()
         comment = config.get(b"xandikos", b"comment")
         if comment == b"":
             raise KeyError
         return comment.decode(DEFAULT_ENCODING)
 
     def set_comment(self, comment):
-        config = self._repo.get_config()
+        config = self._get_config()
         if comment is not None:
             config.set(b"xandikos", b"comment", comment.encode(DEFAULT_ENCODING))
         else:
@@ -154,12 +195,12 @@ class RepoCollectionMetadata(CollectionMetadata):
         self._write_config(config)
 
     def set_type(self, store_type):
-        config = self._repo.get_config()
+        config = self._get_config()
         config.set(b"xandikos", b"type", store_type.encode(DEFAULT_ENCODING))
         self._write_config(config)
 
     def get_type(self):
-        config = self._repo.get_config()
+        config = self._get_config()
         store_type = config.get(b"xandikos", b"type")
         store_type = store_type.decode(DEFAULT_ENCODING)
         if store_type not in VALID_STORE_TYPES:
@@ -167,28 +208,28 @@ class RepoCollectionMetadata(CollectionMetadata):
         return store_type
 
     def get_order(self):
-        config = self._repo.get_config()
+        config = self._get_config()
         order = config.get(b"xandikos", b"calendar-order")
         if order == b"":
             raise KeyError
         return order.decode("utf-8")
 
     def set_order(self, order):
-        config = self._repo.get_config()
+        config = self._get_config()
         if order is None:
             order = ""
         config.set(b"xandikos", b"calendar-order", order.encode("utf-8"))
         self._write_config(config)
 
     def get_refreshrate(self):
-        config = self._repo.get_config()
+        config = self._get_config()
         refreshrate = config.get(b"xandikos", b"refreshrate")
         if refreshrate == b"":
             raise KeyError
         return refreshrate.decode(DEFAULT_ENCODING)
 
     def set_refreshrate(self, refreshrate):
-        config = self._repo.get_config()
+        config = self._get_config()
         if refreshrate is not None:
             config.set(
                 b"xandikos", b"refreshrate", refreshrate.encode(DEFAULT_ENCODING)
@@ -198,14 +239,14 @@ class RepoCollectionMetadata(CollectionMetadata):
         self._write_config(config)
 
     def get_timezone(self):
-        config = self._repo.get_config()
+        config = self._get_config()
         timezone = config.get(b"xandikos", b"timezone")
         if timezone == b"":
             raise KeyError
         return timezone.decode(DEFAULT_ENCODING)
 
     def set_timezone(self, timezone):
-        config = self._repo.get_config()
+        config = self._get_config()
         if timezone is not None:
             config.set(b"xandikos", b"timezone", timezone.encode(DEFAULT_ENCODING))
         else:
@@ -234,6 +275,10 @@ class GitStore(Store):
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid: dict[str, tuple[str, str]] = {}
+
+        # Cache for guessed store type (when not set in git config)
+        self._guessed_type: str | None = None
+        self._guessed_type_ctag: str | None = None
 
         # Cache parsed files by blob SHA - avoids reparsing identical content
         self._parsed_file_cache = functools.lru_cache(maxsize=100)(
@@ -569,11 +614,18 @@ class GitStore(Store):
         """Get store type.
 
         This looks in git config first, then falls back to guessing.
+        The guessed result is cached and invalidated when the ctag changes.
         """
         try:
             return self.config.get_type()
         except KeyError:
-            return super().get_type()
+            ctag = self.get_ctag()
+            if self._guessed_type is not None and self._guessed_type_ctag == ctag:
+                return self._guessed_type
+            store_type = super().get_type()
+            self._guessed_type = store_type
+            self._guessed_type_ctag = ctag
+            return store_type
 
     def iter_changes(self, old_ctag, new_ctag):
         """Get changes between two versions of this store.
