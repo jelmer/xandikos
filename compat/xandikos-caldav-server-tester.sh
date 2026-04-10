@@ -52,15 +52,13 @@ class TestXandikosCompatibility(unittest.TestCase):
         # - Category searches (basic)
         # - Combined searches (logical AND of time-range and category)
         # - Recurring events (basic support)
-        # - Server-side recurrence expansion for events (basic cases)
+        # - Server-side recurrence expansion
         #
         # Known limitations/unsupported features:
         xandikos_features = FeatureSet({
             # Principal property search returns 403 (not implemented)
             "principal-search": "ungraceful",
 
-            # Server-side recurrence expansion is buggy for event exceptions
-            "search.recurrences.expanded.exception": "unsupported",
         })
 
         cls.caldav = caldav.DAVClient(

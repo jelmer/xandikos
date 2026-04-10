@@ -2005,8 +2005,13 @@ def _expand_rrule_component(
             if not _event_overlaps_range(outcomp, start, end):
                 continue
 
-        # Set RECURRENCE-ID
-        outcomp["RECURRENCE-ID"] = create_prop_from_date_or_datetime(ts_normalized)
+        # Set RECURRENCE-ID to UTC for expanded occurrences
+        recurrence_id_dt: datetime | date
+        if isinstance(ts_for_dtstart, datetime) and ts_for_dtstart.tzinfo is not None:
+            recurrence_id_dt = ts_for_dtstart.astimezone(timezone.utc)
+        else:
+            recurrence_id_dt = ts_for_dtstart
+        outcomp["RECURRENCE-ID"] = create_prop_from_date_or_datetime(recurrence_id_dt)
         yield outcomp
 
 
