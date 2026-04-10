@@ -1781,6 +1781,83 @@ END:VCALENDAR"""
         ]
         self.assertEqual(event_dates, expected_dates)
 
+    def test_expand_recurring_vtodo_with_due(self):
+        """Test that RRULE expansion shifts DUE for recurring VTODOs."""
+        from icalendar import Calendar
+
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VTODO
+UID:recurring-todo@example.com
+DTSTART:20000112T120000Z
+DUE:20000112T130000Z
+RRULE:FREQ=MONTHLY
+SUMMARY:Monthly recurring task
+END:VTODO
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+        start = datetime(2000, 2, 1, tzinfo=timezone.utc)
+        end = datetime(2000, 3, 1, tzinfo=timezone.utc)
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        todos = [c for c in expanded.walk() if c.name == "VTODO"]
+        self.assertEqual(len(todos), 1)
+        self.assertEqual(
+            todos[0]["DTSTART"].dt,
+            datetime(2000, 2, 12, 12, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            todos[0]["DUE"].dt,
+            datetime(2000, 2, 12, 13, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_expand_recurrence_id_utc_aware(self):
+        """Test that RECURRENCE-ID in expanded output is UTC-aware."""
+        from icalendar import Calendar
+
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VTIMEZONE
+TZID:US/Eastern
+BEGIN:STANDARD
+DTSTART:20001026T020000
+RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:20000404T020000
+RRULE:FREQ=YEARLY;BYDAY=1SU;BYMONTH=4
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:tz-event@example.com
+DTSTART;TZID=US/Eastern:20060102T120000
+DURATION:PT1H
+RRULE:FREQ=DAILY;COUNT=3
+SUMMARY:Eastern event
+END:VEVENT
+END:VCALENDAR"""
+
+        cal = Calendar.from_ical(test_ical)
+        start = datetime(2006, 1, 2, tzinfo=timezone.utc)
+        end = datetime(2006, 1, 5, tzinfo=timezone.utc)
+        expanded = expand_calendar_rrule(cal, start, end)
+
+        events = [c for c in expanded.walk() if c.name == "VEVENT"]
+        for ev in events:
+            rid = ev.get("RECURRENCE-ID")
+            self.assertIsNotNone(rid)
+            self.assertIsNotNone(
+                rid.dt.tzinfo,
+                f"RECURRENCE-ID {rid.dt} should be timezone-aware",
+            )
+
 
 class MixedDateDatetimeTests(unittest.TestCase):
     """Test handling of mixed date/datetime types in EXDATE/RDATE.

@@ -2006,6 +2006,7 @@ def _expand_rrule_component(
                 continue
 
         # Set RECURRENCE-ID to UTC for expanded occurrences
+        recurrence_id_dt: datetime | date
         if isinstance(ts_for_dtstart, datetime) and ts_for_dtstart.tzinfo is not None:
             recurrence_id_dt = ts_for_dtstart.astimezone(timezone.utc)
         else:
