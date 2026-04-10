@@ -41,7 +41,11 @@ else:
     logger.warning("Unknown value for AUTOCREATE: %r", autocreate_str)
     autocreate = False
 
-backend = SingleUserFilesystemBackend(path=os.environ["XANDIKOSPATH"])
+eager_indexing = os.getenv("EAGER", "").lower() in ("true", "1", "yes")
+backend = SingleUserFilesystemBackend(
+    path=os.environ["XANDIKOSPATH"],
+    eager_indexing=eager_indexing,
+)
 if not os.path.isdir(backend.path):
     if autocreate:
         os.makedirs(os.environ["XANDIKOSPATH"])

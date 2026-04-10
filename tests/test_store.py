@@ -756,7 +756,9 @@ class EagerIndexingTest(unittest.TestCase):
     def test_default_index_keys(self):
         self.assertEqual(File.default_index_keys(), [])
         self.assertGreater(len(ICalendarFile.default_index_keys()), 0)
-        self.assertIn("C=VCALENDAR/C=VEVENT/P=DTSTART", ICalendarFile.default_index_keys())
+        self.assertIn(
+            "C=VCALENDAR/C=VEVENT/P=DTSTART", ICalendarFile.default_index_keys()
+        )
 
     def test_eager_indexing_skips_invalid_files(self):
         """Verify that invalid files are skipped with a warning, not crashing."""
