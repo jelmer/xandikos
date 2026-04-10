@@ -1791,11 +1791,13 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
 
 
 def _get_event_duration(comp: Component) -> timedelta | None:
-    """Get the duration of an event component."""
+    """Get the duration of an event/todo component."""
     if "DURATION" in comp:
         return comp["DURATION"].dt
     elif "DTEND" in comp and "DTSTART" in comp:
         return comp["DTEND"].dt - comp["DTSTART"].dt
+    elif "DUE" in comp and "DTSTART" in comp:
+        return comp["DUE"].dt - comp["DTSTART"].dt
     return None
 
 
@@ -1952,18 +1954,19 @@ def _expand_rrule_component(
                 pass
             outcomp["DTSTART"] = new_dtstart
 
-            # Update DTEND if present
-            if "DTEND" in outcomp:
-                original_duration = incomp["DTEND"].dt - original_dtstart.dt
-                new_dtend = create_prop_from_date_or_datetime(
-                    ts_for_dtstart + original_duration
-                )
-                try:
-                    if incomp["DTEND"].params:
-                        new_dtend.params = incomp["DTEND"].params.copy()
-                except AttributeError:
-                    pass
-                outcomp["DTEND"] = new_dtend
+            # Update DTEND or DUE if present
+            for end_prop in ("DTEND", "DUE"):
+                if end_prop in outcomp:
+                    original_duration = incomp[end_prop].dt - original_dtstart.dt
+                    new_end = create_prop_from_date_or_datetime(
+                        ts_for_dtstart + original_duration
+                    )
+                    try:
+                        if incomp[end_prop].params:
+                            new_end.params = incomp[end_prop].params.copy()
+                    except AttributeError:
+                        pass
+                    outcomp[end_prop] = new_end
 
         # Check if occurrence overlaps with time range
         if start is not None and end is not None:
