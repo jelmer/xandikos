@@ -1157,6 +1157,7 @@ class SingleUserFilesystemBackend(FilesystemBackend):
         *,
         paranoid: bool = False,
         index_threshold: int | None = None,
+        eager_indexing: bool = False,
         autocreate: bool = False,
         show_principals_on_root: bool = True,
     ) -> None:
@@ -1164,6 +1165,7 @@ class SingleUserFilesystemBackend(FilesystemBackend):
         self._user_principals: set[str] = set()
         self.paranoid = paranoid
         self.index_threshold = index_threshold
+        self.eager_indexing = eager_indexing
         self.autocreate = autocreate
         self.show_principals_on_root = show_principals_on_root
         self._open_store = functools.lru_cache(maxsize=16)(self._open_store_uncached)
@@ -1174,6 +1176,7 @@ class SingleUserFilesystemBackend(FilesystemBackend):
             path,
             double_check_indexes=self.paranoid,
             index_threshold=self.index_threshold,
+            eager_indexing=self.eager_indexing,
         )
 
     def _mark_as_principal(self, path):
@@ -1634,6 +1637,11 @@ def add_parser(parser):
     # and are generally just meant for developers.
     parser.add_argument("--paranoid", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--index-threshold", type=int, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--eager",
+        action="store_true",
+        help="Pre-populate indexes at startup for faster initial queries.",
+    )
 
 
 async def main(options, parser):
@@ -1656,6 +1664,7 @@ async def main(options, parser):
         os.path.abspath(options.directory),
         paranoid=options.paranoid,
         index_threshold=options.index_threshold,
+        eager_indexing=options.eager,
     )
     backend._mark_as_principal(options.current_user_principal)
 

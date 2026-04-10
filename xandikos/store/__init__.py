@@ -25,6 +25,7 @@ are always strong, and should be returned without wrapping quotes.
 
 from logging import getLogger
 import mimetypes
+import threading
 from collections.abc import Iterable, Iterator
 from typing import Optional
 
@@ -118,6 +119,14 @@ class File:
             yield "Added " + item_description
         else:
             yield "Modified " + item_description
+
+    @classmethod
+    def default_index_keys(cls) -> list[IndexKey]:
+        """Return index keys that should be pre-populated for this file type.
+
+        Override in subclasses to specify commonly-queried index keys.
+        """
+        return []
 
     def _get_index(self, key: IndexKey) -> IndexValueIterator:
         """Obtain an index for this file.
@@ -616,3 +625,46 @@ def open_store(location: str) -> Store:
     from .git import GitStore
 
     return GitStore.open_from_path(location)
+
+
+def _populate_indexes(store: Store) -> None:
+    """Scan all items in a store and populate index values."""
+    keys = list(store.index.available_keys())
+    count = 0
+    for name, content_type, etag in store.iter_with_etag():
+        if etag in store.index.iter_etags():
+            continue
+        try:
+            file = store.get_file(name, content_type, etag)
+            values = file.get_indexes(keys)
+        except (InvalidFileContents, KeyError):
+            logger.warning("Unable to index file %s, skipping.", name)
+            continue
+        store.index.add_values(name, etag, values)
+        count += 1
+    logger.info("Eager indexing complete for %r: indexed %d items.", store, count)
+
+
+def start_eager_indexing(store: Store) -> threading.Thread | None:
+    """Initialize default indexes and start a background scan to populate them.
+
+    Collects default_index_keys() from all loaded file handlers, resets the
+    index with those keys, then scans all items in a background thread.
+
+    Returns: The background thread performing the scan, or None if there
+        are no default index keys.
+    """
+    all_keys: set[str] = set()
+    for handler in store.extra_file_handlers.values():
+        all_keys.update(handler.default_index_keys())
+    if not all_keys:
+        return None
+    store.index.reset(all_keys)
+    thread = threading.Thread(
+        target=_populate_indexes,
+        args=(store,),
+        name="eager-index-scan",
+        daemon=True,
+    )
+    thread.start()
+    return thread
