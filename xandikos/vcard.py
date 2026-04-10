@@ -29,6 +29,14 @@ from .store.index import IndexDict, IndexKey, IndexValueIterator
 class VCardFile(File):
     content_type = "text/vcard"
 
+    @classmethod
+    def default_index_keys(cls) -> list[str]:
+        return [
+            "P=FN",
+            "P=EMAIL",
+            "P=TEL",
+        ]
+
     def __init__(self, content, content_type) -> None:
         super().__init__(content, content_type)
         self._addressbook = None

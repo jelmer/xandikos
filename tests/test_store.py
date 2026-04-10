@@ -36,6 +36,7 @@ from xandikos.store import (
     InvalidETag,
     NoSuchItem,
     Store,
+    start_eager_indexing,
 )
 
 from xandikos.icalendar import ICalendarFile, CalendarFilter
@@ -693,3 +694,80 @@ class ParanoidModeTests(unittest.TestCase):
         result_name, result_file, result_etag = results[0]
         self.assertEqual(result_name, name)
         self.assertEqual(result_etag, etag)
+
+
+class EagerIndexingTest(unittest.TestCase):
+    def _create_bare_store(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        store_path = os.path.join(d, "store")
+        os.mkdir(store_path)
+        repo = Repo.init_bare(store_path)
+        repo._autogc_disabled = True
+        self.addCleanup(repo.close)
+        store = BareGitStore(repo)
+        store.load_extra_file_handler(ICalendarFile)
+        return store
+
+    def test_start_eager_indexing_populates_index(self):
+        store = self._create_bare_store()
+        store.import_one("test.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+
+        thread = start_eager_indexing(store)
+        self.assertIsNotNone(thread)
+        thread.join(timeout=10)
+        self.assertFalse(thread.is_alive())
+
+        # Index should now have the default keys
+        available = set(store.index.available_keys())
+        for key in ICalendarFile.default_index_keys():
+            self.assertIn(key, available)
+
+        # Index should contain the imported item's etag
+        indexed_etags = list(store.index.iter_etags())
+        self.assertEqual(len(indexed_etags), 1)
+
+    def test_eager_indexing_filter_uses_index(self):
+        store = self._create_bare_store()
+        (name, etag) = store.import_one(
+            "test.ics", "text/calendar", [EXAMPLE_VCALENDAR1]
+        )
+
+        thread = start_eager_indexing(store)
+        thread.join(timeout=10)
+
+        # Query with a filter that uses the indexed keys
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        component_filter = filter.filter_subcomponent("VCALENDAR")
+        component_filter.filter_subcomponent("VTODO")
+
+        results = list(store.iter_with_filter(filter))
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0][0], name)
+        self.assertEqual(results[0][2], etag)
+
+    def test_start_eager_indexing_no_handlers(self):
+        store = self._create_bare_store()
+        # Remove all file handlers so there are no default keys
+        store.extra_file_handlers.clear()
+        thread = start_eager_indexing(store)
+        self.assertIsNone(thread)
+
+    def test_default_index_keys(self):
+        self.assertEqual(File.default_index_keys(), [])
+        self.assertGreater(len(ICalendarFile.default_index_keys()), 0)
+        self.assertIn("C=VCALENDAR/C=VEVENT/P=DTSTART", ICalendarFile.default_index_keys())
+
+    def test_eager_indexing_skips_invalid_files(self):
+        """Verify that invalid files are skipped with a warning, not crashing."""
+        store = self._create_bare_store()
+        # Import a valid file
+        store.import_one("good.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+
+        thread = start_eager_indexing(store)
+        thread.join(timeout=10)
+        self.assertFalse(thread.is_alive())
+
+        # The valid file should be indexed
+        indexed_etags = list(store.index.iter_etags())
+        self.assertEqual(len(indexed_etags), 1)

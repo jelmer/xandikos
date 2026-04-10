@@ -25,6 +25,7 @@ import shutil
 
 from xandikos import webdav
 from xandikos.icalendar import ICalendarFile
+from xandikos.store import start_eager_indexing
 from xandikos.store.git import GitStore
 from xandikos.vcard import VCardFile
 
@@ -32,10 +33,12 @@ STORE_CACHE_SIZE = 128
 
 
 @functools.lru_cache(maxsize=STORE_CACHE_SIZE)
-def open_store_from_path(path: str, **kwargs):
+def open_store_from_path(path: str, *, eager_indexing: bool = False, **kwargs):
     store = GitStore.open_from_path(path, **kwargs)
     store.load_extra_file_handler(ICalendarFile)
     store.load_extra_file_handler(VCardFile)
+    if eager_indexing:
+        start_eager_indexing(store)
     return store
 
 

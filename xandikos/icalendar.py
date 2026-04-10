@@ -1482,6 +1482,26 @@ class ICalendarFile(File):
 
     content_type = "text/calendar"
 
+    @classmethod
+    def default_index_keys(cls) -> list[str]:
+        return [
+            "C=VCALENDAR",
+            "C=VCALENDAR/C=VEVENT",
+            "C=VCALENDAR/C=VEVENT/P=DTSTART",
+            "C=VCALENDAR/C=VEVENT/P=DTEND",
+            "C=VCALENDAR/C=VEVENT/P=DURATION",
+            "C=VCALENDAR/C=VEVENT/P=RRULE",
+            "C=VCALENDAR/C=VTODO",
+            "C=VCALENDAR/C=VTODO/P=DTSTART",
+            "C=VCALENDAR/C=VTODO/P=DUE",
+            "C=VCALENDAR/C=VTODO/P=DURATION",
+            "C=VCALENDAR/C=VTODO/P=CREATED",
+            "C=VCALENDAR/C=VTODO/P=COMPLETED",
+            "C=VCALENDAR/C=VTODO/P=RRULE",
+            "C=VCALENDAR/C=VJOURNAL",
+            "C=VCALENDAR/C=VJOURNAL/P=DTSTART",
+        ]
+
     def __init__(self, content, content_type) -> None:
         super().__init__(content, content_type)
         self._calendar = None
