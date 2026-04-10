@@ -56,9 +56,6 @@ class TestXandikosCompatibility(unittest.TestCase):
         #
         # Known limitations/unsupported features:
         xandikos_features = FeatureSet({
-            # Component type filtering is required - searches must specify event=True or todo=True
-            "search.comp-type.optional": "unsupported",
-
             # Principal property search returns 403 (not implemented)
             "principal-search": "ungraceful",
 
