@@ -309,6 +309,28 @@ class Store:
 
     def load_extra_file_handler(self, file_handler: type[File]) -> None:
         self.extra_file_handlers[file_handler.content_type] = file_handler
+        new_keys = set(file_handler.default_index_keys())
+        if new_keys:
+            existing_keys = set(self.index.available_keys())
+            if not new_keys.issubset(existing_keys):
+                self.index.reset(existing_keys | new_keys)
+
+    def _index_file(self, name: str, etag: str, fi: File) -> None:
+        """Populate index values for an imported file.
+
+        Args:
+          name: Name of the item
+          etag: Etag of the item
+          fi: Parsed File object
+        """
+        keys = list(self.index.available_keys())
+        if not keys:
+            return
+        try:
+            values = fi.get_indexes(keys)
+        except (InvalidFileContents, NotImplementedError):
+            return
+        self.index.add_values(name, etag, values)
 
     def iter_with_etag(self, ctag: str | None = None) -> Iterator[tuple[str, str, str]]:
         """Iterate over all items in the store with etag.

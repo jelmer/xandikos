@@ -58,6 +58,7 @@ from .config import CollectionMetadata, FileBasedCollectionMetadata, is_metadata
 from .index import MemoryIndex
 
 DEFAULT_ENCODING = "utf-8"
+DEFAULT_FILE_CACHE_SIZE = 1024
 
 
 logger = getLogger("xandikos")
@@ -263,6 +264,7 @@ class GitStore(Store):
         *,
         ref: bytes = b"HEAD",
         check_for_duplicate_uids=True,
+        parsed_file_cache_size: int | None = None,
         **kwargs,
     ) -> None:
         super().__init__(MemoryIndex(), **kwargs)
@@ -281,7 +283,9 @@ class GitStore(Store):
         self._guessed_type_ctag: str | None = None
 
         # Cache parsed files by blob SHA - avoids reparsing identical content
-        self._parsed_file_cache = functools.lru_cache(maxsize=100)(
+        if parsed_file_cache_size is None:
+            parsed_file_cache_size = DEFAULT_FILE_CACHE_SIZE
+        self._parsed_file_cache = functools.lru_cache(maxsize=parsed_file_cache_size)(
             self._parse_file_by_sha
         )
 
@@ -426,7 +430,9 @@ class GitStore(Store):
                 message += f"\nRequester: {requester}"
 
         etag = self._import_one(name, fi.normalized(), message)
-        return (name, etag.decode("ascii"))
+        etag_str = etag.decode("ascii")
+        self._index_file(name, etag_str, fi)
+        return (name, etag_str)
 
     def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
@@ -712,13 +718,13 @@ class BareGitStore(GitStore):
             yield (name, mode, sha)
 
     @classmethod
-    def create_memory(cls) -> "GitStore":
+    def create_memory(cls, **kwargs) -> "GitStore":
         """Create a new store backed by a memory repository.
 
         Returns: A `GitStore`
         """
         repo = dulwich.repo.MemoryRepo()
-        return cls(repo)
+        return cls(repo, **kwargs)
 
     def _commit_tree(self, tree_id, message):
         """Create a commit for the given tree.
