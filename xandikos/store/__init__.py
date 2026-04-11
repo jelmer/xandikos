@@ -309,6 +309,11 @@ class Store:
 
     def load_extra_file_handler(self, file_handler: type[File]) -> None:
         self.extra_file_handlers[file_handler.content_type] = file_handler
+        new_keys = set(file_handler.default_index_keys())
+        if new_keys:
+            existing_keys = set(self.index.available_keys())
+            if not new_keys.issubset(existing_keys):
+                self.index.reset(existing_keys | new_keys)
 
     def iter_with_etag(self, ctag: str | None = None) -> Iterator[tuple[str, str, str]]:
         """Iterate over all items in the store with etag.
