@@ -132,6 +132,7 @@ class MemoryStore(Store):
         if uid is not None:
             self._uid_to_name[uid] = (name, etag)
 
+        self._index_file(name, etag, fi)
         return (name, etag)
 
     def delete_one(

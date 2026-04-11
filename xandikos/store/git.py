@@ -430,7 +430,9 @@ class GitStore(Store):
                 message += f"\nRequester: {requester}"
 
         etag = self._import_one(name, fi.normalized(), message)
-        return (name, etag.decode("ascii"))
+        etag_str = etag.decode("ascii")
+        self._index_file(name, etag_str, fi)
+        return (name, etag_str)
 
     def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.

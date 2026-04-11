@@ -259,7 +259,9 @@ class VdirStore(Store):
             for chunk in fi.normalized():
                 f.write(chunk)
         os.replace(tmppath, path)
-        return (name, self.get_etag(name))
+        etag = self.get_etag(name)
+        self._index_file(name, etag, fi)
+        return (name, etag)
 
     def iter_with_etag(self, ctag=None):
         """Iterate over all items in the store with etag.
