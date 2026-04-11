@@ -284,9 +284,7 @@ class GitStore(Store):
 
         # Cache parsed files by blob SHA - avoids reparsing identical content
         if parsed_file_cache_size is None:
-            parsed_file_cache_size = int(
-                os.environ.get("XANDIKOS_FILE_CACHE_SIZE", DEFAULT_FILE_CACHE_SIZE)
-            )
+            parsed_file_cache_size = DEFAULT_FILE_CACHE_SIZE
         self._parsed_file_cache = functools.lru_cache(maxsize=parsed_file_cache_size)(
             self._parse_file_by_sha
         )

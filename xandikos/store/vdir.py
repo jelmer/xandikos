@@ -23,6 +23,7 @@ See https://github.com/pimutils/vdirsyncer/blob/master/docs/vdir.rst
 """
 
 import configparser
+import functools
 import hashlib
 from logging import getLogger
 import os
@@ -44,6 +45,7 @@ from .config import FileBasedCollectionMetadata
 from .index import MemoryIndex
 
 DEFAULT_ENCODING = "utf-8"
+DEFAULT_FILE_CACHE_SIZE = 1024
 
 
 logger = getLogger("xandikos")
@@ -52,7 +54,12 @@ logger = getLogger("xandikos")
 class VdirStore(Store):
     """A Store backed by a Vdir directory."""
 
-    def __init__(self, path, check_for_duplicate_uids=True) -> None:
+    def __init__(
+        self,
+        path,
+        check_for_duplicate_uids=True,
+        parsed_file_cache_size: int | None = None,
+    ) -> None:
         super().__init__(MemoryIndex())
         self.path = path
         self._check_for_duplicate_uids = check_for_duplicate_uids
@@ -60,6 +67,14 @@ class VdirStore(Store):
         self._fname_to_uid: dict[str, str] = {}
         # Maps uids to (sha, fname)
         self._uid_to_fname: dict[str, str] = {}
+
+        # Cache parsed files by etag - avoids reparsing identical content
+        if parsed_file_cache_size is None:
+            parsed_file_cache_size = DEFAULT_FILE_CACHE_SIZE
+        self._parsed_file_cache = functools.lru_cache(maxsize=parsed_file_cache_size)(
+            self._parse_file
+        )
+
         cp = configparser.ConfigParser()
         cp.read([os.path.join(self.path, CONFIG_FILENAME)])
 
@@ -101,6 +116,27 @@ class VdirStore(Store):
             raise KeyError(name) from exc
         except IsADirectoryError as exc:
             raise KeyError(name) from exc
+
+    def _parse_file(self, etag: str, content_type: str | None, name: str):
+        """Parse a file, used as the backing function for the LRU cache."""
+        if content_type is None:
+            return open_by_extension(
+                self._get_raw(name),
+                name,
+                extra_file_handlers=self.extra_file_handlers,
+            )
+        else:
+            return open_by_content_type(
+                self._get_raw(name),
+                content_type,
+                extra_file_handlers=self.extra_file_handlers,
+            )
+
+    def get_file(self, name, content_type=None, etag=None):
+        """Get file with caching based on etag."""
+        if etag is None:
+            etag = self.get_etag(name)
+        return self._parsed_file_cache(etag, content_type, name)
 
     def _scan_uids(self):
         removed = set(self._fname_to_uid.keys())
