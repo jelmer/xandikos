@@ -68,6 +68,9 @@ class VdirStore(Store):
         # Maps uids to (sha, fname)
         self._uid_to_fname: dict[str, str] = {}
 
+        # Cache etags by (name, mtime_ns, size) to avoid re-hashing unchanged files
+        self._etag_cache: dict[str, tuple[int, int, str]] = {}
+
         # Cache parsed files by etag - avoids reparsing identical content
         if parsed_file_cache_size is None:
             parsed_file_cache_size = DEFAULT_FILE_CACHE_SIZE
@@ -89,16 +92,26 @@ class VdirStore(Store):
 
     def get_etag(self, name):
         path = os.path.join(self.path, name)
-        md5 = hashlib.md5()
         try:
-            with open(path, "rb") as f:
-                for chunk in f:
-                    md5.update(chunk)
+            st = os.stat(path)
         except FileNotFoundError as exc:
             raise KeyError(name) from exc
         except IsADirectoryError as exc:
             raise KeyError(name) from exc
-        return md5.hexdigest()
+
+        cached = self._etag_cache.get(name)
+        if cached is not None:
+            c_mtime_ns, c_size, c_etag = cached
+            if c_mtime_ns == st.st_mtime_ns and c_size == st.st_size:
+                return c_etag
+
+        md5 = hashlib.md5()
+        with open(path, "rb") as f:
+            for chunk in f:
+                md5.update(chunk)
+        etag = md5.hexdigest()
+        self._etag_cache[name] = (st.st_mtime_ns, st.st_size, etag)
+        return etag
 
     def _get_raw(self, name, etag=None):
         """Get the raw contents of an object.
