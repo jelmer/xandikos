@@ -1540,6 +1540,13 @@ class ICalendarFile(File):
                 ) from exc
         return self._calendar
 
+    def _has_recurrence(self) -> bool:
+        """Check if any subcomponent has RRULE or RECURRENCE-ID."""
+        for comp in self.calendar.subcomponents:
+            if "RRULE" in comp or "RECURRENCE-ID" in comp:
+                return True
+        return False
+
     def get_expanded_calendar(self, start=None, end=None):
         """Get calendar with recurring events expanded within the given time range.
 
@@ -1550,6 +1557,9 @@ class ICalendarFile(File):
         Returns:
             Calendar with recurring events expanded
         """
+        if not self._has_recurrence():
+            return self.calendar
+
         if start is None:
             start = MIN_EXPANSION_TIME
         if end is None:
