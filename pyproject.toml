@@ -53,7 +53,7 @@ xandikos = "xandikos.__main__:cli_main"
 include-package-data = false
 
 [tool.setuptools.packages]
-find = {namespaces = false}
+find = {namespaces = false, exclude = ["benchmarks*"]}
 
 [tool.setuptools.package-data]
 xandikos = [
