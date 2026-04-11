@@ -1,3 +1,43 @@
+0.3.7	2026-04-11
+
+ * Cache etag computation in VdirStore using stat metadata.
+   (Jelmer Vernooĳ)
+
+ * Add parsed file cache to VdirStore. (Jelmer Vernooĳ)
+
+ * Populate index values during import. (Jelmer Vernooĳ)
+
+ * Skip RRULE expansion for non-recurring calendar events.
+   (Jelmer Vernooĳ)
+
+ * Don't install benchmarks package. (Jelmer Vernooĳ)
+
+ * Support EAGER environment variable in WSGI mode.
+   (Jelmer Vernooĳ)
+
+ * Add --eager flag for background index pre-population at startup.
+   (Jelmer Vernooĳ)
+
+ * Fix index-based time-range filtering for all-day recurring events.
+   (Jelmer Vernooĳ)
+
+ * Fix RECURRENCE-ID timezone in expanded recurrences.
+   (Jelmer Vernooĳ)
+
+ * Support time-range filter on VCALENDAR without comp-filter.
+   (Jelmer Vernooĳ)
+
+ * Support RRULE expansion for recurring VTODOs in time-range filters.
+   (Jelmer Vernooĳ)
+
+ * Fix VTODO time-range filter returning false positives.
+   (Jelmer Vernooĳ)
+
+ * Cache guessed store type with ctag-based invalidation.
+   (Jelmer Vernooĳ)
+
+ * Cache git config in RepoCollectionMetadata. (Jelmer Vernooĳ)
+
 0.3.6	2026-04-09
 
  * Cache ctag (tree SHA) alongside the git index to avoid redundant
