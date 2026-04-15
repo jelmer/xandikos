@@ -22,6 +22,7 @@
 import configparser
 import errno
 import functools
+import threading
 from logging import getLogger
 import os
 import shutil
@@ -277,6 +278,9 @@ class GitStore(Store):
         self._check_for_duplicate_uids = check_for_duplicate_uids
         # Set of blob ids that have already been scanned
         self._fname_to_uid: dict[str, tuple[str, str]] = {}
+        # Guards mutations of the uid maps above so that concurrent
+        # _scan_uids callers don't race in the terminal cleanup loop.
+        self._uid_lock = threading.Lock()
 
         # Cache for guessed store type (when not set in git config)
         self._guessed_type: str | None = None
@@ -448,12 +452,22 @@ class GitStore(Store):
         return blob.chunked
 
     def _scan_uids(self):
-        removed = set(self._fname_to_uid.keys())
+        # Build the new mapping locally and swap it in under the
+        # lock, so two concurrent scanners can't corrupt each
+        # other's intermediate state. The blob parsing work (which
+        # can be expensive) happens outside the lock.
+        with self._uid_lock:
+            existing = dict(self._fname_to_uid)
+        new_fname_to_uid: dict[str, tuple[str, str]] = {}
+        new_uid_to_fname: dict[str, tuple[bytes, str]] = {}
         for name, mode, sha in self._iterblobs():
             etag = sha.decode("ascii")
-            if name in removed:
-                removed.remove(name)
-            if name in self._fname_to_uid and self._fname_to_uid[name][0] == etag:
+            cached = existing.get(name)
+            if cached is not None and cached[0] == etag:
+                new_fname_to_uid[name] = cached
+                uid = cached[1]
+                if uid is not None:
+                    new_uid_to_fname[uid] = (name, etag)
                 continue
             blob = self.repo.object_store[sha]
             fi = open_by_extension(blob.chunked, name, self.extra_file_handlers)
@@ -468,14 +482,12 @@ class GitStore(Store):
             except NotImplementedError:
                 # This file type doesn't support UIDs
                 uid = None
-            self._fname_to_uid[name] = (etag, uid)
+            new_fname_to_uid[name] = (etag, uid)
             if uid is not None:
-                self._uid_to_fname[uid] = (name, etag)
-        for name in removed:
-            (unused_etag, uid) = self._fname_to_uid[name]
-            if uid is not None:
-                del self._uid_to_fname[uid]
-            del self._fname_to_uid[name]
+                new_uid_to_fname[uid] = (name, etag)
+        with self._uid_lock:
+            self._fname_to_uid = new_fname_to_uid
+            self._uid_to_fname = new_uid_to_fname
 
     def _iterblobs(self, ctag=None):
         raise NotImplementedError(self._iterblobs)
