@@ -1,7 +1,7 @@
 # Requirements for caldav-server-tester compatibility tests
 # caldav-server-tester from git includes fix for search.category feature names
 # (renamed to search.text.category to match caldav's FeatureSet)
-# The git version requires caldav >= 3.0
+# The git version requires caldav >= 3.2.0
 caldav>=3.0
 vobject
 caldav-server-tester @ git+https://github.com/python-caldav/caldav-server-tester.git
