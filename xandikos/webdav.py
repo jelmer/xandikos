@@ -489,6 +489,14 @@ class Resource:
         """
         raise NotImplementedError(self.get_etag)
 
+    async def get_schedule_tag(self) -> str:
+        """Get the CalDAV schedule-tag for this resource.
+
+        See RFC 6638 §3.2.10. Resources that are not scheduling object
+        resources MUST raise KeyError.
+        """
+        raise KeyError
+
     async def get_body(self) -> Iterable[bytes]:
         """Get resource contents.
 
@@ -1974,6 +1982,14 @@ class DeleteMethod(Method):
         if_match = request.headers.get("If-Match", None)
         if if_match is not None and not etag_matches(if_match, current_etag):
             return Response(status=412, reason="Precondition Failed")
+        if_schedule_tag_match = request.headers.get("If-Schedule-Tag-Match", None)
+        if if_schedule_tag_match is not None:
+            try:
+                current_schedule_tag = await r.get_schedule_tag()
+            except KeyError:
+                current_schedule_tag = None
+            if not etag_matches(if_schedule_tag_match, current_schedule_tag):
+                return Response(status=412, reason="Precondition Failed")
         pr.delete_member(
             item_name,
             current_etag,
@@ -2041,6 +2057,16 @@ class PutMethod(Method):
         if_none_match = request.headers.get("If-None-Match", None)
         if if_none_match and etag_matches(if_none_match, current_etag):
             return Response(status="412 Precondition Failed")
+        if_schedule_tag_match = request.headers.get("If-Schedule-Tag-Match", None)
+        if if_schedule_tag_match is not None:
+            current_schedule_tag = None
+            if r is not None:
+                try:
+                    current_schedule_tag = await r.get_schedule_tag()
+                except KeyError:
+                    pass
+            if not etag_matches(if_schedule_tag_match, current_schedule_tag):
+                return Response(status="412 Precondition Failed")
         if r is not None:
             # Item already exists; update it
             try:
