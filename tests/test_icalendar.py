@@ -32,6 +32,7 @@ from xandikos.store import InvalidFileContents
 from xandikos.icalendar import (
     CalendarFilter,
     ICalendarFile,
+    MIN_EXPANSION_TIME,
     MissingProperty,
     TextMatcher,
     _create_enriched_valarm,
@@ -1160,6 +1161,41 @@ END:VCALENDAR
         # This should complete without OverflowError
         result = filter_unbounded.check_from_indexes("test.ics", indexes)
         self.assertTrue(result)
+
+    def test_open_start_query_no_overflow(self):
+        """Open-start time-range query (start=MIN_EXPANSION_TIME) must not overflow.
+
+        When a CalDAV REPORT supplies only an end bound, _parse_time_range
+        defaults start to 0001-01-01.  _expand_rrule_component then computed
+        ``start - duration`` to catch overlapping events, which raises
+        OverflowError for any positive duration.
+        """
+        recurring_event = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:open-start-event@example.com
+DTSTART:20000108T100000Z
+DTEND:20000108T110000Z
+SUMMARY:One-hour event
+RRULE:FREQ=DAILY;COUNT=3
+END:VEVENT
+END:VCALENDAR
+"""
+        cal_file = ICalendarFile([recurring_event], "text/calendar")
+
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=MIN_EXPANSION_TIME,
+            end=self._tzify(datetime(2000, 1, 1, 0, 0, 0)),
+        )
+
+        # Event starts on 2000-01-08, end bound is 2000-01-01 — must not match
+        # and must not raise OverflowError while attempting expansion.
+        self.assertFalse(filter.check("test.ics", cal_file))
 
     def test_vcalendar_time_range_without_comp_type(self):
         """Time-range on VCALENDAR (no child comp-filter) matches subcomponents."""
