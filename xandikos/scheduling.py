@@ -22,16 +22,38 @@
 See https://tools.ietf.org/html/rfc6638
 """
 
+import datetime
 import hashlib
+from collections.abc import Iterable
+from xml.etree import ElementTree as ET
 
-from icalendar.cal import Calendar
+from icalendar.cal import Calendar, Component, FreeBusy
+from icalendar.prop import vDDDTypes, vPeriod
 
 from xandikos import caldav, webdav
 from xandikos.caldav import (
+    PRODID,
     SCHEDULE_INBOX_RESOURCE_TYPE,
     SCHEDULE_OUTBOX_RESOURCE_TYPE,
 )
 from xandikos.icalendar import PropTypes
+
+
+# RFC 5546 §3.6 / RFC 6638 §6.2 request-status codes used in
+# schedule-response replies.
+REQUEST_STATUS_SUCCESS = "2.0;Success"
+REQUEST_STATUS_INVALID_CALENDAR_USER = "3.7;Invalid calendar user"
+REQUEST_STATUS_NO_AUTHORITY = "3.8;No authority"
+REQUEST_STATUS_SERVICE_UNAVAILABLE = "5.0;Service unavailable"
+
+
+class InvalidSchedulingRequest(Exception):
+    """The body submitted to the schedule-outbox is not a valid request."""
+
+    def __init__(self, description: str) -> None:
+        super().__init__(description)
+        self.description = description
+
 
 # Feature to advertise to indicate scheduling support.
 FEATURE = "calendar-auto-schedule"
@@ -268,6 +290,172 @@ class ScheduleOutbox(webdav.Collection):
     def get_max_attendees_per_instance(self):
         """Return maximum number of attendees per instance."""
         raise NotImplementedError(self.get_max_attendees_per_instance)
+
+    async def get_attendee_busy_periods(
+        self,
+        attendee_address: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+    ) -> Iterable[vPeriod] | None:
+        """Look up busy periods for *attendee_address* over [start, end).
+
+        Returns ``None`` if the server has no authority to answer for the
+        given attendee — that is the cue to emit a 3.7/3.8 status in the
+        schedule-response. The default implementation returns ``None`` for
+        all attendees; concrete servers override this to walk the
+        principal's calendar collections (or query a remote server).
+        """
+        return None
+
+    async def handle_post(
+        self,
+        request,
+        environ,
+        path: str,
+        body: list[bytes],
+        content_type: str,
+    ) -> "webdav.Response":
+        """Handle a POST to the schedule-outbox per RFC 6638 §6."""
+        if content_type != "text/calendar":
+            return webdav.Response(
+                status=415,
+                reason="Unsupported Media Type",
+                body=[b"Expected text/calendar"],
+            )
+        raw = b"".join(body).decode("utf-8")
+        try:
+            cal = Calendar.from_ical(raw)
+        except ValueError as exc:
+            raise webdav.BadRequestError(f"Invalid iCalendar: {exc}") from exc
+        try:
+            request_comp = _validate_freebusy_request(cal)
+        except InvalidSchedulingRequest as exc:
+            raise webdav.BadRequestError(exc.description) from exc
+
+        start, end = _parse_freebusy_window(request_comp)
+
+        organizer = request_comp.get("ORGANIZER")
+        attendees = request_comp.get("ATTENDEE", [])
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+
+        responses: list[ET.Element] = []
+        for attendee in attendees:
+            recipient = str(attendee)
+            periods = await self.get_attendee_busy_periods(recipient, start, end)
+            if periods is None:
+                responses.append(
+                    _build_response_element(
+                        recipient, REQUEST_STATUS_NO_AUTHORITY, None
+                    )
+                )
+                continue
+            reply = _build_freebusy_reply(
+                organizer, recipient, request_comp, start, end, list(periods)
+            )
+            responses.append(
+                _build_response_element(
+                    recipient, REQUEST_STATUS_SUCCESS, reply.to_ical()
+                )
+            )
+
+        root = ET.Element("{%s}schedule-response" % caldav.NAMESPACE)
+        for r in responses:
+            root.append(r)
+        body_bytes = ET.tostring(root, encoding="utf-8")
+        return webdav.Response(
+            status=200,
+            reason="OK",
+            body=[body_bytes],
+            headers={"Content-Type": "application/xml; charset=utf-8"},
+        )
+
+
+def _validate_freebusy_request(cal: Component) -> Component:
+    """Return the single VFREEBUSY in *cal* if the request is well formed."""
+    method = cal.get("METHOD")
+    if str(method).upper() != "REQUEST":
+        raise InvalidSchedulingRequest(
+            "Schedule-outbox requests require METHOD:REQUEST"
+        )
+    fbs = [c for c in cal.subcomponents if c.name == "VFREEBUSY"]
+    others = [
+        c.name for c in cal.subcomponents if c.name not in ("VFREEBUSY", "VTIMEZONE")
+    ]
+    if others:
+        raise InvalidSchedulingRequest(
+            f"Free-busy request must contain only VFREEBUSY, got {others!r}"
+        )
+    if len(fbs) != 1:
+        raise InvalidSchedulingRequest(
+            f"Free-busy request must contain exactly one VFREEBUSY, got {len(fbs)}"
+        )
+    fb = fbs[0]
+    if "ORGANIZER" not in fb:
+        raise InvalidSchedulingRequest("VFREEBUSY missing ORGANIZER")
+    if "ATTENDEE" not in fb:
+        raise InvalidSchedulingRequest("VFREEBUSY missing ATTENDEE")
+    if "DTSTART" not in fb or "DTEND" not in fb:
+        raise InvalidSchedulingRequest("VFREEBUSY missing DTSTART/DTEND")
+    return fb
+
+
+def _parse_freebusy_window(
+    fb: Component,
+) -> tuple[datetime.datetime, datetime.datetime]:
+    start = fb["DTSTART"].dt
+    end = fb["DTEND"].dt
+    if isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
+        start = datetime.datetime.combine(start, datetime.time(), datetime.timezone.utc)
+    if isinstance(end, datetime.date) and not isinstance(end, datetime.datetime):
+        end = datetime.datetime.combine(end, datetime.time(), datetime.timezone.utc)
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=datetime.timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=datetime.timezone.utc)
+    return start, end
+
+
+def _build_freebusy_reply(
+    organizer,
+    recipient: str,
+    request_comp: Component,
+    start: datetime.datetime,
+    end: datetime.datetime,
+    periods: list[vPeriod],
+) -> Calendar:
+    """Build a METHOD:REPLY VCALENDAR with the per-recipient VFREEBUSY."""
+    cal = Calendar()
+    cal["VERSION"] = "2.0"
+    cal["PRODID"] = PRODID
+    cal["METHOD"] = "REPLY"
+    fb = FreeBusy()
+    fb["DTSTAMP"] = vDDDTypes(datetime.datetime.now(datetime.timezone.utc))
+    fb["DTSTART"] = vDDDTypes(start)
+    fb["DTEND"] = vDDDTypes(end)
+    if organizer is not None:
+        fb["ORGANIZER"] = organizer
+    fb["ATTENDEE"] = recipient
+    if "UID" in request_comp:
+        fb["UID"] = request_comp["UID"]
+    if periods:
+        fb["FREEBUSY"] = periods
+    cal.add_component(fb)
+    return cal
+
+
+def _build_response_element(
+    recipient: str, request_status: str, calendar_data: bytes | None
+) -> ET.Element:
+    el = ET.Element("{%s}response" % caldav.NAMESPACE)
+    rec = ET.SubElement(el, "{%s}recipient" % caldav.NAMESPACE)
+    rec.append(webdav.create_href(recipient))
+    status = ET.SubElement(el, "{%s}request-status" % caldav.NAMESPACE)
+    status.text = request_status
+    if calendar_data is not None:
+        cd = ET.SubElement(el, "{%s}calendar-data" % caldav.NAMESPACE)
+        cd.text = calendar_data.decode("utf-8")
+    return el
 
 
 class ScheduleInboxURLProperty(webdav.Property):

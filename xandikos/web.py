@@ -427,20 +427,21 @@ class StoreBasedCollection:
 
     async def create_member(
         self,
-        name: str,
+        name: str | None,
         contents: Iterable[bytes],
         content_type: str,
         remote_user: str | None = None,
         requester: str | None = None,
     ) -> tuple[str, str]:
         # Check if member already exists and raise FileExistsError if it does
-        try:
-            existing_member = self.get_member(name)
-            if existing_member is not None:
-                raise FileExistsError(f"Member '{name}' already exists")
-        except KeyError:
-            # Member doesn't exist, which is what we want for create_member
-            pass
+        if name is not None:
+            try:
+                existing_member = self.get_member(name)
+                if existing_member is not None:
+                    raise FileExistsError(f"Member '{name}' already exists")
+            except KeyError:
+                # Member doesn't exist, which is what we want for create_member
+                pass
 
         try:
             (name, etag) = self.store.import_one(
@@ -570,6 +571,45 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
 
 class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
     """A schedling outbox collection."""
+
+    async def get_attendee_busy_periods(self, attendee_address, start, end):
+        """Look up busy periods for *attendee_address* within [start, end).
+
+        Returns ``None`` if the address does not belong to this outbox's
+        principal — that is, the server has no authority to answer for
+        this attendee. Otherwise walks the principal's calendar-home and
+        gathers busy/availability periods via :func:`caldav.iter_freebusy`.
+        """
+        principal_path = posixpath.dirname(self.relpath.rstrip("/"))
+        principal = self.backend.get_principal(principal_path)
+        if principal is None:
+            return None
+        if attendee_address not in principal.get_calendar_user_address_set():
+            return None
+
+        from zoneinfo import ZoneInfo
+
+        utc = ZoneInfo("UTC")
+
+        def tzify(dt):
+            from .icalendar import as_tz_aware_ts
+
+            return as_tz_aware_ts(dt, utc).astimezone(utc)
+
+        periods = []
+        for home in principal.get_calendar_home_set():
+            home_path = posixpath.join(principal_path, home)
+            home_resource = self.backend.get_resource(home_path)
+            if home_resource is None:
+                continue
+            async for period in caldav.iter_freebusy(
+                webdav.traverse_resource(home_resource, home_path, "infinity"),
+                start,
+                end,
+                tzify,
+            ):
+                periods.append(period)
+        return periods
 
 
 class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
@@ -1205,6 +1245,17 @@ class SingleUserFilesystemBackend(FilesystemBackend):
     def find_principals(self):
         """List all of the principals on this server."""
         return self._user_principals
+
+    def get_principal(self, relpath: str) -> "Principal | None":
+        relpath = posixpath.normpath(relpath)
+        if relpath not in self._user_principals:
+            return None
+        # Defer to the regular get_resource path so the lookup picks up
+        # whichever Principal subclass corresponds to the on-disk layout.
+        r = self.get_resource(relpath)
+        if isinstance(r, Principal):
+            return r
+        return None
 
     def get_resource(self, relpath):
         relpath = posixpath.normpath(relpath)
