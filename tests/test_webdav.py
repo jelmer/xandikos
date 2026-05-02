@@ -100,10 +100,12 @@ class WebTests(WebTestCase):
         contents = b"".join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def delete(self, app, path, if_match=None):
+    def delete(self, app, path, if_match=None, if_schedule_tag_match=None):
         environ = {"PATH_INFO": path, "REQUEST_METHOD": "DELETE"}
         if if_match is not None:
             environ["HTTP_IF_MATCH"] = if_match
+        if if_schedule_tag_match is not None:
+            environ["HTTP_IF_SCHEDULE_TAG_MATCH"] = if_schedule_tag_match
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -130,7 +132,15 @@ class WebTests(WebTestCase):
         contents = b"".join(app(environ, start_response))
         return _code[0], _headers, contents
 
-    def put(self, app, path, contents, if_match=None, if_none_match=None):
+    def put(
+        self,
+        app,
+        path,
+        contents,
+        if_match=None,
+        if_none_match=None,
+        if_schedule_tag_match=None,
+    ):
         environ = {
             "PATH_INFO": path,
             "REQUEST_METHOD": "PUT",
@@ -140,6 +150,8 @@ class WebTests(WebTestCase):
             environ["HTTP_IF_MATCH"] = if_match
         if if_none_match is not None:
             environ["HTTP_IF_NONE_MATCH"] = if_none_match
+        if if_schedule_tag_match is not None:
+            environ["HTTP_IF_SCHEDULE_TAG_MATCH"] = if_schedule_tag_match
         setup_testing_defaults(environ)
         _code = []
         _headers = []
@@ -814,6 +826,156 @@ class WebTests(WebTestCase):
         )
         code, headers, contents = self.delete(
             app, "/collection/resource", if_match='"wrong-etag"'
+        )
+        self.assertEqual("412 Precondition Failed", code)
+
+    # RFC 6638 Section 8.1 - If-Schedule-Tag-Match tests
+    def test_rfc6638_8_1_put_if_schedule_tag_match_success(self):
+        """PUT with matching If-Schedule-Tag-Match succeeds (RFC 6638 §8.1)."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def get_schedule_tag(self):
+                return '"sched-1"'
+
+            async def set_body(
+                self, body, replace_etag=None, remote_user=None, requester=None
+            ):
+                return '"etag-2"'
+
+        app = self.makeApp({"/resource": TestResource()}, [])
+        code, _ = self.put(
+            app,
+            "/resource",
+            b"new content",
+            if_schedule_tag_match='"sched-1"',
+        )
+        self.assertEqual("204 No Content", code)
+
+    def test_rfc6638_8_1_put_if_schedule_tag_match_fail(self):
+        """PUT with stale If-Schedule-Tag-Match returns 412 (RFC 6638 §8.1)."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def get_schedule_tag(self):
+                return '"sched-1"'
+
+            async def set_body(
+                self, body, replace_etag=None, remote_user=None, requester=None
+            ):
+                self.fail("set_body should not be called")  # pragma: no cover
+
+        app = self.makeApp({"/resource": TestResource()}, [])
+        code, _ = self.put(
+            app,
+            "/resource",
+            b"new content",
+            if_schedule_tag_match='"old-sched"',
+        )
+        self.assertEqual("412 Precondition Failed", code)
+
+    def test_rfc6638_8_1_put_if_schedule_tag_match_resource_has_no_schedule_tag(self):
+        """If the resource has no schedule-tag the precondition fails."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def set_body(
+                self, body, replace_etag=None, remote_user=None, requester=None
+            ):
+                return '"etag-2"'
+
+        app = self.makeApp({"/resource": TestResource()}, [])
+        code, _ = self.put(
+            app,
+            "/resource",
+            b"new content",
+            if_schedule_tag_match='"sched-1"',
+        )
+        self.assertEqual("412 Precondition Failed", code)
+
+    def test_rfc6638_8_1_put_if_schedule_tag_match_wildcard(self):
+        """If-Schedule-Tag-Match: * matches any existing schedule-tag."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def get_schedule_tag(self):
+                return '"sched-1"'
+
+            async def set_body(
+                self, body, replace_etag=None, remote_user=None, requester=None
+            ):
+                return '"etag-2"'
+
+        app = self.makeApp({"/resource": TestResource()}, [])
+        code, _ = self.put(app, "/resource", b"new content", if_schedule_tag_match="*")
+        self.assertEqual("204 No Content", code)
+
+    def test_rfc6638_8_1_delete_if_schedule_tag_match_success(self):
+        """DELETE with matching If-Schedule-Tag-Match succeeds."""
+        deleted_items = []
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def get_schedule_tag(self):
+                return '"sched-1"'
+
+        class TestCollection(Collection):
+            def delete_member(self, name, etag=None, remote_user=None, requester=None):
+                deleted_items.append((name, etag))
+
+            def get_member(self, name):
+                if name == "resource":
+                    return TestResource()
+                raise KeyError(name)
+
+            def members(self):
+                return [("resource", TestResource())]
+
+        app = self.makeApp(
+            {"/collection": TestCollection(), "/collection/resource": TestResource()},
+            [],
+        )
+        code, _, _ = self.delete(
+            app, "/collection/resource", if_schedule_tag_match='"sched-1"'
+        )
+        self.assertEqual("204 No Content", code)
+        self.assertEqual(1, len(deleted_items))
+
+    def test_rfc6638_8_1_delete_if_schedule_tag_match_fail(self):
+        """DELETE with stale If-Schedule-Tag-Match returns 412."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def get_schedule_tag(self):
+                return '"sched-1"'
+
+        class TestCollection(Collection):
+            def delete_member(self, name, etag=None, remote_user=None, requester=None):
+                self.fail("delete_member should not be called")  # pragma: no cover
+
+            def get_member(self, name):
+                if name == "resource":
+                    return TestResource()
+                raise KeyError(name)
+
+        app = self.makeApp(
+            {"/collection": TestCollection(), "/collection/resource": TestResource()},
+            [],
+        )
+        code, _, _ = self.delete(
+            app, "/collection/resource", if_schedule_tag_match='"old-sched"'
         )
         self.assertEqual("412 Precondition Failed", code)
 
