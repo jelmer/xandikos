@@ -76,7 +76,9 @@ from xandikos.store import (
     Store,
 )
 
-from .icalendar import CalendarFilter
+from icalendar.cal import Calendar
+
+from .icalendar import CalendarFilter, ICalendarFile
 from .store.git import GitStore, TreeGitStore
 
 logger = getLogger("xandikos")
@@ -296,9 +298,15 @@ class ObjectResource(webdav.Resource):
         # TODO(jelmer): Ask the store?
         raise KeyError
 
-    def get_schedule_tag(self):
-        # TODO(jelmer): Ask the store?
-        raise KeyError
+    async def get_schedule_tag(self) -> str:
+        if self.content_type != "text/calendar":
+            raise KeyError
+        file = await self.get_file()
+        assert isinstance(file, ICalendarFile)
+        cal = file.calendar
+        assert isinstance(cal, Calendar)
+        signature = scheduling.extract_scheduling_signature(cal)
+        return create_strong_etag(signature.hex())
 
 
 class StoreBasedCollection:
