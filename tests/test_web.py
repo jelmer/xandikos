@@ -729,3 +729,72 @@ class ObjectResourceScheduleTagTests(unittest.TestCase):
                 await resource.get_schedule_tag()
 
         asyncio.run(run())
+
+
+class ScheduleOutboxLookupTests(unittest.TestCase):
+    """Integration tests for ScheduleOutbox.get_attendee_busy_periods."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        # Pass an absolute path so the principal is registered under the same
+        # key the resource lookup uses.
+        self.backend.create_principal("/user", create_defaults=True)
+        # Inject a known calendar-user-address-set on the principal so we
+        # don't depend on the EMAIL environment variable.
+        os.environ["EMAIL"] = "user@example.com"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+
+    def _put_event(self, body):
+        cal = self.backend.get_resource("/user/calendars/calendar")
+        cal.store.import_one("event.ics", "text/calendar", [body])
+
+    def _outbox(self):
+        # SingleUserFilesystemBackend does not autocreate the outbox in
+        # principal defaults, so create one explicitly here.
+        from xandikos.store import STORE_TYPE_SCHEDULE_OUTBOX
+
+        outbox_path = "/user/outbox"
+        if self.backend.get_resource(outbox_path) is None:
+            outbox_resource = self.backend.create_collection(outbox_path)
+            outbox_resource.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
+        return self.backend.get_resource(outbox_path)
+
+    def test_returns_none_for_unknown_attendee(self):
+        outbox = self._outbox()
+        from datetime import datetime, timezone
+
+        start = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        end = datetime(2026, 6, 2, tzinfo=timezone.utc)
+        result = asyncio.run(
+            outbox.get_attendee_busy_periods("mailto:stranger@example.com", start, end)
+        )
+        self.assertIsNone(result)
+
+    def test_returns_periods_for_principal_address(self):
+        from datetime import datetime, timezone
+
+        self._put_event(
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:e1@example.com\r\n"
+            b"DTSTAMP:20260101T000000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"SUMMARY:Standup\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        outbox = self._outbox()
+        start = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        end = datetime(2026, 6, 2, tzinfo=timezone.utc)
+        result = asyncio.run(
+            outbox.get_attendee_busy_periods("mailto:user@example.com", start, end)
+        )
+        self.assertIsNotNone(result)
+        ical = b",".join(p.to_ical() for p in result).decode()
+        self.assertIn("20260601T100000Z/20260601T110000Z", ical)
