@@ -1166,9 +1166,9 @@ END:VCALENDAR
         """Open-start time-range query (start=MIN_EXPANSION_TIME) must not overflow.
 
         When a CalDAV REPORT supplies only an end bound, _parse_time_range
-        defaults start to 0001-01-01.  _expand_rrule_component then computed
-        ``start - duration`` to catch overlapping events, which raises
-        OverflowError for any positive duration.
+        defaults start to 0001-01-01.  Both the file-based and the index-based
+        paths then computed ``start - duration`` to catch overlapping events,
+        which raises OverflowError for any positive duration.
         """
         recurring_event = b"""\
 BEGIN:VCALENDAR
@@ -1196,6 +1196,18 @@ END:VCALENDAR
         # Event starts on 2000-01-08, end bound is 2000-01-01 — must not match
         # and must not raise OverflowError while attempting expansion.
         self.assertFalse(filter.check("test.ics", cal_file))
+
+        # The index-based path computes the same ``start - duration``
+        # adjustment in _match_indexes_with_rrule and must also be safe.
+        indexes = {
+            "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20000108T100000Z"],
+            "C=VCALENDAR/C=VEVENT/P=DTEND": [b"20000108T110000Z"],
+            "C=VCALENDAR/C=VEVENT/P=DURATION": [],
+            "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=DAILY;COUNT=3"],
+            "C=VCALENDAR/C=VEVENT/P=UID": [b"open-start-event@example.com"],
+            "C=VCALENDAR/C=VEVENT": True,
+        }
+        self.assertFalse(filter.check_from_indexes("test.ics", indexes))
 
     def test_vcalendar_time_range_without_comp_type(self):
         """Time-range on VCALENDAR (no child comp-filter) matches subcomponents."""

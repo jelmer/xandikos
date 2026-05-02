@@ -862,8 +862,13 @@ class ComponentTimeRangeMatcher:
             indexes, dtstart_parsed, decode_bytes
         )
 
-        # Generate occurrences within the time range
-        query_start = self.start - (event_duration or timedelta(0))
+        # Generate occurrences within the time range. Clamp to MIN_EXPANSION_TIME
+        # so an open-start query (start at year 1) plus any positive duration
+        # does not overflow datetime.
+        try:
+            query_start = self.start - (event_duration or timedelta(0))
+        except OverflowError:
+            query_start = MIN_EXPANSION_TIME
         occurrences = self._get_occurrences_in_range(
             rrule, dtstart_parsed, query_start, self.end
         )
