@@ -20,7 +20,10 @@
 """Tests for xandikos.scheduling (RFC 6638 CalDAV Scheduling)."""
 
 import asyncio
+import hashlib
 import unittest
+
+from icalendar.cal import Calendar
 
 from xandikos import scheduling, webdav
 from xandikos.webdav import ET
@@ -568,6 +571,140 @@ class SchedulingConstantsTests(unittest.TestCase):
         self.assertEqual(
             scheduling.SCHEDULE_OUTBOX_RESOURCE_TYPE,
             "{urn:ietf:params:xml:ns:caldav}schedule-outbox",
+        )
+
+
+class ExtractSchedulingSignatureTests(unittest.TestCase):
+    """Tests for extract_scheduling_signature (RFC 6638 §3.2.10)."""
+
+    BASE_EVENT = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:event-1@example.com
+DTSTAMP:20260101T120000Z
+LAST-MODIFIED:20260101T120000Z
+SEQUENCE:0
+DTSTART:20260601T100000Z
+DTEND:20260601T110000Z
+SUMMARY:Project sync
+ORGANIZER:mailto:alice@example.com
+ATTENDEE;PARTSTAT=ACCEPTED:mailto:alice@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com
+DESCRIPTION:original notes
+END:VEVENT
+END:VCALENDAR
+"""
+
+    def _sig(self, body):
+        return scheduling.extract_scheduling_signature(Calendar.from_ical(body))
+
+    def test_stable_across_dtstamp_changes(self):
+        a = self._sig(self.BASE_EVENT)
+        b = self._sig(self.BASE_EVENT.replace(b"20260101T120000Z", b"20260102T130000Z"))
+        self.assertEqual(a, b)
+
+    def test_changes_when_description_changes(self):
+        a = self._sig(self.BASE_EVENT)
+        b = self._sig(self.BASE_EVENT.replace(b"original notes", b"updated notes"))
+        self.assertNotEqual(a, b)
+
+    def test_changes_when_attendee_added(self):
+        a = self._sig(self.BASE_EVENT)
+        body = (
+            self.BASE_EVENT.decode()
+            .replace(
+                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\n",
+                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\n"
+                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:carol@example.com\n",
+            )
+            .encode()
+        )
+        self.assertNotEqual(a, self._sig(body))
+
+    def test_changes_when_dtstart_changes(self):
+        a = self._sig(self.BASE_EVENT)
+        b = self._sig(
+            self.BASE_EVENT.replace(
+                b"DTSTART:20260601T100000Z", b"DTSTART:20260601T110000Z"
+            )
+        )
+        self.assertNotEqual(a, b)
+
+    def test_changes_when_sequence_bumps(self):
+        a = self._sig(self.BASE_EVENT)
+        b = self._sig(self.BASE_EVENT.replace(b"SEQUENCE:0", b"SEQUENCE:1"))
+        self.assertNotEqual(a, b)
+
+    def test_attendee_order_independent(self):
+        reordered = (
+            self.BASE_EVENT.decode()
+            .replace(
+                "ATTENDEE;PARTSTAT=ACCEPTED:mailto:alice@example.com\n"
+                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\n",
+                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\n"
+                "ATTENDEE;PARTSTAT=ACCEPTED:mailto:alice@example.com\n",
+            )
+            .encode()
+        )
+        self.assertEqual(self._sig(self.BASE_EVENT), self._sig(reordered))
+
+    def test_partstat_change_changes_signature(self):
+        replied = self.BASE_EVENT.replace(
+            b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com",
+            b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com",
+        )
+        self.assertNotEqual(self._sig(self.BASE_EVENT), self._sig(replied))
+
+    def test_only_vtimezone_yields_empty_digest(self):
+        body = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VTIMEZONE
+TZID:UTC
+END:VTIMEZONE
+END:VCALENDAR
+"""
+        self.assertEqual(self._sig(body), hashlib.sha256().digest())
+
+    def test_recurrence_id_distinguishes_overrides(self):
+        body_with_override = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:rec@example.com
+DTSTAMP:20260101T120000Z
+DTSTART:20260601T100000Z
+SUMMARY:Series
+RRULE:FREQ=DAILY;COUNT=3
+END:VEVENT
+BEGIN:VEVENT
+UID:rec@example.com
+DTSTAMP:20260101T120000Z
+RECURRENCE-ID:20260602T100000Z
+DTSTART:20260602T120000Z
+SUMMARY:Series (override)
+END:VEVENT
+END:VCALENDAR
+"""
+        body_without_override = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:rec@example.com
+DTSTAMP:20260101T120000Z
+DTSTART:20260601T100000Z
+SUMMARY:Series
+RRULE:FREQ=DAILY;COUNT=3
+END:VEVENT
+END:VCALENDAR
+"""
+        self.assertNotEqual(
+            self._sig(body_with_override), self._sig(body_without_override)
         )
 
 

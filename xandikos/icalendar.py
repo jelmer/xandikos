@@ -55,6 +55,8 @@ class PropTypes(Protocol):
 
     params: Parameters
 
+    def to_ical(self) -> bytes: ...
+
 
 TzifyFunction = Callable[[datetime], datetime]
 
