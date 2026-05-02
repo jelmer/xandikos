@@ -979,6 +979,119 @@ class WebTests(WebTestCase):
         )
         self.assertEqual("412 Precondition Failed", code)
 
+    # RFC 6638 Section 8.2 - Schedule-Tag response header tests
+    def test_rfc6638_8_2_get_emits_schedule_tag(self):
+        """GET on a scheduling resource includes the Schedule-Tag header."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def get_schedule_tag(self):
+                return '"sched-1"'
+
+            async def render(
+                self, self_url, accepted_content_types, accepted_languages
+            ):
+                return ([b"x"], 1, '"etag-1"', "text/calendar", None)
+
+            def get_last_modified(self):
+                raise KeyError
+
+        app = self.makeApp({"/event.ics": TestResource()}, [])
+        code, headers, _ = self.get(app, "/event.ics")
+        self.assertEqual("200 OK", code)
+        self.assertIn(("Schedule-Tag", '"sched-1"'), headers)
+
+    def test_rfc6638_8_2_get_omits_schedule_tag_for_non_scheduling_resource(self):
+        """GET on a non-scheduling resource omits the Schedule-Tag header."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def render(
+                self, self_url, accepted_content_types, accepted_languages
+            ):
+                return ([b"x"], 1, '"etag-1"', "text/plain", None)
+
+            def get_last_modified(self):
+                raise KeyError
+
+        app = self.makeApp({"/note.txt": TestResource()}, [])
+        code, headers, _ = self.get(app, "/note.txt")
+        self.assertEqual("200 OK", code)
+        header_names = [name for name, _ in headers]
+        self.assertNotIn("Schedule-Tag", header_names)
+
+    def test_rfc6638_8_2_put_update_emits_schedule_tag(self):
+        """PUT update on scheduling resource sends Schedule-Tag header."""
+
+        class TestResource(Resource):
+            tag_value = '"sched-1"'
+
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def get_schedule_tag(self):
+                return type(self).tag_value
+
+            async def set_body(
+                self, body, replace_etag=None, remote_user=None, requester=None
+            ):
+                # Simulate a scheduling change.
+                type(self).tag_value = '"sched-2"'
+                return '"etag-2"'
+
+        app = self.makeApp({"/event.ics": TestResource()}, [])
+        code, headers = self.put(app, "/event.ics", b"new content")
+        self.assertEqual("204 No Content", code)
+        self.assertIn(("Schedule-Tag", '"sched-2"'), headers)
+
+    def test_rfc6638_8_2_put_create_emits_schedule_tag(self):
+        """PUT create on scheduling resource sends Schedule-Tag header."""
+
+        class CreatedResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def get_schedule_tag(self):
+                return '"sched-new"'
+
+        class TestCollection(Collection):
+            async def create_member(
+                self, name, contents, content_type, remote_user=None, requester=None
+            ):
+                return (name, '"etag-1"')
+
+            def get_member(self, name):
+                if name == "newitem.ics":
+                    return CreatedResource()
+                raise KeyError(name)
+
+        app = self.makeApp({"/coll": TestCollection()}, [])
+        code, headers = self.put(app, "/coll/newitem.ics", b"data")
+        self.assertEqual("201 Created", code)
+        self.assertIn(("Schedule-Tag", '"sched-new"'), headers)
+
+    def test_rfc6638_8_2_put_update_omits_schedule_tag_for_non_scheduling(self):
+        """PUT update on non-scheduling resource omits Schedule-Tag."""
+
+        class TestResource(Resource):
+            async def get_etag(self):
+                return '"etag-1"'
+
+            async def set_body(
+                self, body, replace_etag=None, remote_user=None, requester=None
+            ):
+                return '"etag-2"'
+
+        app = self.makeApp({"/note.txt": TestResource()}, [])
+        code, headers = self.put(app, "/note.txt", b"data")
+        self.assertEqual("204 No Content", code)
+        header_names = [name for name, _ in headers]
+        self.assertNotIn("Schedule-Tag", header_names)
+
     # RFC 4918 Section 9.1/9.2 - Multi-Status error scenario tests
     def test_rfc4918_propfind_mixed_success_failure(self):
         """Test PROPFIND with mix of found and not-found properties."""
