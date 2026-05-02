@@ -19,6 +19,7 @@
 
 """Tests for xandikos.web."""
 
+import asyncio
 import os
 import shutil
 import tempfile
@@ -29,6 +30,7 @@ from xandikos.icalendar import ICalendarFile
 from xandikos.store.git import TreeGitStore
 from xandikos.web import (
     CalendarCollection,
+    ObjectResource,
     SingleUserFilesystemBackend,
     XandikosApp,
 )
@@ -640,3 +642,90 @@ END:VCALENDAR""")
         self.assertNotIn(".xandikos", all_names)
         self.assertNotIn(".xandikos/config", all_names)
         self.assertNotIn(".xandikos/availability.ics", all_names)
+
+
+SCHEDULING_BASE = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+BEGIN:VEVENT\r
+UID:meeting@example.com\r
+DTSTAMP:20260101T120000Z\r
+SEQUENCE:0\r
+DTSTART:20260601T100000Z\r
+DTEND:20260601T110000Z\r
+SUMMARY:Sync\r
+ORGANIZER:mailto:alice@example.com\r
+ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r
+DESCRIPTION:original\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+
+
+class ObjectResourceScheduleTagTests(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+
+        self.store = TreeGitStore.create(os.path.join(self.tempdir, "c"))
+        self.store.load_extra_file_handler(ICalendarFile)
+
+    def _put(self, name: str, body: bytes) -> str:
+        _, etag = self.store.import_one(name, "text/calendar", [body])
+        return etag
+
+    def _resource(self, name: str, etag: str) -> ObjectResource:
+        return ObjectResource(self.store, name, "text/calendar", etag)
+
+    def test_schedule_tag_is_strong_etag_format(self):
+        etag = self._put("event.ics", SCHEDULING_BASE)
+        tag = asyncio.run(self._resource("event.ics", etag).get_schedule_tag())
+        # Strong etag: surrounded by double quotes, content is hex.
+        self.assertTrue(tag.startswith('"') and tag.endswith('"'))
+        self.assertEqual(64, len(tag) - 2)  # sha256 hex
+
+    def test_schedule_tag_stable_across_dtstamp_change(self):
+        etag1 = self._put("event.ics", SCHEDULING_BASE)
+        tag1 = asyncio.run(self._resource("event.ics", etag1).get_schedule_tag())
+
+        rewritten = SCHEDULING_BASE.replace(
+            b"DTSTAMP:20260101T120000Z", b"DTSTAMP:20260201T120000Z"
+        )
+        etag2 = self._put("event.ics", rewritten)
+        tag2 = asyncio.run(self._resource("event.ics", etag2).get_schedule_tag())
+
+        self.assertEqual(tag1, tag2)
+
+    def test_schedule_tag_changes_on_attendee_partstat(self):
+        etag1 = self._put("event.ics", SCHEDULING_BASE)
+        tag1 = asyncio.run(self._resource("event.ics", etag1).get_schedule_tag())
+
+        replied = SCHEDULING_BASE.replace(
+            b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED"
+        )
+        etag2 = self._put("event.ics", replied)
+        tag2 = asyncio.run(self._resource("event.ics", etag2).get_schedule_tag())
+
+        self.assertNotEqual(tag1, tag2)
+
+    def test_schedule_tag_changes_on_description_change(self):
+        # DESCRIPTION is in SCHEDULING_PROPERTIES — RFC 6638 considers it
+        # part of the iTIP payload, so the tag must move.
+        etag1 = self._put("event.ics", SCHEDULING_BASE)
+        tag1 = asyncio.run(self._resource("event.ics", etag1).get_schedule_tag())
+
+        edited = SCHEDULING_BASE.replace(b"DESCRIPTION:original", b"DESCRIPTION:edited")
+        etag2 = self._put("event.ics", edited)
+        tag2 = asyncio.run(self._resource("event.ics", etag2).get_schedule_tag())
+
+        self.assertNotEqual(tag1, tag2)
+
+    def test_schedule_tag_rejects_non_calendar(self):
+        async def run():
+            resource = ObjectResource(self.store, "x", "text/plain", "etag")
+            with self.assertRaises(KeyError):
+                await resource.get_schedule_tag()
+
+        asyncio.run(run())

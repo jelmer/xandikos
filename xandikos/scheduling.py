@@ -326,7 +326,7 @@ class ScheduleTagProperty(webdav.Property):
         return resource.get_content_type() == "text/calendar"
 
     async def get_value(self, base_href, resource, el, environ):
-        el.text = resource.get_schedule_tag()
+        el.text = await resource.get_schedule_tag()
 
 
 class CalendarUserTypeProperty(webdav.Property):

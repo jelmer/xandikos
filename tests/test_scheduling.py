@@ -292,7 +292,7 @@ class ScheduleTagPropertyTests(unittest.TestCase):
                 def get_content_type(self):
                     return "text/calendar"
 
-                def get_schedule_tag(self):
+                async def get_schedule_tag(self):
                     return "schedule-tag-12345"
 
             resource = MockResource()
