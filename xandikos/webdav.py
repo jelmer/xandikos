@@ -262,6 +262,20 @@ class NeedsMultiStatus(Exception):
     """Raised when a response needs multi-status (e.g. for propstat)."""
 
 
+async def _maybe_schedule_tag_header(resource):
+    """Return a (header_name, value) tuple for the Schedule-Tag header.
+
+    Returns None if the resource has no schedule-tag (e.g. it's not a
+    scheduling object resource). See RFC 6638 §8.2.
+    """
+    if resource is None:
+        return None
+    try:
+        return ("Schedule-Tag", await resource.get_schedule_tag())
+    except KeyError:
+        return None
+
+
 def propstat_by_status(propstat):
     """Sort a list of propstatus objects by HTTP status.
 
@@ -2090,7 +2104,12 @@ class PutMethod(Method):
                     await app._get_allowed_methods(request, environ)
                 )
             else:
-                return Response(status="204 No Content", headers=[("ETag", new_etag)])
+                headers = [("ETag", new_etag)]
+                fresh = app.backend.get_resource(path)
+                schedule_tag_header = await _maybe_schedule_tag_header(fresh)
+                if schedule_tag_header is not None:
+                    headers.append(schedule_tag_header)
+                return Response(status="204 No Content", headers=headers)
         content_type = request.content_type
         container_path, name = split_path_preserving_encoding(request, environ)
         r = app.backend.get_resource(container_path)
@@ -2120,7 +2139,15 @@ class PutMethod(Method):
             return Response(status=507, reason="Insufficient Storage")
         except ResourceLocked:
             return Response(status=423, reason="Resource Locked")
-        return Response(status=201, reason="Created", headers=[("ETag", new_etag)])
+        headers = [("ETag", new_etag)]
+        try:
+            fresh = r.get_member(new_name)
+        except (KeyError, NotImplementedError):
+            fresh = None
+        schedule_tag_header = await _maybe_schedule_tag_header(fresh)
+        if schedule_tag_header is not None:
+            headers.append(schedule_tag_header)
+        return Response(status=201, reason="Created", headers=headers)
 
 
 class MoveMethod(Method):
@@ -2792,6 +2819,9 @@ async def _do_get(request, environ, app, send_body):
         headers.append(("Last-Modified", last_modified))
     if content_languages is not None:
         headers.append(("Content-Language", ", ".join(content_languages)))
+    schedule_tag_header = await _maybe_schedule_tag_header(r)
+    if schedule_tag_header is not None:
+        headers.append(schedule_tag_header)
     if send_body:
         return Response(body=body, status=200, reason="OK", headers=headers)
     else:
