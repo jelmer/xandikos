@@ -1971,9 +1971,17 @@ def _expand_rrule_component(
 
     # Get occurrences from rrule
     if start is not None and end is not None:
-        # Adjust start backwards by event duration to catch overlapping events
+        # Adjust start backwards by event duration to catch overlapping events.
+        # Clamp to MIN_EXPANSION_TIME so an open-start query (start=year 1)
+        # combined with any positive duration does not overflow datetime.
         duration = _get_event_duration(incomp)
-        adjusted_start = start - duration if duration else start
+        if duration:
+            try:
+                adjusted_start = start - duration
+            except OverflowError:
+                adjusted_start = MIN_EXPANSION_TIME
+        else:
+            adjusted_start = start
 
         # Normalize datetimes for rrule operations
         start_normalized = _normalize_dt_for_rrule(adjusted_start, original_dtstart.dt)
