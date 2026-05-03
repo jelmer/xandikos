@@ -1240,3 +1240,50 @@ class CalendarCollectionPrePutHookAttendeeReplyTests(unittest.TestCase):
         self._put(accepted)
         # Alice is unaffected.
         self.assertEqual([], self._inbox_messages("/alice"))
+
+
+class ScheduleInboxDefaultCalendarTests(unittest.TestCase):
+    """Tests for ScheduleInbox.get_schedule_default_calendar_url (RFC 6638 §9.2)."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+
+    def _inbox(self, principal: str = "/alice"):
+        from xandikos.web import ScheduleInbox
+
+        inbox = self.backend.get_resource(f"{principal}/inbox")
+        assert isinstance(inbox, ScheduleInbox)
+        return inbox
+
+    def test_returns_default_calendar_when_one_exists(self):
+        self.backend.create_principal("/alice", create_defaults=True)
+        url = self._inbox().get_schedule_default_calendar_url()
+        self.assertEqual("/alice/calendars/calendar", url)
+
+    def test_returns_none_when_no_calendars(self):
+        # Create just the principal + inbox; no calendar collections.
+        self.backend.create_principal("/alice")
+        self.backend.create_collection("/alice/inbox")
+        from xandikos.store import STORE_TYPE_SCHEDULE_INBOX
+
+        inbox_resource = self.backend.get_resource("/alice/inbox")
+        assert isinstance(inbox_resource, StoreBasedCollection)
+        inbox_resource.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
+        # Refetch so the type-dispatch picks ScheduleInbox.
+        self.assertIsNone(self._inbox().get_schedule_default_calendar_url())
+
+    def test_picks_first_calendar_when_multiple(self):
+        from xandikos.store import STORE_TYPE_CALENDAR
+
+        self.backend.create_principal("/alice", create_defaults=True)
+        # create_defaults already made /alice/calendars/calendar; add a second.
+        extra = self.backend.create_collection("/alice/calendars/work")
+        extra.store.set_type(STORE_TYPE_CALENDAR)
+
+        url = self._inbox().get_schedule_default_calendar_url()
+        # The directory listing isn't ordered, but the result must point at
+        # one of the two calendars — not nothing, not something else.
+        self.assertIn(url, {"/alice/calendars/calendar", "/alice/calendars/work"})
