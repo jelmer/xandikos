@@ -840,17 +840,21 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         new_contents: Iterable[bytes],
         content_type: str,
     ) -> None:
-        """Generate iTIP REQUEST/CANCEL when the organiser PUTs an event.
+        """Generate iTIP traffic when the user PUTs a scheduling object.
 
-        Per RFC 6638 §3.2.1: when a Calendar User stores a scheduling
-        object resource where they are the ORGANIZER, the server should
-        notify the attendees of the new state. Concretely:
+        Two paths, exclusive on a per-event basis:
 
-        - Each current attendee receives an iTIP REQUEST with the new
-          event.
-        - Each attendee dropped relative to the prior version receives
-          an iTIP CANCEL referencing the old event (so their client
-          knows the meeting is gone for them).
+        Organiser (RFC 6638 §3.2.1) — the user is ORGANIZER of the new
+        event. Each current attendee gets an iTIP REQUEST; each
+        attendee dropped relative to the prior version gets an iTIP
+        CANCEL.
+
+        Attendee (RFC 6638 §3.2.2) — the user is in ATTENDEE on the
+        new event but isn't ORGANIZER. If their PARTSTAT changed (or
+        they were just added) since the prior version, send an iTIP
+        REPLY to the organiser narrowed to the user's own ATTENDEE
+        line. A first-time import without prior version emits no
+        REPLY — we have no evidence the user's PARTSTAT actually moved.
 
         If the new content's scheduling-signature matches the old, no
         iTIP traffic is generated — schedule-tag changes only on
@@ -870,10 +874,7 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         principal = self._owning_principal()
         if principal is None:
             return
-        organiser_addresses = set(principal.get_calendar_user_address_set())
-        is_organiser, new_attendees = _organiser_attendees(new_cal, organiser_addresses)
-        if not is_organiser:
-            return
+        own_addresses = set(principal.get_calendar_user_address_set())
 
         old_cal: Calendar | None = None
         try:
@@ -888,10 +889,24 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             old_sig = itip.extract_scheduling_signature(old_cal)
             if new_sig == old_sig:
                 return
-            _, old_attendees = _organiser_attendees(old_cal, organiser_addresses)
-        else:
-            old_attendees = set()
 
+        is_organiser, new_attendees = _organiser_attendees(new_cal, own_addresses)
+        if is_organiser:
+            await self._dispatch_organiser_put(
+                new_cal, old_cal, new_attendees, own_addresses
+            )
+            return
+
+        if old_cal is not None:
+            await self._dispatch_attendee_put(new_cal, old_cal, own_addresses)
+
+    async def _dispatch_organiser_put(
+        self,
+        new_cal: Calendar,
+        old_cal: Calendar | None,
+        new_attendees: set[str],
+        own_addresses: set[str],
+    ) -> None:
         if new_attendees:
             request = itip.build_itip_request(new_cal)
             for address in new_attendees:
@@ -899,13 +914,34 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
                     self.backend, address, request, name_hint=None
                 )
 
+        if old_cal is None:
+            return
+        _, old_attendees = _organiser_attendees(old_cal, own_addresses)
         dropped = old_attendees - new_attendees
-        if dropped and old_cal is not None:
+        if dropped:
             cancel = itip.build_itip_cancel(old_cal)
             for address in dropped:
                 await itip.deliver_to_inbox(
                     self.backend, address, cancel, name_hint=None
                 )
+
+    async def _dispatch_attendee_put(
+        self,
+        new_cal: Calendar,
+        old_cal: Calendar,
+        own_addresses: set[str],
+    ) -> None:
+        own_address = _own_attendee_address(new_cal, own_addresses)
+        if own_address is None:
+            return
+        organiser = _organiser_address(new_cal)
+        if organiser is None or organiser in own_addresses:
+            # Self-organised events have nothing to reply to.
+            return
+        if not _partstat_changed(new_cal, old_cal, own_address):
+            return
+        reply = itip.build_itip_reply(new_cal, own_address)
+        await itip.deliver_to_inbox(self.backend, organiser, reply, name_hint=None)
 
     def _owning_principal(self) -> webdav.Principal | None:
         owning = scheduling.find_owning_principal(self.backend, self.relpath)
@@ -957,6 +993,71 @@ def _organiser_attendees(
             if addr not in organiser_addresses:
                 attendees.add(addr)
     return is_organiser, attendees
+
+
+def _own_attendee_address(cal: Calendar, own_addresses: set[str]) -> str | None:
+    """Return the user's own attendee address as it appears in *cal*, or None.
+
+    Picks the first match from any scheduling component. The address is
+    returned in its canonical form (with case preserved).
+    """
+    for comp in cal.subcomponents:
+        if comp.name not in itip.SCHEDULING_COMPONENTS:
+            continue
+        comp_attendees = comp.get("ATTENDEE", [])
+        if not isinstance(comp_attendees, list):
+            comp_attendees = [comp_attendees]
+        for a in comp_attendees:
+            addr = str(a)
+            if addr in own_addresses:
+                return addr
+    return None
+
+
+def _organiser_address(cal: Calendar) -> str | None:
+    """Return the ORGANIZER address from *cal*, or None.
+
+    A scheduling object has at most one organiser; we pick the first
+    one we find across components.
+    """
+    for comp in cal.subcomponents:
+        if comp.name not in itip.SCHEDULING_COMPONENTS:
+            continue
+        organiser = comp.get("ORGANIZER")
+        if organiser is not None:
+            return str(organiser)
+    return None
+
+
+def _partstat_changed(new_cal: Calendar, old_cal: Calendar, address: str) -> bool:
+    """Return True iff the user's PARTSTAT differs between *old_cal* and *new_cal*.
+
+    Treats "wasn't there before" as a change too — a freshly added
+    attendee should reply at least once. Components are matched by the
+    component name + UID + RECURRENCE-ID triple so per-instance
+    overrides are compared independently.
+    """
+    return _user_partstats(new_cal, address) != _user_partstats(old_cal, address)
+
+
+def _user_partstats(cal: Calendar, address: str) -> dict[tuple[str, str, str], str]:
+    """Map (component-name, UID, RECURRENCE-ID) → PARTSTAT for *address*."""
+    out: dict[tuple[str, str, str], str] = {}
+    for comp in cal.subcomponents:
+        if comp.name not in itip.SCHEDULING_COMPONENTS:
+            continue
+        comp_attendees = comp.get("ATTENDEE", [])
+        if not isinstance(comp_attendees, list):
+            comp_attendees = [comp_attendees]
+        for a in comp_attendees:
+            if str(a) != address:
+                continue
+            uid = str(comp.get("UID", ""))
+            rid = str(comp.get("RECURRENCE-ID", ""))
+            partstat = str(a.params.get("PARTSTAT", "NEEDS-ACTION"))
+            out[(comp.name, uid, rid)] = partstat
+            break
+    return out
 
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):

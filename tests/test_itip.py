@@ -328,5 +328,126 @@ END:VCALENDAR\r
         self.assertNotIn("DTSTAMP", tz)
 
 
+REPLY_SOURCE = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+BEGIN:VEVENT\r
+UID:meeting@example.com\r
+DTSTAMP:20260101T000000Z\r
+DTSTART:20260601T100000Z\r
+DTEND:20260601T110000Z\r
+SUMMARY:Sync\r
+SEQUENCE:3\r
+ORGANIZER:mailto:alice@example.com\r
+ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com\r
+ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:carol@example.com\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+
+
+class BuildItipReplyTests(unittest.TestCase):
+    """Tests for build_itip_reply (RFC 5546 §3.2.3)."""
+
+    def _build(self, address="mailto:bob@example.com"):
+        cal = Calendar.from_ical(REPLY_SOURCE.decode("utf-8"))
+        return itip.build_itip_reply(cal, address)
+
+    def test_method_is_reply(self):
+        self.assertEqual("REPLY", str(self._build()["METHOD"]))
+
+    def test_only_replying_attendee_kept(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        attendees = ev.get("ATTENDEE")
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+        addresses = [str(a) for a in attendees]
+        self.assertEqual(["mailto:bob@example.com"], addresses)
+
+    def test_partstat_preserved_on_replying_attendee(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        attendees = ev.get("ATTENDEE")
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+        self.assertEqual("ACCEPTED", str(attendees[0].params.get("PARTSTAT")))
+
+    def test_organizer_preserved(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual("mailto:alice@example.com", str(ev["ORGANIZER"]))
+
+    def test_sequence_preserved(self):
+        # SEQUENCE belongs to the organiser; the attendee's reply must echo it.
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual(3, int(ev["SEQUENCE"]))
+
+    def test_dtstamp_refreshed(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertNotEqual("20260101T000000Z", ev["DTSTAMP"].to_ical().decode())
+
+    def test_uid_preserved(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual("meeting@example.com", str(ev["UID"]))
+
+    def test_component_skipped_when_user_not_in_attendees(self):
+        # Calendar with two events; only one lists bob.
+        body = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+BEGIN:VEVENT\r
+UID:e1\r
+DTSTAMP:20260101T000000Z\r
+DTSTART:20260601T100000Z\r
+ORGANIZER:mailto:a@x\r
+ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com\r
+END:VEVENT\r
+BEGIN:VEVENT\r
+UID:e2\r
+DTSTAMP:20260101T000000Z\r
+DTSTART:20260602T100000Z\r
+ORGANIZER:mailto:a@x\r
+ATTENDEE:mailto:carol@example.com\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+        out = itip.build_itip_reply(
+            Calendar.from_ical(body.decode("utf-8")), "mailto:bob@example.com"
+        )
+        events = [c for c in out.subcomponents if c.name == "VEVENT"]
+        self.assertEqual(1, len(events))
+        self.assertEqual("e1", str(events[0]["UID"]))
+
+    def test_vtimezone_passed_through(self):
+        body = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+BEGIN:VTIMEZONE\r
+TZID:UTC\r
+END:VTIMEZONE\r
+BEGIN:VEVENT\r
+UID:e1\r
+DTSTAMP:20260101T000000Z\r
+DTSTART:20260601T100000Z\r
+ORGANIZER:mailto:a@x\r
+ATTENDEE;PARTSTAT=TENTATIVE:mailto:bob@example.com\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+        out = itip.build_itip_reply(
+            Calendar.from_ical(body.decode("utf-8")), "mailto:bob@example.com"
+        )
+        comp_names = [c.name for c in out.subcomponents]
+        self.assertIn("VTIMEZONE", comp_names)
+        self.assertIn("VEVENT", comp_names)
+
+
 if __name__ == "__main__":
     unittest.main()

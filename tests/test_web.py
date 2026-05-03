@@ -1117,3 +1117,126 @@ class CalendarCollectionPrePutHookTests(unittest.TestCase):
             )
         )
         self.assertEqual([], self._inbox_messages("/bob"))
+
+
+class CalendarCollectionPrePutHookAttendeeReplyTests(unittest.TestCase):
+    """End-to-end tests for the attendee-REPLY half of CalendarCollection.pre_put_hook."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+
+        self._addresses = {
+            "/alice": ["mailto:alice@example.com"],
+            "/bob": ["mailto:bob@example.com"],
+        }
+
+        from xandikos.web import Principal
+
+        original = Principal.get_calendar_user_address_set
+        addresses = self._addresses
+
+        def fake_addresses(principal_self):
+            return addresses.get(principal_self.relpath, [])
+
+        Principal.get_calendar_user_address_set = fake_addresses
+        self.addCleanup(setattr, Principal, "get_calendar_user_address_set", original)
+
+    def _bob_calendar(self) -> CalendarCollection:
+        cal = self.backend.get_resource("/bob/calendars/calendar")
+        assert isinstance(cal, CalendarCollection)
+        return cal
+
+    def _store_event(self, body: bytes, name: str = "event.ics") -> None:
+        self._bob_calendar().store.import_one(name, "text/calendar", [body])
+
+    def _inbox_messages(self, principal: str) -> list[bytes]:
+        inbox = self.backend.get_resource(f"{principal}/inbox")
+        assert isinstance(inbox, StoreBasedCollection)
+        store = inbox.store
+        return [
+            b"".join(store._get_raw(name, etag))
+            for name, _ct, etag in store.iter_with_etag()
+        ]
+
+    def _put(self, body: bytes, name: str = "event.ics") -> None:
+        asyncio.run(self._bob_calendar().pre_put_hook(name, [body], "text/calendar"))
+
+    INVITATION = (
+        b"BEGIN:VCALENDAR\r\n"
+        b"VERSION:2.0\r\n"
+        b"PRODID:-//Test//EN\r\n"
+        b"BEGIN:VEVENT\r\n"
+        b"UID:meeting@example.com\r\n"
+        b"DTSTAMP:20260101T120000Z\r\n"
+        b"SEQUENCE:1\r\n"
+        b"DTSTART:20260601T100000Z\r\n"
+        b"DTEND:20260601T110000Z\r\n"
+        b"SUMMARY:Sync\r\n"
+        b"ORGANIZER:mailto:alice@example.com\r\n"
+        b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r\n"
+        b"END:VEVENT\r\n"
+        b"END:VCALENDAR\r\n"
+    )
+
+    def test_partstat_change_sends_reply_to_organiser(self):
+        self._store_event(self.INVITATION)
+        accepted = self.INVITATION.replace(
+            b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED"
+        )
+        self._put(accepted)
+        messages = self._inbox_messages("/alice")
+        self.assertEqual(1, len(messages))
+        body = messages[0]
+        self.assertIn(b"METHOD:REPLY", body)
+        # ATTENDEE narrowed to bob, with his ACCEPTED PARTSTAT.
+        self.assertIn(b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com", body)
+        self.assertIn(b"ORGANIZER:mailto:alice@example.com", body)
+
+    def test_no_reply_when_partstat_unchanged(self):
+        self._store_event(self.INVITATION)
+        # PUT the same content with only DTSTAMP shifted — irrelevant change,
+        # signature stays equal, so the hook short-circuits.
+        rewritten = self.INVITATION.replace(
+            b"DTSTAMP:20260101T120000Z", b"DTSTAMP:20260201T120000Z"
+        )
+        self._put(rewritten)
+        self.assertEqual([], self._inbox_messages("/alice"))
+
+    def test_no_reply_on_first_import(self):
+        # No prior event in bob's calendar. PUTting an invitation with bob
+        # already PARTSTAT=ACCEPTED is a fresh import, not a reply — the
+        # server has no evidence bob actually changed his mind.
+        accepted = self.INVITATION.replace(
+            b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED"
+        )
+        self._put(accepted)
+        self.assertEqual([], self._inbox_messages("/alice"))
+
+    def test_no_reply_when_event_is_self_organised(self):
+        # Bob organises an event he's also attending — no organiser to reply to.
+        body = self.INVITATION.replace(
+            b"ORGANIZER:mailto:alice@example.com", b"ORGANIZER:mailto:bob@example.com"
+        )
+        self._store_event(body)
+        accepted = body.replace(b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED")
+        self._put(accepted)
+        self.assertEqual([], self._inbox_messages("/alice"))
+
+    def test_reply_skipped_for_remote_organiser(self):
+        # Organiser address isn't a local principal — delivery returns False
+        # silently. We don't have an assertion target other than "no crash"
+        # since there's no inbox to inspect.
+        body = self.INVITATION.replace(
+            b"ORGANIZER:mailto:alice@example.com",
+            b"ORGANIZER:mailto:remote@elsewhere.example",
+        )
+        self._store_event(body)
+        accepted = body.replace(b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED")
+        self._put(accepted)
+        # Alice is unaffected.
+        self.assertEqual([], self._inbox_messages("/alice"))

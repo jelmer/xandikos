@@ -224,6 +224,54 @@ def build_itip_request(cal: Component) -> Calendar:
     return out
 
 
+def build_itip_reply(cal: Component, attendee_address: str) -> Calendar:
+    """Build a METHOD:REPLY VCALENDAR for *attendee_address*.
+
+    Per RFC 5546 §3.2.3, an iTIP REPLY carries one attendee's
+    participation status back to the organiser. The reply re-uses each
+    scheduling component but narrows ATTENDEE to a single entry —
+    the replying attendee's own line, complete with its PARTSTAT and
+    other parameters — so the organiser sees only the response they
+    asked for. ORGANIZER is preserved as the routing target. SEQUENCE
+    is preserved (the organiser owns it); DTSTAMP is refreshed.
+
+    Components where *attendee_address* doesn't appear in ATTENDEE are
+    skipped — the reply only carries components the user is actually
+    answering for. Non-scheduling components (VTIMEZONE, etc.) are
+    passed through unchanged.
+    """
+    out = Calendar()
+    out["VERSION"] = "2.0"
+    out["PRODID"] = PRODID
+    out["METHOD"] = "REPLY"
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for comp in cal.subcomponents:
+        if comp.name not in SCHEDULING_COMPONENTS:
+            out.add_component(comp.copy())
+            continue
+        own_attendee = _find_attendee(comp, attendee_address)
+        if own_attendee is None:
+            continue
+        clone = comp.copy()
+        clone["DTSTAMP"] = vDDDTypes(now)
+        # Drop every ATTENDEE then add back just the replying user's.
+        del clone["ATTENDEE"]
+        clone.add("ATTENDEE", own_attendee)
+        out.add_component(clone)
+    return out
+
+
+def _find_attendee(comp: Component, address: str) -> PropTypes | None:
+    """Return the ATTENDEE entry for *address* in *comp*, or None."""
+    attendees = comp.get("ATTENDEE", [])
+    if not isinstance(attendees, list):
+        attendees = [attendees]
+    for a in attendees:
+        if str(a) == address:
+            return a
+    return None
+
+
 def validate_freebusy_request(cal: Component) -> Component:
     """Return the single VFREEBUSY in *cal* if the request is well formed."""
     method = cal.get("METHOD")
