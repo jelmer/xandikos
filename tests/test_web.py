@@ -1567,3 +1567,171 @@ class InboxAutoProcessingTests(unittest.TestCase):
         asyncio.run(self._alice_calendar().pre_delete_hook("event.ics"))
         # Bob's calendar is empty (no auto-create on CANCEL).
         self.assertEqual([], self._calendar_events("/bob"))
+
+
+class ScheduleStatusAnnotationTests(unittest.TestCase):
+    """Tests for SCHEDULE-STATUS annotation on organiser PUTs (RFC 6638 §3.2)."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+
+        self._addresses = {
+            "/alice": ["mailto:alice@example.com"],
+            "/bob": ["mailto:bob@example.com"],
+        }
+        from xandikos.web import Principal
+
+        original = Principal.get_calendar_user_address_set
+        addresses = self._addresses
+
+        def fake_addresses(principal_self):
+            return addresses.get(principal_self.relpath, [])
+
+        Principal.get_calendar_user_address_set = fake_addresses
+        self.addCleanup(setattr, Principal, "get_calendar_user_address_set", original)
+
+    def _alice_calendar(self) -> CalendarCollection:
+        cal = self.backend.get_resource("/alice/calendars/calendar")
+        assert isinstance(cal, CalendarCollection)
+        return cal
+
+    def _attendee_statuses(self, body: bytes) -> dict[str, dict[str, str]]:
+        """Return ``{attendee_address: {param_name: value}}`` for a stored event."""
+        from icalendar.cal import Calendar as ICalendar
+
+        parsed = ICalendar.from_ical(body.decode("utf-8"))
+        out: dict[str, dict[str, str]] = {}
+        for comp in parsed.subcomponents:
+            if comp.name != "VEVENT":
+                continue
+            attendees = comp.get("ATTENDEE", [])
+            if not isinstance(attendees, list):
+                attendees = [attendees]
+            for a in attendees:
+                out[str(a)] = {k: str(v) for k, v in a.params.items()}
+        return out
+
+    EVENT_TWO_ATTENDEES = (
+        b"BEGIN:VCALENDAR\r\n"
+        b"VERSION:2.0\r\n"
+        b"PRODID:-//Test//EN\r\n"
+        b"BEGIN:VEVENT\r\n"
+        b"UID:meet@example.com\r\n"
+        b"DTSTAMP:20260101T120000Z\r\n"
+        b"SEQUENCE:1\r\n"
+        b"DTSTART:20260601T100000Z\r\n"
+        b"DTEND:20260601T110000Z\r\n"
+        b"SUMMARY:Sync\r\n"
+        b"ORGANIZER:mailto:alice@example.com\r\n"
+        b"ATTENDEE:mailto:bob@example.com\r\n"
+        b"ATTENDEE:mailto:dave@elsewhere.example\r\n"
+        b"END:VEVENT\r\n"
+        b"END:VCALENDAR\r\n"
+    )
+
+    def test_organiser_put_returns_annotated_bytes(self):
+        rewritten = asyncio.run(
+            self._alice_calendar().pre_put_hook(
+                "event.ics", [self.EVENT_TWO_ATTENDEES], "text/calendar"
+            )
+        )
+        self.assertIsNotNone(rewritten)
+        body = b"".join(rewritten)
+        statuses = self._attendee_statuses(body)
+        # Bob is local: 1.2 delivered; dave is remote: 3.7 invalid.
+        self.assertEqual(
+            "2.0;Success", statuses["mailto:bob@example.com"]["SCHEDULE-STATUS"]
+        )
+        self.assertEqual(
+            "3.7;Invalid calendar user",
+            statuses["mailto:dave@elsewhere.example"]["SCHEDULE-STATUS"],
+        )
+
+    def test_attendee_reply_path_does_not_annotate(self):
+        # Bob is the user here; he's an ATTENDEE, not the ORGANIZER.
+        # The hook delivers a REPLY but doesn't annotate bob's stored copy
+        # (only the organiser annotates after sending REQUEST/CANCEL).
+        bob_cal = self.backend.get_resource("/bob/calendars/calendar")
+        assert isinstance(bob_cal, CalendarCollection)
+        bob_cal.store.import_one(
+            "event.ics", "text/calendar", [self.EVENT_TWO_ATTENDEES]
+        )
+        accepted = self.EVENT_TWO_ATTENDEES.replace(
+            b"ATTENDEE:mailto:bob@example.com",
+            b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com",
+        )
+        rewritten = asyncio.run(
+            bob_cal.pre_put_hook("event.ics", [accepted], "text/calendar")
+        )
+        self.assertIsNone(rewritten)
+
+    def test_irrelevant_change_returns_none(self):
+        self._alice_calendar().store.import_one(
+            "event.ics", "text/calendar", [self.EVENT_TWO_ATTENDEES]
+        )
+        # Same content with only DTSTAMP shifted — schedule-tag-stable.
+        rewritten = self.EVENT_TWO_ATTENDEES.replace(
+            b"DTSTAMP:20260101T120000Z", b"DTSTAMP:20260201T120000Z"
+        )
+        result = asyncio.run(
+            self._alice_calendar().pre_put_hook(
+                "event.ics", [rewritten], "text/calendar"
+            )
+        )
+        self.assertIsNone(result)
+
+    def test_no_attendees_returns_none(self):
+        body = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:solo@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:alice@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        result = asyncio.run(
+            self._alice_calendar().pre_put_hook("solo.ics", [body], "text/calendar")
+        )
+        self.assertIsNone(result)
+
+    def test_other_attendee_params_preserved(self):
+        # ATTENDEE often carries CN, CUTYPE, ROLE, RSVP — annotation must
+        # not strip them.
+        body = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:meet@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:alice@example.com\r\n"
+            b"ATTENDEE;CN=Bob;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:bob@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        rewritten = asyncio.run(
+            self._alice_calendar().pre_put_hook("event.ics", [body], "text/calendar")
+        )
+        self.assertIsNotNone(rewritten)
+        statuses = self._attendee_statuses(b"".join(rewritten))
+        self.assertEqual(
+            {
+                "CN": "Bob",
+                "ROLE": "REQ-PARTICIPANT",
+                "RSVP": "TRUE",
+                "SCHEDULE-STATUS": "2.0;Success",
+            },
+            statuses["mailto:bob@example.com"],
+        )
