@@ -1055,7 +1055,7 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         member_name: str,
         new_contents: Iterable[bytes],
         content_type: str,
-    ) -> None:
+    ) -> Iterable[bytes] | None:
         """Generate iTIP traffic when the user PUTs a scheduling object.
 
         Two paths, exclusive on a per-event basis:
@@ -1063,7 +1063,9 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         Organiser (RFC 6638 §3.2.1) — the user is ORGANIZER of the new
         event. Each current attendee gets an iTIP REQUEST; each
         attendee dropped relative to the prior version gets an iTIP
-        CANCEL.
+        CANCEL. The returned bytes carry SCHEDULE-STATUS annotations
+        on each ATTENDEE describing the delivery outcome (1.2 for
+        local delivery, 3.7 for unknown calendar user).
 
         Attendee (RFC 6638 §3.2.2) — the user is in ATTENDEE on the
         new event but isn't ORGANIZER. If their PARTSTAT changed (or
@@ -1077,19 +1079,19 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         iTIP-relevant edits, and so does this hook.
         """
         if content_type != "text/calendar":
-            return
+            return None
         try:
             parsed = Calendar.from_ical(b"".join(new_contents).decode("utf-8"))
         except ValueError:
             # Let the regular PUT path raise the proper precondition.
-            return
+            return None
         if not isinstance(parsed, Calendar):
-            return
+            return None
         new_cal = parsed
 
         principal = self._owning_principal()
         if principal is None:
-            return
+            return None
         own_addresses = set(principal.get_calendar_user_address_set())
 
         old_cal: Calendar | None = None
@@ -1104,17 +1106,21 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             new_sig = itip.extract_scheduling_signature(new_cal)
             old_sig = itip.extract_scheduling_signature(old_cal)
             if new_sig == old_sig:
-                return
+                return None
 
         is_organiser, new_attendees = _organiser_attendees(new_cal, own_addresses)
         if is_organiser:
-            await self._dispatch_organiser_put(
+            outcomes = await self._dispatch_organiser_put(
                 new_cal, old_cal, new_attendees, own_addresses
             )
-            return
+            if outcomes:
+                _annotate_schedule_status(new_cal, outcomes)
+                return [new_cal.to_ical()]
+            return None
 
         if old_cal is not None:
             await self._dispatch_attendee_put(new_cal, old_cal, own_addresses)
+        return None
 
     async def _dispatch_organiser_put(
         self,
@@ -1122,24 +1128,30 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         old_cal: Calendar | None,
         new_attendees: set[str],
         own_addresses: set[str],
-    ) -> None:
+    ) -> dict[str, str]:
+        """Send REQUEST/CANCEL and return ``{address: SCHEDULE-STATUS code}``."""
+        outcomes: dict[str, str] = {}
         if new_attendees:
             request = itip.build_itip_request(new_cal)
             for address in new_attendees:
-                await itip.deliver_to_inbox(
-                    self.backend, address, request, name_hint=None
+                outcomes[address] = await _deliver_status(
+                    self.backend, address, request
                 )
 
         if old_cal is None:
-            return
+            return outcomes
         _, old_attendees = _organiser_attendees(old_cal, own_addresses)
         dropped = old_attendees - new_attendees
         if dropped:
             cancel = itip.build_itip_cancel(old_cal)
             for address in dropped:
+                # Dropped attendees aren't in new_cal, so their CANCEL
+                # delivery outcomes don't end up annotated anywhere; the
+                # CANCEL itself is the record.
                 await itip.deliver_to_inbox(
                     self.backend, address, cancel, name_hint=None
                 )
+        return outcomes
 
     async def _dispatch_attendee_put(
         self,
@@ -1179,6 +1191,42 @@ async def _calendar_from_member(member: webdav.Resource) -> Calendar | None:
     if not isinstance(cal, Calendar):
         return None
     return cal
+
+
+async def _deliver_status(
+    backend: webdav.Backend, address: str, message: Calendar
+) -> str:
+    """Deliver *message* to *address* and return a SCHEDULE-STATUS code.
+
+    Per RFC 6638 §3.2: 1.2 means "delivered to a local schedule
+    inbox"; 3.7 means "no such calendar user" (which we use for any
+    non-local address since iMIP isn't implemented). Storage failures
+    propagate.
+    """
+    delivered = await itip.deliver_to_inbox(backend, address, message, name_hint=None)
+    if delivered:
+        return itip.REQUEST_STATUS_SUCCESS
+    return itip.REQUEST_STATUS_INVALID_CALENDAR_USER
+
+
+def _annotate_schedule_status(cal: Calendar, outcomes: dict[str, str]) -> None:
+    """Stamp SCHEDULE-STATUS on each ATTENDEE per RFC 6638 §3.2.
+
+    *outcomes* maps an attendee address (as it appears in ATTENDEE) to
+    a request-status code. Attendees absent from *outcomes* are left
+    alone — typically the organiser themselves, who we don't deliver
+    to.
+    """
+    for comp in cal.subcomponents:
+        if comp.name not in itip.SCHEDULING_COMPONENTS:
+            continue
+        attendees = comp.get("ATTENDEE", [])
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+        for a in attendees:
+            status = outcomes.get(str(a))
+            if status is not None:
+                a.params["SCHEDULE-STATUS"] = status
 
 
 def _organiser_attendees(
