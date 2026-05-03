@@ -49,6 +49,7 @@ from xandikos import (
     caldav,
     carddav,
     infit,
+    itip,
     quota,
     scheduling,
     sync,
@@ -305,7 +306,7 @@ class ObjectResource(webdav.Resource):
         assert isinstance(file, ICalendarFile)
         cal = file.calendar
         assert isinstance(cal, Calendar)
-        signature = scheduling.extract_scheduling_signature(cal)
+        signature = itip.extract_scheduling_signature(cal)
         return create_strong_etag(signature.hex())
 
 
@@ -836,7 +837,7 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         attendees: set[str] = set()
         is_organiser = False
         for comp in cal.subcomponents:
-            if comp.name not in scheduling.SCHEDULING_COMPONENTS:
+            if comp.name not in itip.SCHEDULING_COMPONENTS:
                 continue
             organiser = comp.get("ORGANIZER")
             if organiser is None or str(organiser) not in organiser_addresses:
@@ -852,11 +853,9 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         if not is_organiser or not attendees:
             return
 
-        cancel = scheduling.build_itip_cancel(cal)
+        cancel = itip.build_itip_cancel(cal)
         for address in attendees:
-            await scheduling.deliver_itip_to_inbox(
-                self.backend, address, cancel, name_hint=None
-            )
+            await itip.deliver_to_inbox(self.backend, address, cancel, name_hint=None)
 
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):

@@ -23,82 +23,23 @@ See https://tools.ietf.org/html/rfc6638
 """
 
 import datetime
-import hashlib
 import posixpath
 from collections.abc import Iterable
 from xml.etree import ElementTree as ET
 
-from icalendar.cal import Calendar, Component, FreeBusy
-from icalendar.prop import vDDDTypes, vPeriod
+from icalendar.cal import Calendar
+from icalendar.prop import vPeriod
 
-from xandikos import caldav, webdav
+from xandikos import caldav, itip, webdav
 from xandikos.caldav import (
-    PRODID,
     SCHEDULE_INBOX_RESOURCE_TYPE,
     SCHEDULE_OUTBOX_RESOURCE_TYPE,
 )
-from xandikos.icalendar import PropTypes
-
-
-# RFC 5546 §3.6 / RFC 6638 §6.2 request-status codes used in
-# schedule-response replies.
-REQUEST_STATUS_SUCCESS = "2.0;Success"
-REQUEST_STATUS_INVALID_CALENDAR_USER = "3.7;Invalid calendar user"
-REQUEST_STATUS_NO_AUTHORITY = "3.8;No authority"
-REQUEST_STATUS_SERVICE_UNAVAILABLE = "5.0;Service unavailable"
-
-
-def build_itip_cancel(cal: Component) -> Calendar:
-    """Build a METHOD:CANCEL VCALENDAR for *cal*.
-
-    Per RFC 5546 §3.2.5, an iTIP CANCEL re-sends the scheduling
-    components from the original event, with SEQUENCE bumped by one,
-    DTSTAMP set to "now", and STATUS:CANCELLED on each component.
-    Non-scheduling components (VTIMEZONE, etc.) are passed through.
-    """
-    out = Calendar()
-    out["VERSION"] = "2.0"
-    out["PRODID"] = PRODID
-    out["METHOD"] = "CANCEL"
-    now = datetime.datetime.now(datetime.timezone.utc)
-    for comp in cal.subcomponents:
-        clone = comp.copy()
-        if clone.name in SCHEDULING_COMPONENTS:
-            clone["DTSTAMP"] = vDDDTypes(now)
-            try:
-                seq = int(comp.get("SEQUENCE", 0))
-            except (TypeError, ValueError):
-                seq = 0
-            clone["SEQUENCE"] = seq + 1
-            clone["STATUS"] = "CANCELLED"
-        out.add_component(clone)
-    return out
-
-
-async def deliver_itip_to_inbox(
-    backend: "webdav.Backend",
-    attendee_address: str,
-    itip_message: Calendar,
-    name_hint: str | None = None,
-) -> bool:
-    """Deliver *itip_message* to *attendee_address*'s schedule-inbox.
-
-    Returns ``True`` on successful delivery, ``False`` if the address
-    doesn't belong to a local principal (caller's cue to fall back to
-    iMIP or skip). Raises whatever the inbox collection's
-    ``create_member`` raises on storage failure.
-    """
-    found = find_principal_by_calendar_user_address(backend, attendee_address)
-    if found is None:
-        return False
-    principal_path, principal = found
-    inbox_path = posixpath.join(principal_path, principal.get_schedule_inbox_url())
-    inbox = backend.get_resource(inbox_path)
-    if inbox is None or not isinstance(inbox, webdav.Collection):
-        return False
-    body = itip_message.to_ical()
-    await inbox.create_member(name_hint, [body], "text/calendar")
-    return True
+from xandikos.itip import (
+    REQUEST_STATUS_NO_AUTHORITY,
+    REQUEST_STATUS_SUCCESS,
+    InvalidSchedulingRequest,
+)
 
 
 def find_owning_principal(
@@ -121,38 +62,6 @@ def find_owning_principal(
         p = posixpath.dirname(p) or "/"
 
 
-def find_principal_by_calendar_user_address(
-    backend: "webdav.Backend", address: str
-) -> "tuple[str, webdav.Principal] | None":
-    """Look up the local principal owning *address*, or None.
-
-    Walks ``backend.find_principals()`` and matches *address* (typically
-    a ``mailto:`` URI) against each principal's
-    ``calendar-user-address-set``. Returns ``(relpath, principal)`` so
-    the caller can resolve the principal's collections (inbox,
-    calendar-home, …) via ``backend.get_resource``.
-
-    Used to route iTIP messages to local inboxes; addresses that don't
-    match any local principal are considered remote and the caller can
-    fall back to iMIP (or skip).
-    """
-    for path in backend.find_principals():
-        principal = backend.get_principal(path)
-        if principal is None:
-            continue
-        if address in principal.get_calendar_user_address_set():
-            return path, principal
-    return None
-
-
-class InvalidSchedulingRequest(Exception):
-    """The body submitted to the schedule-outbox is not a valid request."""
-
-    def __init__(self, description: str) -> None:
-        super().__init__(description)
-        self.description = description
-
-
 # Feature to advertise to indicate scheduling support.
 FEATURE = "calendar-auto-schedule"
 
@@ -169,126 +78,6 @@ CALENDAR_USER_TYPES = (
     CALENDAR_USER_TYPE_ROOM,
     CALENDAR_USER_TYPE_UNKNOWN,
 )
-
-
-# Properties whose values participate in iTIP scheduling. The schedule-tag
-# (RFC 6638 §3.2.10) only changes when one of these changes within a
-# scheduling-bearing component; bookkeeping properties such as DTSTAMP,
-# LAST-MODIFIED, and CREATED do not affect it.
-SCHEDULING_PROPERTIES = frozenset(
-    {
-        "ATTENDEE",
-        "ORGANIZER",
-        "DTSTART",
-        "DTEND",
-        "DUE",
-        "DURATION",
-        "RRULE",
-        "RDATE",
-        "EXDATE",
-        "RECURRENCE-ID",
-        "SEQUENCE",
-        "STATUS",
-        "SUMMARY",
-        "LOCATION",
-        "DESCRIPTION",
-        "PRIORITY",
-        "TRANSP",
-        "CLASS",
-        "URL",
-        "CATEGORIES",
-        "RESOURCES",
-        "PERCENT-COMPLETE",
-        "REQUEST-STATUS",
-    }
-)
-
-
-# Components that carry scheduling state. Other component types (VTIMEZONE,
-# VALARM, VFREEBUSY responses inside replies, etc.) are intentionally skipped
-# so they do not destabilise the tag.
-SCHEDULING_COMPONENTS = frozenset({"VEVENT", "VTODO", "VJOURNAL"})
-
-
-def _serialize_scheduling_value(value: PropTypes) -> bytes:
-    """Serialise a single iCalendar property value, including its parameters.
-
-    Plain ``to_ical()`` would drop parameters such as ``PARTSTAT`` on
-    ATTENDEE, which is exactly the kind of state the schedule-tag must
-    track. We fold params and value into one sorted, opaque byte string.
-    """
-    rendered = value.to_ical()
-    if value.params:
-        # Parameter names are case-insensitive; normalise to upper for stability.
-        param_items = sorted(
-            (k.upper().encode("ascii"), str(v).encode("utf-8"))
-            for k, v in value.params.items()
-        )
-        rendered = b";".join(b"=".join(item) for item in param_items) + b":" + rendered
-    return rendered
-
-
-def extract_scheduling_signature(cal: Calendar) -> bytes:
-    """Compute a stable signature of the scheduling-relevant content in *cal*.
-
-    Two calendars with the same signature are considered equivalent for the
-    purposes of CalDAV scheduling: a PUT that only changes properties outside
-    SCHEDULING_PROPERTIES (or properties on non-scheduling components) yields
-    the same signature, and therefore the same schedule-tag.
-
-    Args:
-      cal: parsed icalendar Calendar object.
-
-    Returns: opaque ``bytes`` value suitable for hashing or direct comparison.
-    """
-    components: list[tuple[bytes, list[tuple[bytes, list[bytes]]]]] = []
-    for component in cal.subcomponents:
-        if component.name is None:
-            continue
-        name = component.name.upper()
-        if name not in SCHEDULING_COMPONENTS:
-            continue
-        try:
-            uid = component["UID"].to_ical()
-        except KeyError:
-            uid = b""
-        try:
-            recurrence_id = component["RECURRENCE-ID"].to_ical()
-        except KeyError:
-            recurrence_id = b""
-        props: list[tuple[bytes, list[bytes]]] = []
-        for field in component:
-            if field.upper() not in SCHEDULING_PROPERTIES:
-                continue
-            value = component.get(field)
-            if value is None:
-                continue
-            if isinstance(value, list):
-                items = [_serialize_scheduling_value(v) for v in value]
-            else:
-                items = [_serialize_scheduling_value(value)]
-            items.sort()
-            props.append((field.upper().encode("ascii"), items))
-        props.sort()
-        components.append(
-            (name.encode("ascii") + b":" + uid + b":" + recurrence_id, props)
-        )
-    components.sort()
-
-    h = hashlib.sha256()
-    for comp_key, props in components:
-        h.update(b"C\x00")
-        h.update(comp_key)
-        h.update(b"\x00")
-        for field_name, items in props:
-            h.update(b"P\x00")
-            h.update(field_name)
-            h.update(b"\x00")
-            for item in items:
-                h.update(b"V\x00")
-                h.update(item)
-                h.update(b"\x00")
-    return h.digest()
 
 
 class ScheduleInbox(webdav.Collection):
@@ -426,11 +215,11 @@ class ScheduleOutbox(webdav.Collection):
         except ValueError as exc:
             raise webdav.BadRequestError(f"Invalid iCalendar: {exc}") from exc
         try:
-            request_comp = _validate_freebusy_request(cal)
+            request_comp = itip.validate_freebusy_request(cal)
         except InvalidSchedulingRequest as exc:
             raise webdav.BadRequestError(exc.description) from exc
 
-        start, end = _parse_freebusy_window(request_comp)
+        start, end = itip.parse_freebusy_window(request_comp)
 
         organizer = request_comp.get("ORGANIZER")
         attendees = request_comp.get("ATTENDEE", [])
@@ -448,7 +237,7 @@ class ScheduleOutbox(webdav.Collection):
                     )
                 )
                 continue
-            reply = _build_freebusy_reply(
+            reply = itip.build_freebusy_reply(
                 organizer, recipient, request_comp, start, end, list(periods)
             )
             responses.append(
@@ -467,79 +256,6 @@ class ScheduleOutbox(webdav.Collection):
             body=[body_bytes],
             headers={"Content-Type": "application/xml; charset=utf-8"},
         )
-
-
-def _validate_freebusy_request(cal: Component) -> Component:
-    """Return the single VFREEBUSY in *cal* if the request is well formed."""
-    method = cal.get("METHOD")
-    if str(method).upper() != "REQUEST":
-        raise InvalidSchedulingRequest(
-            "Schedule-outbox requests require METHOD:REQUEST"
-        )
-    fbs = [c for c in cal.subcomponents if c.name == "VFREEBUSY"]
-    others = [
-        c.name for c in cal.subcomponents if c.name not in ("VFREEBUSY", "VTIMEZONE")
-    ]
-    if others:
-        raise InvalidSchedulingRequest(
-            f"Free-busy request must contain only VFREEBUSY, got {others!r}"
-        )
-    if len(fbs) != 1:
-        raise InvalidSchedulingRequest(
-            f"Free-busy request must contain exactly one VFREEBUSY, got {len(fbs)}"
-        )
-    fb = fbs[0]
-    if "ORGANIZER" not in fb:
-        raise InvalidSchedulingRequest("VFREEBUSY missing ORGANIZER")
-    if "ATTENDEE" not in fb:
-        raise InvalidSchedulingRequest("VFREEBUSY missing ATTENDEE")
-    if "DTSTART" not in fb or "DTEND" not in fb:
-        raise InvalidSchedulingRequest("VFREEBUSY missing DTSTART/DTEND")
-    return fb
-
-
-def _parse_freebusy_window(
-    fb: Component,
-) -> tuple[datetime.datetime, datetime.datetime]:
-    start = fb["DTSTART"].dt
-    end = fb["DTEND"].dt
-    if isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
-        start = datetime.datetime.combine(start, datetime.time(), datetime.timezone.utc)
-    if isinstance(end, datetime.date) and not isinstance(end, datetime.datetime):
-        end = datetime.datetime.combine(end, datetime.time(), datetime.timezone.utc)
-    if start.tzinfo is None:
-        start = start.replace(tzinfo=datetime.timezone.utc)
-    if end.tzinfo is None:
-        end = end.replace(tzinfo=datetime.timezone.utc)
-    return start, end
-
-
-def _build_freebusy_reply(
-    organizer,
-    recipient: str,
-    request_comp: Component,
-    start: datetime.datetime,
-    end: datetime.datetime,
-    periods: list[vPeriod],
-) -> Calendar:
-    """Build a METHOD:REPLY VCALENDAR with the per-recipient VFREEBUSY."""
-    cal = Calendar()
-    cal["VERSION"] = "2.0"
-    cal["PRODID"] = PRODID
-    cal["METHOD"] = "REPLY"
-    fb = FreeBusy()
-    fb["DTSTAMP"] = vDDDTypes(datetime.datetime.now(datetime.timezone.utc))
-    fb["DTSTART"] = vDDDTypes(start)
-    fb["DTEND"] = vDDDTypes(end)
-    if organizer is not None:
-        fb["ORGANIZER"] = organizer
-    fb["ATTENDEE"] = recipient
-    if "UID" in request_comp:
-        fb["UID"] = request_comp["UID"]
-    if periods:
-        fb["FREEBUSY"] = periods
-    cal.add_component(fb)
-    return cal
 
 
 def _build_response_element(
