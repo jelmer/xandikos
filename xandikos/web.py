@@ -605,10 +605,10 @@ class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
         this attendee. Otherwise walks the principal's calendar-home and
         gathers busy/availability periods via :func:`caldav.iter_freebusy`.
         """
-        principal_path = posixpath.dirname(self.relpath.rstrip("/"))
-        principal = self.backend.get_principal(principal_path)
-        if principal is None:
+        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        if owning is None:
             return None
+        principal_path, principal = owning
         if attendee_address not in principal.get_calendar_user_address_set():
             return None
 

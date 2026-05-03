@@ -827,6 +827,39 @@ class ScheduleOutboxLookupTests(unittest.TestCase):
         ical = result[0].to_ical().decode()
         self.assertEqual("20260602T000000Z/20260604T000000Z", ical)
 
+    def test_finds_principal_when_outbox_not_directly_under_principal(self):
+        # If the outbox lives at e.g. /user/scheduling/outbox rather than
+        # /user/outbox, the lookup must still walk up to find the principal.
+        from datetime import datetime, timezone
+        from xandikos.store import STORE_TYPE_SCHEDULE_OUTBOX
+
+        self._put_event(
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:e@example.com\r\n"
+            b"DTSTAMP:20260101T000000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"SUMMARY:S\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        self.backend.create_collection("/user/scheduling")
+        nested = self.backend.create_collection("/user/scheduling/outbox")
+        nested.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
+        outbox = self.backend.get_resource("/user/scheduling/outbox")
+
+        start = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        end = datetime(2026, 6, 2, tzinfo=timezone.utc)
+        result = asyncio.run(
+            outbox.get_attendee_busy_periods("mailto:user@example.com", start, end)
+        )
+        self.assertEqual(1, len(result))
+        self.assertIn("20260601T100000Z/20260601T110000Z", result[0].to_ical().decode())
+
+
 class CalendarCollectionPreDeleteHookTests(unittest.TestCase):
     """End-to-end tests for CalendarCollection.pre_delete_hook."""
 
