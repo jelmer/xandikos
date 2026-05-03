@@ -25,6 +25,7 @@ https://tools.ietf.org/html/rfc4791
 import datetime
 import itertools
 import logging
+from collections.abc import Collection
 from zoneinfo import ZoneInfo
 
 from icalendar.cal import Calendar as ICalendar
@@ -1002,7 +1003,27 @@ def map_freebusy(comp):
         raise AssertionError(f"unknown status {status!r}")
 
 
-def extract_freebusy(comp, tzify):
+def _user_declined(comp, own_addresses: "Collection[str]") -> bool:
+    """Return True iff *own_addresses* matches an ATTENDEE with PARTSTAT=DECLINED.
+
+    Per RFC 5545 §3.8.4.1 and RFC 4791 §7.10, events the user has
+    declined don't contribute busy time — they're not on the user's
+    schedule.
+    """
+    if not own_addresses:
+        return False
+    attendees = comp.get("ATTENDEE", [])
+    if not isinstance(attendees, list):
+        attendees = [attendees]
+    for a in attendees:
+        if str(a) in own_addresses and str(a.params.get("PARTSTAT", "")) == "DECLINED":
+            return True
+    return False
+
+
+def extract_freebusy(comp, tzify, own_addresses: "Collection[str]" = frozenset()):
+    if _user_declined(comp, own_addresses):
+        return None
     kind = map_freebusy(comp)
     if kind == "FREE":
         return None
@@ -1354,7 +1375,16 @@ def _clip_period_to_window(
     return out
 
 
-async def iter_freebusy(resources, start, end, tzify):
+async def iter_freebusy(
+    resources, start, end, tzify, *, own_addresses: "Collection[str]" = frozenset()
+):
+    """Aggregate busy periods from *resources* over [start, end).
+
+    *own_addresses* identifies the user the free-busy is for; events
+    where one of those addresses appears as an ATTENDEE with
+    PARTSTAT=DECLINED are excluded — declining a meeting takes it off
+    the user's schedule.
+    """
     # Collect all VAVAILABILITY components first for priority-based processing
     vavailability_components = []
     event_periods = []
@@ -1369,7 +1399,7 @@ async def iter_freebusy(resources, start, end, tzify):
         for comp in c.subcomponents:
             if comp.name == "VEVENT":
                 if apply_time_range_vevent(start, end, comp, tzify):
-                    vp = extract_freebusy(comp, tzify)
+                    vp = extract_freebusy(comp, tzify, own_addresses=own_addresses)
                     if vp is not None:
                         event_periods.append(vp)
             elif comp.name == "VAVAILABILITY":

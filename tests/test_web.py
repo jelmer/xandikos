@@ -1567,3 +1567,384 @@ class InboxAutoProcessingTests(unittest.TestCase):
         asyncio.run(self._alice_calendar().pre_delete_hook("event.ics"))
         # Bob's calendar is empty (no auto-create on CANCEL).
         self.assertEqual([], self._calendar_events("/bob"))
+
+
+class ScheduleStatusAnnotationTests(unittest.TestCase):
+    """Tests for SCHEDULE-STATUS annotation on organiser PUTs (RFC 6638 §3.2)."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+
+        self._addresses = {
+            "/alice": ["mailto:alice@example.com"],
+            "/bob": ["mailto:bob@example.com"],
+        }
+        from xandikos.web import Principal
+
+        original = Principal.get_calendar_user_address_set
+        addresses = self._addresses
+
+        def fake_addresses(principal_self):
+            return addresses.get(principal_self.relpath, [])
+
+        Principal.get_calendar_user_address_set = fake_addresses
+        self.addCleanup(setattr, Principal, "get_calendar_user_address_set", original)
+
+    def _alice_calendar(self) -> CalendarCollection:
+        cal = self.backend.get_resource("/alice/calendars/calendar")
+        assert isinstance(cal, CalendarCollection)
+        return cal
+
+    def _attendee_statuses(self, body: bytes) -> dict[str, dict[str, str]]:
+        """Return ``{attendee_address: {param_name: value}}`` for a stored event."""
+        from icalendar.cal import Calendar as ICalendar
+
+        parsed = ICalendar.from_ical(body.decode("utf-8"))
+        out: dict[str, dict[str, str]] = {}
+        for comp in parsed.subcomponents:
+            if comp.name != "VEVENT":
+                continue
+            attendees = comp.get("ATTENDEE", [])
+            if not isinstance(attendees, list):
+                attendees = [attendees]
+            for a in attendees:
+                out[str(a)] = {k: str(v) for k, v in a.params.items()}
+        return out
+
+    EVENT_TWO_ATTENDEES = (
+        b"BEGIN:VCALENDAR\r\n"
+        b"VERSION:2.0\r\n"
+        b"PRODID:-//Test//EN\r\n"
+        b"BEGIN:VEVENT\r\n"
+        b"UID:meet@example.com\r\n"
+        b"DTSTAMP:20260101T120000Z\r\n"
+        b"SEQUENCE:1\r\n"
+        b"DTSTART:20260601T100000Z\r\n"
+        b"DTEND:20260601T110000Z\r\n"
+        b"SUMMARY:Sync\r\n"
+        b"ORGANIZER:mailto:alice@example.com\r\n"
+        b"ATTENDEE:mailto:bob@example.com\r\n"
+        b"ATTENDEE:mailto:dave@elsewhere.example\r\n"
+        b"END:VEVENT\r\n"
+        b"END:VCALENDAR\r\n"
+    )
+
+    def test_organiser_put_returns_annotated_bytes(self):
+        rewritten = asyncio.run(
+            self._alice_calendar().pre_put_hook(
+                "event.ics", [self.EVENT_TWO_ATTENDEES], "text/calendar"
+            )
+        )
+        self.assertIsNotNone(rewritten)
+        body = b"".join(rewritten)
+        statuses = self._attendee_statuses(body)
+        # Bob is local: 1.2 delivered; dave is remote: 3.7 invalid.
+        self.assertEqual(
+            "2.0;Success", statuses["mailto:bob@example.com"]["SCHEDULE-STATUS"]
+        )
+        self.assertEqual(
+            "3.7;Invalid calendar user",
+            statuses["mailto:dave@elsewhere.example"]["SCHEDULE-STATUS"],
+        )
+
+    def test_attendee_reply_path_does_not_annotate(self):
+        # Bob is the user here; he's an ATTENDEE, not the ORGANIZER.
+        # The hook delivers a REPLY but doesn't annotate bob's stored copy
+        # (only the organiser annotates after sending REQUEST/CANCEL).
+        bob_cal = self.backend.get_resource("/bob/calendars/calendar")
+        assert isinstance(bob_cal, CalendarCollection)
+        bob_cal.store.import_one(
+            "event.ics", "text/calendar", [self.EVENT_TWO_ATTENDEES]
+        )
+        accepted = self.EVENT_TWO_ATTENDEES.replace(
+            b"ATTENDEE:mailto:bob@example.com",
+            b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com",
+        )
+        rewritten = asyncio.run(
+            bob_cal.pre_put_hook("event.ics", [accepted], "text/calendar")
+        )
+        self.assertIsNone(rewritten)
+
+    def test_irrelevant_change_returns_none(self):
+        self._alice_calendar().store.import_one(
+            "event.ics", "text/calendar", [self.EVENT_TWO_ATTENDEES]
+        )
+        # Same content with only DTSTAMP shifted — schedule-tag-stable.
+        rewritten = self.EVENT_TWO_ATTENDEES.replace(
+            b"DTSTAMP:20260101T120000Z", b"DTSTAMP:20260201T120000Z"
+        )
+        result = asyncio.run(
+            self._alice_calendar().pre_put_hook(
+                "event.ics", [rewritten], "text/calendar"
+            )
+        )
+        self.assertIsNone(result)
+
+    def test_no_attendees_returns_none(self):
+        body = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:solo@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:alice@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        result = asyncio.run(
+            self._alice_calendar().pre_put_hook("solo.ics", [body], "text/calendar")
+        )
+        self.assertIsNone(result)
+
+    def test_other_attendee_params_preserved(self):
+        # ATTENDEE often carries CN, CUTYPE, ROLE, RSVP — annotation must
+        # not strip them.
+        body = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:meet@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:alice@example.com\r\n"
+            b"ATTENDEE;CN=Bob;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:bob@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        rewritten = asyncio.run(
+            self._alice_calendar().pre_put_hook("event.ics", [body], "text/calendar")
+        )
+        self.assertIsNotNone(rewritten)
+        statuses = self._attendee_statuses(b"".join(rewritten))
+        self.assertEqual(
+            {
+                "CN": "Bob",
+                "ROLE": "REQ-PARTICIPANT",
+                "RSVP": "TRUE",
+                "SCHEDULE-STATUS": "2.0;Success",
+            },
+            statuses["mailto:bob@example.com"],
+        )
+
+
+class FreeBusyTranspAndDeclinedTests(unittest.TestCase):
+    """ScheduleOutbox.get_attendee_busy_periods honours TRANSP/DECLINED."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/user", create_defaults=True)
+        os.environ["EMAIL"] = "user@example.com"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+
+    def _put_event(self, body, calendar_path="/user/calendars/calendar", name="e.ics"):
+        cal = self.backend.get_resource(calendar_path)
+        cal.store.import_one(name, "text/calendar", [body])
+
+    def _outbox(self):
+        from xandikos.store import STORE_TYPE_SCHEDULE_OUTBOX
+
+        path = "/user/outbox"
+        if self.backend.get_resource(path) is None:
+            r = self.backend.create_collection(path)
+            r.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
+        return self.backend.get_resource(path)
+
+    def _query(self):
+        from datetime import datetime, timezone
+
+        return asyncio.run(
+            self._outbox().get_attendee_busy_periods(
+                "mailto:user@example.com",
+                datetime(2026, 6, 1, tzinfo=timezone.utc),
+                datetime(2026, 6, 2, tzinfo=timezone.utc),
+            )
+        )
+
+    EVENT = (
+        b"BEGIN:VCALENDAR\r\n"
+        b"VERSION:2.0\r\n"
+        b"PRODID:-//Test//EN\r\n"
+        b"BEGIN:VEVENT\r\n"
+        b"UID:e@example.com\r\n"
+        b"DTSTAMP:20260101T000000Z\r\n"
+        b"DTSTART:20260601T100000Z\r\n"
+        b"DTEND:20260601T110000Z\r\n"
+        b"SUMMARY:S\r\n"
+        b"END:VEVENT\r\n"
+        b"END:VCALENDAR\r\n"
+    )
+
+    def test_transparent_calendar_excluded(self):
+        from xandikos.store import STORE_TYPE_CALENDAR
+        from xandikos import caldav
+        from xandikos.web import CalendarCollection
+
+        # Create a second calendar that should report TRANSPARENT.
+        # CalendarCollection currently hardcodes the value in
+        # get_schedule_calendar_transparency; monkey-patch that to flip
+        # it for one specific calendar.
+        holidays = self.backend.create_collection("/user/calendars/holidays")
+        holidays.store.set_type(STORE_TYPE_CALENDAR)
+
+        original = CalendarCollection.get_schedule_calendar_transparency
+
+        def transp(cal_self):
+            if cal_self.relpath == "/user/calendars/holidays":
+                return caldav.TRANSPARENCY_TRANSPARENT
+            return caldav.TRANSPARENCY_OPAQUE
+
+        CalendarCollection.get_schedule_calendar_transparency = transp
+        self.addCleanup(
+            setattr, CalendarCollection, "get_schedule_calendar_transparency", original
+        )
+
+        # Put the event ONLY in the holidays calendar.
+        self._put_event(self.EVENT, calendar_path="/user/calendars/holidays")
+
+        result = self._query()
+        # Holidays-only event must not contribute busy time.
+        self.assertEqual([], [p.to_ical().decode() for p in result])
+
+    def test_opaque_calendar_still_contributes(self):
+        # Same event but in the default OPAQUE calendar.
+        self._put_event(self.EVENT)
+        result = self._query()
+        self.assertEqual(
+            ["20260601T100000Z/20260601T110000Z"],
+            [p.to_ical().decode() for p in result],
+        )
+
+    def test_declined_event_excluded(self):
+        body = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:e@example.com\r\n"
+            b"DTSTAMP:20260101T000000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:other@example.com\r\n"
+            b"ATTENDEE;PARTSTAT=DECLINED:mailto:user@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        self._put_event(body)
+        result = self._query()
+        self.assertEqual([], [p.to_ical().decode() for p in result])
+
+    def test_accepted_event_still_busy(self):
+        body = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:e@example.com\r\n"
+            b"DTSTAMP:20260101T000000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:other@example.com\r\n"
+            b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:user@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        self._put_event(body)
+        result = self._query()
+        self.assertEqual(
+            ["20260601T100000Z/20260601T110000Z"],
+            [p.to_ical().decode() for p in result],
+        )
+
+
+class PrincipalCalendarUserAddressSetTests(unittest.TestCase):
+    """Tests for the per-principal calendar-user-address-set storage."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice")
+        self.principal = self.backend.get_principal("/alice")
+
+    def test_falls_back_to_email_env_when_no_config(self):
+        os.environ["EMAIL"] = "alice@env.example"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+        self.assertEqual(
+            ["mailto:alice@env.example"],
+            self.principal.get_calendar_user_address_set(),
+        )
+
+    def test_returns_empty_when_no_config_and_no_env(self):
+        os.environ.pop("EMAIL", None)
+        self.assertEqual([], self.principal.get_calendar_user_address_set())
+
+    def test_set_then_get_round_trips(self):
+        addresses = [
+            "mailto:alice@example.com",
+            "mailto:a.lice@work.example",
+            "/principals/alice/",
+        ]
+        self.principal.set_calendar_user_address_set(addresses)
+        self.assertEqual(addresses, self.principal.get_calendar_user_address_set())
+
+    def test_set_overrides_env_var(self):
+        os.environ["EMAIL"] = "alice@env.example"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+        self.principal.set_calendar_user_address_set(["mailto:new@example.com"])
+        self.assertEqual(
+            ["mailto:new@example.com"],
+            self.principal.get_calendar_user_address_set(),
+        )
+
+    def test_set_empty_restores_env_var_fallback(self):
+        os.environ["EMAIL"] = "alice@env.example"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+        self.principal.set_calendar_user_address_set(["mailto:new@example.com"])
+        self.principal.set_calendar_user_address_set([])
+        self.assertEqual(
+            ["mailto:alice@env.example"],
+            self.principal.get_calendar_user_address_set(),
+        )
+
+    def test_addresses_persist_across_principal_lookups(self):
+        # The Principal object is stateless above the file; refetching
+        # it should still see the persisted addresses.
+        self.principal.set_calendar_user_address_set(["mailto:p@example.com"])
+        refetched = self.backend.get_principal("/alice")
+        self.assertEqual(
+            ["mailto:p@example.com"],
+            refetched.get_calendar_user_address_set(),
+        )
+
+    def test_other_xandikos_config_keys_preserved_when_setting(self):
+        # If the principal's .xandikos already has unrelated config in
+        # other sections, set_calendar_user_address_set must not stomp it.
+        import configparser
+
+        config_path = os.path.join(self.tempdir, "alice", ".xandikos")
+        cp = configparser.ConfigParser()
+        cp.add_section("other")
+        cp.set("other", "preserve", "yes")
+        with open(config_path, "w") as f:
+            cp.write(f)
+
+        self.principal.set_calendar_user_address_set(["mailto:p@example.com"])
+
+        cp2 = configparser.ConfigParser()
+        cp2.read(config_path)
+        self.assertEqual("yes", cp2.get("other", "preserve"))
+        self.assertEqual("mailto:p@example.com", cp2.get("scheduling", "addresses"))

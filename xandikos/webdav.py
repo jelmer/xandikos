@@ -1052,7 +1052,7 @@ class Collection(Resource):
         member_name: str,
         new_contents: Iterable[bytes],
         content_type: str,
-    ) -> None:
+    ) -> Iterable[bytes] | None:
         """Run side-effects just before a member is created or replaced.
 
         Default is a no-op. Subclasses can override to react to a
@@ -1063,6 +1063,12 @@ class Collection(Resource):
         ``member_name`` may already exist (replace) or not (create);
         the hook is responsible for distinguishing those cases when
         the diff against the prior state matters.
+
+        Returning ``None`` means "store *new_contents* as-is".
+        Returning a different iterable of bytes replaces what gets
+        stored — useful for hooks that need to annotate the user's
+        bytes (e.g. SCHEDULE-STATUS on ATTENDEE lines after iTIP
+        delivery, RFC 6638 §3.2).
 
         Raising aborts the PUT, so side-effects must not assume the
         write has happened. Subclasses are responsible for swallowing
@@ -1365,6 +1371,16 @@ class Principal(Resource):
     def get_calendar_user_address_set(self) -> list[str]:
         """List calendar-user-addresses (typically mailto: URIs) for this principal."""
         raise NotImplementedError(self.get_calendar_user_address_set)
+
+    def set_calendar_user_address_set(self, addresses: list[str]) -> None:
+        """Set the principal's calendar-user-address-set.
+
+        Default raises NotImplementedError so PROPPATCH on
+        calendar-user-address-set returns 403 on backends that haven't
+        implemented persistent storage. Pass an empty list to remove
+        any persisted value.
+        """
+        raise NotImplementedError(self.set_calendar_user_address_set)
 
 
 async def get_property_from_name(
@@ -2174,7 +2190,11 @@ class PutMethod(Method):
             # Item already exists; update it
             container = app.backend.get_resource(container_path)
             if isinstance(container, Collection):
-                await container.pre_put_hook(name, new_contents, content_type)
+                rewritten = await container.pre_put_hook(
+                    name, new_contents, content_type
+                )
+                if rewritten is not None:
+                    new_contents = rewritten
             try:
                 new_etag = await r.set_body(
                     new_contents,
@@ -2211,7 +2231,9 @@ class PutMethod(Method):
                 await app._get_allowed_methods(request, environ)
             )
         if isinstance(r, Collection):
-            await r.pre_put_hook(name, new_contents, content_type)
+            rewritten = await r.pre_put_hook(name, new_contents, content_type)
+            if rewritten is not None:
+                new_contents = rewritten
         try:
             (new_name, new_etag) = await r.create_member(
                 name,
