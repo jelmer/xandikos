@@ -949,3 +949,294 @@ class CalendarCollectionPreDeleteHookTests(unittest.TestCase):
         # No event with this name exists; hook should return without error.
         asyncio.run(self._alice_calendar().pre_delete_hook("does-not-exist.ics"))
         self.assertEqual([], self._bob_inbox_messages())
+
+
+class CalendarCollectionPrePutHookTests(unittest.TestCase):
+    """End-to-end tests for CalendarCollection.pre_put_hook (organiser path)."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+        self.backend.create_principal("/carol", create_defaults=True)
+
+        self._addresses = {
+            "/alice": ["mailto:alice@example.com"],
+            "/bob": ["mailto:bob@example.com"],
+            "/carol": ["mailto:carol@example.com"],
+        }
+
+        from xandikos.web import Principal
+
+        original = Principal.get_calendar_user_address_set
+        addresses = self._addresses
+
+        def fake_addresses(principal_self):
+            return addresses.get(principal_self.relpath, [])
+
+        Principal.get_calendar_user_address_set = fake_addresses
+        self.addCleanup(setattr, Principal, "get_calendar_user_address_set", original)
+
+    def _alice_calendar(self) -> CalendarCollection:
+        cal = self.backend.get_resource("/alice/calendars/calendar")
+        assert isinstance(cal, CalendarCollection)
+        return cal
+
+    def _store_event(self, body: bytes, name: str = "event.ics") -> None:
+        """Seed an event directly via the store (bypassing the hook)."""
+        self._alice_calendar().store.import_one(name, "text/calendar", [body])
+
+    def _inbox_messages(self, principal: str) -> list[bytes]:
+        inbox = self.backend.get_resource(f"{principal}/inbox")
+        assert isinstance(inbox, StoreBasedCollection)
+        store = inbox.store
+        return [
+            b"".join(store._get_raw(name, etag))
+            for name, _ct, etag in store.iter_with_etag()
+        ]
+
+    def _put(self, body: bytes, name: str = "event.ics") -> None:
+        asyncio.run(self._alice_calendar().pre_put_hook(name, [body], "text/calendar"))
+
+    BASE_EVENT = (
+        b"BEGIN:VCALENDAR\r\n"
+        b"VERSION:2.0\r\n"
+        b"PRODID:-//Test//EN\r\n"
+        b"BEGIN:VEVENT\r\n"
+        b"UID:meeting@example.com\r\n"
+        b"DTSTAMP:20260101T120000Z\r\n"
+        b"SEQUENCE:1\r\n"
+        b"DTSTART:20260601T100000Z\r\n"
+        b"DTEND:20260601T110000Z\r\n"
+        b"SUMMARY:Sync\r\n"
+        b"ORGANIZER:mailto:alice@example.com\r\n"
+        b"ATTENDEE:mailto:bob@example.com\r\n"
+        b"END:VEVENT\r\n"
+        b"END:VCALENDAR\r\n"
+    )
+
+    def test_create_sends_request_to_attendee(self):
+        self._put(self.BASE_EVENT)
+        messages = self._inbox_messages("/bob")
+        self.assertEqual(1, len(messages))
+        body = messages[0]
+        self.assertIn(b"METHOD:REQUEST", body)
+        self.assertIn(b"UID:meeting@example.com", body)
+        # SEQUENCE preserved (transport doesn't bump for REQUEST).
+        self.assertIn(b"SEQUENCE:1", body)
+
+    def test_irrelevant_change_skips_delivery(self):
+        # First, store the original event without going through the hook.
+        self._store_event(self.BASE_EVENT)
+        # Now PUT a copy that only differs by DTSTAMP — schedule-tag-stable.
+        rewritten = self.BASE_EVENT.replace(
+            b"DTSTAMP:20260101T120000Z", b"DTSTAMP:20260201T120000Z"
+        )
+        self._put(rewritten)
+        self.assertEqual([], self._inbox_messages("/bob"))
+
+    def test_material_change_sends_request(self):
+        self._store_event(self.BASE_EVENT)
+        edited = self.BASE_EVENT.replace(b"SUMMARY:Sync", b"SUMMARY:Sync (rescheduled)")
+        self._put(edited)
+        messages = self._inbox_messages("/bob")
+        self.assertEqual(1, len(messages))
+        self.assertIn(b"METHOD:REQUEST", messages[0])
+        self.assertIn(b"SUMMARY:Sync (rescheduled)", messages[0])
+
+    def test_dropped_attendee_gets_cancel_remaining_get_request(self):
+        # Seed an event with both bob and carol as attendees.
+        with_both = self.BASE_EVENT.replace(
+            b"ATTENDEE:mailto:bob@example.com\r\n",
+            b"ATTENDEE:mailto:bob@example.com\r\nATTENDEE:mailto:carol@example.com\r\n",
+        )
+        self._store_event(with_both)
+        # Now PUT a version with only bob.
+        self._put(self.BASE_EVENT)
+
+        bob = self._inbox_messages("/bob")
+        carol = self._inbox_messages("/carol")
+        self.assertEqual(1, len(bob))
+        self.assertEqual(1, len(carol))
+        self.assertIn(b"METHOD:REQUEST", bob[0])
+        self.assertIn(b"METHOD:CANCEL", carol[0])
+        self.assertIn(b"STATUS:CANCELLED", carol[0])
+
+    def test_no_delivery_when_user_is_attendee_not_organiser(self):
+        # Bob's event; alice is just an attendee storing an invitation copy.
+        body = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:bobs@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:bob@example.com\r\n"
+            b"ATTENDEE:mailto:alice@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        self._put(body)
+        self.assertEqual([], self._inbox_messages("/bob"))
+
+    def test_no_delivery_when_event_has_no_attendees(self):
+        body = self.BASE_EVENT.replace(b"ATTENDEE:mailto:bob@example.com\r\n", b"")
+        self._put(body)
+        self.assertEqual([], self._inbox_messages("/bob"))
+
+    def test_remote_attendee_silently_skipped(self):
+        # carol@elsewhere isn't a local principal — delivery returns False
+        # without raising; bob still gets his REQUEST.
+        with_remote = self.BASE_EVENT.replace(
+            b"ATTENDEE:mailto:bob@example.com\r\n",
+            b"ATTENDEE:mailto:bob@example.com\r\n"
+            b"ATTENDEE:mailto:dave@elsewhere.example\r\n",
+        )
+        self._put(with_remote)
+        self.assertEqual(1, len(self._inbox_messages("/bob")))
+
+    def test_non_calendar_content_type_skipped(self):
+        # Should not raise even if body is total garbage; non-calendar PUTs
+        # are out of scope for the hook.
+        asyncio.run(
+            self._alice_calendar().pre_put_hook(
+                "junk.txt", [b"not a calendar"], "text/plain"
+            )
+        )
+        self.assertEqual([], self._inbox_messages("/bob"))
+
+    def test_unparseable_calendar_silently_returns(self):
+        asyncio.run(
+            self._alice_calendar().pre_put_hook(
+                "broken.ics", [b"BEGIN:VCALENDAR\r\nnot ical"], "text/calendar"
+            )
+        )
+        self.assertEqual([], self._inbox_messages("/bob"))
+
+
+class CalendarCollectionPrePutHookAttendeeReplyTests(unittest.TestCase):
+    """End-to-end tests for the attendee-REPLY half of CalendarCollection.pre_put_hook."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+
+        self._addresses = {
+            "/alice": ["mailto:alice@example.com"],
+            "/bob": ["mailto:bob@example.com"],
+        }
+
+        from xandikos.web import Principal
+
+        original = Principal.get_calendar_user_address_set
+        addresses = self._addresses
+
+        def fake_addresses(principal_self):
+            return addresses.get(principal_self.relpath, [])
+
+        Principal.get_calendar_user_address_set = fake_addresses
+        self.addCleanup(setattr, Principal, "get_calendar_user_address_set", original)
+
+    def _bob_calendar(self) -> CalendarCollection:
+        cal = self.backend.get_resource("/bob/calendars/calendar")
+        assert isinstance(cal, CalendarCollection)
+        return cal
+
+    def _store_event(self, body: bytes, name: str = "event.ics") -> None:
+        self._bob_calendar().store.import_one(name, "text/calendar", [body])
+
+    def _inbox_messages(self, principal: str) -> list[bytes]:
+        inbox = self.backend.get_resource(f"{principal}/inbox")
+        assert isinstance(inbox, StoreBasedCollection)
+        store = inbox.store
+        return [
+            b"".join(store._get_raw(name, etag))
+            for name, _ct, etag in store.iter_with_etag()
+        ]
+
+    def _put(self, body: bytes, name: str = "event.ics") -> None:
+        asyncio.run(self._bob_calendar().pre_put_hook(name, [body], "text/calendar"))
+
+    INVITATION = (
+        b"BEGIN:VCALENDAR\r\n"
+        b"VERSION:2.0\r\n"
+        b"PRODID:-//Test//EN\r\n"
+        b"BEGIN:VEVENT\r\n"
+        b"UID:meeting@example.com\r\n"
+        b"DTSTAMP:20260101T120000Z\r\n"
+        b"SEQUENCE:1\r\n"
+        b"DTSTART:20260601T100000Z\r\n"
+        b"DTEND:20260601T110000Z\r\n"
+        b"SUMMARY:Sync\r\n"
+        b"ORGANIZER:mailto:alice@example.com\r\n"
+        b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r\n"
+        b"END:VEVENT\r\n"
+        b"END:VCALENDAR\r\n"
+    )
+
+    def test_partstat_change_sends_reply_to_organiser(self):
+        self._store_event(self.INVITATION)
+        accepted = self.INVITATION.replace(
+            b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED"
+        )
+        self._put(accepted)
+        messages = self._inbox_messages("/alice")
+        self.assertEqual(1, len(messages))
+        body = messages[0]
+        self.assertIn(b"METHOD:REPLY", body)
+        # ATTENDEE narrowed to bob, with his ACCEPTED PARTSTAT.
+        self.assertIn(b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com", body)
+        self.assertIn(b"ORGANIZER:mailto:alice@example.com", body)
+
+    def test_no_reply_when_partstat_unchanged(self):
+        self._store_event(self.INVITATION)
+        # PUT the same content with only DTSTAMP shifted — irrelevant change,
+        # signature stays equal, so the hook short-circuits.
+        rewritten = self.INVITATION.replace(
+            b"DTSTAMP:20260101T120000Z", b"DTSTAMP:20260201T120000Z"
+        )
+        self._put(rewritten)
+        self.assertEqual([], self._inbox_messages("/alice"))
+
+    def test_no_reply_on_first_import(self):
+        # No prior event in bob's calendar. PUTting an invitation with bob
+        # already PARTSTAT=ACCEPTED is a fresh import, not a reply — the
+        # server has no evidence bob actually changed his mind.
+        accepted = self.INVITATION.replace(
+            b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED"
+        )
+        self._put(accepted)
+        self.assertEqual([], self._inbox_messages("/alice"))
+
+    def test_no_reply_when_event_is_self_organised(self):
+        # Bob organises an event he's also attending — no organiser to reply to.
+        body = self.INVITATION.replace(
+            b"ORGANIZER:mailto:alice@example.com", b"ORGANIZER:mailto:bob@example.com"
+        )
+        self._store_event(body)
+        accepted = body.replace(b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED")
+        self._put(accepted)
+        self.assertEqual([], self._inbox_messages("/alice"))
+
+    def test_reply_skipped_for_remote_organiser(self):
+        # Organiser address isn't a local principal — delivery returns False
+        # silently. We don't have an assertion target other than "no crash"
+        # since there's no inbox to inspect.
+        body = self.INVITATION.replace(
+            b"ORGANIZER:mailto:alice@example.com",
+            b"ORGANIZER:mailto:remote@elsewhere.example",
+        )
+        self._store_event(body)
+        accepted = body.replace(b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED")
+        self._put(accepted)
+        # Alice is unaffected.
+        self.assertEqual([], self._inbox_messages("/alice"))
