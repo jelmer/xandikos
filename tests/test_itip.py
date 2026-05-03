@@ -248,5 +248,85 @@ END:VCALENDAR\r
         self.assertNotIn("STATUS", tz)
 
 
+REQUEST_SOURCE = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+BEGIN:VEVENT\r
+UID:meeting@example.com\r
+DTSTAMP:20260101T000000Z\r
+DTSTART:20260601T100000Z\r
+DTEND:20260601T110000Z\r
+SUMMARY:Sync\r
+SEQUENCE:4\r
+STATUS:CONFIRMED\r
+ORGANIZER:mailto:alice@example.com\r
+ATTENDEE:mailto:bob@example.com\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+
+
+class BuildItipRequestTests(unittest.TestCase):
+    """Tests for build_itip_request (RFC 5546 §3.2.2)."""
+
+    def _build(self):
+        cal = Calendar.from_ical(REQUEST_SOURCE.decode("utf-8"))
+        return itip.build_itip_request(cal)
+
+    def test_method_is_request(self):
+        self.assertEqual("REQUEST", str(self._build()["METHOD"]))
+
+    def test_sequence_preserved(self):
+        # SEQUENCE is the organiser's responsibility; transport must not bump it.
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual(4, int(ev["SEQUENCE"]))
+
+    def test_status_preserved(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual("CONFIRMED", str(ev["STATUS"]))
+
+    def test_uid_and_attendees_preserved(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual("meeting@example.com", str(ev["UID"]))
+        attendees = ev.get("ATTENDEE")
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+        self.assertIn("mailto:bob@example.com", [str(a) for a in attendees])
+
+    def test_dtstamp_refreshed(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertNotEqual("20260101T000000Z", ev["DTSTAMP"].to_ical().decode())
+
+    def test_vtimezone_passed_through_unchanged(self):
+        body = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+BEGIN:VTIMEZONE\r
+TZID:UTC\r
+END:VTIMEZONE\r
+BEGIN:VEVENT\r
+UID:e1\r
+DTSTAMP:20260101T000000Z\r
+DTSTART:20260601T100000Z\r
+ORGANIZER:mailto:a@x\r
+ATTENDEE:mailto:b@x\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+        out = itip.build_itip_request(Calendar.from_ical(body.decode("utf-8")))
+        tz = next(c for c in out.subcomponents if c.name == "VTIMEZONE")
+        # No SEQUENCE/STATUS injected on a non-scheduling component.
+        self.assertNotIn("SEQUENCE", tz)
+        self.assertNotIn("STATUS", tz)
+        # And no DTSTAMP refresh either.
+        self.assertNotIn("DTSTAMP", tz)
+
+
 if __name__ == "__main__":
     unittest.main()

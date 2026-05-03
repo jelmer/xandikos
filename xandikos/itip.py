@@ -201,6 +201,29 @@ def build_itip_cancel(cal: Component) -> Calendar:
     return out
 
 
+def build_itip_request(cal: Component) -> Calendar:
+    """Build a METHOD:REQUEST VCALENDAR from *cal*.
+
+    Per RFC 5546 §3.2.2, an iTIP REQUEST carries the organiser's view
+    of an event to its attendees. We refresh DTSTAMP on each scheduling
+    component but leave SEQUENCE alone — bumping SEQUENCE on material
+    changes is the organiser's job, not the transport's. STATUS is
+    preserved (CONFIRMED, TENTATIVE, …); only CANCEL forces it.
+    Non-scheduling components (VTIMEZONE, etc.) are passed through.
+    """
+    out = Calendar()
+    out["VERSION"] = "2.0"
+    out["PRODID"] = PRODID
+    out["METHOD"] = "REQUEST"
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for comp in cal.subcomponents:
+        clone = comp.copy()
+        if clone.name in SCHEDULING_COMPONENTS:
+            clone["DTSTAMP"] = vDDDTypes(now)
+        out.add_component(clone)
+    return out
+
+
 def validate_freebusy_request(cal: Component) -> Component:
     """Return the single VFREEBUSY in *cal* if the request is well formed."""
     method = cal.get("METHOD")

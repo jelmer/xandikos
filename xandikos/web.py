@@ -817,45 +817,146 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             member = self.get_member(member_name)
         except KeyError:
             return
-        if not isinstance(member, ObjectResource):
-            return
-        if member.get_content_type() != "text/calendar":
-            return
-        file = await member.get_file()
-        if not isinstance(file, ICalendarFile):
-            return
-        cal = file.calendar
-        if not isinstance(cal, Calendar):
+        cal = await _calendar_from_member(member)
+        if cal is None:
             return
 
-        owning = scheduling.find_owning_principal(self.backend, self.relpath)
-        if owning is None:
+        principal = self._owning_principal()
+        if principal is None:
             return
-        _, principal = owning
         organiser_addresses = set(principal.get_calendar_user_address_set())
 
-        attendees: set[str] = set()
-        is_organiser = False
-        for comp in cal.subcomponents:
-            if comp.name not in itip.SCHEDULING_COMPONENTS:
-                continue
-            organiser = comp.get("ORGANIZER")
-            if organiser is None or str(organiser) not in organiser_addresses:
-                continue
-            is_organiser = True
-            comp_attendees = comp.get("ATTENDEE", [])
-            if not isinstance(comp_attendees, list):
-                comp_attendees = [comp_attendees]
-            for a in comp_attendees:
-                addr = str(a)
-                if addr not in organiser_addresses:
-                    attendees.add(addr)
+        is_organiser, attendees = _organiser_attendees(cal, organiser_addresses)
         if not is_organiser or not attendees:
             return
 
         cancel = itip.build_itip_cancel(cal)
         for address in attendees:
             await itip.deliver_to_inbox(self.backend, address, cancel, name_hint=None)
+
+    async def pre_put_hook(
+        self,
+        member_name: str,
+        new_contents: Iterable[bytes],
+        content_type: str,
+    ) -> None:
+        """Generate iTIP REQUEST/CANCEL when the organiser PUTs an event.
+
+        Per RFC 6638 §3.2.1: when a Calendar User stores a scheduling
+        object resource where they are the ORGANIZER, the server should
+        notify the attendees of the new state. Concretely:
+
+        - Each current attendee receives an iTIP REQUEST with the new
+          event.
+        - Each attendee dropped relative to the prior version receives
+          an iTIP CANCEL referencing the old event (so their client
+          knows the meeting is gone for them).
+
+        If the new content's scheduling-signature matches the old, no
+        iTIP traffic is generated — schedule-tag changes only on
+        iTIP-relevant edits, and so does this hook.
+        """
+        if content_type != "text/calendar":
+            return
+        try:
+            parsed = Calendar.from_ical(b"".join(new_contents).decode("utf-8"))
+        except ValueError:
+            # Let the regular PUT path raise the proper precondition.
+            return
+        if not isinstance(parsed, Calendar):
+            return
+        new_cal = parsed
+
+        principal = self._owning_principal()
+        if principal is None:
+            return
+        organiser_addresses = set(principal.get_calendar_user_address_set())
+        is_organiser, new_attendees = _organiser_attendees(new_cal, organiser_addresses)
+        if not is_organiser:
+            return
+
+        old_cal: Calendar | None = None
+        try:
+            existing = self.get_member(member_name)
+        except KeyError:
+            existing = None
+        if existing is not None:
+            old_cal = await _calendar_from_member(existing)
+
+        if old_cal is not None:
+            new_sig = itip.extract_scheduling_signature(new_cal)
+            old_sig = itip.extract_scheduling_signature(old_cal)
+            if new_sig == old_sig:
+                return
+            _, old_attendees = _organiser_attendees(old_cal, organiser_addresses)
+        else:
+            old_attendees = set()
+
+        if new_attendees:
+            request = itip.build_itip_request(new_cal)
+            for address in new_attendees:
+                await itip.deliver_to_inbox(
+                    self.backend, address, request, name_hint=None
+                )
+
+        dropped = old_attendees - new_attendees
+        if dropped and old_cal is not None:
+            cancel = itip.build_itip_cancel(old_cal)
+            for address in dropped:
+                await itip.deliver_to_inbox(
+                    self.backend, address, cancel, name_hint=None
+                )
+
+    def _owning_principal(self) -> webdav.Principal | None:
+        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        if owning is None:
+            return None
+        return owning[1]
+
+
+async def _calendar_from_member(member: webdav.Resource) -> Calendar | None:
+    """Return the parsed Calendar of *member*, or None if not iCalendar."""
+    if not isinstance(member, ObjectResource):
+        return None
+    if member.get_content_type() != "text/calendar":
+        return None
+    file = await member.get_file()
+    if not isinstance(file, ICalendarFile):
+        return None
+    cal = file.calendar
+    if not isinstance(cal, Calendar):
+        return None
+    return cal
+
+
+def _organiser_attendees(
+    cal: Calendar, organiser_addresses: set[str]
+) -> tuple[bool, set[str]]:
+    """Return (is_organiser, attendee_addresses) for *cal*.
+
+    ``is_organiser`` is True iff at least one scheduling component lists
+    one of *organiser_addresses* as ORGANIZER. ``attendee_addresses``
+    collects every ATTENDEE that isn't the organiser themselves
+    (delivering iTIP back to the organiser's own inbox would just create
+    noise).
+    """
+    attendees: set[str] = set()
+    is_organiser = False
+    for comp in cal.subcomponents:
+        if comp.name not in itip.SCHEDULING_COMPONENTS:
+            continue
+        organiser = comp.get("ORGANIZER")
+        if organiser is None or str(organiser) not in organiser_addresses:
+            continue
+        is_organiser = True
+        comp_attendees = comp.get("ATTENDEE", [])
+        if not isinstance(comp_attendees, list):
+            comp_attendees = [comp_attendees]
+        for a in comp_attendees:
+            addr = str(a)
+            if addr not in organiser_addresses:
+                attendees.add(addr)
+    return is_organiser, attendees
 
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):

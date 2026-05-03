@@ -1047,6 +1047,29 @@ class Collection(Resource):
         """
         return None
 
+    async def pre_put_hook(
+        self,
+        member_name: str,
+        new_contents: Iterable[bytes],
+        content_type: str,
+    ) -> None:
+        """Run side-effects just before a member is created or replaced.
+
+        Default is a no-op. Subclasses can override to react to a
+        pending PUT — e.g. CalDAV calendar collections use this to
+        emit iTIP REQUEST/CANCEL messages when an organiser updates
+        an event.
+
+        ``member_name`` may already exist (replace) or not (create);
+        the hook is responsible for distinguishing those cases when
+        the diff against the prior state matters.
+
+        Raising aborts the PUT, so side-effects must not assume the
+        write has happened. Subclasses are responsible for swallowing
+        whichever specific failures they consider non-fatal.
+        """
+        return None
+
     async def create_member(
         self,
         name: str | None,
@@ -2145,8 +2168,13 @@ class PutMethod(Method):
                     pass
             if not etag_matches(if_schedule_tag_match, current_schedule_tag):
                 return Response(status="412 Precondition Failed")
+        content_type = request.content_type
+        container_path, name = split_path_preserving_encoding(request, environ)
         if r is not None:
             # Item already exists; update it
+            container = app.backend.get_resource(container_path)
+            if isinstance(container, Collection):
+                await container.pre_put_hook(name, new_contents, content_type)
             try:
                 new_etag = await r.set_body(
                     new_contents,
@@ -2174,8 +2202,6 @@ class PutMethod(Method):
                 if schedule_tag_header is not None:
                     headers.append(schedule_tag_header)
                 return Response(status="204 No Content", headers=headers)
-        content_type = request.content_type
-        container_path, name = split_path_preserving_encoding(request, environ)
         r = app.backend.get_resource(container_path)
         if r is None:
             # RFC 4918 Section 9.7.1: Return 409 Conflict when intermediate collection is missing
@@ -2184,6 +2210,8 @@ class PutMethod(Method):
             return _send_method_not_allowed(
                 await app._get_allowed_methods(request, environ)
             )
+        if isinstance(r, Collection):
+            await r.pre_put_hook(name, new_contents, content_type)
         try:
             (new_name, new_etag) = await r.create_member(
                 name,
