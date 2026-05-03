@@ -803,6 +803,61 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         # TODO
         raise KeyError
 
+    async def pre_delete_hook(self, member_name: str) -> None:
+        """Generate an iTIP CANCEL when the organiser deletes a meeting.
+
+        Per RFC 6638 §3.2.2: when a Calendar User deletes a scheduling
+        object resource where they are the ORGANIZER, the server should
+        notify the attendees. We deliver an iTIP CANCEL to each local
+        attendee's schedule-inbox; remote attendees would need iMIP and
+        are skipped for now.
+        """
+        try:
+            member = self.get_member(member_name)
+        except KeyError:
+            return
+        if not isinstance(member, ObjectResource):
+            return
+        if member.get_content_type() != "text/calendar":
+            return
+        file = await member.get_file()
+        if not isinstance(file, ICalendarFile):
+            return
+        cal = file.calendar
+        if not isinstance(cal, Calendar):
+            return
+
+        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        if owning is None:
+            return
+        _, principal = owning
+        organiser_addresses = set(principal.get_calendar_user_address_set())
+
+        attendees: set[str] = set()
+        is_organiser = False
+        for comp in cal.subcomponents:
+            if comp.name not in scheduling.SCHEDULING_COMPONENTS:
+                continue
+            organiser = comp.get("ORGANIZER")
+            if organiser is None or str(organiser) not in organiser_addresses:
+                continue
+            is_organiser = True
+            comp_attendees = comp.get("ATTENDEE", [])
+            if not isinstance(comp_attendees, list):
+                comp_attendees = [comp_attendees]
+            for a in comp_attendees:
+                addr = str(a)
+                if addr not in organiser_addresses:
+                    attendees.add(addr)
+        if not is_organiser or not attendees:
+            return
+
+        cancel = scheduling.build_itip_cancel(cal)
+        for address in attendees:
+            await scheduling.deliver_itip_to_inbox(
+                self.backend, address, cancel, name_hint=None
+            )
+
 
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
     def get_addressbook_description(self):

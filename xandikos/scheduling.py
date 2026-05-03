@@ -24,6 +24,7 @@ See https://tools.ietf.org/html/rfc6638
 
 import datetime
 import hashlib
+import posixpath
 from collections.abc import Iterable
 from xml.etree import ElementTree as ET
 
@@ -45,6 +46,103 @@ REQUEST_STATUS_SUCCESS = "2.0;Success"
 REQUEST_STATUS_INVALID_CALENDAR_USER = "3.7;Invalid calendar user"
 REQUEST_STATUS_NO_AUTHORITY = "3.8;No authority"
 REQUEST_STATUS_SERVICE_UNAVAILABLE = "5.0;Service unavailable"
+
+
+def build_itip_cancel(cal: Component) -> Calendar:
+    """Build a METHOD:CANCEL VCALENDAR for *cal*.
+
+    Per RFC 5546 §3.2.5, an iTIP CANCEL re-sends the scheduling
+    components from the original event, with SEQUENCE bumped by one,
+    DTSTAMP set to "now", and STATUS:CANCELLED on each component.
+    Non-scheduling components (VTIMEZONE, etc.) are passed through.
+    """
+    out = Calendar()
+    out["VERSION"] = "2.0"
+    out["PRODID"] = PRODID
+    out["METHOD"] = "CANCEL"
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for comp in cal.subcomponents:
+        clone = comp.copy()
+        if clone.name in SCHEDULING_COMPONENTS:
+            clone["DTSTAMP"] = vDDDTypes(now)
+            try:
+                seq = int(comp.get("SEQUENCE", 0))
+            except (TypeError, ValueError):
+                seq = 0
+            clone["SEQUENCE"] = seq + 1
+            clone["STATUS"] = "CANCELLED"
+        out.add_component(clone)
+    return out
+
+
+async def deliver_itip_to_inbox(
+    backend: "webdav.Backend",
+    attendee_address: str,
+    itip_message: Calendar,
+    name_hint: str | None = None,
+) -> bool:
+    """Deliver *itip_message* to *attendee_address*'s schedule-inbox.
+
+    Returns ``True`` on successful delivery, ``False`` if the address
+    doesn't belong to a local principal (caller's cue to fall back to
+    iMIP or skip). Raises whatever the inbox collection's
+    ``create_member`` raises on storage failure.
+    """
+    found = find_principal_by_calendar_user_address(backend, attendee_address)
+    if found is None:
+        return False
+    principal_path, principal = found
+    inbox_path = posixpath.join(principal_path, principal.get_schedule_inbox_url())
+    inbox = backend.get_resource(inbox_path)
+    if inbox is None or not isinstance(inbox, webdav.Collection):
+        return False
+    body = itip_message.to_ical()
+    await inbox.create_member(name_hint, [body], "text/calendar")
+    return True
+
+
+def find_owning_principal(
+    backend: "webdav.Backend", relpath: str
+) -> "tuple[str, webdav.Principal] | None":
+    """Walk up *relpath* until a principal is found, or return None.
+
+    Useful for collections that need to find the principal they belong
+    to without baking in a specific directory layout (e.g. a calendar
+    collection at ``/alice/calendars/work`` finds the principal at
+    ``/alice``).
+    """
+    p = relpath.rstrip("/") or "/"
+    while True:
+        principal = backend.get_principal(p)
+        if principal is not None:
+            return p, principal
+        if p in ("/", ""):
+            return None
+        p = posixpath.dirname(p) or "/"
+
+
+def find_principal_by_calendar_user_address(
+    backend: "webdav.Backend", address: str
+) -> "tuple[str, webdav.Principal] | None":
+    """Look up the local principal owning *address*, or None.
+
+    Walks ``backend.find_principals()`` and matches *address* (typically
+    a ``mailto:`` URI) against each principal's
+    ``calendar-user-address-set``. Returns ``(relpath, principal)`` so
+    the caller can resolve the principal's collections (inbox,
+    calendar-home, …) via ``backend.get_resource``.
+
+    Used to route iTIP messages to local inboxes; addresses that don't
+    match any local principal are considered remote and the caller can
+    fall back to iMIP (or skip).
+    """
+    for path in backend.find_principals():
+        principal = backend.get_principal(path)
+        if principal is None:
+            continue
+        if address in principal.get_calendar_user_address_set():
+            return path, principal
+    return None
 
 
 class InvalidSchedulingRequest(Exception):

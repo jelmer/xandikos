@@ -836,5 +836,92 @@ class ScheduleOutboxFreeBusyTests(unittest.TestCase):
         self.assertIsNone(result)
 
 
+CANCEL_SOURCE = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+BEGIN:VEVENT\r
+UID:meeting@example.com\r
+DTSTAMP:20260101T000000Z\r
+DTSTART:20260601T100000Z\r
+DTEND:20260601T110000Z\r
+SUMMARY:Sync\r
+SEQUENCE:2\r
+ORGANIZER:mailto:alice@example.com\r
+ATTENDEE:mailto:bob@example.com\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+
+
+class BuildItipCancelTests(unittest.TestCase):
+    """Tests for build_itip_cancel (RFC 5546 §3.2.5)."""
+
+    def _build(self):
+        cal = Calendar.from_ical(CANCEL_SOURCE.decode("utf-8"))
+        return scheduling.build_itip_cancel(cal)
+
+    def test_method_is_cancel(self):
+        self.assertEqual("CANCEL", str(self._build()["METHOD"]))
+
+    def test_sequence_bumped(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual(3, int(ev["SEQUENCE"]))
+
+    def test_status_cancelled(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual("CANCELLED", str(ev["STATUS"]))
+
+    def test_uid_preserved(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual("meeting@example.com", str(ev["UID"]))
+
+    def test_attendees_preserved(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        attendees = ev.get("ATTENDEE")
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+        self.assertIn("mailto:bob@example.com", [str(a) for a in attendees])
+
+    def test_dtstamp_refreshed(self):
+        out = self._build()
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        # The new DTSTAMP should not be the old one.
+        self.assertNotEqual("20260101T000000Z", ev["DTSTAMP"].to_ical().decode())
+
+    def test_zero_sequence_default(self):
+        body = CANCEL_SOURCE.replace(b"SEQUENCE:2\r\n", b"")
+        out = scheduling.build_itip_cancel(Calendar.from_ical(body.decode("utf-8")))
+        ev = next(c for c in out.subcomponents if c.name == "VEVENT")
+        self.assertEqual(1, int(ev["SEQUENCE"]))
+
+    def test_vtimezone_passed_through_unchanged(self):
+        body = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+BEGIN:VTIMEZONE\r
+TZID:UTC\r
+END:VTIMEZONE\r
+BEGIN:VEVENT\r
+UID:e1\r
+DTSTAMP:20260101T000000Z\r
+DTSTART:20260601T100000Z\r
+ORGANIZER:mailto:a@x\r
+ATTENDEE:mailto:b@x\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+        out = scheduling.build_itip_cancel(Calendar.from_ical(body.decode("utf-8")))
+        tz = next(c for c in out.subcomponents if c.name == "VTIMEZONE")
+        # No SEQUENCE/STATUS injected on a non-scheduling component.
+        self.assertNotIn("SEQUENCE", tz)
+        self.assertNotIn("STATUS", tz)
+
+
 if __name__ == "__main__":
     unittest.main()

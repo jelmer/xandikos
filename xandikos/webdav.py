@@ -1034,6 +1034,19 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.delete_member)
 
+    async def pre_delete_hook(self, member_name: str) -> None:
+        """Run side-effects just before a member is deleted.
+
+        Default is a no-op. Subclasses can override to react to a
+        pending DELETE — e.g. CalDAV calendar collections use this to
+        emit iTIP CANCEL messages for scheduling object resources.
+
+        Raising aborts the DELETE, so side-effects must not assume the
+        deletion has happened. Subclasses are responsible for swallowing
+        whichever specific failures they consider non-fatal.
+        """
+        return None
+
     async def create_member(
         self,
         name: str | None,
@@ -1321,6 +1334,14 @@ class Principal(Resource):
 
     def get_schedule_outbox_url(self) -> str:
         raise NotImplementedError(self.get_schedule_outbox_url)
+
+    def get_calendar_home_set(self) -> list[str]:
+        """List relative paths of calendar-home collections for this principal."""
+        raise NotImplementedError(self.get_calendar_home_set)
+
+    def get_calendar_user_address_set(self) -> list[str]:
+        """List calendar-user-addresses (typically mailto: URIs) for this principal."""
+        raise NotImplementedError(self.get_calendar_user_address_set)
 
 
 async def get_property_from_name(
@@ -1784,6 +1805,10 @@ class Backend:
     def get_resource(self, relpath: str) -> Resource | None:
         raise NotImplementedError(self.get_resource)
 
+    def find_principals(self) -> Iterable[str]:
+        """List the relative paths of all known principals on this backend."""
+        raise NotImplementedError(self.find_principals)
+
     def get_principal(self, relpath: str) -> "Principal | None":
         """Return the principal at *relpath*, or None if it isn't one.
 
@@ -2065,6 +2090,7 @@ class DeleteMethod(Method):
                 current_schedule_tag = None
             if not etag_matches(if_schedule_tag_match, current_schedule_tag):
                 return Response(status=412, reason="Precondition Failed")
+        await pr.pre_delete_hook(item_name)
         pr.delete_member(
             item_name,
             current_etag,
