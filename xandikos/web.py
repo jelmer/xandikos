@@ -1623,7 +1623,20 @@ class Principal(webdav.Principal):
         return ADDRESSBOOK_HOME_SET
 
     def get_calendar_user_address_set(self):
-        # TODO(jelmer): Make this configurable
+        """Return this principal's calendar user addresses.
+
+        Reads from the principal's ``.xandikos`` config file
+        (``[scheduling] addresses = mailto:a, mailto:b``) when
+        present, otherwise falls back to a single ``mailto:`` derived
+        from the ``EMAIL`` environment variable. The config is
+        written by :meth:`set_calendar_user_address_set`, which is
+        called from PROPPATCH on the ``calendar-user-address-set``
+        property.
+        """
+        cp = self._load_config()
+        if cp.has_option("scheduling", "addresses"):
+            raw = cp.get("scheduling", "addresses")
+            return [a.strip() for a in raw.split(",") if a.strip()]
         ret = []
         try:
             (fullname, email) = parseaddr(os.environ["EMAIL"])
@@ -1632,6 +1645,44 @@ class Principal(webdav.Principal):
         else:
             ret.append("mailto:" + email)
         return ret
+
+    def set_calendar_user_address_set(self, addresses: list[str]) -> None:
+        """Persist the principal's calendar-user-address-set.
+
+        Stored as a comma-separated ``addresses`` key under the
+        ``[scheduling]`` section of the principal's ``.xandikos``
+        config file. Passing an empty list removes the key, restoring
+        the env-var fallback.
+        """
+        cp = self._load_config()
+        if not addresses:
+            if cp.has_option("scheduling", "addresses"):
+                cp.remove_option("scheduling", "addresses")
+                if not cp.options("scheduling"):
+                    cp.remove_section("scheduling")
+            self._save_config(cp)
+            return
+        if not cp.has_section("scheduling"):
+            cp.add_section("scheduling")
+        cp.set("scheduling", "addresses", ", ".join(addresses))
+        self._save_config(cp)
+
+    def _config_path(self):
+        return self.backend._map_to_file_path(posixpath.join(self.relpath, ".xandikos"))
+
+    def _load_config(self):
+        import configparser
+
+        cp = configparser.ConfigParser()
+        path = self._config_path()
+        if os.path.exists(path):
+            cp.read(path)
+        return cp
+
+    def _save_config(self, cp):
+        path = self._config_path()
+        with open(path, "w") as f:
+            cp.write(f)
 
     def set_infit_settings(self, settings):
         relpath = posixpath.join(self.relpath, ".infit")

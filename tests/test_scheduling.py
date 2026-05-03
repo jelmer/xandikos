@@ -237,6 +237,67 @@ class CalendarUserAddressSetPropertyTests(unittest.TestCase):
 
         asyncio.run(run_test())
 
+    def test_set_value_extracts_hrefs(self):
+        """PROPPATCH passes the property element with D:href children."""
+
+        async def run_test():
+            prop = scheduling.CalendarUserAddressSetProperty()
+            captured: list[list[str]] = []
+
+            class MockResource:
+                def set_calendar_user_address_set(self, addresses):
+                    captured.append(addresses)
+
+            el = ET.Element(prop.name)
+            ET.SubElement(el, "{DAV:}href").text = "mailto:alice@example.com"
+            ET.SubElement(el, "{DAV:}href").text = "mailto:a.lice@work.example"
+
+            await prop.set_value("/principals/alice/", MockResource(), el)
+
+            self.assertEqual(
+                [["mailto:alice@example.com", "mailto:a.lice@work.example"]],
+                captured,
+            )
+
+        asyncio.run(run_test())
+
+    def test_set_value_remove_clears_addresses(self):
+        """PROPPATCH remove (el is None) calls setter with empty list."""
+
+        async def run_test():
+            prop = scheduling.CalendarUserAddressSetProperty()
+            captured: list[list[str]] = []
+
+            class MockResource:
+                def set_calendar_user_address_set(self, addresses):
+                    captured.append(addresses)
+
+            await prop.set_value("/principals/alice/", MockResource(), None)
+            self.assertEqual([[]], captured)
+
+        asyncio.run(run_test())
+
+    def test_set_value_skips_blank_hrefs(self):
+        """Empty or whitespace-only D:href entries are dropped."""
+
+        async def run_test():
+            prop = scheduling.CalendarUserAddressSetProperty()
+            captured: list[list[str]] = []
+
+            class MockResource:
+                def set_calendar_user_address_set(self, addresses):
+                    captured.append(addresses)
+
+            el = ET.Element(prop.name)
+            ET.SubElement(el, "{DAV:}href").text = "mailto:bob@example.com"
+            ET.SubElement(el, "{DAV:}href").text = "  "
+            ET.SubElement(el, "{DAV:}href").text = None
+
+            await prop.set_value("/principals/bob/", MockResource(), el)
+            self.assertEqual([["mailto:bob@example.com"]], captured)
+
+        asyncio.run(run_test())
+
 
 class ScheduleTagPropertyTests(unittest.TestCase):
     """Tests for ScheduleTagProperty (RFC 6638 Section 3.2.10)."""

@@ -1372,6 +1372,16 @@ class Principal(Resource):
         """List calendar-user-addresses (typically mailto: URIs) for this principal."""
         raise NotImplementedError(self.get_calendar_user_address_set)
 
+    def set_calendar_user_address_set(self, addresses: list[str]) -> None:
+        """Set the principal's calendar-user-address-set.
+
+        Default raises NotImplementedError so PROPPATCH on
+        calendar-user-address-set returns 403 on backends that haven't
+        implemented persistent storage. Pass an empty list to remove
+        any persisted value.
+        """
+        raise NotImplementedError(self.set_calendar_user_address_set)
+
 
 async def get_property_from_name(
     href: str, resource: Resource, properties, name: str, environ
