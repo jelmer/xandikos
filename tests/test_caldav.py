@@ -1426,3 +1426,65 @@ class ClipPeriodToWindowTests(unittest.TestCase):
         period.params["FBTYPE"] = "BUSY-TENTATIVE"
         result = _clip_period_to_window(period, self.window_start, self.window_end)
         self.assertEqual("BUSY-TENTATIVE", result.params["FBTYPE"])
+
+
+class ExtractFreebusyDeclinedTests(unittest.TestCase):
+    """Tests for extract_freebusy honouring own PARTSTAT=DECLINED."""
+
+    def _comp(self, partstat: str) -> Component:
+        body = (
+            "BEGIN:VCALENDAR\r\n"
+            "VERSION:2.0\r\n"
+            "PRODID:-//Test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:e@example.com\r\n"
+            "DTSTAMP:20260101T000000Z\r\n"
+            "DTSTART:20260601T100000Z\r\n"
+            "DTEND:20260601T110000Z\r\n"
+            "ORGANIZER:mailto:alice@example.com\r\n"
+            f"ATTENDEE;PARTSTAT={partstat}:mailto:bob@example.com\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+        cal = ICalendar.from_ical(body)
+        return next(c for c in cal.subcomponents if c.name == "VEVENT")
+
+    def _tzify(self, dt):
+        return dt
+
+    def test_declined_event_returns_none_for_user(self):
+        from xandikos.caldav import extract_freebusy
+
+        comp = self._comp("DECLINED")
+        self.assertIsNone(
+            extract_freebusy(
+                comp, self._tzify, own_addresses={"mailto:bob@example.com"}
+            )
+        )
+
+    def test_declined_event_still_busy_for_other_user(self):
+        # bob declined, but the query is for someone else — it should
+        # remain busy from their perspective.
+        from xandikos.caldav import extract_freebusy
+
+        comp = self._comp("DECLINED")
+        result = extract_freebusy(
+            comp, self._tzify, own_addresses={"mailto:carol@example.com"}
+        )
+        self.assertIsNotNone(result)
+
+    def test_accepted_event_remains_busy(self):
+        from xandikos.caldav import extract_freebusy
+
+        comp = self._comp("ACCEPTED")
+        result = extract_freebusy(
+            comp, self._tzify, own_addresses={"mailto:bob@example.com"}
+        )
+        self.assertIsNotNone(result)
+
+    def test_no_own_addresses_treats_all_as_busy(self):
+        from xandikos.caldav import extract_freebusy
+
+        comp = self._comp("DECLINED")
+        result = extract_freebusy(comp, self._tzify)
+        self.assertIsNotNone(result)

@@ -813,19 +813,33 @@ class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
 
             return as_tz_aware_ts(dt, utc).astimezone(utc)
 
+        own_addresses = set(principal.get_calendar_user_address_set())
         periods = []
         for home in principal.get_calendar_home_set():
             home_path = posixpath.join(principal_path, home)
             home_resource = self.backend.get_resource(home_path)
             if home_resource is None:
                 continue
-            async for period in caldav.iter_freebusy(
-                webdav.traverse_resource(home_resource, home_path, "infinity"),
-                start,
-                end,
-                tzify,
-            ):
-                periods.append(period)
+            for cal_name, cal_resource in home_resource.members():
+                if caldav.CALENDAR_RESOURCE_TYPE not in cal_resource.resource_types:
+                    continue
+                # Calendars marked TRANSPARENT contribute no busy time —
+                # they're advisory (e.g. holidays, work calendars on a
+                # personal account).
+                if (
+                    cal_resource.get_schedule_calendar_transparency()
+                    == caldav.TRANSPARENCY_TRANSPARENT
+                ):
+                    continue
+                cal_path = posixpath.join(home_path, cal_name)
+                async for period in caldav.iter_freebusy(
+                    webdav.traverse_resource(cal_resource, cal_path, "infinity"),
+                    start,
+                    end,
+                    tzify,
+                    own_addresses=own_addresses,
+                ):
+                    periods.append(period)
         return periods
 
 
