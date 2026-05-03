@@ -569,6 +569,30 @@ class Collection(StoreBasedCollection, webdav.Collection):
 class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
     """A schedling inbox collection."""
 
+    def get_schedule_default_calendar_url(self) -> str | None:
+        """Pick a default calendar in the owning principal's calendar-home.
+
+        RFC 6638 §9.2 lets an inbox advertise a single calendar where
+        clients should look (and where scheduling deliveries land) by
+        default. Without per-principal configuration we just pick the
+        first calendar resource found by walking each calendar-home
+        the principal advertises, in order. Returns ``None`` if the
+        principal has no calendars yet.
+        """
+        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        if owning is None:
+            return None
+        principal_path, principal = owning
+        for home in principal.get_calendar_home_set():
+            home_path = posixpath.join(principal_path, home)
+            home_resource = self.backend.get_resource(home_path)
+            if home_resource is None:
+                continue
+            for name, member in home_resource.members():
+                if caldav.CALENDAR_RESOURCE_TYPE in member.resource_types:
+                    return posixpath.join(home_path, name)
+        return None
+
 
 class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
     """A schedling outbox collection."""
