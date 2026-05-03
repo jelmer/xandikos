@@ -114,6 +114,22 @@ class CollectionMetadata:
         """
         raise NotImplementedError(self.set_timezone)
 
+    def get_calendar_user_address_set(self) -> list[str]:
+        """Get the calendar-user-address-set (RFC 6638 §2.4.1).
+
+        Returns: list of addresses (typically ``mailto:`` URIs)
+        Raises: KeyError if not set
+        """
+        raise NotImplementedError(self.get_calendar_user_address_set)
+
+    def set_calendar_user_address_set(self, addresses: list[str]) -> None:
+        """Set the calendar-user-address-set.
+
+        Args:
+            addresses: list of addresses, or empty list to unset
+        """
+        raise NotImplementedError(self.set_calendar_user_address_set)
+
 
 class FileBasedCollectionMetadata(CollectionMetadata):
     """Metadata for a configuration."""
@@ -225,3 +241,23 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         else:
             del self._configparser["DEFAULT"]["timezone"]
         self._save("Set timezone.")
+
+    def get_calendar_user_address_set(self):
+        if not self._configparser.has_option("scheduling", "addresses"):
+            raise KeyError
+        raw = self._configparser.get("scheduling", "addresses")
+        return [a.strip() for a in raw.split(",") if a.strip()]
+
+    def set_calendar_user_address_set(self, addresses):
+        if addresses:
+            if not self._configparser.has_section("scheduling"):
+                self._configparser.add_section("scheduling")
+            self._configparser.set("scheduling", "addresses", ", ".join(addresses))
+        else:
+            if self._configparser.has_option("scheduling", "addresses"):
+                self._configparser.remove_option("scheduling", "addresses")
+            if self._configparser.has_section(
+                "scheduling"
+            ) and not self._configparser.options("scheduling"):
+                self._configparser.remove_section("scheduling")
+        self._save("Set calendar-user-address-set.")
