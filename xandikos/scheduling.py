@@ -314,6 +314,17 @@ class CalendarUserAddressSetProperty(webdav.Property):
         for href in resource.get_calendar_user_address_set():
             el.append(webdav.create_href(href, base_href))
 
+    async def set_value(self, href, resource, el):
+        if el is None:
+            resource.set_calendar_user_address_set([])
+            return
+        addresses = [
+            child.text.strip()
+            for child in el.findall("{DAV:}href")
+            if child.text and child.text.strip()
+        ]
+        resource.set_calendar_user_address_set(addresses)
+
 
 class ScheduleTagProperty(webdav.Property):
     """schedule-tag property.

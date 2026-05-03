@@ -1867,3 +1867,84 @@ class FreeBusyTranspAndDeclinedTests(unittest.TestCase):
             ["20260601T100000Z/20260601T110000Z"],
             [p.to_ical().decode() for p in result],
         )
+
+
+class PrincipalCalendarUserAddressSetTests(unittest.TestCase):
+    """Tests for the per-principal calendar-user-address-set storage."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice")
+        self.principal = self.backend.get_principal("/alice")
+
+    def test_falls_back_to_email_env_when_no_config(self):
+        os.environ["EMAIL"] = "alice@env.example"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+        self.assertEqual(
+            ["mailto:alice@env.example"],
+            self.principal.get_calendar_user_address_set(),
+        )
+
+    def test_returns_empty_when_no_config_and_no_env(self):
+        os.environ.pop("EMAIL", None)
+        self.assertEqual([], self.principal.get_calendar_user_address_set())
+
+    def test_set_then_get_round_trips(self):
+        addresses = [
+            "mailto:alice@example.com",
+            "mailto:a.lice@work.example",
+            "/principals/alice/",
+        ]
+        self.principal.set_calendar_user_address_set(addresses)
+        self.assertEqual(addresses, self.principal.get_calendar_user_address_set())
+
+    def test_set_overrides_env_var(self):
+        os.environ["EMAIL"] = "alice@env.example"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+        self.principal.set_calendar_user_address_set(["mailto:new@example.com"])
+        self.assertEqual(
+            ["mailto:new@example.com"],
+            self.principal.get_calendar_user_address_set(),
+        )
+
+    def test_set_empty_restores_env_var_fallback(self):
+        os.environ["EMAIL"] = "alice@env.example"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+        self.principal.set_calendar_user_address_set(["mailto:new@example.com"])
+        self.principal.set_calendar_user_address_set([])
+        self.assertEqual(
+            ["mailto:alice@env.example"],
+            self.principal.get_calendar_user_address_set(),
+        )
+
+    def test_addresses_persist_across_principal_lookups(self):
+        # The Principal object is stateless above the file; refetching
+        # it should still see the persisted addresses.
+        self.principal.set_calendar_user_address_set(["mailto:p@example.com"])
+        refetched = self.backend.get_principal("/alice")
+        self.assertEqual(
+            ["mailto:p@example.com"],
+            refetched.get_calendar_user_address_set(),
+        )
+
+    def test_other_xandikos_config_keys_preserved_when_setting(self):
+        # If the principal's .xandikos already has unrelated config in
+        # other sections, set_calendar_user_address_set must not stomp it.
+        import configparser
+
+        config_path = os.path.join(self.tempdir, "alice", ".xandikos")
+        cp = configparser.ConfigParser()
+        cp.add_section("other")
+        cp.set("other", "preserve", "yes")
+        with open(config_path, "w") as f:
+            cp.write(f)
+
+        self.principal.set_calendar_user_address_set(["mailto:p@example.com"])
+
+        cp2 = configparser.ConfigParser()
+        cp2.read(config_path)
+        self.assertEqual("yes", cp2.get("other", "preserve"))
+        self.assertEqual("mailto:p@example.com", cp2.get("scheduling", "addresses"))
