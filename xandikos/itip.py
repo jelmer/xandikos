@@ -394,3 +394,67 @@ async def deliver_to_inbox(
     body = itip_message.to_ical()
     await inbox.create_member(name_hint, [body], "text/calendar")
     return True
+
+
+def itip_uid(itip_message: Calendar) -> str | None:
+    """Return the UID of the first scheduling component in *itip_message*."""
+    for comp in itip_message.subcomponents:
+        if comp.name in SCHEDULING_COMPONENTS:
+            uid = comp.get("UID")
+            if uid is not None:
+                return str(uid)
+    return None
+
+
+def strip_method(itip_message: Calendar) -> Calendar:
+    """Return a copy of *itip_message* with METHOD removed.
+
+    Stored calendar objects don't carry METHOD — that's a property of
+    iTIP transport messages, not the events themselves (RFC 5545
+    §3.4 / RFC 6638 §3.1).
+    """
+    out = Calendar()
+    for k, v in itip_message.items():
+        if k.upper() == "METHOD":
+            continue
+        out[k] = v
+    for comp in itip_message.subcomponents:
+        out.add_component(comp.copy())
+    return out
+
+
+def preserve_partstats(existing: Calendar, incoming: Calendar) -> Calendar:
+    """Mutate *incoming* in place so attendee PARTSTATs survive a re-REQUEST.
+
+    RFC 6638 §3.2.1: when an organiser sends a fresh REQUEST, the
+    attendee's prior PARTSTAT must survive. We match attendees across
+    components by (UID, RECURRENCE-ID, ATTENDEE address). Returns the
+    same *incoming* object for chaining.
+    """
+    existing_partstats: dict[tuple[str, str, str], str] = {}
+    for comp in existing.subcomponents:
+        if comp.name not in SCHEDULING_COMPONENTS:
+            continue
+        uid = str(comp.get("UID", ""))
+        rid = str(comp.get("RECURRENCE-ID", ""))
+        attendees = comp.get("ATTENDEE", [])
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+        for a in attendees:
+            partstat = a.params.get("PARTSTAT")
+            if partstat is not None:
+                existing_partstats[(uid, rid, str(a))] = str(partstat)
+
+    for comp in incoming.subcomponents:
+        if comp.name not in SCHEDULING_COMPONENTS:
+            continue
+        uid = str(comp.get("UID", ""))
+        rid = str(comp.get("RECURRENCE-ID", ""))
+        attendees = comp.get("ATTENDEE", [])
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+        for a in attendees:
+            prior = existing_partstats.get((uid, rid, str(a)))
+            if prior is not None:
+                a.params["PARTSTAT"] = prior
+    return incoming

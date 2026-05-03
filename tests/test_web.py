@@ -1346,3 +1346,224 @@ class ScheduleInboxDefaultCalendarTests(unittest.TestCase):
         # The directory listing isn't ordered, but the result must point at
         # one of the two calendars — not nothing, not something else.
         self.assertIn(url, {"/alice/calendars/calendar", "/alice/calendars/work"})
+
+
+class InboxAutoProcessingTests(unittest.TestCase):
+    """End-to-end tests for RFC 6638 §3.1 implicit-scheduling.
+
+    Verifies that iTIP messages delivered to an inbox don't just sit
+    there — they get auto-applied to the recipient's default calendar:
+    REQUEST creates a tentative copy, CANCEL marks the existing one
+    cancelled, REPLY updates the organiser's stored copy.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+
+        self._addresses = {
+            "/alice": ["mailto:alice@example.com"],
+            "/bob": ["mailto:bob@example.com"],
+        }
+        from xandikos.web import Principal
+
+        original = Principal.get_calendar_user_address_set
+        addresses = self._addresses
+
+        def fake_addresses(principal_self):
+            return addresses.get(principal_self.relpath, [])
+
+        Principal.get_calendar_user_address_set = fake_addresses
+        self.addCleanup(setattr, Principal, "get_calendar_user_address_set", original)
+
+    def _alice_calendar(self) -> CalendarCollection:
+        cal = self.backend.get_resource("/alice/calendars/calendar")
+        assert isinstance(cal, CalendarCollection)
+        return cal
+
+    def _bob_calendar(self) -> CalendarCollection:
+        cal = self.backend.get_resource("/bob/calendars/calendar")
+        assert isinstance(cal, CalendarCollection)
+        return cal
+
+    def _calendar_events(self, principal: str) -> list[dict]:
+        """Return parsed VEVENTs from the principal's default calendar.
+
+        Each entry is a dict of the iTIP-relevant fields, suitable for
+        exact ``assertEqual`` comparison without depending on the raw
+        iCalendar serialization (DTSTAMP, line ordering, etc.).
+        """
+        from icalendar.cal import Calendar as ICalendar
+
+        cal = self.backend.get_resource(f"{principal}/calendars/calendar")
+        assert isinstance(cal, StoreBasedCollection)
+        store = cal.store
+        events: list[dict] = []
+        for name, _ct, etag in store.iter_with_etag():
+            raw = b"".join(store._get_raw(name, etag))
+            parsed = ICalendar.from_ical(raw.decode("utf-8"))
+            method = parsed.get("METHOD")
+            for comp in parsed.subcomponents:
+                if comp.name != "VEVENT":
+                    continue
+                attendees = comp.get("ATTENDEE", [])
+                if not isinstance(attendees, list):
+                    attendees = [attendees]
+                events.append(
+                    {
+                        "uid": str(comp["UID"]),
+                        "method": str(method) if method is not None else None,
+                        "status": str(comp["STATUS"]) if "STATUS" in comp else None,
+                        "summary": str(comp["SUMMARY"]) if "SUMMARY" in comp else None,
+                        "organizer": str(comp["ORGANIZER"])
+                        if "ORGANIZER" in comp
+                        else None,
+                        "attendees": {
+                            str(a): str(a.params.get("PARTSTAT", "NEEDS-ACTION"))
+                            for a in attendees
+                        },
+                    }
+                )
+        return events
+
+    INVITATION = (
+        b"BEGIN:VCALENDAR\r\n"
+        b"VERSION:2.0\r\n"
+        b"PRODID:-//Test//EN\r\n"
+        b"BEGIN:VEVENT\r\n"
+        b"UID:meet@example.com\r\n"
+        b"DTSTAMP:20260101T120000Z\r\n"
+        b"SEQUENCE:1\r\n"
+        b"DTSTART:20260601T100000Z\r\n"
+        b"DTEND:20260601T110000Z\r\n"
+        b"SUMMARY:Sync\r\n"
+        b"ORGANIZER:mailto:alice@example.com\r\n"
+        b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r\n"
+        b"END:VEVENT\r\n"
+        b"END:VCALENDAR\r\n"
+    )
+
+    def test_request_creates_tentative_copy_in_attendee_calendar(self):
+        # Alice PUTs a new event with bob as attendee. Bob should now see
+        # the event in his own calendar, not just his inbox.
+        asyncio.run(
+            self._alice_calendar().pre_put_hook(
+                "event.ics", [self.INVITATION], "text/calendar"
+            )
+        )
+        self.assertEqual(
+            [
+                {
+                    "uid": "meet@example.com",
+                    # Stored calendar objects don't carry METHOD — that's an
+                    # iTIP transport property, not stored alongside events
+                    # (RFC 5545 §3.4).
+                    "method": None,
+                    "status": None,
+                    "summary": "Sync",
+                    "organizer": "mailto:alice@example.com",
+                    "attendees": {"mailto:bob@example.com": "NEEDS-ACTION"},
+                }
+            ],
+            self._calendar_events("/bob"),
+        )
+
+    def test_request_resend_preserves_attendee_partstat(self):
+        # Bob has accepted alice's invitation in his calendar.
+        accepted = self.INVITATION.replace(
+            b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED"
+        )
+        self._bob_calendar().store.import_one("event.ics", "text/calendar", [accepted])
+        # Alice now resends a REQUEST (typical: she edits the event).
+        edited = self.INVITATION.replace(b"SUMMARY:Sync", b"SUMMARY:Sync (rev)")
+        asyncio.run(
+            self._alice_calendar().pre_put_hook("event.ics", [edited], "text/calendar")
+        )
+        # Bob's calendar copy now has the updated SUMMARY, but his
+        # PARTSTAT is preserved.
+        self.assertEqual(
+            [
+                {
+                    "uid": "meet@example.com",
+                    "method": None,
+                    "status": None,
+                    "summary": "Sync (rev)",
+                    "organizer": "mailto:alice@example.com",
+                    "attendees": {"mailto:bob@example.com": "ACCEPTED"},
+                }
+            ],
+            self._calendar_events("/bob"),
+        )
+
+    def test_cancel_marks_attendee_copy_cancelled(self):
+        # Bob has accepted alice's invitation.
+        self._bob_calendar().store.import_one(
+            "event.ics", "text/calendar", [self.INVITATION]
+        )
+        # Alice deletes the event in her calendar — sends CANCEL.
+        self._alice_calendar().store.import_one(
+            "event.ics", "text/calendar", [self.INVITATION]
+        )
+        asyncio.run(self._alice_calendar().pre_delete_hook("event.ics"))
+
+        # The event is still there but marked cancelled; bob's client
+        # decides whether to hide or surface it.
+        self.assertEqual(
+            [
+                {
+                    "uid": "meet@example.com",
+                    "method": None,
+                    "status": "CANCELLED",
+                    "summary": "Sync",
+                    "organizer": "mailto:alice@example.com",
+                    "attendees": {"mailto:bob@example.com": "NEEDS-ACTION"},
+                }
+            ],
+            self._calendar_events("/bob"),
+        )
+
+    def test_reply_updates_organiser_calendar_partstat(self):
+        # Alice has the original event in her calendar.
+        self._alice_calendar().store.import_one(
+            "event.ics", "text/calendar", [self.INVITATION]
+        )
+        # Bob has his copy too, will accept it.
+        self._bob_calendar().store.import_one(
+            "event.ics", "text/calendar", [self.INVITATION]
+        )
+        accepted = self.INVITATION.replace(
+            b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED"
+        )
+        # Bob PUTs the accepted version: triggers REPLY → alice's inbox →
+        # auto-processing should update bob's PARTSTAT in alice's stored copy.
+        asyncio.run(
+            self._bob_calendar().pre_put_hook("event.ics", [accepted], "text/calendar")
+        )
+        self.assertEqual(
+            [
+                {
+                    "uid": "meet@example.com",
+                    "method": None,
+                    "status": None,
+                    "summary": "Sync",
+                    "organizer": "mailto:alice@example.com",
+                    "attendees": {"mailto:bob@example.com": "ACCEPTED"},
+                }
+            ],
+            self._calendar_events("/alice"),
+        )
+
+    def test_cancel_with_no_existing_copy_is_noop(self):
+        # Bob never had alice's event — CANCEL arrives anyway. Nothing
+        # to cancel locally; inbox copy still records what happened.
+        self._alice_calendar().store.import_one(
+            "event.ics", "text/calendar", [self.INVITATION]
+        )
+        # Alice deletes; CANCEL goes to bob.
+        asyncio.run(self._alice_calendar().pre_delete_hook("event.ics"))
+        # Bob's calendar is empty (no auto-create on CANCEL).
+        self.assertEqual([], self._calendar_events("/bob"))

@@ -463,7 +463,24 @@ class StoreBasedCollection:
             raise webdav.InsufficientStorage() from exc
         except LockedError as exc:
             raise webdav.ResourceLocked() from exc
+        await self.post_create_member_hook(name, contents, content_type)
         return (name, create_strong_etag(etag))
+
+    async def post_create_member_hook(
+        self,
+        name: str,
+        contents: Iterable[bytes],
+        content_type: str,
+    ) -> None:
+        """Run side-effects just after a member has been created.
+
+        Default is a no-op. The schedule-inbox overrides this to
+        auto-apply incoming iTIP messages to the principal's default
+        calendar (RFC 6638 §3.1 implicit scheduling). Failures here
+        do not roll the create back; the stored item is the canonical
+        record and the auto-processing is best-effort.
+        """
+        return None
 
     def iter_differences_since(
         self, old_token: str, new_token: str
@@ -592,6 +609,181 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
                 if caldav.CALENDAR_RESOURCE_TYPE in member.resource_types:
                     return posixpath.join(home_path, name)
         return None
+
+    async def post_create_member_hook(
+        self,
+        name: str,
+        contents: Iterable[bytes],
+        content_type: str,
+    ) -> None:
+        """Auto-apply the just-stored iTIP message to the default calendar.
+
+        RFC 6638 §3.1: when an iTIP message lands in a principal's
+        schedule-inbox, the server should mirror its semantics into
+        the principal's own calendar so the user's CalDAV client sees
+        the state without having to read the inbox itself.
+
+        - REQUEST → upsert into the default calendar, preserving any
+          existing PARTSTAT on attendees we already know about.
+        - CANCEL → mark the matching local copy STATUS:CANCELLED.
+        - REPLY → update the sender's ATTENDEE PARTSTAT on the
+          organiser's stored copy.
+
+        The inbox copy itself is the canonical record of what
+        arrived; we don't roll it back if auto-processing fails. If
+        no default calendar is configured we silently skip — clients
+        can still find the message in the inbox.
+        """
+        if content_type != "text/calendar":
+            return
+        try:
+            parsed = Calendar.from_ical(b"".join(contents).decode("utf-8"))
+        except ValueError:
+            return
+        if not isinstance(parsed, Calendar):
+            return
+        method_value = parsed.get("METHOD")
+        method = str(method_value).upper() if method_value is not None else ""
+        if method not in {"REQUEST", "CANCEL", "REPLY"}:
+            return
+
+        calendar = self._default_calendar()
+        if calendar is None:
+            return
+        uid = itip.itip_uid(parsed)
+        if uid is None:
+            return
+        existing = await _find_calendar_member_by_uid(calendar, uid)
+
+        if method == "REQUEST":
+            await self._apply_request(calendar, parsed, existing)
+        elif method == "CANCEL":
+            await self._apply_cancel(parsed, uid, existing)
+        elif method == "REPLY":
+            await self._apply_reply(parsed, uid, existing)
+
+    def _default_calendar(self) -> "CalendarCollection | None":
+        url = self.get_schedule_default_calendar_url()
+        if url is None:
+            return None
+        cal = self.backend.get_resource(url)
+        if not isinstance(cal, CalendarCollection):
+            return None
+        return cal
+
+    async def _apply_request(
+        self,
+        calendar: "CalendarCollection",
+        itip_message: Calendar,
+        existing: "tuple[str, ObjectResource, Calendar] | None",
+    ) -> None:
+        new_cal = itip.strip_method(itip_message)
+        if existing is None:
+            await calendar.create_member(None, [new_cal.to_ical()], "text/calendar")
+            return
+        member_name, member, existing_cal = existing
+        merged = itip.preserve_partstats(existing_cal, new_cal)
+        await _replace_member_body(member, merged)
+
+    async def _apply_cancel(
+        self,
+        itip_message: Calendar,
+        uid: str,
+        existing: "tuple[str, ObjectResource, Calendar] | None",
+    ) -> None:
+        if existing is None:
+            return
+        member_name, member, existing_cal = existing
+        for comp in existing_cal.subcomponents:
+            if (
+                comp.name in itip.SCHEDULING_COMPONENTS
+                and str(comp.get("UID", "")) == uid
+            ):
+                comp["STATUS"] = "CANCELLED"
+        await _replace_member_body(member, existing_cal)
+
+    async def _apply_reply(
+        self,
+        itip_message: Calendar,
+        uid: str,
+        existing: "tuple[str, ObjectResource, Calendar] | None",
+    ) -> None:
+        if existing is None:
+            return
+        member_name, member, existing_cal = existing
+
+        # Pick out the replying attendee's address + new PARTSTAT.
+        updates: dict[str, str] = {}
+        for comp in itip_message.subcomponents:
+            if comp.name not in itip.SCHEDULING_COMPONENTS:
+                continue
+            if str(comp.get("UID", "")) != uid:
+                continue
+            attendees = comp.get("ATTENDEE", [])
+            if not isinstance(attendees, list):
+                attendees = [attendees]
+            for a in attendees:
+                partstat = a.params.get("PARTSTAT")
+                if partstat is not None:
+                    updates[str(a)] = str(partstat)
+        if not updates:
+            return
+
+        changed = False
+        for comp in existing_cal.subcomponents:
+            if comp.name not in itip.SCHEDULING_COMPONENTS:
+                continue
+            if str(comp.get("UID", "")) != uid:
+                continue
+            attendees = comp.get("ATTENDEE", [])
+            if not isinstance(attendees, list):
+                attendees = [attendees]
+            for a in attendees:
+                new_partstat = updates.get(str(a))
+                if (
+                    new_partstat is not None
+                    and a.params.get("PARTSTAT") != new_partstat
+                ):
+                    a.params["PARTSTAT"] = new_partstat
+                    changed = True
+        if changed:
+            await _replace_member_body(member, existing_cal)
+
+
+async def _find_calendar_member_by_uid(
+    calendar: "CalendarCollection", uid: str
+) -> "tuple[str, ObjectResource, Calendar] | None":
+    """Find a member of *calendar* whose VCALENDAR has an event with *uid*.
+
+    Returns ``(name, ObjectResource, parsed_calendar)`` or None. The
+    ObjectResource is returned alongside the parsed calendar so
+    callers can update it in place without re-resolving.
+    """
+    for name, member in calendar.members():
+        if not isinstance(member, ObjectResource):
+            continue
+        if member.get_content_type() != "text/calendar":
+            continue
+        file = await member.get_file()
+        if not isinstance(file, ICalendarFile):
+            continue
+        cal = file.calendar
+        if not isinstance(cal, Calendar):
+            continue
+        for comp in cal.subcomponents:
+            if (
+                comp.name in itip.SCHEDULING_COMPONENTS
+                and str(comp.get("UID", "")) == uid
+            ):
+                return name, member, cal
+    return None
+
+
+async def _replace_member_body(member: "ObjectResource", new_cal: Calendar) -> None:
+    """Replace *member*'s body with *new_cal*'s serialized bytes."""
+    body = new_cal.to_ical()
+    etag = await member.get_etag()
+    await member.set_body([body], replace_etag=etag)
 
 
 class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
