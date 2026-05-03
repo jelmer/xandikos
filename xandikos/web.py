@@ -1062,7 +1062,9 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
         cancel = itip.build_itip_cancel(cal)
         for address in attendees:
-            await itip.deliver_to_inbox(self.backend, address, cancel, name_hint=None)
+            await scheduling.deliver_to_inbox(
+                self.backend, address, cancel, name_hint=None
+            )
 
     async def pre_put_hook(
         self,
@@ -1162,7 +1164,7 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
                 # Dropped attendees aren't in new_cal, so their CANCEL
                 # delivery outcomes don't end up annotated anywhere; the
                 # CANCEL itself is the record.
-                await itip.deliver_to_inbox(
+                await scheduling.deliver_to_inbox(
                     self.backend, address, cancel, name_hint=None
                 )
         return outcomes
@@ -1183,7 +1185,9 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         if not _partstat_changed(new_cal, old_cal, own_address):
             return
         reply = itip.build_itip_reply(new_cal, own_address)
-        await itip.deliver_to_inbox(self.backend, organiser, reply, name_hint=None)
+        await scheduling.deliver_to_inbox(
+            self.backend, organiser, reply, name_hint=None
+        )
 
     def _owning_principal(self) -> webdav.Principal | None:
         owning = scheduling.find_owning_principal(self.backend, self.relpath)
@@ -1217,7 +1221,9 @@ async def _deliver_status(
     non-local address since iMIP isn't implemented). Storage failures
     propagate.
     """
-    delivered = await itip.deliver_to_inbox(backend, address, message, name_hint=None)
+    delivered = await scheduling.deliver_to_inbox(
+        backend, address, message, name_hint=None
+    )
     if delivered:
         return itip.REQUEST_STATUS_SUCCESS
     return itip.REQUEST_STATUS_INVALID_CALENDAR_USER
