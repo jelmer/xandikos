@@ -1330,6 +1330,30 @@ def _timeline_to_periods(timeline):
     return periods
 
 
+def _clip_period_to_window(
+    period: vPeriod, start: datetime.datetime, end: datetime.datetime
+) -> vPeriod | None:
+    """Return *period* clipped to ``[start, end)``, or None if disjoint.
+
+    Per RFC 4791 §7.10, free-busy responses must contain only periods
+    that fall within the requested time-range. Events that straddle a
+    window boundary need to be reported with bounds at the boundary,
+    not at the event's own bounds.
+    """
+    p_start = period.start
+    p_end = period.end
+    if p_end <= start or p_start >= end:
+        return None
+    clipped_start = max(p_start, start)
+    clipped_end = min(p_end, end)
+    if clipped_start == p_start and clipped_end == p_end:
+        return period
+    out = vPeriod((clipped_start, clipped_end))
+    for k, v in period.params.items():
+        out.params[k] = v
+    return out
+
+
 async def iter_freebusy(resources, start, end, tzify):
     # Collect all VAVAILABILITY components first for priority-based processing
     vavailability_components = []
@@ -1366,9 +1390,11 @@ async def iter_freebusy(resources, start, end, tzify):
                 period.params["FBTYPE"] = fbtype
             yield period
 
-    # Yield event periods (these override availability)
+    # Yield event periods (these override availability), clipped to the window.
     for period in event_periods:
-        yield period
+        clipped = _clip_period_to_window(period, start, end)
+        if clipped is not None:
+            yield clipped
 
 
 class FreeBusyQueryReporter(webdav.Reporter):

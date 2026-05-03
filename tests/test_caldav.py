@@ -1337,3 +1337,92 @@ class CalendarMultigetReporterTests(unittest.TestCase):
             reporter.resource_type,
             (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE),
         )
+
+
+class ClipPeriodToWindowTests(unittest.TestCase):
+    """Tests for _clip_period_to_window (RFC 4791 §7.10)."""
+
+    def setUp(self):
+        from icalendar.prop import vPeriod
+
+        self.vPeriod = vPeriod
+        self.window_start = datetime(2026, 6, 2, tzinfo=timezone.utc)
+        self.window_end = datetime(2026, 6, 4, tzinfo=timezone.utc)
+
+    def _clip(self, p_start, p_end):
+        from xandikos.caldav import _clip_period_to_window
+
+        return _clip_period_to_window(
+            self.vPeriod((p_start, p_end)), self.window_start, self.window_end
+        )
+
+    def test_period_inside_window_passes_through(self):
+        result = self._clip(
+            datetime(2026, 6, 2, 10, tzinfo=timezone.utc),
+            datetime(2026, 6, 2, 11, tzinfo=timezone.utc),
+        )
+        self.assertEqual(datetime(2026, 6, 2, 10, tzinfo=timezone.utc), result.start)
+        self.assertEqual(datetime(2026, 6, 2, 11, tzinfo=timezone.utc), result.end)
+
+    def test_period_overlapping_start_clips_at_start(self):
+        result = self._clip(
+            datetime(2026, 6, 1, tzinfo=timezone.utc),
+            datetime(2026, 6, 3, tzinfo=timezone.utc),
+        )
+        self.assertEqual(self.window_start, result.start)
+        self.assertEqual(datetime(2026, 6, 3, tzinfo=timezone.utc), result.end)
+
+    def test_period_overlapping_end_clips_at_end(self):
+        result = self._clip(
+            datetime(2026, 6, 3, tzinfo=timezone.utc),
+            datetime(2026, 6, 5, tzinfo=timezone.utc),
+        )
+        self.assertEqual(datetime(2026, 6, 3, tzinfo=timezone.utc), result.start)
+        self.assertEqual(self.window_end, result.end)
+
+    def test_period_straddling_clips_to_window(self):
+        result = self._clip(
+            datetime(2026, 6, 1, tzinfo=timezone.utc),
+            datetime(2026, 6, 5, tzinfo=timezone.utc),
+        )
+        self.assertEqual(self.window_start, result.start)
+        self.assertEqual(self.window_end, result.end)
+
+    def test_period_entirely_before_window_returns_none(self):
+        self.assertIsNone(
+            self._clip(
+                datetime(2026, 5, 30, tzinfo=timezone.utc),
+                datetime(2026, 6, 1, tzinfo=timezone.utc),
+            )
+        )
+
+    def test_period_entirely_after_window_returns_none(self):
+        self.assertIsNone(
+            self._clip(
+                datetime(2026, 6, 5, tzinfo=timezone.utc),
+                datetime(2026, 6, 7, tzinfo=timezone.utc),
+            )
+        )
+
+    def test_period_touching_window_start_returns_none(self):
+        # Half-open: [start, end). A period ending exactly at window_start
+        # is disjoint.
+        self.assertIsNone(
+            self._clip(
+                datetime(2026, 6, 1, tzinfo=timezone.utc),
+                self.window_start,
+            )
+        )
+
+    def test_fbtype_param_preserved_after_clipping(self):
+        from xandikos.caldav import _clip_period_to_window
+
+        period = self.vPeriod(
+            (
+                datetime(2026, 6, 1, tzinfo=timezone.utc),
+                datetime(2026, 6, 5, tzinfo=timezone.utc),
+            )
+        )
+        period.params["FBTYPE"] = "BUSY-TENTATIVE"
+        result = _clip_period_to_window(period, self.window_start, self.window_end)
+        self.assertEqual("BUSY-TENTATIVE", result.params["FBTYPE"])
