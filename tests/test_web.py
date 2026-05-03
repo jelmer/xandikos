@@ -32,6 +32,7 @@ from xandikos.web import (
     CalendarCollection,
     ObjectResource,
     SingleUserFilesystemBackend,
+    StoreBasedCollection,
     XandikosApp,
 )
 
@@ -729,3 +730,222 @@ class ObjectResourceScheduleTagTests(unittest.TestCase):
                 await resource.get_schedule_tag()
 
         asyncio.run(run())
+
+
+class ScheduleOutboxLookupTests(unittest.TestCase):
+    """Integration tests for ScheduleOutbox.get_attendee_busy_periods."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        # Pass an absolute path so the principal is registered under the same
+        # key the resource lookup uses.
+        self.backend.create_principal("/user", create_defaults=True)
+        # Inject a known calendar-user-address-set on the principal so we
+        # don't depend on the EMAIL environment variable.
+        os.environ["EMAIL"] = "user@example.com"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+
+    def _put_event(self, body):
+        cal = self.backend.get_resource("/user/calendars/calendar")
+        cal.store.import_one("event.ics", "text/calendar", [body])
+
+    def _outbox(self):
+        # SingleUserFilesystemBackend does not autocreate the outbox in
+        # principal defaults, so create one explicitly here.
+        from xandikos.store import STORE_TYPE_SCHEDULE_OUTBOX
+
+        outbox_path = "/user/outbox"
+        if self.backend.get_resource(outbox_path) is None:
+            outbox_resource = self.backend.create_collection(outbox_path)
+            outbox_resource.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
+        return self.backend.get_resource(outbox_path)
+
+    def test_returns_none_for_unknown_attendee(self):
+        outbox = self._outbox()
+        from datetime import datetime, timezone
+
+        start = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        end = datetime(2026, 6, 2, tzinfo=timezone.utc)
+        result = asyncio.run(
+            outbox.get_attendee_busy_periods("mailto:stranger@example.com", start, end)
+        )
+        self.assertIsNone(result)
+
+    def test_returns_periods_for_principal_address(self):
+        from datetime import datetime, timezone
+
+        self._put_event(
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:e1@example.com\r\n"
+            b"DTSTAMP:20260101T000000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"SUMMARY:Standup\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        outbox = self._outbox()
+        start = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        end = datetime(2026, 6, 2, tzinfo=timezone.utc)
+        result = asyncio.run(
+            outbox.get_attendee_busy_periods("mailto:user@example.com", start, end)
+        )
+        self.assertIsNotNone(result)
+        ical = b",".join(p.to_ical() for p in result).decode()
+        self.assertIn("20260601T100000Z/20260601T110000Z", ical)
+
+
+class CalendarCollectionPreDeleteHookTests(unittest.TestCase):
+    """End-to-end tests for CalendarCollection.pre_delete_hook."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+
+        # Pin distinct addresses on each principal so we don't depend on
+        # the EMAIL environment variable.
+        self._addresses = {
+            "/alice": ["mailto:alice@example.com"],
+            "/bob": ["mailto:bob@example.com"],
+        }
+
+        from xandikos.web import Principal
+
+        original = Principal.get_calendar_user_address_set
+        backend = self.backend
+        addresses = self._addresses
+
+        def fake_addresses(principal_self):
+            return addresses.get(principal_self.relpath, [])
+
+        Principal.get_calendar_user_address_set = fake_addresses
+        self.addCleanup(setattr, Principal, "get_calendar_user_address_set", original)
+        del backend  # silence linter
+
+    def _alice_calendar(self) -> CalendarCollection:
+        cal = self.backend.get_resource("/alice/calendars/calendar")
+        assert isinstance(cal, CalendarCollection)
+        return cal
+
+    def _put_event(self, body: bytes, name: str = "event.ics") -> None:
+        self._alice_calendar().store.import_one(name, "text/calendar", [body])
+
+    def _bob_inbox_messages(self) -> list[bytes]:
+        inbox = self.backend.get_resource("/bob/inbox")
+        assert isinstance(inbox, StoreBasedCollection)
+        store = inbox.store
+        return [
+            b"".join(store._get_raw(name, etag))
+            for name, _ct, etag in store.iter_with_etag()
+        ]
+
+    def test_delivers_cancel_to_attendee_inbox(self):
+        self._put_event(
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:meeting@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"SEQUENCE:1\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"SUMMARY:Sync\r\n"
+            b"ORGANIZER:mailto:alice@example.com\r\n"
+            b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+
+        asyncio.run(self._alice_calendar().pre_delete_hook("event.ics"))
+
+        messages = self._bob_inbox_messages()
+        self.assertEqual(1, len(messages))
+        body = messages[0]
+        self.assertIn(b"METHOD:CANCEL", body)
+        self.assertIn(b"STATUS:CANCELLED", body)
+        # SEQUENCE bumped from 1 to 2.
+        self.assertIn(b"SEQUENCE:2", body)
+        self.assertIn(b"UID:meeting@example.com", body)
+
+    def test_no_delivery_when_user_is_attendee_not_organiser(self):
+        # Alice is invited to bob's event; deleting it should not cancel
+        # on bob's behalf.
+        self._put_event(
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:bobs-meeting@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:bob@example.com\r\n"
+            b"ATTENDEE:mailto:alice@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+
+        asyncio.run(self._alice_calendar().pre_delete_hook("event.ics"))
+
+        self.assertEqual([], self._bob_inbox_messages())
+
+    def test_no_delivery_when_event_has_no_attendees(self):
+        self._put_event(
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:solo@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:alice@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+
+        asyncio.run(self._alice_calendar().pre_delete_hook("solo.ics"))
+
+        self.assertEqual([], self._bob_inbox_messages())
+
+    def test_remote_attendee_is_skipped_silently(self):
+        # An attendee whose address doesn't match any local principal
+        # should not raise — delivery just returns False.
+        self._put_event(
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:mixed@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:alice@example.com\r\n"
+            b"ATTENDEE:mailto:bob@example.com\r\n"
+            b"ATTENDEE:mailto:carol@elsewhere.example\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+
+        asyncio.run(self._alice_calendar().pre_delete_hook("event.ics"))
+
+        # Bob still got his copy; carol just gets dropped.
+        messages = self._bob_inbox_messages()
+        self.assertEqual(1, len(messages))
+        self.assertIn(b"METHOD:CANCEL", messages[0])
+
+    def test_missing_member_is_silent(self):
+        # No event with this name exists; hook should return without error.
+        asyncio.run(self._alice_calendar().pre_delete_hook("does-not-exist.ics"))
+        self.assertEqual([], self._bob_inbox_messages())

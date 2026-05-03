@@ -20,10 +20,8 @@
 """Tests for xandikos.scheduling (RFC 6638 CalDAV Scheduling)."""
 
 import asyncio
-import hashlib
 import unittest
 
-from icalendar.cal import Calendar
 
 from xandikos import scheduling, webdav
 from xandikos.webdav import ET
@@ -574,138 +572,132 @@ class SchedulingConstantsTests(unittest.TestCase):
         )
 
 
-class ExtractSchedulingSignatureTests(unittest.TestCase):
-    """Tests for extract_scheduling_signature (RFC 6638 §3.2.10)."""
-
-    BASE_EVENT = b"""\
-BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Test//EN
-BEGIN:VEVENT
-UID:event-1@example.com
-DTSTAMP:20260101T120000Z
-LAST-MODIFIED:20260101T120000Z
-SEQUENCE:0
-DTSTART:20260601T100000Z
-DTEND:20260601T110000Z
-SUMMARY:Project sync
-ORGANIZER:mailto:alice@example.com
-ATTENDEE;PARTSTAT=ACCEPTED:mailto:alice@example.com
-ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com
-DESCRIPTION:original notes
-END:VEVENT
-END:VCALENDAR
+FREEBUSY_REQUEST = b"""\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+METHOD:REQUEST\r
+BEGIN:VFREEBUSY\r
+UID:fb-1@example.com\r
+DTSTAMP:20260601T080000Z\r
+DTSTART:20260601T000000Z\r
+DTEND:20260602T000000Z\r
+ORGANIZER:mailto:alice@example.com\r
+ATTENDEE:mailto:alice@example.com\r
+ATTENDEE:mailto:bob@example.com\r
+END:VFREEBUSY\r
+END:VCALENDAR\r
 """
 
-    def _sig(self, body):
-        return scheduling.extract_scheduling_signature(Calendar.from_ical(body))
 
-    def test_stable_across_dtstamp_changes(self):
-        a = self._sig(self.BASE_EVENT)
-        b = self._sig(self.BASE_EVENT.replace(b"20260101T120000Z", b"20260102T130000Z"))
-        self.assertEqual(a, b)
+class _FakeRequest:
+    headers: dict[str, str] = {}
 
-    def test_changes_when_description_changes(self):
-        a = self._sig(self.BASE_EVENT)
-        b = self._sig(self.BASE_EVENT.replace(b"original notes", b"updated notes"))
-        self.assertNotEqual(a, b)
 
-    def test_changes_when_attendee_added(self):
-        a = self._sig(self.BASE_EVENT)
-        body = (
-            self.BASE_EVENT.decode()
-            .replace(
-                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\n",
-                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\n"
-                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:carol@example.com\n",
+class _FakeOutbox(scheduling.ScheduleOutbox):
+    """Outbox where the principal is alice@example.com with one busy hour."""
+
+    def __init__(self, busy_periods=None):
+        from datetime import datetime, timezone
+
+        from icalendar.prop import vPeriod
+
+        self._busy = busy_periods or [
+            vPeriod(
+                (
+                    datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                    datetime(2026, 6, 1, 11, 0, tzinfo=timezone.utc),
+                )
             )
-            .encode()
+        ]
+
+    async def get_attendee_busy_periods(self, attendee_address, start, end):
+        if attendee_address == "mailto:alice@example.com":
+            return self._busy
+        return None
+
+
+CALDAV_NS = "{urn:ietf:params:xml:ns:caldav}"
+
+
+class ScheduleOutboxFreeBusyTests(unittest.TestCase):
+    """Tests for ScheduleOutbox free-busy POST handling (RFC 6638 §6)."""
+
+    def _post(self, outbox, body=FREEBUSY_REQUEST, content_type="text/calendar"):
+        return asyncio.run(
+            outbox.handle_post(_FakeRequest(), {}, "/p/outbox/", [body], content_type)
         )
-        self.assertNotEqual(a, self._sig(body))
 
-    def test_changes_when_dtstart_changes(self):
-        a = self._sig(self.BASE_EVENT)
-        b = self._sig(
-            self.BASE_EVENT.replace(
-                b"DTSTART:20260601T100000Z", b"DTSTART:20260601T110000Z"
-            )
+    def test_success_returns_schedule_response(self):
+        outbox = _FakeOutbox()
+        response = self._post(outbox)
+
+        self.assertEqual(200, response.status)
+        body_xml = b"".join(response.body)
+        root = ET.fromstring(body_xml)
+        self.assertEqual(CALDAV_NS + "schedule-response", root.tag)
+        responses = root.findall(CALDAV_NS + "response")
+        self.assertEqual(2, len(responses))
+
+        recipients = {
+            r.find(CALDAV_NS + "recipient/{DAV:}href").text: r for r in responses
+        }
+        # Local user gets a calendar-data REPLY.
+        alice = recipients["mailto%3Aalice%40example.com"]
+        self.assertEqual(
+            scheduling.REQUEST_STATUS_SUCCESS,
+            alice.find(CALDAV_NS + "request-status").text,
         )
-        self.assertNotEqual(a, b)
+        cd = alice.find(CALDAV_NS + "calendar-data").text
+        self.assertIn("METHOD:REPLY", cd)
+        self.assertIn("20260601T100000Z/20260601T110000Z", cd)
+        self.assertIn("FREEBUSY", cd)
 
-    def test_changes_when_sequence_bumps(self):
-        a = self._sig(self.BASE_EVENT)
-        b = self._sig(self.BASE_EVENT.replace(b"SEQUENCE:0", b"SEQUENCE:1"))
-        self.assertNotEqual(a, b)
-
-    def test_attendee_order_independent(self):
-        reordered = (
-            self.BASE_EVENT.decode()
-            .replace(
-                "ATTENDEE;PARTSTAT=ACCEPTED:mailto:alice@example.com\n"
-                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\n",
-                "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\n"
-                "ATTENDEE;PARTSTAT=ACCEPTED:mailto:alice@example.com\n",
-            )
-            .encode()
+        # Unknown user gets 3.8 No authority and no calendar-data.
+        bob = recipients["mailto%3Abob%40example.com"]
+        self.assertEqual(
+            scheduling.REQUEST_STATUS_NO_AUTHORITY,
+            bob.find(CALDAV_NS + "request-status").text,
         )
-        self.assertEqual(self._sig(self.BASE_EVENT), self._sig(reordered))
+        self.assertIsNone(bob.find(CALDAV_NS + "calendar-data"))
 
-    def test_partstat_change_changes_signature(self):
-        replied = self.BASE_EVENT.replace(
-            b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com",
-            b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com",
+    def test_rejects_non_calendar_content_type(self):
+        response = self._post(_FakeOutbox(), content_type="application/json")
+        self.assertEqual(415, response.status)
+
+    def test_rejects_request_without_method_request(self):
+        body = FREEBUSY_REQUEST.replace(b"METHOD:REQUEST\r\n", b"")
+        with self.assertRaises(webdav.BadRequestError):
+            self._post(_FakeOutbox(), body=body)
+
+    def test_rejects_missing_attendee(self):
+        body = FREEBUSY_REQUEST.replace(
+            b"ATTENDEE:mailto:alice@example.com\r\nATTENDEE:mailto:bob@example.com\r\n",
+            b"",
         )
-        self.assertNotEqual(self._sig(self.BASE_EVENT), self._sig(replied))
+        with self.assertRaises(webdav.BadRequestError):
+            self._post(_FakeOutbox(), body=body)
 
-    def test_only_vtimezone_yields_empty_digest(self):
-        body = b"""\
-BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Test//EN
-BEGIN:VTIMEZONE
-TZID:UTC
-END:VTIMEZONE
-END:VCALENDAR
-"""
-        self.assertEqual(self._sig(body), hashlib.sha256().digest())
+    def test_rejects_missing_organizer(self):
+        body = FREEBUSY_REQUEST.replace(b"ORGANIZER:mailto:alice@example.com\r\n", b"")
+        with self.assertRaises(webdav.BadRequestError):
+            self._post(_FakeOutbox(), body=body)
 
-    def test_recurrence_id_distinguishes_overrides(self):
-        body_with_override = b"""\
-BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Test//EN
-BEGIN:VEVENT
-UID:rec@example.com
-DTSTAMP:20260101T120000Z
-DTSTART:20260601T100000Z
-SUMMARY:Series
-RRULE:FREQ=DAILY;COUNT=3
-END:VEVENT
-BEGIN:VEVENT
-UID:rec@example.com
-DTSTAMP:20260101T120000Z
-RECURRENCE-ID:20260602T100000Z
-DTSTART:20260602T120000Z
-SUMMARY:Series (override)
-END:VEVENT
-END:VCALENDAR
-"""
-        body_without_override = b"""\
-BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Test//EN
-BEGIN:VEVENT
-UID:rec@example.com
-DTSTAMP:20260101T120000Z
-DTSTART:20260601T100000Z
-SUMMARY:Series
-RRULE:FREQ=DAILY;COUNT=3
-END:VEVENT
-END:VCALENDAR
-"""
-        self.assertNotEqual(
-            self._sig(body_with_override), self._sig(body_without_override)
+    def test_rejects_extra_components(self):
+        body = FREEBUSY_REQUEST.replace(
+            b"END:VCALENDAR\r\n",
+            b"BEGIN:VEVENT\r\nUID:e\r\nDTSTAMP:20260101T000000Z\r\nDTSTART:20260101T000000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
         )
+        with self.assertRaises(webdav.BadRequestError):
+            self._post(_FakeOutbox(), body=body)
+
+    def test_default_get_attendee_busy_periods_returns_none(self):
+        # The base class refuses to answer for any attendee.
+        outbox = scheduling.ScheduleOutbox()
+        result = asyncio.run(
+            outbox.get_attendee_busy_periods("mailto:anyone@example.com", None, None)
+        )
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":

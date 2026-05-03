@@ -1034,9 +1034,22 @@ class Collection(Resource):
         """
         raise NotImplementedError(self.delete_member)
 
+    async def pre_delete_hook(self, member_name: str) -> None:
+        """Run side-effects just before a member is deleted.
+
+        Default is a no-op. Subclasses can override to react to a
+        pending DELETE — e.g. CalDAV calendar collections use this to
+        emit iTIP CANCEL messages for scheduling object resources.
+
+        Raising aborts the DELETE, so side-effects must not assume the
+        deletion has happened. Subclasses are responsible for swallowing
+        whichever specific failures they consider non-fatal.
+        """
+        return None
+
     async def create_member(
         self,
-        name: str,
+        name: str | None,
         contents: Iterable[bytes],
         content_type: str,
         remote_user: str | None = None,
@@ -1045,7 +1058,7 @@ class Collection(Resource):
         """Create a new member with specified name and contents.
 
         Args:
-          name: Member name (can be None)
+          name: Member name; ``None`` lets the implementation pick one.
           contents: Chunked contents
           content_type: Content type of the member
           remote_user: Optional user name of the actor
@@ -1053,6 +1066,55 @@ class Collection(Resource):
         Returns: (name, etag) for the new member
         """
         raise NotImplementedError(self.create_member)
+
+    async def handle_post(
+        self,
+        request,
+        environ,
+        path: str,
+        body: list[bytes],
+        content_type: str,
+    ) -> "Response":
+        """Handle a POST request targeted at this collection.
+
+        The default implementation interprets the request as an
+        RFC 5995 add-member request. Subclasses may override this
+        to provide collection-specific POST semantics — for example
+        a CalDAV schedule-outbox processes free-busy lookups here
+        (RFC 6638 §6).
+
+        Args:
+          request: incoming request object
+          environ: WSGI environ
+          path: collection path the request was directed at
+          body: request body, already read
+          content_type: parsed content type (without parameters)
+
+        Returns: a Response.
+        """
+        try:
+            (name, etag) = await self.create_member(
+                None,
+                body,
+                content_type,
+                remote_user=environ.get("REMOTE_USER"),
+                requester=request.headers.get("User-Agent"),
+            )
+        except PreconditionFailure as e:
+            return _send_simple_dav_error(
+                request,
+                "412 Precondition Failed",
+                error=ET.Element(e.precondition),
+                description=e.description,
+            )
+        except InsufficientStorage:
+            return Response(status=507, reason="Insufficient Storage")
+        except ResourceLocked:
+            return Response(status=423, reason="Resource Locked")
+        href = environ["SCRIPT_NAME"] + urllib.parse.urljoin(
+            ensure_trailing_slash(path), urllib.parse.quote(name)
+        )
+        return Response(headers={"Location": href})
 
     async def move_member(
         self,
@@ -1272,6 +1334,14 @@ class Principal(Resource):
 
     def get_schedule_outbox_url(self) -> str:
         raise NotImplementedError(self.get_schedule_outbox_url)
+
+    def get_calendar_home_set(self) -> list[str]:
+        """List relative paths of calendar-home collections for this principal."""
+        raise NotImplementedError(self.get_calendar_home_set)
+
+    def get_calendar_user_address_set(self) -> list[str]:
+        """List calendar-user-addresses (typically mailto: URIs) for this principal."""
+        raise NotImplementedError(self.get_calendar_user_address_set)
 
 
 async def get_property_from_name(
@@ -1735,6 +1805,22 @@ class Backend:
     def get_resource(self, relpath: str) -> Resource | None:
         raise NotImplementedError(self.get_resource)
 
+    def find_principals(self) -> Iterable[str]:
+        """List the relative paths of all known principals on this backend."""
+        raise NotImplementedError(self.find_principals)
+
+    def get_principal(self, relpath: str) -> "Principal | None":
+        """Return the principal at *relpath*, or None if it isn't one.
+
+        Subclasses with their own principal bookkeeping may override this
+        for efficiency. The default implementation defers to
+        :meth:`get_resource` and narrows the result.
+        """
+        r = self.get_resource(relpath)
+        if isinstance(r, Principal):
+            return r
+        return None
+
     def get_resources(self, relpaths) -> Iterator[tuple[str, Resource | None]]:
         for relpath in relpaths:
             yield relpath, self.get_resource(relpath)
@@ -2004,6 +2090,7 @@ class DeleteMethod(Method):
                 current_schedule_tag = None
             if not etag_matches(if_schedule_tag_match, current_schedule_tag):
                 return Response(status=412, reason="Precondition Failed")
+        await pr.pre_delete_hook(item_name)
         pr.delete_member(
             item_name,
             current_etag,
@@ -2022,7 +2109,6 @@ class PostMethod(Method):
         return COLLECTION_RESOURCE_TYPE in r.resource_types
 
     async def handle(self, request, environ, app):
-        # see RFC5995
         new_contents = await _readBody(request)
         unused_href, path, r = app._get_resource_from_environ(request, environ)
         if r is None:
@@ -2032,29 +2118,7 @@ class PostMethod(Method):
                 await app._get_allowed_methods(request, environ)
             )
         content_type, params = parse_type(request.content_type)
-        try:
-            (name, etag) = await r.create_member(
-                None,
-                new_contents,
-                content_type,
-                remote_user=environ.get("REMOTE_USER"),
-                requester=request.headers.get("User-Agent"),
-            )
-        except PreconditionFailure as e:
-            return _send_simple_dav_error(
-                request,
-                "412 Precondition Failed",
-                error=ET.Element(e.precondition),
-                description=e.description,
-            )
-        except InsufficientStorage:
-            return Response(status=507, reason="Insufficient Storage")
-        except ResourceLocked:
-            return Response(status=423, reason="Resource Locked")
-        href = environ["SCRIPT_NAME"] + urllib.parse.urljoin(
-            ensure_trailing_slash(path), urllib.parse.quote(name)
-        )
-        return Response(headers={"Location": href})
+        return await r.handle_post(request, environ, path, new_contents, content_type)
 
 
 class PutMethod(Method):

@@ -22,16 +22,45 @@
 See https://tools.ietf.org/html/rfc6638
 """
 
-import hashlib
+import datetime
+import posixpath
+from collections.abc import Iterable
+from xml.etree import ElementTree as ET
 
 from icalendar.cal import Calendar
+from icalendar.prop import vPeriod
 
-from xandikos import caldav, webdav
+from xandikos import caldav, itip, webdav
 from xandikos.caldav import (
     SCHEDULE_INBOX_RESOURCE_TYPE,
     SCHEDULE_OUTBOX_RESOURCE_TYPE,
 )
-from xandikos.icalendar import PropTypes
+from xandikos.itip import (
+    REQUEST_STATUS_NO_AUTHORITY,
+    REQUEST_STATUS_SUCCESS,
+    InvalidSchedulingRequest,
+)
+
+
+def find_owning_principal(
+    backend: "webdav.Backend", relpath: str
+) -> "tuple[str, webdav.Principal] | None":
+    """Walk up *relpath* until a principal is found, or return None.
+
+    Useful for collections that need to find the principal they belong
+    to without baking in a specific directory layout (e.g. a calendar
+    collection at ``/alice/calendars/work`` finds the principal at
+    ``/alice``).
+    """
+    p = relpath.rstrip("/") or "/"
+    while True:
+        principal = backend.get_principal(p)
+        if principal is not None:
+            return p, principal
+        if p in ("/", ""):
+            return None
+        p = posixpath.dirname(p) or "/"
+
 
 # Feature to advertise to indicate scheduling support.
 FEATURE = "calendar-auto-schedule"
@@ -49,126 +78,6 @@ CALENDAR_USER_TYPES = (
     CALENDAR_USER_TYPE_ROOM,
     CALENDAR_USER_TYPE_UNKNOWN,
 )
-
-
-# Properties whose values participate in iTIP scheduling. The schedule-tag
-# (RFC 6638 §3.2.10) only changes when one of these changes within a
-# scheduling-bearing component; bookkeeping properties such as DTSTAMP,
-# LAST-MODIFIED, and CREATED do not affect it.
-SCHEDULING_PROPERTIES = frozenset(
-    {
-        "ATTENDEE",
-        "ORGANIZER",
-        "DTSTART",
-        "DTEND",
-        "DUE",
-        "DURATION",
-        "RRULE",
-        "RDATE",
-        "EXDATE",
-        "RECURRENCE-ID",
-        "SEQUENCE",
-        "STATUS",
-        "SUMMARY",
-        "LOCATION",
-        "DESCRIPTION",
-        "PRIORITY",
-        "TRANSP",
-        "CLASS",
-        "URL",
-        "CATEGORIES",
-        "RESOURCES",
-        "PERCENT-COMPLETE",
-        "REQUEST-STATUS",
-    }
-)
-
-
-# Components that carry scheduling state. Other component types (VTIMEZONE,
-# VALARM, VFREEBUSY responses inside replies, etc.) are intentionally skipped
-# so they do not destabilise the tag.
-SCHEDULING_COMPONENTS = frozenset({"VEVENT", "VTODO", "VJOURNAL"})
-
-
-def _serialize_scheduling_value(value: PropTypes) -> bytes:
-    """Serialise a single iCalendar property value, including its parameters.
-
-    Plain ``to_ical()`` would drop parameters such as ``PARTSTAT`` on
-    ATTENDEE, which is exactly the kind of state the schedule-tag must
-    track. We fold params and value into one sorted, opaque byte string.
-    """
-    rendered = value.to_ical()
-    if value.params:
-        # Parameter names are case-insensitive; normalise to upper for stability.
-        param_items = sorted(
-            (k.upper().encode("ascii"), str(v).encode("utf-8"))
-            for k, v in value.params.items()
-        )
-        rendered = b";".join(b"=".join(item) for item in param_items) + b":" + rendered
-    return rendered
-
-
-def extract_scheduling_signature(cal: Calendar) -> bytes:
-    """Compute a stable signature of the scheduling-relevant content in *cal*.
-
-    Two calendars with the same signature are considered equivalent for the
-    purposes of CalDAV scheduling: a PUT that only changes properties outside
-    SCHEDULING_PROPERTIES (or properties on non-scheduling components) yields
-    the same signature, and therefore the same schedule-tag.
-
-    Args:
-      cal: parsed icalendar Calendar object.
-
-    Returns: opaque ``bytes`` value suitable for hashing or direct comparison.
-    """
-    components: list[tuple[bytes, list[tuple[bytes, list[bytes]]]]] = []
-    for component in cal.subcomponents:
-        if component.name is None:
-            continue
-        name = component.name.upper()
-        if name not in SCHEDULING_COMPONENTS:
-            continue
-        try:
-            uid = component["UID"].to_ical()
-        except KeyError:
-            uid = b""
-        try:
-            recurrence_id = component["RECURRENCE-ID"].to_ical()
-        except KeyError:
-            recurrence_id = b""
-        props: list[tuple[bytes, list[bytes]]] = []
-        for field in component:
-            if field.upper() not in SCHEDULING_PROPERTIES:
-                continue
-            value = component.get(field)
-            if value is None:
-                continue
-            if isinstance(value, list):
-                items = [_serialize_scheduling_value(v) for v in value]
-            else:
-                items = [_serialize_scheduling_value(value)]
-            items.sort()
-            props.append((field.upper().encode("ascii"), items))
-        props.sort()
-        components.append(
-            (name.encode("ascii") + b":" + uid + b":" + recurrence_id, props)
-        )
-    components.sort()
-
-    h = hashlib.sha256()
-    for comp_key, props in components:
-        h.update(b"C\x00")
-        h.update(comp_key)
-        h.update(b"\x00")
-        for field_name, items in props:
-            h.update(b"P\x00")
-            h.update(field_name)
-            h.update(b"\x00")
-            for item in items:
-                h.update(b"V\x00")
-                h.update(item)
-                h.update(b"\x00")
-    return h.digest()
 
 
 class ScheduleInbox(webdav.Collection):
@@ -268,6 +177,99 @@ class ScheduleOutbox(webdav.Collection):
     def get_max_attendees_per_instance(self):
         """Return maximum number of attendees per instance."""
         raise NotImplementedError(self.get_max_attendees_per_instance)
+
+    async def get_attendee_busy_periods(
+        self,
+        attendee_address: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+    ) -> Iterable[vPeriod] | None:
+        """Look up busy periods for *attendee_address* over [start, end).
+
+        Returns ``None`` if the server has no authority to answer for the
+        given attendee — that is the cue to emit a 3.7/3.8 status in the
+        schedule-response. The default implementation returns ``None`` for
+        all attendees; concrete servers override this to walk the
+        principal's calendar collections (or query a remote server).
+        """
+        return None
+
+    async def handle_post(
+        self,
+        request,
+        environ,
+        path: str,
+        body: list[bytes],
+        content_type: str,
+    ) -> "webdav.Response":
+        """Handle a POST to the schedule-outbox per RFC 6638 §6."""
+        if content_type != "text/calendar":
+            return webdav.Response(
+                status=415,
+                reason="Unsupported Media Type",
+                body=[b"Expected text/calendar"],
+            )
+        raw = b"".join(body).decode("utf-8")
+        try:
+            cal = Calendar.from_ical(raw)
+        except ValueError as exc:
+            raise webdav.BadRequestError(f"Invalid iCalendar: {exc}") from exc
+        try:
+            request_comp = itip.validate_freebusy_request(cal)
+        except InvalidSchedulingRequest as exc:
+            raise webdav.BadRequestError(exc.description) from exc
+
+        start, end = itip.parse_freebusy_window(request_comp)
+
+        organizer = request_comp.get("ORGANIZER")
+        attendees = request_comp.get("ATTENDEE", [])
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+
+        responses: list[ET.Element] = []
+        for attendee in attendees:
+            recipient = str(attendee)
+            periods = await self.get_attendee_busy_periods(recipient, start, end)
+            if periods is None:
+                responses.append(
+                    _build_response_element(
+                        recipient, REQUEST_STATUS_NO_AUTHORITY, None
+                    )
+                )
+                continue
+            reply = itip.build_freebusy_reply(
+                organizer, recipient, request_comp, start, end, list(periods)
+            )
+            responses.append(
+                _build_response_element(
+                    recipient, REQUEST_STATUS_SUCCESS, reply.to_ical()
+                )
+            )
+
+        root = ET.Element("{%s}schedule-response" % caldav.NAMESPACE)
+        for r in responses:
+            root.append(r)
+        body_bytes = ET.tostring(root, encoding="utf-8")
+        return webdav.Response(
+            status=200,
+            reason="OK",
+            body=[body_bytes],
+            headers={"Content-Type": "application/xml; charset=utf-8"},
+        )
+
+
+def _build_response_element(
+    recipient: str, request_status: str, calendar_data: bytes | None
+) -> ET.Element:
+    el = ET.Element("{%s}response" % caldav.NAMESPACE)
+    rec = ET.SubElement(el, "{%s}recipient" % caldav.NAMESPACE)
+    rec.append(webdav.create_href(recipient))
+    status = ET.SubElement(el, "{%s}request-status" % caldav.NAMESPACE)
+    status.text = request_status
+    if calendar_data is not None:
+        cd = ET.SubElement(el, "{%s}calendar-data" % caldav.NAMESPACE)
+        cd.text = calendar_data.decode("utf-8")
+    return el
 
 
 class ScheduleInboxURLProperty(webdav.Property):
