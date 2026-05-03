@@ -28,12 +28,10 @@ plumbing in :mod:`xandikos.scheduling` that exposes them over HTTP.
 
 import datetime
 import hashlib
-import posixpath
 
 from icalendar.cal import Calendar, Component, FreeBusy
 from icalendar.prop import vDDDTypes, vPeriod
 
-from xandikos import webdav
 from xandikos.caldav import PRODID
 from xandikos.icalendar import PropTypes
 
@@ -344,56 +342,6 @@ def build_freebusy_reply(
         fb["FREEBUSY"] = periods
     cal.add_component(fb)
     return cal
-
-
-def find_principal_by_calendar_user_address(
-    backend: "webdav.Backend", address: str
-) -> "tuple[str, webdav.Principal] | None":
-    """Look up the local principal owning *address*, or None.
-
-    Walks ``backend.find_principals()`` and matches *address* (typically
-    a ``mailto:`` URI) against each principal's
-    ``calendar-user-address-set``. Returns ``(relpath, principal)`` so
-    the caller can resolve the principal's collections (inbox,
-    calendar-home, …) via ``backend.get_resource``.
-
-    Used to route iTIP messages to local inboxes; addresses that don't
-    match any local principal are considered remote and the caller can
-    fall back to iMIP (or skip).
-    """
-    for path in backend.find_principals():
-        principal = backend.get_principal(path)
-        if principal is None:
-            continue
-        if address in principal.get_calendar_user_address_set():
-            return path, principal
-    return None
-
-
-async def deliver_to_inbox(
-    backend: "webdav.Backend",
-    attendee_address: str,
-    itip_message: Calendar,
-    name_hint: str | None = None,
-) -> bool:
-    """Deliver *itip_message* to *attendee_address*'s schedule-inbox.
-
-    Returns ``True`` on successful delivery, ``False`` if the address
-    doesn't belong to a local principal (caller's cue to fall back to
-    iMIP or skip). Raises whatever the inbox collection's
-    ``create_member`` raises on storage failure.
-    """
-    found = find_principal_by_calendar_user_address(backend, attendee_address)
-    if found is None:
-        return False
-    principal_path, principal = found
-    inbox_path = posixpath.join(principal_path, principal.get_schedule_inbox_url())
-    inbox = backend.get_resource(inbox_path)
-    if inbox is None or not isinstance(inbox, webdav.Collection):
-        return False
-    body = itip_message.to_ical()
-    await inbox.create_member(name_hint, [body], "text/calendar")
-    return True
 
 
 def itip_uid(itip_message: Calendar) -> str | None:
