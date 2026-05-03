@@ -1735,3 +1735,135 @@ class ScheduleStatusAnnotationTests(unittest.TestCase):
             },
             statuses["mailto:bob@example.com"],
         )
+
+
+class FreeBusyTranspAndDeclinedTests(unittest.TestCase):
+    """ScheduleOutbox.get_attendee_busy_periods honours TRANSP/DECLINED."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/user", create_defaults=True)
+        os.environ["EMAIL"] = "user@example.com"
+        self.addCleanup(os.environ.pop, "EMAIL", None)
+
+    def _put_event(self, body, calendar_path="/user/calendars/calendar", name="e.ics"):
+        cal = self.backend.get_resource(calendar_path)
+        cal.store.import_one(name, "text/calendar", [body])
+
+    def _outbox(self):
+        from xandikos.store import STORE_TYPE_SCHEDULE_OUTBOX
+
+        path = "/user/outbox"
+        if self.backend.get_resource(path) is None:
+            r = self.backend.create_collection(path)
+            r.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
+        return self.backend.get_resource(path)
+
+    def _query(self):
+        from datetime import datetime, timezone
+
+        return asyncio.run(
+            self._outbox().get_attendee_busy_periods(
+                "mailto:user@example.com",
+                datetime(2026, 6, 1, tzinfo=timezone.utc),
+                datetime(2026, 6, 2, tzinfo=timezone.utc),
+            )
+        )
+
+    EVENT = (
+        b"BEGIN:VCALENDAR\r\n"
+        b"VERSION:2.0\r\n"
+        b"PRODID:-//Test//EN\r\n"
+        b"BEGIN:VEVENT\r\n"
+        b"UID:e@example.com\r\n"
+        b"DTSTAMP:20260101T000000Z\r\n"
+        b"DTSTART:20260601T100000Z\r\n"
+        b"DTEND:20260601T110000Z\r\n"
+        b"SUMMARY:S\r\n"
+        b"END:VEVENT\r\n"
+        b"END:VCALENDAR\r\n"
+    )
+
+    def test_transparent_calendar_excluded(self):
+        from xandikos.store import STORE_TYPE_CALENDAR
+        from xandikos import caldav
+        from xandikos.web import CalendarCollection
+
+        # Create a second calendar that should report TRANSPARENT.
+        # CalendarCollection currently hardcodes the value in
+        # get_schedule_calendar_transparency; monkey-patch that to flip
+        # it for one specific calendar.
+        holidays = self.backend.create_collection("/user/calendars/holidays")
+        holidays.store.set_type(STORE_TYPE_CALENDAR)
+
+        original = CalendarCollection.get_schedule_calendar_transparency
+
+        def transp(cal_self):
+            if cal_self.relpath == "/user/calendars/holidays":
+                return caldav.TRANSPARENCY_TRANSPARENT
+            return caldav.TRANSPARENCY_OPAQUE
+
+        CalendarCollection.get_schedule_calendar_transparency = transp
+        self.addCleanup(
+            setattr, CalendarCollection, "get_schedule_calendar_transparency", original
+        )
+
+        # Put the event ONLY in the holidays calendar.
+        self._put_event(self.EVENT, calendar_path="/user/calendars/holidays")
+
+        result = self._query()
+        # Holidays-only event must not contribute busy time.
+        self.assertEqual([], [p.to_ical().decode() for p in result])
+
+    def test_opaque_calendar_still_contributes(self):
+        # Same event but in the default OPAQUE calendar.
+        self._put_event(self.EVENT)
+        result = self._query()
+        self.assertEqual(
+            ["20260601T100000Z/20260601T110000Z"],
+            [p.to_ical().decode() for p in result],
+        )
+
+    def test_declined_event_excluded(self):
+        body = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:e@example.com\r\n"
+            b"DTSTAMP:20260101T000000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:other@example.com\r\n"
+            b"ATTENDEE;PARTSTAT=DECLINED:mailto:user@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        self._put_event(body)
+        result = self._query()
+        self.assertEqual([], [p.to_ical().decode() for p in result])
+
+    def test_accepted_event_still_busy(self):
+        body = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:e@example.com\r\n"
+            b"DTSTAMP:20260101T000000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"ORGANIZER:mailto:other@example.com\r\n"
+            b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:user@example.com\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        self._put_event(body)
+        result = self._query()
+        self.assertEqual(
+            ["20260601T100000Z/20260601T110000Z"],
+            [p.to_ical().decode() for p in result],
+        )
