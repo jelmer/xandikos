@@ -343,6 +343,24 @@ class ObjectResource(webdav.Resource):
         signature = itip.extract_scheduling_signature(cal)
         return create_strong_etag(signature.hex())
 
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # vCard resources also render as HTML when the browser asks for it,
+        # so users can view and edit contacts in a web UI. CardDAV clients
+        # only ask for text/vcard and continue to get the raw body.
+        if self.content_type == "text/vcard":
+            from . import webcontacts
+
+            rendered = await webcontacts.maybe_render_contact(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+            if rendered is not None:
+                return rendered
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
 
 async def _run_change_listener(awaitable) -> None:
     try:
@@ -1755,7 +1773,104 @@ def _user_partstats(cal: Calendar, address: str) -> dict[tuple[str, str, str], s
     return out
 
 
+class _NewContactResource(webdav.Resource):
+    """Transient resource that renders the empty new-contact form.
+
+    Lives at ``<addressbook>/_new`` so a browser can request a blank
+    form via GET. It has no body of its own and is not enumerable —
+    nothing is written until the form posts back to the collection.
+    """
+
+    resource_types: list[str] = []
+    content_type = "text/html"
+
+    def __init__(self, collection: "AddressbookCollection") -> None:
+        self.collection = collection
+
+    def get_content_type(self) -> str:
+        return "text/html"
+
+    async def get_etag(self) -> str:
+        raise KeyError
+
+    def get_supported_locks(self):
+        return []
+
+    def get_active_locks(self):
+        return []
+
+    def get_owner(self):
+        return None
+
+    async def get_body(self):
+        raise KeyError
+
+    def get_content_language(self):
+        raise KeyError
+
+    def get_last_modified(self):
+        raise KeyError
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcontacts
+
+        # Collapse stray "//" runs that some reverse-proxy setups
+        # inject into the path before deriving the parent URL — see
+        # webcontacts._post_target_url for context.
+        import re
+        from urllib.parse import urlsplit, urlunsplit
+
+        parsed = urlsplit(self_url)
+        clean = re.sub(r"/+", "/", parsed.path) or "/"
+        parent_path = clean.rsplit("/", 1)[0] + "/"
+        parent_url = urlunsplit(parsed._replace(path=parent_path))
+        return await webcontacts.render_new_contact_form(self.collection, parent_url)
+
+
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get the contact list; CardDAV clients still get the
+        # raw multistatus via PROPFIND. The override only matters when
+        # the client explicitly asked for text/html via GET.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcontacts
+
+            return await webcontacts.render_addressbook(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
+    def get_member(self, name):
+        # Pseudo-member: the "_new" path serves an empty edit form.
+        # It isn't stored, only rendered, so we hand back a transient
+        # resource that ignores set_body and reports no etag.
+        if name == "_new":
+            return _NewContactResource(self)
+        return super().get_member(name)
+
+    async def handle_post(self, request, environ, path, body, content_type):
+        from . import webcontacts
+
+        handled = await webcontacts.handle_post(
+            self, request, environ, path, body, content_type
+        )
+        if handled is not None:
+            return handled
+        return await super().handle_post(request, environ, path, body, content_type)
+
     def get_addressbook_description(self):
         return self.store.get_description()
 
@@ -2356,6 +2471,18 @@ class SingleUserFilesystemBackend(FilesystemBackend):
                     return PrincipalBare(self, relpath)
                 return CollectionSetResource(self, relpath)
             else:
+                store_type = store.get_type()
+                # An untyped collection sitting directly under an
+                # address-book or calendar home is almost certainly
+                # meant to be one — promote it so the browser UI and
+                # the CardDAV/CalDAV protocol features both light up
+                # without requiring an explicit MKCOL resource-type.
+                if store_type == STORE_TYPE_OTHER:
+                    parent_basename = posixpath.basename(posixpath.dirname(relpath))
+                    if parent_basename in ADDRESSBOOK_HOME_SET:
+                        store_type = STORE_TYPE_ADDRESSBOOK
+                    elif parent_basename in CALENDAR_HOME_SET:
+                        store_type = STORE_TYPE_CALENDAR
                 return {
                     STORE_TYPE_CALENDAR: CalendarCollection,
                     STORE_TYPE_ADDRESSBOOK: AddressbookCollection,
@@ -2364,7 +2491,7 @@ class SingleUserFilesystemBackend(FilesystemBackend):
                     STORE_TYPE_SCHEDULE_OUTBOX: ScheduleOutbox,
                     STORE_TYPE_SUBSCRIPTION: SubscriptionCollection,
                     STORE_TYPE_OTHER: Collection,
-                }[store.get_type()](self, relpath, store)
+                }[store_type](self, relpath, store)
         else:
             (basepath, name) = os.path.split(relpath)
             assert name != "", f"path is {relpath!r}"
