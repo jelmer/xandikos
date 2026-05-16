@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>
+      {% if name %}Edit{% else %}New{% endif %} contact
+      {% if contact.fn %} - {{ contact.fn }}{% endif %}
+    </title>
+    <style>
+      body { font-family: sans-serif; max-width: 50em; margin: 1em auto; padding: 0 1em; }
+      h1 { margin-bottom: 0.4em; }
+      fieldset { border: 1px solid #ddd; margin: 1em 0; padding: 0.5em 1em; }
+      legend { padding: 0 0.4em; font-weight: bold; }
+      label { display: block; margin: 0.3em 0; }
+      label .lbl { display: inline-block; min-width: 9em; }
+      input[type=text], input[type=email], input[type=tel], input[type=url], textarea {
+        width: 22em; max-width: 100%; padding: 0.2em; font: inherit;
+      }
+      textarea { height: 5em; }
+      select { font: inherit; }
+      .row { display: flex; flex-wrap: wrap; gap: 0.4em; align-items: center;
+             margin: 0.3em 0; }
+      .row .lbl { min-width: 0; }
+      .actions { margin: 1em 0; }
+      .actions button, .actions a {
+        padding: 0.4em 1em; border: 1px solid #888; background: #f0f0f0;
+        text-decoration: none; color: inherit; font: inherit; cursor: pointer;
+        margin-right: 0.4em;
+      }
+      .actions .danger { color: #a00; border-color: #a00; background: #fff; }
+      .flash { padding: 0.5em; background: #e6f5e6; border: 1px solid #8c8; margin: 0.5em 0; }
+    </style>
+  </head>
+  <body>
+    <p><a href="{{ collection_url }}">&larr; Back to contacts</a></p>
+    <h1>
+      {% if name %}Edit contact{% else %}New contact{% endif %}
+    </h1>
+    {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+
+    <form method="post" action="{{ collection_url }}">
+      <input type="hidden" name="action" value="{% if name %}update{% else %}create{% endif %}">
+      {% if name %}<input type="hidden" name="name" value="{{ name }}">{% endif %}
+
+      <fieldset>
+        <legend>Name</legend>
+        <label>
+          <span class="lbl">Display name</span>
+          <input type="text" name="fn" value="{{ contact.fn }}">
+        </label>
+        <label>
+          <span class="lbl">Given name</span>
+          <input type="text" name="given_name" value="{{ contact.n.given }}">
+        </label>
+        <label>
+          <span class="lbl">Family name</span>
+          <input type="text" name="family_name" value="{{ contact.n.family }}">
+        </label>
+        <label>
+          <span class="lbl">Additional</span>
+          <input type="text" name="additional_names" value="{{ contact.n.additional }}">
+        </label>
+        <label>
+          <span class="lbl">Prefix</span>
+          <input type="text" name="prefix" value="{{ contact.n.prefix }}">
+        </label>
+        <label>
+          <span class="lbl">Suffix</span>
+          <input type="text" name="suffix" value="{{ contact.n.suffix }}">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Email addresses</legend>
+        {% set emails = contact.emails + [{'value':'','type':''}, {'value':'','type':''}] %}
+        {% for entry in emails %}
+        <div class="row">
+          <input type="email" name="email_{{ loop.index0 }}" value="{{ entry.value }}">
+          <select name="email_type_{{ loop.index0 }}">
+            <option value=""        {% if not entry.type %}selected{% endif %}>(no type)</option>
+            <option value="HOME"    {% if entry.type == 'HOME' %}selected{% endif %}>Home</option>
+            <option value="WORK"    {% if entry.type == 'WORK' %}selected{% endif %}>Work</option>
+            <option value="OTHER"   {% if entry.type == 'OTHER' %}selected{% endif %}>Other</option>
+          </select>
+        </div>
+        {% endfor %}
+      </fieldset>
+
+      <fieldset>
+        <legend>Phone numbers</legend>
+        {% set tels = contact.tels + [{'value':'','type':''}, {'value':'','type':''}] %}
+        {% for entry in tels %}
+        <div class="row">
+          <input type="tel" name="tel_{{ loop.index0 }}" value="{{ entry.value }}">
+          <select name="tel_type_{{ loop.index0 }}">
+            <option value=""        {% if not entry.type %}selected{% endif %}>(no type)</option>
+            <option value="CELL"    {% if entry.type == 'CELL' %}selected{% endif %}>Mobile</option>
+            <option value="HOME"    {% if entry.type == 'HOME' %}selected{% endif %}>Home</option>
+            <option value="WORK"    {% if entry.type == 'WORK' %}selected{% endif %}>Work</option>
+            <option value="FAX"     {% if entry.type == 'FAX' %}selected{% endif %}>Fax</option>
+          </select>
+        </div>
+        {% endfor %}
+      </fieldset>
+
+      <fieldset>
+        <legend>Other</legend>
+        <label>
+          <span class="lbl">Organisation</span>
+          <input type="text" name="org" value="{{ contact.org }}">
+        </label>
+        <label>
+          <span class="lbl">Title</span>
+          <input type="text" name="title" value="{{ contact.title }}">
+        </label>
+        <label>
+          <span class="lbl">URL</span>
+          <input type="url" name="url" value="{{ contact.url }}">
+        </label>
+        <label>
+          <span class="lbl">Note</span>
+          <textarea name="note">{{ contact.note }}</textarea>
+        </label>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit">Save</button>
+        <a href="{{ collection_url }}">Cancel</a>
+      </div>
+    </form>
+
+    {% if name %}
+    <form method="post" action="{{ collection_url }}"
+          onsubmit="return confirm('Delete this contact?');">
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="name" value="{{ name }}">
+      <div class="actions">
+        <button type="submit" class="danger">Delete contact</button>
+      </div>
+    </form>
+    {% endif %}
+  </body>
+</html>
