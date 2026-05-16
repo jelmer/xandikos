@@ -25,11 +25,10 @@
     <h1>{{ collection.get_displayname() }}</h1>
     <div class="meta">
       {{ contacts|length }} contact{% if contacts|length != 1 %}s{% endif %}
-      &middot; <a href="{{ self_url }}">CardDAV URL</a>
     </div>
 
     <div class="actions">
-      <a href="{{ urljoin(self_url + '/', '_new') }}">Add contact</a>
+      <a href="{{ urljoin(self_url + '/', '+new') }}">Add contact</a>
     </div>
 
     {% if contacts %}

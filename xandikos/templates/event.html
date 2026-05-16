@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>
+      {% if name %}Edit{% else %}New{% endif %}
+      {% if component.kind == 'todo' %}task{% else %}event{% endif %}
+      {% if component.summary %} - {{ component.summary }}{% endif %}
+    </title>
+    <style>
+      body { font-family: sans-serif; max-width: 45em; margin: 1em auto; padding: 0 1em; }
+      h1 { margin-bottom: 0.4em; }
+      fieldset { border: 1px solid #ddd; margin: 1em 0; padding: 0.5em 1em; }
+      legend { padding: 0 0.4em; font-weight: bold; }
+      label { display: block; margin: 0.4em 0; }
+      label .lbl { display: inline-block; min-width: 7em; }
+      input[type=text], input[type=date], input[type=time],
+      input[type=datetime-local], textarea, select {
+        font: inherit; padding: 0.25em;
+      }
+      input[type=text] { width: 25em; max-width: 100%; }
+      textarea { width: 25em; max-width: 100%; height: 5em; }
+      .note { color: #666; font-size: 0.9em; }
+      .actions { margin: 1em 0; }
+      .actions button, .actions a {
+        padding: 0.4em 1em; border: 1px solid #888; background: #f0f0f0;
+        text-decoration: none; color: inherit; font: inherit; cursor: pointer;
+        margin-right: 0.4em;
+      }
+      .actions .danger { color: #a00; border-color: #a00; background: #fff; }
+      .warn { background: #fff7e0; border: 1px solid #c90; padding: 0.5em; margin: 0.5em 0; }
+    </style>
+  </head>
+  <body>
+    <p><a href="{{ collection_url }}">&larr; Back to calendar</a></p>
+    <h1>
+      {% if name %}Edit{% else %}New{% endif %}
+      {% if component.kind == 'todo' %}task{% else %}event{% endif %}
+    </h1>
+
+    {% if component.rrule %}
+    <div class="warn">
+      This is a recurring item ({{ component.rrule }}). Edits affect the
+      master, and therefore every occurrence.
+    </div>
+    {% endif %}
+    {% if component.has_attendees %}
+    <div class="warn">
+      This item has attendees attached. They will be preserved, but you
+      may want to send updates from a CalDAV client to notify them.
+    </div>
+    {% endif %}
+
+    <form method="post" action="{{ collection_url }}">
+      <input type="hidden" name="action" value="{% if name %}update{% else %}create{% endif %}">
+      <input type="hidden" name="kind" value="{{ component.kind }}">
+      {% if name %}<input type="hidden" name="name" value="{{ name }}">{% endif %}
+
+      <fieldset>
+        <legend>What</legend>
+        <label>
+          <span class="lbl">Summary</span>
+          <input type="text" name="summary" value="{{ component.summary }}" required>
+        </label>
+        <label>
+          <span class="lbl">Location</span>
+          <input type="text" name="location" value="{{ component.location }}">
+        </label>
+        <label>
+          <span class="lbl">Description</span>
+          <textarea name="description">{{ component.description }}</textarea>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>{% if component.kind == 'todo' %}Due{% else %}When{% endif %}</legend>
+        <label>
+          <input type="checkbox" name="all_day" value="1"
+                 {% if component.all_day %}checked{% endif %}
+                 onchange="document.getElementById('time-rows').style.display = this.checked ? 'none' : 'block';
+                           document.getElementById('date-rows').style.display = this.checked ? 'block' : 'none';">
+          All day
+        </label>
+        <div id="time-rows" style="{% if component.all_day %}display:none{% endif %}">
+          {% if component.kind != 'todo' %}
+          <label>
+            <span class="lbl">Start</span>
+            <input type="datetime-local" name="start_dt" value="{{ component.start_dt }}">
+          </label>
+          {% endif %}
+          <label>
+            <span class="lbl">{% if component.kind == 'todo' %}Due at{% else %}End{% endif %}</span>
+            <input type="datetime-local" name="end_dt" value="{{ component.end_dt }}">
+          </label>
+        </div>
+        <div id="date-rows" style="{% if not component.all_day %}display:none{% endif %}">
+          {% if component.kind != 'todo' %}
+          <label>
+            <span class="lbl">Start date</span>
+            <input type="date" name="start_date" value="{{ component.start_date }}">
+          </label>
+          {% endif %}
+          <label>
+            <span class="lbl">{% if component.kind == 'todo' %}Due date{% else %}End date{% endif %}</span>
+            <input type="date" name="end_date" value="{{ component.end_date }}">
+          </label>
+        </div>
+        <p class="note">Times use your local timezone.</p>
+      </fieldset>
+
+      {% if component.kind == 'todo' %}
+      <fieldset>
+        <legend>Status</legend>
+        <label>
+          <span class="lbl">Status</span>
+          <select name="status">
+            <option value="NEEDS-ACTION" {% if component.status == 'NEEDS-ACTION' or not component.status %}selected{% endif %}>To do</option>
+            <option value="IN-PROCESS"   {% if component.status == 'IN-PROCESS' %}selected{% endif %}>In progress</option>
+            <option value="COMPLETED"    {% if component.status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+            <option value="CANCELLED"    {% if component.status == 'CANCELLED' %}selected{% endif %}>Cancelled</option>
+          </select>
+        </label>
+      </fieldset>
+      {% endif %}
+
+      <div class="actions">
+        <button type="submit">Save</button>
+        <a href="{{ collection_url }}">Cancel</a>
+      </div>
+    </form>
+
+    {% if name %}
+    <form method="post" action="{{ collection_url }}"
+          onsubmit="return confirm('Delete this {{ component.kind }}?');">
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="name" value="{{ name }}">
+      <div class="actions">
+        <button type="submit" class="danger">Delete</button>
+      </div>
+    </form>
+    {% endif %}
+  </body>
+</html>

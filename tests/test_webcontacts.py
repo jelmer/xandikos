@@ -206,7 +206,7 @@ class WebContactsAppTests(unittest.TestCase):
         self.assertIn(b"BEGIN:VCARD", body)
 
     def test_new_contact_form(self):
-        status, _headers, body = self._request("GET", "/addressbook/_new")
+        status, _headers, body = self._request("GET", "/addressbook/+new")
         self.assertEqual(status, "200 OK")
         text = body.decode("utf-8")
         self.assertIn("New contact", text)
