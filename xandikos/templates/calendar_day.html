@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>{{ day.isoformat() }} - {{ collection.get_displayname() }}</title>
+    <style>
+      body { font-family: sans-serif; max-width: 55em; margin: 1em auto; padding: 0 1em; }
+      h1 { margin-bottom: 0.2em; }
+      .nav { margin: 0.5em 0 1em; display: flex; gap: 0.6em; align-items: center; }
+      .nav a, .nav button {
+        padding: 0.3em 0.8em; border: 1px solid #888; background: #f0f0f0;
+        text-decoration: none; color: inherit; font: inherit; cursor: pointer;
+      }
+      .nav .spacer { flex: 1; }
+      ul.events { list-style: none; padding: 0; }
+      ul.events li {
+        border: 1px solid #ddd; border-left: 4px solid #69a; padding: 0.5em 0.8em;
+        margin: 0.4em 0; background: #fff;
+      }
+      ul.events li.todo { border-left-color: #c80; }
+      ul.events li.todo.done { opacity: 0.65; }
+      .time { color: #555; font-variant-numeric: tabular-nums; }
+      .ev-link { color: inherit; text-decoration: none; font-weight: bold; }
+      .ev-link:hover { text-decoration: underline; }
+      .loc { color: #777; margin-left: 0.4em; }
+      .row { display: flex; gap: 0.5em; align-items: center; }
+      .row .spacer { flex: 1; }
+      .quick { display: inline; }
+      .quick button {
+        background: #eee; border: 1px solid #aaa; padding: 0.2em 0.6em;
+        cursor: pointer; font: inherit;
+      }
+      .empty { color: #888; font-style: italic; padding: 1em 0; }
+      .muted { color: #888; font-size: 0.9em; margin-top: 1em; }
+    </style>
+  </head>
+  <body>
+    <p><a href="{{ collection_url }}">&larr; Back to month</a></p>
+    <h1>{{ day.strftime('%A, %d %B %Y') }}</h1>
+
+    <div class="nav">
+      <a href="{{ urljoin(collection_url, '+day/' + prev_day.isoformat()) }}">&laquo; Prev day</a>
+      <a href="{{ urljoin(collection_url, '+day/' + next_day.isoformat()) }}">Next day &raquo;</a>
+      <span class="spacer"></span>
+      <a href="{{ urljoin(collection_url, '+new?date=' + day.isoformat()) }}">+ New event</a>
+      <a href="{{ urljoin(collection_url, '+new?kind=todo&date=' + day.isoformat()) }}">+ New task</a>
+    </div>
+
+    {% if events %}
+    <ul class="events">
+    {% for ev in events %}
+      <li class="{{ ev.kind }} {% if ev.status == 'COMPLETED' %}done{% endif %}">
+        <div class="row">
+          <span class="time">
+            {% if ev.all_day %}all day{% else %}{{ ev.start_time or '--:--' }}{% endif %}
+          </span>
+          <a class="ev-link" href="{{ urljoin(collection_url, quote(ev.name)) }}">{{ ev.summary or '(no title)' }}</a>
+          {% if ev.location %}<span class="loc">@ {{ ev.location }}</span>{% endif %}
+          <span class="spacer"></span>
+          {% if ev.kind == 'todo' %}
+          <form class="quick" method="post" action="{{ collection_url }}">
+            <input type="hidden" name="action" value="toggle_done">
+            <input type="hidden" name="name" value="{{ ev.name }}">
+            <input type="hidden" name="back_url" value="{{ urljoin(collection_url, '+day/' + day.isoformat()) }}">
+            <button type="submit">
+              {% if ev.status == 'COMPLETED' %}Reopen{% else %}Mark done{% endif %}
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">Nothing scheduled for this day.</p>
+    {% endif %}
+
+    <p class="muted">Xandikos {{ version }}</p>
+  </body>
+</html>

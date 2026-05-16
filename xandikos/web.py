@@ -346,13 +346,22 @@ class ObjectResource(webdav.Resource):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
-        # vCard resources also render as HTML when the browser asks for it,
-        # so users can view and edit contacts in a web UI. CardDAV clients
-        # only ask for text/vcard and continue to get the raw body.
+        # vCard and iCalendar resources also render as HTML when the
+        # browser asks for it, so users can view and edit contacts and
+        # events in a web UI. CardDAV/CalDAV clients only ask for the
+        # native types and continue to get the raw body.
         if self.content_type == "text/vcard":
             from . import webcontacts
 
             rendered = await webcontacts.maybe_render_contact(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+            if rendered is not None:
+                return rendered
+        elif self.content_type == "text/calendar":
+            from . import webcalendar
+
+            rendered = await webcalendar.maybe_render_event(
                 self, self_url, accepted_content_types, accepted_content_languages
             )
             if rendered is not None:
@@ -1030,7 +1039,179 @@ class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
         return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"]
 
 
+class _TransientHtmlResource(webdav.Resource):
+    """Base for the virtual web-UI resources (forms, day views).
+
+    These resources don't exist on disk — they only exist long enough
+    to render an HTML page in response to a GET. Subclasses override
+    ``render``; the rest is plumbing that says "I have no body, no
+    etag, no locks" so the WebDAV layer doesn't try to do anything
+    interesting with them.
+    """
+
+    resource_types: list[str] = []
+    content_type = "text/html"
+
+    def get_content_type(self) -> str:
+        return "text/html"
+
+    async def get_etag(self) -> str:
+        raise KeyError
+
+    def get_supported_locks(self):
+        return []
+
+    def get_active_locks(self):
+        return []
+
+    def get_owner(self):
+        return None
+
+    async def get_body(self):
+        raise KeyError
+
+    def get_content_language(self):
+        raise KeyError
+
+    def get_last_modified(self):
+        raise KeyError
+
+
+def _clean_parent_url(self_url: str, levels: int = 1) -> str:
+    """Return ``self_url`` minus the last ``levels`` path segments.
+
+    Path slashes are collapsed first so that proxy-injected ``//``
+    runs don't poison the resulting URL (see
+    ``webcontacts._post_target_url``).
+    """
+    import re
+    from urllib.parse import urlsplit, urlunsplit
+
+    parsed = urlsplit(self_url)
+    clean = re.sub(r"/+", "/", parsed.path) or "/"
+    parts = clean.rstrip("/").split("/")
+    parts = parts[: max(0, len(parts) - levels)]
+    new_path = "/".join(parts) + "/"
+    return urlunsplit(parsed._replace(path=new_path, query="", fragment=""))
+
+
+class _NewEventResource(_TransientHtmlResource):
+    """``<calendar>/+new`` — empty new-event/new-task form."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from urllib.parse import parse_qs, urlsplit
+
+        from . import webcalendar
+
+        parsed = urlsplit(self_url)
+        params = parse_qs(parsed.query)
+        kind = (params.get("kind") or ["event"])[0]
+        initial = webcalendar._parse_date((params.get("date") or [None])[0])
+        parent_url = _clean_parent_url(self_url)
+        return await webcalendar.render_new_event_form(
+            self.collection, parent_url, kind=kind, initial_date=initial
+        )
+
+
+class _CalendarDayResource(_TransientHtmlResource):
+    """``<calendar>/+day/<YYYY-MM-DD>`` — list of events for one day."""
+
+    def __init__(self, collection: "CalendarCollection", day) -> None:
+        self.collection = collection
+        self.day = day
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_day(self.collection, self_url, self.day)
+
+
+class _CalendarDayIndex(_TransientHtmlResource):
+    """``<calendar>/+day/`` — namespace whose children resolve a date.
+
+    Has ``COLLECTION_RESOURCE_TYPE`` so the backend's path resolver
+    walks through it to ``get_member(<YYYY-MM-DD>)``.
+    """
+
+    resource_types: list[str] = [webdav.COLLECTION_RESOURCE_TYPE]
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    def get_member(self, name: str) -> webdav.Resource:
+        from . import webcalendar
+
+        parsed = webcalendar._parse_date(name)
+        if parsed is None:
+            raise KeyError(name)
+        return _CalendarDayResource(self.collection, parsed)
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Bare ``/_day/`` redirects users to today's day view by
+        # rendering it directly — no point making them guess a URL.
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from datetime import date as _date
+
+        from . import webcalendar
+
+        return await webcalendar.render_day(self.collection, self_url, _date.today())
+
+
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get the month-grid calendar UI; CalDAV clients still
+        # use PROPFIND/REPORT and never hit GET on the collection.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcalendar
+
+            return await webcalendar.render_month(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
+    def get_member(self, name):
+        # Virtual children: ``+new`` serves an empty event/task form,
+        # and ``+day`` is a namespace for per-day views — the real
+        # date-suffixed child is resolved in get_resource on the
+        # backend (see _CalendarDayResource below). The "+" prefix
+        # keeps these clearly distinct from any real .ics filename.
+        if name == "+new":
+            return _NewEventResource(self)
+        if name == "+day":
+            return _CalendarDayIndex(self)
+        return super().get_member(name)
+
+    async def handle_post(self, request, environ, path, body, content_type):
+        from . import webcalendar
+
+        handled = await webcalendar.handle_post(
+            self, request, environ, path, body, content_type
+        )
+        if handled is not None:
+            return handled
+        return await super().handle_post(request, environ, path, body, content_type)
+
     def get_calendar_description(self):
         return self.store.get_description()
 
@@ -1773,43 +1954,15 @@ def _user_partstats(cal: Calendar, address: str) -> dict[tuple[str, str, str], s
     return out
 
 
-class _NewContactResource(webdav.Resource):
-    """Transient resource that renders the empty new-contact form.
+class _NewContactResource(_TransientHtmlResource):
+    """``<addressbook>/+new`` — empty new-contact form.
 
-    Lives at ``<addressbook>/_new`` so a browser can request a blank
-    form via GET. It has no body of its own and is not enumerable —
-    nothing is written until the form posts back to the collection.
+    Lives only long enough to render an HTML page; nothing is written
+    until the form posts back to the collection.
     """
-
-    resource_types: list[str] = []
-    content_type = "text/html"
 
     def __init__(self, collection: "AddressbookCollection") -> None:
         self.collection = collection
-
-    def get_content_type(self) -> str:
-        return "text/html"
-
-    async def get_etag(self) -> str:
-        raise KeyError
-
-    def get_supported_locks(self):
-        return []
-
-    def get_active_locks(self):
-        return []
-
-    def get_owner(self):
-        return None
-
-    async def get_body(self):
-        raise KeyError
-
-    def get_content_language(self):
-        raise KeyError
-
-    def get_last_modified(self):
-        raise KeyError
 
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
@@ -1817,16 +1970,7 @@ class _NewContactResource(webdav.Resource):
         webdav.pick_content_types(accepted_content_types, ["text/html"])
         from . import webcontacts
 
-        # Collapse stray "//" runs that some reverse-proxy setups
-        # inject into the path before deriving the parent URL — see
-        # webcontacts._post_target_url for context.
-        import re
-        from urllib.parse import urlsplit, urlunsplit
-
-        parsed = urlsplit(self_url)
-        clean = re.sub(r"/+", "/", parsed.path) or "/"
-        parent_path = clean.rsplit("/", 1)[0] + "/"
-        parent_url = urlunsplit(parsed._replace(path=parent_path))
+        parent_url = _clean_parent_url(self_url)
         return await webcontacts.render_new_contact_form(self.collection, parent_url)
 
 
@@ -1854,10 +1998,11 @@ class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
         )
 
     def get_member(self, name):
-        # Pseudo-member: the "_new" path serves an empty edit form.
+        # Pseudo-member: the "+new" path serves an empty edit form.
         # It isn't stored, only rendered, so we hand back a transient
-        # resource that ignores set_body and reports no etag.
-        if name == "_new":
+        # resource that ignores set_body and reports no etag. The "+"
+        # prefix keeps these distinct from any real .vcf filename.
+        if name == "+new":
             return _NewContactResource(self)
         return super().get_member(name)
 

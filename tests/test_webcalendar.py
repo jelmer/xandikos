@@ -1,0 +1,456 @@
+# Xandikos
+# Copyright (C) 2026 Jelmer Vernooĳ <jelmer@jelmer.uk>, et al.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; version 3
+# of the License or (at your option) any later version of
+# the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+# MA  02110-1301, USA.
+
+"""Tests for the browser-facing calendar UI in xandikos.webcalendar."""
+
+import io
+import os
+import shutil
+import tempfile
+import unittest
+from datetime import date
+from urllib.parse import urlencode
+from wsgiref.util import setup_testing_defaults
+
+from icalendar import Calendar as ICalendar
+
+from xandikos import webcalendar
+from xandikos.icalendar import ICalendarFile
+from xandikos.store import STORE_TYPE_CALENDAR
+from xandikos.store.git import TreeGitStore
+from xandikos.web import CalendarCollection, SingleUserFilesystemBackend, XandikosApp
+
+
+EXAMPLE_EVENT = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:event-1
+DTSTAMP:20260101T120000Z
+SUMMARY:Team sync
+DTSTART:20260516T100000
+DTEND:20260516T110000
+LOCATION:Room A
+DESCRIPTION:Weekly catch-up
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+EXAMPLE_TODO = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VTODO
+UID:todo-1
+DTSTAMP:20260101T120000Z
+SUMMARY:Buy milk
+DUE:20260516T180000
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR
+"""
+
+
+EXAMPLE_RECURRING = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:recurring-1
+DTSTAMP:20260101T120000Z
+SUMMARY:Daily standup
+DTSTART:20260515T093000
+DTEND:20260515T094500
+RRULE:FREQ=DAILY;COUNT=5
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+EXAMPLE_ALL_DAY = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:allday-1
+DTSTAMP:20260101T120000Z
+SUMMARY:Conference
+DTSTART;VALUE=DATE:20260518
+DTEND;VALUE=DATE:20260521
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+class HelperTests(unittest.TestCase):
+    def test_parse_month_valid(self):
+        self.assertEqual(webcalendar._parse_month("2026-05"), (2026, 5))
+        self.assertEqual(webcalendar._parse_month("2024-12"), (2024, 12))
+
+    def test_parse_month_bad_falls_back(self):
+        # Bad input falls back to current month.
+        y, m = webcalendar._parse_month("nope")
+        self.assertEqual((y, m), (date.today().year, date.today().month))
+        y, m = webcalendar._parse_month("2026-13")
+        self.assertEqual((y, m), (date.today().year, date.today().month))
+
+    def test_shift_month_wraps_year(self):
+        self.assertEqual(webcalendar._shift_month(2026, 1, -1), (2025, 12))
+        self.assertEqual(webcalendar._shift_month(2026, 12, +1), (2027, 1))
+        self.assertEqual(webcalendar._shift_month(2026, 5, 0), (2026, 5))
+
+    def test_month_grid_starts_on_monday(self):
+        grid = webcalendar._month_grid(2026, 5)
+        # First week's first day is a Monday.
+        self.assertEqual(grid[0][0].weekday(), 0)
+        # All dates in the grid are date instances.
+        self.assertTrue(all(isinstance(d, date) for week in grid for d in week))
+
+    def test_component_to_form_round_trip(self):
+        cal = ICalendar.from_ical(EXAMPLE_EVENT)
+        ev = next(c for c in cal.subcomponents if c.name == "VEVENT")
+        form = webcalendar.component_to_form(ev)
+        self.assertEqual(form["kind"], "event")
+        self.assertEqual(form["summary"], "Team sync")
+        self.assertEqual(form["location"], "Room A")
+        self.assertEqual(form["start_dt"], "2026-05-16T10:00")
+        self.assertEqual(form["end_dt"], "2026-05-16T11:00")
+        self.assertFalse(form["all_day"])
+
+    def test_component_to_form_all_day(self):
+        cal = ICalendar.from_ical(EXAMPLE_ALL_DAY)
+        ev = next(c for c in cal.subcomponents if c.name == "VEVENT")
+        form = webcalendar.component_to_form(ev)
+        self.assertTrue(form["all_day"])
+        self.assertEqual(form["start_date"], "2026-05-18")
+        # DTEND is exclusive (5/21) so the user-visible end is 5/20.
+        self.assertEqual(form["end_date"], "2026-05-20")
+
+    def test_build_new_event_from_form(self):
+        cal = webcalendar.build_new_component(
+            {
+                "kind": "event",
+                "summary": "New thing",
+                "start_dt": "2026-06-01T09:00",
+                "end_dt": "2026-06-01T10:00",
+                "location": "Anywhere",
+            }
+        )
+        ev = next(c for c in cal.subcomponents if c.name == "VEVENT")
+        self.assertEqual(str(ev["SUMMARY"]), "New thing")
+        self.assertEqual(str(ev["LOCATION"]), "Anywhere")
+        self.assertIn("DTSTAMP", ev)
+        self.assertIn("UID", ev)
+
+    def test_build_new_todo_from_form(self):
+        cal = webcalendar.build_new_component(
+            {
+                "kind": "todo",
+                "summary": "Do laundry",
+                "all_day": "1",
+                "end_date": "2026-06-01",
+                "status": "NEEDS-ACTION",
+            }
+        )
+        td = next(c for c in cal.subcomponents if c.name == "VTODO")
+        self.assertEqual(str(td["SUMMARY"]), "Do laundry")
+        self.assertEqual(str(td["STATUS"]), "NEEDS-ACTION")
+        self.assertIn("DUE", td)
+
+    def test_update_calendar_preserves_other_props(self):
+        cal = ICalendar.from_ical(
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//\r\n"
+            b"BEGIN:VEVENT\r\nUID:x\r\nDTSTAMP:20260101T000000Z\r\n"
+            b"SUMMARY:Old\r\nDTSTART:20260601T100000\r\nDTEND:20260601T110000\r\n"
+            b"RRULE:FREQ=DAILY\r\nORGANIZER:mailto:a@example.org\r\n"
+            b"ATTENDEE:mailto:b@example.org\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        updated = webcalendar.update_calendar(
+            cal,
+            {
+                "summary": "Updated",
+                "start_dt": "2026-06-01T11:00",
+                "end_dt": "2026-06-01T12:00",
+            },
+        )
+        ev = next(c for c in updated.subcomponents if c.name == "VEVENT")
+        self.assertEqual(str(ev["SUMMARY"]), "Updated")
+        # RRULE/ORGANIZER/ATTENDEE preserved
+        self.assertIn("RRULE", ev)
+        self.assertIn("ORGANIZER", ev)
+        self.assertIn("ATTENDEE", ev)
+
+
+class WebCalendarAppTests(unittest.TestCase):
+    """End-to-end tests via XandikosApp."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+
+        store_path = os.path.join(self.tempdir, "calendar")
+        self.store = TreeGitStore.create(store_path)
+        self.store.set_type(STORE_TYPE_CALENDAR)
+        self.store.load_extra_file_handler(ICalendarFile)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.collection = CalendarCollection(self.backend, "calendar", self.store)
+        self.app = XandikosApp(self.backend, "user")
+
+    def _request(self, method, path, query="", body=b"", accept="text/html"):
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": method,
+            "QUERY_STRING": query,
+            "HTTP_ACCEPT": accept,
+        }
+        if body:
+            environ["wsgi.input"] = io.BytesIO(body)
+            environ["CONTENT_LENGTH"] = str(len(body))
+            environ["CONTENT_TYPE"] = "application/x-www-form-urlencoded"
+        setup_testing_defaults(environ)
+        environ["QUERY_STRING"] = query
+        captured = {}
+
+        def sr(status, headers):
+            captured["s"] = status
+            captured["h"] = dict(headers)
+
+        body_bytes = b"".join(self.app(environ, sr))
+        return captured["s"], captured["h"], body_bytes
+
+    # -- month view ----------------------------------------------------
+
+    def test_month_view_renders(self):
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        status, headers, body = self._request(
+            "GET", "/calendar/", query="month=2026-05"
+        )
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        self.assertIn("May 2026", text)
+        self.assertIn("Team sync", text)
+        # Has both nav buttons
+        self.assertIn("month=2026-04", text)
+        self.assertIn("month=2026-06", text)
+
+    def test_month_view_empty(self):
+        status, _h, body = self._request("GET", "/calendar/", query="month=2026-05")
+        self.assertEqual(status, "200 OK")
+        self.assertIn(b'<table class="month"', body)
+
+    def test_recurring_event_expands_into_grid(self):
+        self.store.import_one("rec.ics", "text/calendar", [EXAMPLE_RECURRING])
+        _s, _h, body = self._request("GET", "/calendar/", query="month=2026-05")
+        # Five occurrences within May → five rendered links. Count
+        # title="..." which the template emits exactly once per link.
+        self.assertEqual(body.decode("utf-8").count('title="Daily standup'), 5)
+
+    def test_all_day_event_spans_cells(self):
+        self.store.import_one("ad.ics", "text/calendar", [EXAMPLE_ALL_DAY])
+        _s, _h, body = self._request("GET", "/calendar/", query="month=2026-05")
+        # 5/18..5/20 = 3 day-cells (DTEND exclusive).
+        self.assertEqual(body.decode("utf-8").count('title="Conference'), 3)
+
+    # -- day view ------------------------------------------------------
+
+    def test_day_view_renders(self):
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        self.store.import_one("todo-1.ics", "text/calendar", [EXAMPLE_TODO])
+        status, _h, body = self._request("GET", "/calendar/+day/2026-05-16")
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        self.assertIn("Team sync", text)
+        self.assertIn("Buy milk", text)
+        self.assertIn("Mark done", text)  # VTODO quick-toggle
+
+    def test_day_view_bad_date(self):
+        status, _h, _b = self._request("GET", "/calendar/+day/not-a-date")
+        self.assertEqual(status, "404 Not Found")
+
+    # -- event view ----------------------------------------------------
+
+    def test_event_view_html(self):
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        status, headers, body = self._request("GET", "/calendar/event-1.ics")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/html", headers["Content-Type"])
+        text = body.decode("utf-8")
+        self.assertIn('name="summary"', text)
+        self.assertIn("Team sync", text)
+        self.assertIn("2026-05-16T10:00", text)
+
+    def test_event_view_raw_for_caldav(self):
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        status, headers, body = self._request(
+            "GET", "/calendar/event-1.ics", accept="text/calendar"
+        )
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/calendar", headers["Content-Type"])
+        self.assertIn(b"BEGIN:VEVENT", body)
+
+    def test_new_event_form(self):
+        status, _h, body = self._request("GET", "/calendar/+new")
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        self.assertIn("New", text)
+        self.assertIn("event", text)
+        self.assertIn('name="summary"', text)
+
+    def test_new_todo_form_via_query(self):
+        status, _h, body = self._request("GET", "/calendar/+new", query="kind=todo")
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        # Task UI surfaces the status select
+        self.assertIn('name="status"', text)
+
+    # -- POST flow -----------------------------------------------------
+
+    def test_create_event(self):
+        body = urlencode(
+            {
+                "action": "create",
+                "kind": "event",
+                "summary": "Lunch",
+                "start_dt": "2026-05-16T12:00",
+                "end_dt": "2026-05-16T13:00",
+                "location": "Cafe",
+            }
+        ).encode("utf-8")
+        status, headers, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        self.assertTrue(headers["Location"].endswith(".ics"))
+        # File persisted
+        files = [n for n, _ct, _e in self.store.iter_with_etag()]
+        self.assertEqual(len(files), 1)
+        stored = b"".join(self.store.get_file(files[0], "text/calendar").content)
+        self.assertIn(b"SUMMARY:Lunch", stored)
+
+    def test_create_all_day_event_dtend_is_exclusive(self):
+        body = urlencode(
+            {
+                "action": "create",
+                "kind": "event",
+                "summary": "Trip",
+                "all_day": "1",
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-03",
+            }
+        ).encode("utf-8")
+        status, _h, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        files = [n for n, _ct, _e in self.store.iter_with_etag()]
+        stored = b"".join(
+            self.store.get_file(files[0], "text/calendar").content
+        ).decode("utf-8")
+        # DTEND stored as 6/4 (exclusive); display range is 6/1..6/3.
+        self.assertIn("DTSTART;VALUE=DATE:20260601", stored)
+        self.assertIn("DTEND;VALUE=DATE:20260604", stored)
+
+    def test_update_event_preserves_uid_and_attendees(self):
+        ical = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//\r\n"
+            b"BEGIN:VEVENT\r\nUID:keep-me\r\nDTSTAMP:20260101T000000Z\r\n"
+            b"SUMMARY:Old\r\nDTSTART:20260601T100000\r\nDTEND:20260601T110000\r\n"
+            b"ATTENDEE:mailto:bob@example.org\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        self.store.import_one("keep-me.ics", "text/calendar", [ical])
+        body = urlencode(
+            {
+                "action": "update",
+                "name": "keep-me.ics",
+                "summary": "New summary",
+                "start_dt": "2026-06-01T12:00",
+                "end_dt": "2026-06-01T13:00",
+            }
+        ).encode("utf-8")
+        status, headers, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        self.assertTrue(headers["Location"].endswith("/calendar/keep-me.ics"))
+        stored = b"".join(
+            self.store.get_file("keep-me.ics", "text/calendar").content
+        ).decode("utf-8")
+        self.assertIn("UID:keep-me", stored)
+        self.assertIn("SUMMARY:New summary", stored)
+        self.assertIn("ATTENDEE:mailto:bob@example.org", stored)
+
+    def test_delete_event(self):
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        body = urlencode({"action": "delete", "name": "event-1.ics"}).encode("utf-8")
+        status, headers, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        self.assertTrue(headers["Location"].endswith("/calendar/"))
+        with self.assertRaises(KeyError):
+            self.store.get_file("event-1.ics", "text/calendar")
+
+    def test_toggle_done_marks_todo_completed(self):
+        self.store.import_one("todo-1.ics", "text/calendar", [EXAMPLE_TODO])
+        body = urlencode({"action": "toggle_done", "name": "todo-1.ics"}).encode(
+            "utf-8"
+        )
+        status, _h, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        stored = b"".join(
+            self.store.get_file("todo-1.ics", "text/calendar").content
+        ).decode("utf-8")
+        self.assertIn("STATUS:COMPLETED", stored)
+        self.assertIn("COMPLETED:", stored)
+
+    def test_toggle_done_reopens_completed_todo(self):
+        completed = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//\r\n"
+            b"BEGIN:VTODO\r\nUID:t1\r\nDTSTAMP:20260101T000000Z\r\n"
+            b"SUMMARY:Done thing\r\nSTATUS:COMPLETED\r\n"
+            b"COMPLETED:20260101T000000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+        self.store.import_one("t1.ics", "text/calendar", [completed])
+        body = urlencode({"action": "toggle_done", "name": "t1.ics"}).encode("utf-8")
+        status, _h, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        stored = b"".join(
+            self.store.get_file("t1.ics", "text/calendar").content
+        ).decode("utf-8")
+        self.assertIn("STATUS:NEEDS-ACTION", stored)
+        self.assertNotIn("COMPLETED:", stored)
+
+    def test_post_without_action_falls_through(self):
+        # Real CalDAV add-member POST with raw ics still works.
+        environ = {
+            "PATH_INFO": "/calendar/",
+            "REQUEST_METHOD": "POST",
+            "QUERY_STRING": "",
+            "CONTENT_TYPE": "text/calendar",
+            "CONTENT_LENGTH": str(len(EXAMPLE_EVENT)),
+            "wsgi.input": io.BytesIO(EXAMPLE_EVENT),
+            "HTTP_ACCEPT": "*/*",
+        }
+        setup_testing_defaults(environ)
+        captured = {}
+
+        def sr(s, h):
+            captured["s"] = s
+
+        b"".join(self.app(environ, sr))
+        self.assertIn(captured["s"], ("200 OK", "201 Created"))
+
+
+if __name__ == "__main__":
+    unittest.main()
