@@ -794,7 +794,7 @@ class BareGitStore(GitStore):
         Returns: etag
         """
         b = Blob()
-        b.chunked = data
+        b.chunked = list(data)
         tree = self._get_current_tree()
         old_tree_id = tree.id
         name_enc = name.encode(DEFAULT_ENCODING)
