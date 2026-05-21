@@ -1906,6 +1906,41 @@ END:VCALENDAR"""
                 f"RECURRENCE-ID {rid.dt} should be timezone-aware",
             )
 
+    def test_filter_vtodo_rrule_without_dtstart(self):
+        """CalendarFilter time-range check must not crash on VTODO with RRULE but no DTSTART.
+
+        RFC 5545 §3.6.2 makes DTSTART optional for VTODO.  A recurring VTODO
+        that only carries COMPLETED (and no DTSTART/DUE) would previously cause
+        a KeyError in _expand_rrule_component() when xandikos fell back to full
+        calendar expansion for time-range filtering.
+        """
+        test_ical = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VTODO
+UID:recurring-todo-no-dtstart@example.com
+COMPLETED:20231001T105204Z
+DTSTAMP:20231001T124832Z
+RRULE:FREQ=DAILY
+STATUS:COMPLETED
+SUMMARY:g\xc3\xa5 tur
+END:VTODO
+END:VCALENDAR"""
+
+        cal_file = ICalendarFile([test_ical], "text/calendar")
+        filter_obj = CalendarFilter(ZoneInfo("UTC"))
+        filter_obj.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VTODO"
+        ).filter_time_range(
+            start=datetime(2026, 5, 14, tzinfo=timezone.utc),
+            end=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        )
+        # Must not raise KeyError on DTSTART; result may be True or False
+        # (xandikos can't expand without DTSTART, so it treats the task as
+        # timeless and the filter falls through to the file-level check)
+        result = filter_obj.check("test.ics", cal_file)
+        self.assertIsInstance(result, bool)
+
 
 class MixedDateDatetimeTests(unittest.TestCase):
     """Test handling of mixed date/datetime types in EXDATE/RDATE.

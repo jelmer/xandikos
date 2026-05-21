@@ -1964,6 +1964,9 @@ def _expand_rrule_component(
 ) -> Iterable[Component]:
     if "RRULE" not in incomp:
         return
+    if "DTSTART" not in incomp:
+        # RFC 5545 makes DTSTART optional for VTODO; can't expand without it.
+        return
 
     rs = rruleset_from_comp(incomp)
     original_dtstart = incomp["DTSTART"]
