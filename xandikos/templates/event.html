@@ -1,14 +1,8 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>
-      {% if name %}Edit{% else %}New{% endif %}
-      {% if component.kind == 'todo' %}task{% else %}event{% endif %}
-      {% if component.summary %} - {{ component.summary }}{% endif %}
-    </title>
-    <style>
-      body { font-family: sans-serif; max-width: 45em; margin: 1em auto; padding: 0 1em; }
+{% extends "base.html" %}
+{% block title %}{% if name %}Edit{% else %}New{% endif %} {% if component.kind == 'todo' %}task{% else %}event{% endif %}{% if component.summary %} - {{ component.summary }}{% endif %}{% endblock %}
+{% block page_width %}45em{% endblock %}
+{% block parent_link_text %}&larr; Back to calendar{% endblock %}
+{% block extra_style %}
       h1 { margin-bottom: 0.4em; }
       fieldset { border: 1px solid #ddd; margin: 1em 0; padding: 0.5em 1em; }
       legend { padding: 0 0.4em; font-weight: bold; }
@@ -21,18 +15,9 @@
       input[type=text] { width: 25em; max-width: 100%; }
       textarea { width: 25em; max-width: 100%; height: 5em; }
       .note { color: #666; font-size: 0.9em; }
-      .actions { margin: 1em 0; }
-      .actions button, .actions a {
-        padding: 0.4em 1em; border: 1px solid #888; background: #f0f0f0;
-        text-decoration: none; color: inherit; font: inherit; cursor: pointer;
-        margin-right: 0.4em;
-      }
-      .actions .danger { color: #a00; border-color: #a00; background: #fff; }
       .warn { background: #fff7e0; border: 1px solid #c90; padding: 0.5em; margin: 0.5em 0; }
-    </style>
-  </head>
-  <body>
-    <p><a href="{{ collection_url }}">&larr; Back to calendar</a></p>
+{% endblock %}
+{% block content %}
     <h1>
       {% if name %}Edit{% else %}New{% endif %}
       {% if component.kind == 'todo' %}task{% else %}event{% endif %}
@@ -139,5 +124,4 @@
       </div>
     </form>
     {% endif %}
-  </body>
-</html>
+{% endblock %}

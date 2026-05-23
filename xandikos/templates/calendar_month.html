@@ -1,17 +1,7 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>{{ month_name }} {{ year }} - {{ collection.get_displayname() }}</title>
-    <style>
-      body { font-family: sans-serif; max-width: 75em; margin: 1em auto; padding: 0 1em; }
-      h1 { margin-bottom: 0.2em; }
-      .nav { margin: 0.5em 0 1em; display: flex; gap: 0.6em; align-items: center; }
-      .nav a, .nav button {
-        padding: 0.3em 0.8em; border: 1px solid #888; background: #f0f0f0;
-        text-decoration: none; color: inherit; font: inherit; cursor: pointer;
-      }
-      .nav .spacer { flex: 1; }
+{% extends "base.html" %}
+{% block title %}{{ month_name }} {{ year }} - {{ collection.get_displayname() }}{% endblock %}
+{% block page_width %}75em{% endblock %}
+{% block extra_style %}
       table.month { width: 100%; border-collapse: collapse; table-layout: fixed; }
       table.month th { background: #eee; padding: 0.3em; border: 1px solid #ddd; font-weight: normal; }
       table.month td { border: 1px solid #ddd; vertical-align: top; height: 6em; padding: 0.2em; }
@@ -29,10 +19,8 @@
       .ev.todo { background: #ffe6b3; color: #530; }
       .ev.todo.done { background: #d8d8d8; color: #777; text-decoration: line-through; }
       .ev .t { font-variant-numeric: tabular-nums; font-size: 0.85em; margin-right: 0.3em; }
-      .muted { color: #888; font-size: 0.9em; margin-top: 1em; }
-    </style>
-  </head>
-  <body>
+{% endblock %}
+{% block content %}
     <h1>{{ collection.get_displayname() }}</h1>
     <div class="nav">
       <a href="{{ prev_url }}">&laquo; Prev</a>
@@ -76,7 +64,4 @@
       {% endfor %}
       </tbody>
     </table>
-
-    <p class="muted">Xandikos {{ version }}</p>
-  </body>
-</html>
+{% endblock %}
