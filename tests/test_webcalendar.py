@@ -237,8 +237,6 @@ class WebCalendarAppTests(unittest.TestCase):
         body_bytes = b"".join(self.app(environ, sr))
         return captured["s"], captured["h"], body_bytes
 
-    # -- month view ----------------------------------------------------
-
     def test_month_view_renders(self):
         self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
         status, headers, body = self._request(
@@ -251,6 +249,14 @@ class WebCalendarAppTests(unittest.TestCase):
         # Has both nav buttons
         self.assertIn("month=2026-04", text)
         self.assertIn("month=2026-06", text)
+
+    def test_month_view_has_parent_link(self):
+        # Up-one-level link should target the principal (one segment up
+        # from the calendar URL), so users can navigate back out.
+        _s, _h, body = self._request("GET", "/calendar/", query="month=2026-05")
+        text = body.decode("utf-8")
+        self.assertIn('class="parent-link"', text)
+        self.assertIn('href="http://127.0.0.1/"', text)
 
     def test_month_view_empty(self):
         status, _h, body = self._request("GET", "/calendar/", query="month=2026-05")
@@ -270,8 +276,6 @@ class WebCalendarAppTests(unittest.TestCase):
         # 5/18..5/20 = 3 day-cells (DTEND exclusive).
         self.assertEqual(body.decode("utf-8").count('title="Conference'), 3)
 
-    # -- day view ------------------------------------------------------
-
     def test_day_view_renders(self):
         self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
         self.store.import_one("todo-1.ics", "text/calendar", [EXAMPLE_TODO])
@@ -285,8 +289,6 @@ class WebCalendarAppTests(unittest.TestCase):
     def test_day_view_bad_date(self):
         status, _h, _b = self._request("GET", "/calendar/+day/not-a-date")
         self.assertEqual(status, "404 Not Found")
-
-    # -- event view ----------------------------------------------------
 
     def test_event_view_html(self):
         self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
@@ -321,8 +323,6 @@ class WebCalendarAppTests(unittest.TestCase):
         text = body.decode("utf-8")
         # Task UI surfaces the status select
         self.assertIn('name="status"', text)
-
-    # -- POST flow -----------------------------------------------------
 
     def test_create_event(self):
         body = urlencode(

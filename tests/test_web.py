@@ -3049,6 +3049,74 @@ class OutboundIMIPTests(unittest.TestCase):
         self.assertEqual([("dave@elsewhere.example", "REQUEST")], recipients)
 
 
+class ParentUrlTests(unittest.TestCase):
+    """parent_url derives the up-one-level URL used for breadcrumbs."""
+
+    def test_root_returns_none(self):
+        from xandikos.web import parent_url
+
+        self.assertIsNone(parent_url("http://host/"))
+
+    def test_strips_one_segment(self):
+        from xandikos.web import parent_url
+
+        self.assertEqual(parent_url("http://host/user/"), "http://host/")
+        self.assertEqual(parent_url("http://host/user/calendar/"), "http://host/user/")
+
+    def test_collapses_double_slashes(self):
+        # Reverse proxies sometimes inject //; the parent should still
+        # be one logical segment up.
+        from xandikos.web import parent_url
+
+        self.assertEqual(parent_url("http://host//user//cal/"), "http://host/user/")
+
+    def test_drops_query_and_fragment(self):
+        from xandikos.web import parent_url
+
+        self.assertEqual(parent_url("http://host/user/?month=2026-05"), "http://host/")
+
+
+class PrincipalBareSubcollectionsTests(unittest.TestCase):
+    """Principal page should list children, not a TODO-empty list."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/user", create_defaults=True)
+
+    def test_subcollections_lists_homes_and_inbox(self):
+        principal = self.backend.get_resource("/user")
+        names = sorted(name for name, _r in principal.subcollections())
+        # create_principal_defaults gives us at least these three.
+        self.assertIn("calendars", names)
+        self.assertIn("contacts", names)
+        self.assertIn("inbox", names)
+
+    def test_principal_page_renders_links(self):
+        from wsgiref.util import setup_testing_defaults
+
+        app = XandikosApp(self.backend, "user")
+        environ = {
+            "PATH_INFO": "/user/",
+            "REQUEST_METHOD": "GET",
+            "QUERY_STRING": "",
+            "HTTP_ACCEPT": "text/html",
+        }
+        setup_testing_defaults(environ)
+        captured = {}
+
+        def sr(status, headers):
+            captured["s"] = status
+
+        body = b"".join(app(environ, sr)).decode("utf-8")
+        self.assertEqual(captured["s"], "200 OK")
+        # The principal page should mention each subcollection by name.
+        for expected in ("calendars", "contacts", "inbox"):
+            self.assertIn(expected, body)
+
+
 class PrincipalHomeSetTests(unittest.TestCase):
     """Per-principal calendar/addressbook-home-set overrides via .xandikos."""
 
@@ -3125,3 +3193,296 @@ class PrincipalHomeSetTests(unittest.TestCase):
         # Old default paths are not created.
         self.assertIsNone(backend.get_resource("/alice/calendars"))
         self.assertIsNone(backend.get_resource("/alice/contacts"))
+
+
+_SAMPLE_ITIP_REQUEST = b"""BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+METHOD:REQUEST\r
+BEGIN:VEVENT\r
+UID:meeting-1@example.com\r
+DTSTAMP:20260101T120000Z\r
+DTSTART:20260601T100000Z\r
+DTEND:20260601T110000Z\r
+SUMMARY:Project sync\r
+ORGANIZER:mailto:alice@example.com\r
+ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+
+
+class WebInboxAppTests(unittest.TestCase):
+    """Browser-facing schedule inbox: GET lists messages, POST deletes."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/user", create_defaults=True)
+        self.app = XandikosApp(self.backend, "user")
+        inbox = self.backend.get_resource("/user/inbox")
+        assert isinstance(inbox, StoreBasedCollection)
+        self.inbox = inbox
+
+    def _request(self, method, path, body=b"", accept="text/html"):
+        from wsgiref.util import setup_testing_defaults
+        import io as _io
+
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": method,
+            "QUERY_STRING": "",
+            "HTTP_ACCEPT": accept,
+        }
+        if body:
+            environ["wsgi.input"] = _io.BytesIO(body)
+            environ["CONTENT_LENGTH"] = str(len(body))
+            environ["CONTENT_TYPE"] = "application/x-www-form-urlencoded"
+        setup_testing_defaults(environ)
+        captured = {}
+
+        def sr(status, headers):
+            captured["status"] = status
+            captured["headers"] = dict(headers)
+
+        body_bytes = b"".join(self.app(environ, sr))
+        return captured["status"], captured.get("headers", {}), body_bytes
+
+    def _put_message(self, name: str, payload: bytes = _SAMPLE_ITIP_REQUEST) -> None:
+        self.inbox.store.import_one(name, "text/calendar", [payload])
+
+    def test_empty_inbox_renders(self):
+        status, headers, body = self._request("GET", "/user/inbox/")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/html", headers["Content-Type"])
+        text = body.decode("utf-8")
+        self.assertIn("Inbox is empty", text)
+
+    def test_lists_message_with_method_and_summary(self):
+        self._put_message("msg-1.ics")
+        status, _h, body = self._request("GET", "/user/inbox/")
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        self.assertIn("REQUEST", text)
+        self.assertIn("Project sync", text)
+        self.assertIn("alice@example.com", text)
+
+    def test_delete_removes_message(self):
+        self._put_message("msg-1.ics")
+        # Sanity-check it exists in the store.
+        self.assertIn("msg-1.ics", [n for n, *_ in self.inbox.store.iter_with_etag()])
+        status, headers, _b = self._request(
+            "POST",
+            "/user/inbox/",
+            body=b"action=delete&name=msg-1.ics",
+        )
+        self.assertEqual(status, "303 See Other")
+        self.assertEqual(headers.get("Location"), "http://127.0.0.1/user/inbox/")
+        self.assertEqual([], list(self.inbox.store.iter_with_etag()))
+
+    def test_delete_rejects_path_separator(self):
+        # Defence-in-depth: name="../foo" must not escape the collection.
+        status, _h, _b = self._request(
+            "POST",
+            "/user/inbox/",
+            body=b"action=delete&name=..%2Ffoo",
+        )
+        self.assertEqual(status, "400 Bad Request")
+
+    def test_lists_recurrence_override_request(self):
+        # Google Calendar invites to a single occurrence of a recurring
+        # meeting arrive as a REQUEST containing only a per-instance
+        # override (VEVENT with RECURRENCE-ID, no master). The inbox row
+        # must still show the summary/when/organizer, not just the
+        # filename.
+        override = b"""BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Google Inc//Test//EN\r
+METHOD:REQUEST\r
+BEGIN:VEVENT\r
+UID:override-event@example.com\r
+DTSTAMP:20260505T121314Z\r
+DTSTART:20260512T173000Z\r
+DTEND:20260512T200000Z\r
+RECURRENCE-ID:20260422T173000Z\r
+SUMMARY:OpenWay\r
+ORGANIZER:mailto:alice@example.com\r
+ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:user@example.com\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+        self._put_message("override.ics", payload=override)
+        status, _h, body = self._request("GET", "/user/inbox/")
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        self.assertIn("OpenWay", text)
+        self.assertIn("alice@example.com", text)
+        self.assertIn("2026-05-12", text)
+
+
+_BOB_INBOX_REQUEST = b"""BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Test//EN\r
+METHOD:REQUEST\r
+BEGIN:VEVENT\r
+UID:project-sync@example.com\r
+DTSTAMP:20260101T120000Z\r
+SEQUENCE:0\r
+DTSTART:20260601T100000Z\r
+DTEND:20260601T110000Z\r
+SUMMARY:Project sync\r
+ORGANIZER:mailto:alice@example.com\r
+ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+
+
+class WebInboxAttendeeActionTests(unittest.TestCase):
+    """POST accept/tentative/decline → REPLY to organiser + local PARTSTAT."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+
+        # Pin addresses so we don't depend on EMAIL env.
+        from xandikos.web import Principal
+
+        addresses = {
+            "/alice": ["mailto:alice@example.com"],
+            "/bob": ["mailto:bob@example.com"],
+        }
+        original = Principal.get_calendar_user_address_set
+        Principal.get_calendar_user_address_set = lambda self: addresses.get(
+            self.relpath, []
+        )
+        self.addCleanup(setattr, Principal, "get_calendar_user_address_set", original)
+
+        self.app = XandikosApp(self.backend, "alice")
+
+        # Deliver a REQUEST into bob's inbox and mirror it into his
+        # default calendar — exactly what would happen on a real
+        # incoming iTIP REQUEST.
+        bob_inbox = self.backend.get_resource("/bob/inbox")
+        assert isinstance(bob_inbox, StoreBasedCollection)
+        self.bob_inbox = bob_inbox
+        asyncio.run(
+            bob_inbox.create_member("req.ics", [_BOB_INBOX_REQUEST], "text/calendar")
+        )
+
+        bob_cal = self.backend.get_resource("/bob/calendars/calendar")
+        assert isinstance(bob_cal, CalendarCollection)
+        self.bob_cal = bob_cal
+        alice_inbox = self.backend.get_resource("/alice/inbox")
+        assert isinstance(alice_inbox, StoreBasedCollection)
+        self.alice_inbox = alice_inbox
+
+    def _request(self, method, path, body=b""):
+        from wsgiref.util import setup_testing_defaults
+        import io as _io
+
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": method,
+            "QUERY_STRING": "",
+            "HTTP_ACCEPT": "text/html",
+        }
+        if body:
+            environ["wsgi.input"] = _io.BytesIO(body)
+            environ["CONTENT_LENGTH"] = str(len(body))
+            environ["CONTENT_TYPE"] = "application/x-www-form-urlencoded"
+        setup_testing_defaults(environ)
+        captured = {}
+
+        def sr(status, headers):
+            captured["status"] = status
+            captured["headers"] = dict(headers)
+
+        body_bytes = b"".join(self.app(environ, sr))
+        return captured["status"], captured.get("headers", {}), body_bytes
+
+    def _bob_local_partstat(self) -> str | None:
+        for name, _ct, etag in self.bob_cal.store.iter_with_etag():
+            raw = b"".join(self.bob_cal.store._get_raw(name, etag))
+            if b"project-sync@example.com" not in raw:
+                continue
+            from icalendar.cal import Calendar
+
+            cal = Calendar.from_ical(raw)
+            for comp in cal.subcomponents:
+                if comp.name != "VEVENT":
+                    continue
+                attendees = comp.get("ATTENDEE", [])
+                if not isinstance(attendees, list):
+                    attendees = [attendees]
+                for a in attendees:
+                    if str(a) == "mailto:bob@example.com":
+                        return str(a.params.get("PARTSTAT", ""))
+        return None
+
+    def _alice_inbox_replies(self) -> list[bytes]:
+        return [
+            b"".join(self.alice_inbox.store._get_raw(name, etag))
+            for name, _ct, etag in self.alice_inbox.store.iter_with_etag()
+        ]
+
+    def test_accept_sends_reply_updates_local_and_clears_inbox(self):
+        # Sanity: setup put a copy in bob's calendar via auto-apply.
+        self.assertEqual(self._bob_local_partstat(), "NEEDS-ACTION")
+        self.assertEqual([], self._alice_inbox_replies())
+
+        status, headers, _b = self._request(
+            "POST", "/bob/inbox/", body=b"action=accept&name=req.ics"
+        )
+        self.assertEqual(status, "303 See Other")
+        self.assertEqual(headers.get("Location"), "http://127.0.0.1/bob/inbox/")
+
+        # Inbox cleared.
+        self.assertEqual(
+            [], list(self.bob_inbox.store.iter_with_etag()), "inbox not emptied"
+        )
+        # Local copy reflects bob's decision.
+        self.assertEqual(self._bob_local_partstat(), "ACCEPTED")
+        # Alice received a REPLY with PARTSTAT=ACCEPTED for bob.
+        replies = self._alice_inbox_replies()
+        self.assertEqual(1, len(replies))
+        text = replies[0].decode()
+        self.assertIn("METHOD:REPLY", text)
+        self.assertIn("PARTSTAT=ACCEPTED", text)
+        self.assertIn("mailto:bob@example.com", text)
+
+    def test_decline_records_declined(self):
+        _s, _h, _b = self._request(
+            "POST", "/bob/inbox/", body=b"action=decline&name=req.ics"
+        )
+        self.assertEqual(self._bob_local_partstat(), "DECLINED")
+        replies = self._alice_inbox_replies()
+        self.assertEqual(1, len(replies))
+        self.assertIn(b"PARTSTAT=DECLINED", replies[0])
+
+    def test_tentative_records_tentative(self):
+        _s, _h, _b = self._request(
+            "POST", "/bob/inbox/", body=b"action=tentative&name=req.ics"
+        )
+        self.assertEqual(self._bob_local_partstat(), "TENTATIVE")
+        self.assertIn(b"PARTSTAT=TENTATIVE", self._alice_inbox_replies()[0])
+
+    def test_accept_unknown_message_is_404(self):
+        status, _h, _b = self._request(
+            "POST", "/bob/inbox/", body=b"action=accept&name=missing.ics"
+        )
+        self.assertEqual(status, "404 Not Found")
+
+    def test_html_view_shows_accept_buttons_for_request(self):
+        status, headers, body = self._request("GET", "/bob/inbox/")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/html", headers["Content-Type"])
+        text = body.decode("utf-8")
+        for label in ("Accept", "Tentative", "Decline"):
+            self.assertIn(f">{label}<", text)

@@ -1,17 +1,8 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>{{ day.isoformat() }} - {{ collection.get_displayname() }}</title>
-    <style>
-      body { font-family: sans-serif; max-width: 55em; margin: 1em auto; padding: 0 1em; }
-      h1 { margin-bottom: 0.2em; }
-      .nav { margin: 0.5em 0 1em; display: flex; gap: 0.6em; align-items: center; }
-      .nav a, .nav button {
-        padding: 0.3em 0.8em; border: 1px solid #888; background: #f0f0f0;
-        text-decoration: none; color: inherit; font: inherit; cursor: pointer;
-      }
-      .nav .spacer { flex: 1; }
+{% extends "base.html" %}
+{% block title %}{{ day.isoformat() }} - {{ collection.get_displayname() }}{% endblock %}
+{% block page_width %}55em{% endblock %}
+{% block parent_link_text %}&larr; Back to month{% endblock %}
+{% block extra_style %}
       ul.events { list-style: none; padding: 0; }
       ul.events li {
         border: 1px solid #ddd; border-left: 4px solid #69a; padding: 0.5em 0.8em;
@@ -30,12 +21,8 @@
         background: #eee; border: 1px solid #aaa; padding: 0.2em 0.6em;
         cursor: pointer; font: inherit;
       }
-      .empty { color: #888; font-style: italic; padding: 1em 0; }
-      .muted { color: #888; font-size: 0.9em; margin-top: 1em; }
-    </style>
-  </head>
-  <body>
-    <p><a href="{{ collection_url }}">&larr; Back to month</a></p>
+{% endblock %}
+{% block content %}
     <h1>{{ day.strftime('%A, %d %B %Y') }}</h1>
 
     <div class="nav">
@@ -74,7 +61,4 @@
     {% else %}
     <p class="empty">Nothing scheduled for this day.</p>
     {% endif %}
-
-    <p class="muted">Xandikos {{ version }}</p>
-  </body>
-</html>
+{% endblock %}

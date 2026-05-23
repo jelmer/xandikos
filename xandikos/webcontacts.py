@@ -44,6 +44,7 @@ import vobject
 
 from xandikos import __version__ as xandikos_version
 from xandikos import webdav
+from xandikos.web import parent_url as _parent_url
 from xandikos.store import (
     DuplicateUidError,
     InvalidFileContents,
@@ -66,10 +67,6 @@ _jinja_env = jinja2.Environment(
     autoescape=jinja2.select_autoescape(["html"]),
     enable_async=True,
 )
-
-
-# ---------------------------------------------------------------------------
-# vCard <-> form-dict helpers
 
 
 def _first_text(vcard, name: str) -> str:
@@ -231,13 +228,11 @@ def vcard_from_form(form: dict[str, str], uid: str | None = None) -> bytes:
     return card.serialize().encode("utf-8")
 
 
-# ---------------------------------------------------------------------------
-# Rendering
-
-
 async def _render_template(
     template_name: str, **kwargs
 ) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
+    if "parent_url" not in kwargs and "self_url" in kwargs:
+        kwargs["parent_url"] = _parent_url(kwargs["self_url"])
     template = _jinja_env.get_template(template_name)
     body = await template.render_async(
         version=xandikos_version,
@@ -353,6 +348,7 @@ async def maybe_render_contact(
         contact=contact_to_form(card),
         self_url=self_url,
         collection_url=collection_url,
+        parent_url=collection_url,
         name=resource.name,
         etag=resource.etag,
         flash=flash,
@@ -380,14 +376,11 @@ async def render_new_contact_form(
         contact=empty,
         self_url=collection_url,
         collection_url=collection_url,
+        parent_url=collection_url,
         name=None,
         etag=None,
         flash=None,
     )
-
-
-# ---------------------------------------------------------------------------
-# POST handler
 
 
 def _parse_form(body: list[bytes], content_type: str) -> dict[str, str] | None:

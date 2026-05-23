@@ -32,6 +32,7 @@ import logging
 from logging import getLogger
 import os
 import posixpath
+import re
 import shutil
 import socket
 import urllib.parse
@@ -175,6 +176,21 @@ jinja_env = jinja2.Environment(
 )
 
 
+def parent_url(self_url: str) -> str | None:
+    """Return the URL one path segment up, or None for the root.
+
+    Repeated slashes (which reverse proxies sometimes inject) are
+    collapsed first. The trailing slash is preserved so the link
+    resolves to a directory.
+    """
+    parsed = urllib.parse.urlsplit(self_url)
+    clean = re.sub(r"/+", "/", parsed.path or "/")
+    if clean == "/":
+        return None
+    trimmed = clean.rstrip("/").rsplit("/", 1)[0] + "/"
+    return urllib.parse.urlunsplit(parsed._replace(path=trimmed, query="", fragment=""))
+
+
 async def render_jinja_page(
     name: str, accepted_content_languages: list[str], **kwargs
 ) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
@@ -187,6 +203,7 @@ async def render_jinja_page(
     """
     # TODO(jelmer): Support rendering other languages
     encoding = "utf-8"
+    kwargs.setdefault("parent_url", parent_url(kwargs["self_url"]))
     template = jinja_env.get_template(name)
     body = await template.render_async(
         version=xandikos_version, urljoin=urllib.parse.urljoin, **kwargs
@@ -691,6 +708,37 @@ class Collection(StoreBasedCollection, webdav.Collection):
 class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
     """A schedling inbox collection."""
 
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get a list of pending iTIP messages; CalDAV clients
+        # still use PROPFIND/REPORT and never hit GET on the collection.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcalendar
+
+            return await webcalendar.render_inbox(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
+    async def handle_post(self, request, environ, path, body, content_type):
+        from . import webcalendar
+
+        handled = await webcalendar.handle_inbox_post(
+            self, request, environ, path, body, content_type
+        )
+        if handled is not None:
+            return handled
+        return await super().handle_post(request, environ, path, body, content_type)
+
     def get_schedule_default_calendar_url(self) -> str | None:
         """Return the default calendar URL for incoming iTIP messages.
 
@@ -916,6 +964,108 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
                 uid,
                 member_name,
             )
+
+    async def apply_attendee_action(self, name: str, partstat: str) -> None:
+        """Set the user's own PARTSTAT on inbox message *name* and reply.
+
+        Loads the iTIP REQUEST in *name*, picks the ATTENDEE entry whose
+        address belongs to the owning principal, sends a METHOD:REPLY
+        back to the organiser with the chosen *partstat*, and (if the
+        principal has a default calendar) updates the local copy's
+        PARTSTAT to match. Finally removes the message from the inbox.
+
+        Raises ``KeyError`` if *name* doesn't exist; ``ValueError`` if
+        the message isn't a usable REQUEST (no owning principal, no
+        matching attendee, no organiser, malformed body).
+        """
+        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        if owning is None:
+            raise ValueError("Inbox has no owning principal")
+        _, principal = owning
+        own_addresses = set(principal.get_calendar_user_address_set())
+        if not own_addresses:
+            raise ValueError("Principal has no calendar-user addresses")
+
+        member = self.get_member(name)
+        if not isinstance(member, ObjectResource):
+            raise ValueError(f"Inbox member {name!r} is not an iTIP message")
+        file = await member.get_file()
+        if not isinstance(file, ICalendarFile):
+            raise ValueError(f"Inbox member {name!r} is not text/calendar")
+        request_cal = file.calendar
+        if not isinstance(request_cal, Calendar):
+            raise ValueError(f"Inbox member {name!r} did not parse as a calendar")
+        if str(request_cal.get("METHOD", "")).upper() != "REQUEST":
+            raise ValueError(f"Inbox member {name!r} is not METHOD:REQUEST")
+
+        own_address: str | None = None
+        organiser: str | None = None
+        for comp in request_cal.subcomponents:
+            if comp.name not in itip.SCHEDULING_COMPONENTS:
+                continue
+            if organiser is None:
+                org = comp.get("ORGANIZER")
+                if org is not None:
+                    organiser = str(org)
+            attendees = comp.get("ATTENDEE", [])
+            if not isinstance(attendees, list):
+                attendees = [attendees]
+            for a in attendees:
+                if own_address is None and str(a) in own_addresses:
+                    own_address = str(a)
+        if own_address is None:
+            raise ValueError(
+                f"Inbox member {name!r} has no ATTENDEE for this principal"
+            )
+        if organiser is None:
+            raise ValueError(f"Inbox member {name!r} has no ORGANIZER")
+
+        # Build the reply with our chosen PARTSTAT before delivery.
+        reply_source = request_cal.copy()
+        reply_source.subcomponents = [c.copy() for c in request_cal.subcomponents]
+        for comp in reply_source.subcomponents:
+            if comp.name not in itip.SCHEDULING_COMPONENTS:
+                continue
+            attendees = comp.get("ATTENDEE", [])
+            if not isinstance(attendees, list):
+                attendees = [attendees]
+            for a in attendees:
+                if str(a) == own_address:
+                    a.params["PARTSTAT"] = partstat
+        reply = itip.build_itip_reply(reply_source, own_address)
+        await _deliver_status(self.backend, organiser, reply, originator=own_address)
+
+        # Mirror the chosen PARTSTAT onto the local copy so the user's
+        # calendar reflects the decision. Missing default-calendar is
+        # tolerable here: the REPLY has already gone to the organiser.
+        calendar = self._default_calendar()
+        if calendar is not None:
+            uid = itip.itip_uid(request_cal)
+            if uid is not None:
+                existing = await _find_calendar_member_by_uid(calendar, uid)
+                if existing is not None:
+                    _, local_member, local_cal = existing
+                    changed = False
+                    for comp in local_cal.subcomponents:
+                        if comp.name not in itip.SCHEDULING_COMPONENTS:
+                            continue
+                        if str(comp.get("UID", "")) != uid:
+                            continue
+                        attendees = comp.get("ATTENDEE", [])
+                        if not isinstance(attendees, list):
+                            attendees = [attendees]
+                        for a in attendees:
+                            if (
+                                str(a) == own_address
+                                and a.params.get("PARTSTAT") != partstat
+                            ):
+                                a.params["PARTSTAT"] = partstat
+                                changed = True
+                    if changed:
+                        await _replace_member_body(local_member, local_cal)
+
+        # Decision recorded — remove the original REQUEST from the inbox.
+        self.delete_member(name)
 
 
 async def _find_calendar_member_by_uid(
@@ -2506,8 +2656,19 @@ class PrincipalBare(CollectionSetResource, Principal):
         )
 
     def subcollections(self):
-        # TODO(jelmer): Return members
-        return []
+        # Every direct child of a bare principal is a collection of
+        # some kind — calendar homes, addressbook homes, the inbox,
+        # plus any user-created collection-set directories. Yield
+        # only the ones that report COLLECTION_RESOURCE_TYPE so the
+        # principal page doesn't list non-collection junk if any ends
+        # up on disk.
+        for name, resource in self.members():
+            if resource is None:
+                continue
+            if webdav.COLLECTION_RESOURCE_TYPE in getattr(
+                resource, "resource_types", ()
+            ):
+                yield (name, resource)
 
 
 class PrincipalCollection(Collection, Principal):

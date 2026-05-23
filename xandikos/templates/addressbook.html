@@ -1,27 +1,14 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>Contacts - {{ collection.get_displayname() }}</title>
-    <style>
-      body { font-family: sans-serif; max-width: 60em; margin: 1em auto; padding: 0 1em; }
-      h1 { margin-bottom: 0.2em; }
+{% extends "base.html" %}
+{% block title %}Contacts - {{ collection.get_displayname() }}{% endblock %}
+{% block extra_style %}
       .meta { color: #666; margin-bottom: 1em; }
       table { width: 100%; border-collapse: collapse; }
       th, td { text-align: left; padding: 0.4em 0.6em; border-bottom: 1px solid #eee; vertical-align: top; }
       tr:hover { background: #f7f7f7; }
-      .empty { color: #888; font-style: italic; padding: 1em 0; }
-      .actions { margin: 1em 0; }
-      .actions a, .actions button {
-        padding: 0.4em 0.8em; border: 1px solid #888; background: #f0f0f0;
-        text-decoration: none; color: inherit; font: inherit; cursor: pointer;
-      }
       .delete-form { display: inline; }
       .delete-form button { color: #a00; border-color: #a00; background: #fff; }
-      .muted { color: #888; font-size: 0.9em; }
-    </style>
-  </head>
-  <body>
+{% endblock %}
+{% block content %}
     <h1>{{ collection.get_displayname() }}</h1>
     <div class="meta">
       {{ contacts|length }} contact{% if contacts|length != 1 %}s{% endif %}
@@ -68,12 +55,6 @@
       </tbody>
     </table>
     {% else %}
-    <p class="empty">No contacts yet. Use "Add contact" to create one.</p>
+    <p class="empty">No contacts yet. Use &quot;Add contact&quot; to create one.</p>
     {% endif %}
-
-    <p class="muted">
-      Xandikos {{ version }} —
-      <a href="https://www.xandikos.org/">xandikos.org</a>
-    </p>
-  </body>
-</html>
+{% endblock %}

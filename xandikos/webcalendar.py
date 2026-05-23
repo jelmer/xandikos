@@ -33,6 +33,7 @@ run for real CalDAV clients).
 
 from __future__ import annotations
 
+import asyncio
 import calendar as stdcalendar
 import os
 import re
@@ -50,6 +51,7 @@ from icalendar import Todo as ITodo
 from xandikos import __version__ as xandikos_version
 from xandikos import webdav
 from xandikos.icalendar import ICalendarFile, expand_calendar_rrule
+from xandikos.web import parent_url as _parent_url
 from xandikos.store import (
     DuplicateUidError,
     InvalidFileContents,
@@ -70,10 +72,6 @@ _jinja_env = jinja2.Environment(
     autoescape=jinja2.select_autoescape(["html"]),
     enable_async=True,
 )
-
-
-# ---------------------------------------------------------------------------
-# Date helpers
 
 
 def _today() -> date:
@@ -169,10 +167,6 @@ def _occurrences_on(comp, day: date) -> list[tuple[datetime | date, datetime | d
     if s_date <= day <= e_date:
         return [(s, e)]
     return []
-
-
-# ---------------------------------------------------------------------------
-# Collection -> events index
 
 
 def _iter_components(collection: CalendarCollection):
@@ -278,10 +272,6 @@ def _summarize(
         "status": str(comp.get("STATUS", "")).upper(),
         "location": str(comp.get("LOCATION", "")),
     }
-
-
-# ---------------------------------------------------------------------------
-# Single-component <-> form helpers
 
 
 def _read_dtlocal(s: str | None) -> datetime | None:
@@ -468,11 +458,9 @@ def update_calendar(existing_cal: ICalendar, form: dict[str, str]) -> ICalendar:
     return existing_cal
 
 
-# ---------------------------------------------------------------------------
-# Rendering
-
-
 async def _render_template(template_name: str, **kwargs):
+    if "parent_url" not in kwargs and "self_url" in kwargs:
+        kwargs["parent_url"] = _parent_url(kwargs["self_url"])
     template = _jinja_env.get_template(template_name)
     body = await template.render_async(
         version=xandikos_version,
@@ -542,6 +530,7 @@ async def render_month(
         "calendar_month.html",
         collection=collection,
         collection_url=collection_url,
+        parent_url=_parent_url(collection_url),
         year=year,
         month=month,
         month_name=stdcalendar.month_name[month],
@@ -581,6 +570,7 @@ async def render_day(
         "calendar_day.html",
         collection=collection,
         collection_url=collection_url,
+        parent_url=collection_url,
         day=day,
         prev_day=day - timedelta(days=1),
         next_day=day + timedelta(days=1),
@@ -631,6 +621,7 @@ async def maybe_render_event(
         component=component_to_form(master),
         name=resource.name,
         collection_url=collection_url,
+        parent_url=collection_url,
     )
 
 
@@ -664,11 +655,169 @@ async def render_new_event_form(
         component=empty,
         name=None,
         collection_url=collection_url,
+        parent_url=collection_url,
     )
 
 
-# ---------------------------------------------------------------------------
-# POST handling
+_ITIP_METHODS = (
+    "REQUEST",
+    "REPLY",
+    "CANCEL",
+    "ADD",
+    "REFRESH",
+    "COUNTER",
+    "DECLINECOUNTER",
+)
+
+
+def _itip_summary(name: str, etag: str, raw: bytes) -> dict[str, Any]:
+    """Extract a one-row summary from an iTIP message body.
+
+    Returns placeholder values for messages we can't parse so the user
+    can still see and delete them in the inbox.
+    """
+    placeholder = {
+        "name": name,
+        "etag": etag,
+        "method": "",
+        "method_class": "other",
+        "summary": name,
+        "when": "",
+        "organizer": "",
+    }
+    try:
+        cal = ICalendar.from_ical(raw.decode("utf-8", "replace"))
+    except ValueError:
+        return placeholder
+    method = str(cal.get("METHOD", "")).upper()
+    method_class = method.lower() if method in _ITIP_METHODS else "other"
+    # Pick the most representative VEVENT/VTODO for the row. iTIP REQUESTs
+    # often carry just one component — possibly a per-instance override
+    # (RECURRENCE-ID), e.g. Google Calendar invites to a single occurrence
+    # of a recurring meeting — so we don't insist on a master.
+    candidates = [c for c in cal.subcomponents if c.name in ("VEVENT", "VTODO")]
+    masters = [c for c in candidates if "RECURRENCE-ID" not in c]
+    chosen = masters[0] if masters else (candidates[0] if candidates else None)
+    summary = ""
+    organizer = ""
+    when_value: date | datetime | None = None
+    if chosen is not None:
+        summary = str(chosen.get("SUMMARY", ""))
+        organizer = str(chosen.get("ORGANIZER", "")).removeprefix("mailto:")
+        dtstart = chosen.get("DTSTART") or chosen.get("RECURRENCE-ID")
+        if dtstart is not None:
+            when_value = dtstart.dt
+    when_str = ""
+    if isinstance(when_value, datetime):
+        when_str = _local_naive(when_value).strftime("%Y-%m-%d %H:%M")
+    elif isinstance(when_value, date):
+        when_str = when_value.isoformat()
+    return {
+        "name": name,
+        "etag": etag,
+        "method": method,
+        "method_class": method_class,
+        "summary": summary or name,
+        "when": when_str,
+        "organizer": organizer,
+    }
+
+
+async def render_inbox(
+    collection,
+    self_url: str,
+    accepted_content_types,
+    accepted_content_languages,
+) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
+    """Render a schedule-inbox as an HTML list of iTIP messages."""
+    webdav.pick_content_types(accepted_content_types, ["text/html"])
+
+    def _gather():
+        store = collection.store
+        rows = []
+        for name, content_type, etag in store.iter_with_etag():
+            if content_type != "text/calendar":
+                continue
+            try:
+                raw = b"".join(store._get_raw(name, etag))
+            except (KeyError, InvalidFileContents):
+                continue
+            rows.append(_itip_summary(name, etag, raw))
+        # Newest-first on the rows that have a DTSTART; rows without one
+        # (some REPLY/CANCEL flows) trail at the bottom.
+        with_when = sorted(
+            (r for r in rows if r["when"]), key=lambda r: r["when"], reverse=True
+        )
+        without = [r for r in rows if not r["when"]]
+        return with_when + without
+
+    messages = await asyncio.to_thread(_gather)
+
+    try:
+        default_calendar_url = collection.get_schedule_default_calendar_url()
+    except (AttributeError, KeyError):
+        default_calendar_url = None
+
+    return await _render_template(
+        "inbox.html",
+        collection=collection,
+        self_url=self_url,
+        messages=messages,
+        default_calendar_url=default_calendar_url,
+    )
+
+
+_INBOX_PARTSTATS = {
+    "accept": "ACCEPTED",
+    "tentative": "TENTATIVE",
+    "decline": "DECLINED",
+}
+
+
+async def handle_inbox_post(
+    collection,
+    request,
+    environ: dict,
+    path: str,
+    body: list[bytes],
+    content_type: str,
+) -> webdav.Response | None:
+    """Handle a form-encoded post against a schedule inbox.
+
+    Recognises ``accept``/``tentative``/``decline`` (REPLY back to the
+    organiser, update the local copy's PARTSTAT, then drop the message)
+    and ``delete`` (drop the message without replying — appropriate for
+    REPLY/CANCEL flows that auto-processing already handled).
+    """
+    form = _parse_form(body, content_type)
+    if form is None:
+        return None
+    action = (form.get("action") or "").strip().lower()
+    if action not in {"delete", "accept", "tentative", "decline"}:
+        return None
+    name = (form.get("name") or "").strip()
+    if not name or "/" in name:
+        return webdav.Response(status=400, reason="Bad Request")
+
+    if action == "delete":
+        try:
+            collection.delete_member(
+                name,
+                remote_user=environ.get("REMOTE_USER"),
+                requester=request.headers.get("User-Agent"),
+            )
+        except (KeyError, NoSuchItem):
+            return webdav.Response(status=404, reason="Not Found")
+        return _redirect(_post_target_url(request))
+
+    partstat = _INBOX_PARTSTATS[action]
+    try:
+        await collection.apply_attendee_action(name, partstat)
+    except KeyError:
+        return webdav.Response(status=404, reason="Not Found")
+    except ValueError as exc:
+        return webdav.Response(status=400, reason=str(exc) or "Bad Request")
+    return _redirect(_post_target_url(request))
 
 
 def _parse_form(body: list[bytes], content_type: str) -> dict[str, str] | None:

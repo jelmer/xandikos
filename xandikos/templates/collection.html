@@ -1,23 +1,15 @@
-<html>
-  <head>
-    <title>WebDAV Collection - {{ collection.get_displayname() }}</title>
-  </head>
-  <body>
-    <h1>{{ collection.get_displayname() }} </h1>
-
-    <p>This is a collection.</p>
+{% extends "base.html" %}
+{% block title %}{{ collection.get_displayname() }} - Xandikos{% endblock %}
+{% block content %}
+    <h1>{{ collection.get_displayname() }}</h1>
+    <p>This is a WebDAV collection.</p>
 
     <h2>Subcollections</h2>
-
-    <ul>
+    <ul class="plain">
     {% for name, resource in collection.subcollections() %}
-       <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
+      <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
+    {% else %}
+      <li class="empty">(no subcollections)</li>
     {% endfor %}
     </ul>
-
-    <p>For more information about Xandikos, see <a
-    href="https://www.xandikos.org/">https://www.xandikos.org/</a>
-    or <a href="https://github.com/jelmer/xandikos">https://github.com/jelmer/xandikos</a>.
-    </p>
-  </body>
-</html>
+{% endblock %}
