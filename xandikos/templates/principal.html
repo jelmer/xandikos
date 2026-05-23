@@ -9,10 +9,11 @@
     <p><code>{{ self_url }}</code></p>
 
     <h2>Subcollections</h2>
-
-    <ul>
+    <ul class="plain">
     {% for name, resource in principal.subcollections() %}
-       <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
+      <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
+    {% else %}
+      <li class="empty">(no subcollections)</li>
     {% endfor %}
     </ul>
 

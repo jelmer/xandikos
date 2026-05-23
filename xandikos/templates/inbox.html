@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Inbox - {{ collection.get_displayname() }}{% endblock %}
+{% block extra_style %}
+      .meta { color: #666; margin-bottom: 1em; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 0.4em 0.6em; border-bottom: 1px solid #eee; vertical-align: top; }
+      tr:hover { background: #f7f7f7; }
+      .method {
+        display: inline-block; padding: 0.05em 0.4em; border-radius: 3px;
+        font-size: 0.8em; font-weight: bold;
+      }
+      .method.request { background: #d3e8ff; color: #034; }
+      .method.reply { background: #d8f0d8; color: #060; }
+      .method.cancel { background: #f8d8d8; color: #600; }
+      .method.other { background: #eee; color: #555; }
+      .row-form { display: inline; margin-right: 0.2em; }
+      .row-form button {
+        padding: 0.2em 0.6em; border: 1px solid #888; background: #f0f0f0;
+        font: inherit; cursor: pointer;
+      }
+      .row-form.accept button { color: #060; border-color: #6a6; background: #f0f8f0; }
+      .row-form.tentative button { color: #530; border-color: #c90; background: #fff7e0; }
+      .row-form.decline button { color: #600; border-color: #a55; background: #fbf0f0; }
+      .row-form.delete button { color: #a00; border-color: #a00; background: #fff; }
+{% endblock %}
+{% block content %}
+    <h1>{{ collection.get_displayname() }}</h1>
+    <div class="meta">
+      Scheduling inbox &mdash;
+      {{ messages|length }} message{% if messages|length != 1 %}s{% endif %}.
+      {% if default_calendar_url %}
+      New iTIP messages are auto-applied to
+      <a href="{{ default_calendar_url }}">the default calendar</a>.
+      {% else %}
+      No default calendar is set, so messages are not auto-applied.
+      {% endif %}
+    </div>
+
+    {% if messages %}
+    <table>
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>Summary</th>
+          <th>When</th>
+          <th>From</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for msg in messages %}
+        <tr>
+          <td>
+            <span class="method {{ msg.method_class }}">{{ msg.method or '?' }}</span>
+          </td>
+          <td>
+            <a href="{{ urljoin(self_url + '/', quote(msg.name)) }}">
+              {{ msg.summary or '(no summary)' }}
+            </a>
+          </td>
+          <td>{{ msg.when or '' }}</td>
+          <td>{{ msg.organizer or '' }}</td>
+          <td>
+            {% if msg.method == 'REQUEST' %}
+            {% for action, label in [('accept', 'Accept'), ('tentative', 'Tentative'), ('decline', 'Decline')] %}
+            <form class="row-form {{ action }}" method="post" action="{{ self_url }}">
+              <input type="hidden" name="action" value="{{ action }}">
+              <input type="hidden" name="name" value="{{ msg.name }}">
+              <button type="submit">{{ label }}</button>
+            </form>
+            {% endfor %}
+            {% endif %}
+            <form class="row-form delete" method="post" action="{{ self_url }}"
+                  onsubmit="return confirm('Delete this message?');">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="name" value="{{ msg.name }}">
+              <button type="submit">{% if msg.method == 'REQUEST' %}Delete{% else %}Dismiss{% endif %}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">Inbox is empty.</p>
+    {% endif %}
+{% endblock %}

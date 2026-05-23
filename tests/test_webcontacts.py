@@ -165,8 +165,6 @@ class WebContactsAppTests(unittest.TestCase):
         body_bytes = b"".join(self.app(environ, start_response))
         return captured["status"], dict(captured["headers"]), body_bytes
 
-    # -- list view -----------------------------------------------------
-
     def test_get_addressbook_lists_contacts(self):
         self.store.import_one("alice.vcf", "text/vcard", [EXAMPLE_VCARD])
         status, headers, body = self._request("GET", "/addressbook/")
@@ -178,12 +176,16 @@ class WebContactsAppTests(unittest.TestCase):
         self.assertIn("ExampleCorp", text)
         self.assertIn("Add contact", text)
 
+    def test_addressbook_has_parent_link(self):
+        _s, _h, body = self._request("GET", "/addressbook/")
+        text = body.decode("utf-8")
+        self.assertIn('class="parent-link"', text)
+        self.assertIn('href="http://127.0.0.1/"', text)
+
     def test_empty_addressbook_renders(self):
         status, _headers, body = self._request("GET", "/addressbook/")
         self.assertEqual(status, "200 OK")
         self.assertIn(b"No contacts yet", body)
-
-    # -- contact view --------------------------------------------------
 
     def test_get_contact_html_renders_edit_form(self):
         self.store.import_one("alice.vcf", "text/vcard", [EXAMPLE_VCARD])
@@ -213,8 +215,6 @@ class WebContactsAppTests(unittest.TestCase):
         # No pre-filled name
         self.assertIn('name="fn"', text)
         self.assertNotIn('value="Alice Example"', text)
-
-    # -- create / update / delete via form POST -----------------------
 
     def test_create_contact_via_post(self):
         body = urlencode(
