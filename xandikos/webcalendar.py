@@ -47,6 +47,7 @@ from typing import TYPE_CHECKING, Any
 import jinja2
 from icalendar import Calendar as ICalendar
 from icalendar import Event as IEvent
+from icalendar import Journal as IJournal
 from icalendar import Todo as ITodo
 
 from xandikos import __version__ as xandikos_version
@@ -385,6 +386,14 @@ def _apply_form(comp, form: dict[str, str]) -> None:
     all_day = form.get("all_day") == "1"
     _clear_dt_props(comp)
 
+    if comp.name == "VJOURNAL":
+        # Journal entries are dated notes: a single DATE-valued DTSTART,
+        # plus the SUMMARY/DESCRIPTION already applied above.
+        d = _parse_date(form.get("start_date"))
+        if d:
+            comp.add("dtstart", d)
+        return
+
     if comp.name == "VTODO":
         # Tasks use DUE instead of DTEND/DTSTART; DTSTART is optional.
         if all_day:
@@ -437,9 +446,11 @@ def new_calendar(comp) -> ICalendar:
 def build_new_component(form: dict[str, str]) -> ICalendar:
     """Build a fresh VCALENDAR with a single VEVENT or VTODO."""
     kind = (form.get("kind") or "event").lower()
-    comp: IEvent | ITodo
+    comp: IEvent | ITodo | IJournal
     if kind == "todo":
         comp = ITodo()
+    elif kind == "journal":
+        comp = IJournal()
     else:
         comp = IEvent()
     uid = (form.get("uid") or "").strip() or str(uuid.uuid4())
@@ -458,7 +469,7 @@ def update_calendar(existing_cal: ICalendar, form: dict[str, str]) -> ICalendar:
     """
     master = None
     for comp in existing_cal.subcomponents:
-        if comp.name in ("VEVENT", "VTODO") and "RECURRENCE-ID" not in comp:
+        if comp.name in ("VEVENT", "VTODO", "VJOURNAL") and "RECURRENCE-ID" not in comp:
             master = comp
             break
     if master is None:
@@ -768,7 +779,7 @@ async def maybe_render_event(
         return None
     master = None
     for comp in cal.subcomponents:
-        if comp.name in ("VEVENT", "VTODO") and "RECURRENCE-ID" not in comp:
+        if comp.name in ("VEVENT", "VTODO", "VJOURNAL") and "RECURRENCE-ID" not in comp:
             master = comp
             break
     if master is None:
@@ -780,6 +791,18 @@ async def maybe_render_event(
     collection_url = urllib.parse.urlunsplit(
         parsed._replace(path=parent, query="", fragment="")
     )
+
+    # Journals are dated notes; they use a simpler dedicated form rather
+    # than the event/task editor.
+    if master.name == "VJOURNAL":
+        return await _render_template(
+            "journal.html",
+            resource=resource,
+            journal=_journal_to_form(master),
+            name=resource.name,
+            collection_url=collection_url,
+            parent_url=collection_url,
+        )
 
     return await _render_template(
         "event.html",
@@ -819,6 +842,122 @@ async def render_new_event_form(
         "event.html",
         resource=None,
         component=empty,
+        name=None,
+        collection_url=collection_url,
+        parent_url=collection_url,
+    )
+
+
+def _journal_to_form(comp) -> dict[str, Any]:
+    """Pull a VJOURNAL's fields into the journal form dict."""
+    dtstart = comp.get("DTSTART")
+    entry_date = ""
+    if dtstart is not None:
+        entry_date = _as_date(_local_naive(dtstart.dt)).isoformat()
+    return {
+        "summary": str(comp.get("SUMMARY", "")),
+        "description": str(comp.get("DESCRIPTION", "")),
+        "start_date": entry_date,
+        "uid": str(comp.get("UID", "")),
+    }
+
+
+def _journal_summary(name: str, etag: str, comp) -> dict[str, Any]:
+    """Summarise a VJOURNAL for the journal list."""
+    dtstart = comp.get("DTSTART")
+    entry_date: date | None = None
+    if dtstart is not None:
+        entry_date = _as_date(_local_naive(dtstart.dt))
+    description = str(comp.get("DESCRIPTION", ""))
+    # A short single-line preview of the body for the list view.
+    preview = " ".join(description.split())
+    if len(preview) > 140:
+        preview = preview[:139].rstrip() + "…"
+    return {
+        "name": name,
+        "etag": etag,
+        "summary": str(comp.get("SUMMARY", "")),
+        "date": entry_date,
+        "date_str": entry_date.isoformat() if entry_date else "",
+        "preview": preview,
+    }
+
+
+def collect_journals(collection: CalendarCollection) -> list[dict[str, Any]]:
+    """Return one summary per master VJOURNAL, newest entry first."""
+    journals: list[dict[str, Any]] = []
+    for name, content_type, etag in collection.store.iter_with_etag():
+        if content_type != "text/calendar":
+            continue
+        try:
+            file = collection.store.get_file(name, content_type, etag)
+        except (KeyError, InvalidFileContents):
+            continue
+        try:
+            cal = file.calendar
+        except (InvalidFileContents, ValueError):
+            continue
+        if cal is None:
+            continue
+        for comp in cal.subcomponents:
+            if comp.name == "VJOURNAL" and "RECURRENCE-ID" not in comp:
+                journals.append(_journal_summary(name, etag, comp))
+
+    # Dated entries newest-first; undated ones trail at the bottom.
+    journals.sort(
+        key=lambda j: (j["date"] is None, j["date"] or date.min, j["summary"].lower()),
+        reverse=False,
+    )
+    dated = [j for j in journals if j["date"] is not None]
+    undated = [j for j in journals if j["date"] is None]
+    dated.sort(key=lambda j: j["date"], reverse=True)
+    return dated + undated
+
+
+async def render_journals(
+    collection: CalendarCollection,
+    self_url: str,
+) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
+    """Render every VJOURNAL in the calendar as a list."""
+    parsed = urllib.parse.urlsplit(self_url)
+    clean = re.sub(r"/+", "/", parsed.path) or "/"
+    # self_url is the +journal URL; the collection URL is one level up.
+    parts = clean.rstrip("/").split("/")
+    parts = parts[:-1]
+    coll_path = "/".join(parts) + "/"
+    collection_url = urllib.parse.urlunsplit(
+        parsed._replace(path=coll_path, query="", fragment="")
+    )
+
+    journals = await asyncio.to_thread(collect_journals, collection)
+
+    return await _render_template(
+        "journals.html",
+        collection=collection,
+        collection_url=collection_url,
+        parent_url=collection_url,
+        journals=journals,
+    )
+
+
+async def render_new_journal_form(
+    collection: CalendarCollection,
+    collection_url: str,
+    initial_date: date | None = None,
+):
+    """Empty edit form for creating a VJOURNAL."""
+    if initial_date is None:
+        initial_date = _today()
+    empty = {
+        "summary": "",
+        "description": "",
+        "start_date": initial_date.isoformat(),
+        "uid": "",
+    }
+    return await _render_template(
+        "journal.html",
+        resource=None,
+        journal=empty,
         name=None,
         collection_url=collection_url,
         parent_url=collection_url,
@@ -1096,7 +1235,7 @@ async def handle_post(
         # Build a deterministic file name from the UID we just minted.
         master_uid = ""
         for comp in cal_obj.subcomponents:
-            if comp.name in ("VEVENT", "VTODO"):
+            if comp.name in ("VEVENT", "VTODO", "VJOURNAL"):
                 master_uid = str(comp.get("UID", ""))
                 break
         if not master_uid:
