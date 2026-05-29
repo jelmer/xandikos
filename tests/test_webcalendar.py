@@ -24,7 +24,7 @@ import os
 import shutil
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from urllib.parse import urlencode
 from wsgiref.util import setup_testing_defaults
 
@@ -32,9 +32,14 @@ from icalendar import Calendar as ICalendar
 
 from xandikos import webcalendar
 from xandikos.icalendar import ICalendarFile
-from xandikos.store import STORE_TYPE_CALENDAR
+from xandikos.store import STORE_TYPE_CALENDAR, STORE_TYPE_SUBSCRIPTION
 from xandikos.store.git import TreeGitStore
-from xandikos.web import CalendarCollection, SingleUserFilesystemBackend, XandikosApp
+from xandikos.web import (
+    CalendarCollection,
+    SingleUserFilesystemBackend,
+    SubscriptionCollection,
+    XandikosApp,
+)
 
 
 EXAMPLE_EVENT = b"""\
@@ -675,6 +680,82 @@ class WebCalendarAppTests(unittest.TestCase):
 
         b"".join(self.app(environ, sr))
         self.assertIn(captured["s"], ("200 OK", "201 Created"))
+
+
+class SubscriptionWebTests(unittest.TestCase):
+    """End-to-end tests for the read-only subscription view."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+
+        store_path = os.path.join(self.tempdir, "sub")
+        self.store = TreeGitStore.create(store_path)
+        self.store.set_type(STORE_TYPE_SUBSCRIPTION)
+        self.store.load_extra_file_handler(ICalendarFile)
+        self.store.set_source_url("https://example.com/feed.ics")
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.collection = SubscriptionCollection(self.backend, "sub", self.store)
+        self.app = XandikosApp(self.backend, "user")
+
+    def _request(self, method, path, accept="text/html"):
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": method,
+            "QUERY_STRING": "",
+            "HTTP_ACCEPT": accept,
+        }
+        setup_testing_defaults(environ)
+        environ["QUERY_STRING"] = ""
+        captured = {}
+
+        def sr(status, headers):
+            captured["s"] = status
+            captured["h"] = dict(headers)
+
+        body = b"".join(self.app(environ, sr))
+        return captured["s"], captured["h"], body
+
+    def _upcoming_event(self):
+        soon = (date.today() + timedelta(days=2)).strftime("%Y%m%d")
+        return (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//\r\n"
+            b"BEGIN:VEVENT\r\nUID:s1\r\nDTSTAMP:20260101T000000Z\r\n"
+            b"SUMMARY:Upstream meeting\r\n"
+            + f"DTSTART:{soon}T100000\r\nDTEND:{soon}T110000\r\n".encode()
+            + b"END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+
+    def test_subscription_view_renders(self):
+        self.store.import_one("s1.ics", "text/calendar", [self._upcoming_event()])
+        status, headers, body = self._request("GET", "/sub/")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/html", headers["Content-Type"])
+        text = body.decode("utf-8")
+        self.assertIn("Subscription", text)
+        self.assertIn("https://example.com/feed.ics", text)
+        self.assertIn("Upstream meeting", text)
+        self.assertIn("read-only", text)
+
+    def test_subscription_view_empty(self):
+        status, _h, body = self._request("GET", "/sub/")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("No upcoming events", body.decode("utf-8"))
+
+    def test_subscription_view_has_no_edit_controls(self):
+        self.store.import_one("s1.ics", "text/calendar", [self._upcoming_event()])
+        _s, _h, body = self._request("GET", "/sub/")
+        text = body.decode("utf-8")
+        # Read-only: no create/edit forms.
+        self.assertNotIn("+ New event", text)
+        self.assertNotIn('name="action"', text)
+
+    def test_subscription_raw_for_caldav(self):
+        self.store.import_one("s1.ics", "text/calendar", [self._upcoming_event()])
+        status, _h, body = self._request("GET", "/sub/s1.ics", accept="text/calendar")
+        self.assertEqual(status, "200 OK")
+        self.assertIn(b"BEGIN:VEVENT", body)
 
 
 if __name__ == "__main__":

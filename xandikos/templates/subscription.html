@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ collection.get_displayname() }} - Subscription{% endblock %}
+{% block page_width %}55em{% endblock %}
+{% block extra_style %}
+      .meta { color: #666; margin-bottom: 1em; }
+      dl.props { display: grid; grid-template-columns: auto 1fr; gap: 0.3em 0.8em; margin: 1em 0; }
+      dl.props dt { color: #666; }
+      dl.props dd { margin: 0; }
+      .swatch { display: inline-block; width: 0.9em; height: 0.9em; border: 1px solid #888;
+                vertical-align: middle; margin-right: 0.3em; border-radius: 2px; }
+      ul.events { list-style: none; padding: 0; }
+      ul.events li {
+        border: 1px solid #ddd; border-left: 4px solid #69a; padding: 0.4em 0.7em;
+        margin: 0.35em 0; background: #fff; display: flex; gap: 0.5em; align-items: baseline;
+      }
+      ul.events li.todo { border-left-color: #c80; }
+      .date { color: #555; font-variant-numeric: tabular-nums; min-width: 6.5em; }
+      .time { color: #777; font-variant-numeric: tabular-nums; }
+      .summary { font-weight: bold; }
+      .loc { color: #888; }
+{% endblock %}
+{% block content %}
+    <h1>
+      {% if color %}<span class="swatch" style="background: {{ color }};"></span>{% endif %}
+      {{ collection.get_displayname() }}
+    </h1>
+    <div class="meta">Calendar subscription (read-only).</div>
+
+    {% if description %}<p>{{ description }}</p>{% endif %}
+
+    <dl class="props">
+      {% if source_url %}
+      <dt>Source</dt><dd><a href="{{ source_url }}">{{ source_url }}</a></dd>
+      {% endif %}
+      {% if refreshrate %}
+      <dt>Refresh</dt><dd>{{ refreshrate }}</dd>
+      {% endif %}
+    </dl>
+
+    <h2>Next {{ days_ahead }} days</h2>
+    {% if events %}
+    <ul class="events">
+    {% for ev in events %}
+      <li class="{{ ev.kind }}">
+        <span class="date">{{ ev.date.isoformat() }}</span>
+        <span class="time">{% if ev.all_day %}all day{% else %}{{ ev.start_time or '' }}{% endif %}</span>
+        <span class="summary">{{ ev.summary or '(no title)' }}</span>
+        {% if ev.location %}<span class="loc">@ {{ ev.location }}</span>{% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No upcoming events in the cached feed.</p>
+    {% endif %}
+{% endblock %}
