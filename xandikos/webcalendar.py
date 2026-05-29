@@ -20,8 +20,9 @@
 """Browser-facing view of CalDAV calendars.
 
 Renders calendar collections as a month grid, individual days as a
-list, and individual VEVENT/VTODO resources as edit forms. Form posts
-create, update or delete events and tasks.
+list, all tasks (VTODOs) as a single task list, and individual
+VEVENT/VTODO resources as edit forms. Form posts create, update or
+delete events and tasks.
 
 Mirrors the shape of :mod:`xandikos.webcontacts`: ``render_month``,
 ``render_day``, ``maybe_render_event`` and ``render_new_event_form``
@@ -578,6 +579,109 @@ async def render_day(
     )
 
 
+_TODO_STATUS_ORDER = {
+    "IN-PROCESS": 0,
+    "NEEDS-ACTION": 1,
+    "": 1,
+    "COMPLETED": 2,
+    "CANCELLED": 3,
+}
+
+
+def _task_summary(name: str, etag: str, comp) -> dict[str, Any]:
+    """Summarise a VTODO for the task-list view.
+
+    ``due`` is the local-naive DUE value (or ``None``); ``due_str`` is a
+    short rendering for display; ``done`` is True for completed tasks.
+    """
+    due_prop = comp.get("DUE") or comp.get("DTSTART")
+    due_value: date | datetime | None = None
+    if due_prop is not None:
+        due_value = _local_naive(due_prop.dt)
+    if isinstance(due_value, datetime):
+        due_str = due_value.strftime("%Y-%m-%d %H:%M")
+        due_sort = due_value
+    elif isinstance(due_value, date):
+        due_str = due_value.isoformat()
+        due_sort = datetime.combine(due_value, time.min)
+    else:
+        due_str = ""
+        due_sort = None
+    status = str(comp.get("STATUS", "")).upper()
+    return {
+        "name": name,
+        "etag": etag,
+        "summary": str(comp.get("SUMMARY", "")),
+        "status": status,
+        "done": status in ("COMPLETED", "CANCELLED"),
+        "due_str": due_str,
+        "due_sort": due_sort,
+        "location": str(comp.get("LOCATION", "")),
+    }
+
+
+def collect_tasks(collection: CalendarCollection) -> list[dict[str, Any]]:
+    """Return one summary dict per master VTODO in the collection.
+
+    Per-instance overrides (RECURRENCE-ID) are skipped so each task
+    appears once. Open tasks sort before done ones; within each group,
+    tasks with a due date sort earliest-first and undated tasks trail.
+    """
+    tasks: list[dict[str, Any]] = []
+    for name, etag, comp in _iter_components(collection):
+        if comp.name != "VTODO" or "RECURRENCE-ID" in comp:
+            continue
+        tasks.append(_task_summary(name, etag, comp))
+
+    def sort_key(t: dict[str, Any]):
+        # Open before done; then by status priority; then by due date
+        # (undated last); then summary for stability.
+        return (
+            t["done"],
+            _TODO_STATUS_ORDER.get(t["status"], 1),
+            t["due_sort"] is None,
+            t["due_sort"] or datetime.max,
+            t["summary"].lower(),
+        )
+
+    tasks.sort(key=sort_key)
+    return tasks
+
+
+async def render_tasks(
+    collection: CalendarCollection,
+    self_url: str,
+) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
+    """Render every VTODO in the calendar as a single task list."""
+    parsed = urllib.parse.urlsplit(self_url)
+    clean = re.sub(r"/+", "/", parsed.path) or "/"
+    # self_url is the +tasks URL; the collection URL is one level up.
+    parts = clean.rstrip("/").split("/")
+    parts = parts[:-1]
+    coll_path = "/".join(parts) + "/"
+    collection_url = urllib.parse.urlunsplit(
+        parsed._replace(path=coll_path, query="", fragment="")
+    )
+    tasks_url = urllib.parse.urlunsplit(parsed._replace(query="", fragment=""))
+    if not tasks_url.endswith("/"):
+        tasks_url += "/"
+
+    tasks = await asyncio.to_thread(collect_tasks, collection)
+    open_tasks = [t for t in tasks if not t["done"]]
+    done_tasks = [t for t in tasks if t["done"]]
+
+    return await _render_template(
+        "tasks.html",
+        collection=collection,
+        collection_url=collection_url,
+        tasks_url=tasks_url,
+        parent_url=collection_url,
+        open_tasks=open_tasks,
+        done_tasks=done_tasks,
+        total=len(tasks),
+    )
+
+
 async def maybe_render_event(
     resource: ObjectResource,
     self_url: str,
@@ -874,7 +978,10 @@ async def handle_post(
             )
         except (KeyError, NoSuchItem):
             return webdav.Response(status=404, reason="Not Found")
-        return _redirect(collection_url)
+        # Views that delete in place (e.g. the task list) pass back_url
+        # so the user lands where they were rather than the month grid.
+        back = (form.get("back_url") or "").strip()
+        return _redirect(back or collection_url)
 
     if action == "toggle_done":
         # Quick-toggle on the day view: flip a VTODO between
