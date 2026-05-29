@@ -595,6 +595,52 @@ async def render_day(
     )
 
 
+def _week_start(day: date) -> date:
+    """Return the Monday of the week containing ``day``."""
+    return day - timedelta(days=day.weekday())
+
+
+async def render_week(
+    collection: CalendarCollection,
+    self_url: str,
+    anchor: date,
+) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
+    """Render a Monday-to-Sunday week containing ``anchor``."""
+    # self_url is the +week/... URL; the collection URL is two levels up.
+    parsed = urllib.parse.urlsplit(self_url)
+    clean = re.sub(r"/+", "/", parsed.path) or "/"
+    parts = clean.rstrip("/").split("/")
+    parts = parts[:-2]
+    coll_path = "/".join(parts) + "/"
+    collection_url = urllib.parse.urlunsplit(
+        parsed._replace(path=coll_path, query="", fragment="")
+    )
+
+    start = _week_start(anchor)
+    end = start + timedelta(days=6)
+    days = [start + timedelta(days=i) for i in range(7)]
+
+    occurrences = collect_occurrences(collection, start, end)
+    by_day: dict[date, list[dict[str, Any]]] = {}
+    for occ in occurrences:
+        by_day.setdefault(occ["date"], []).append(occ)
+    for events in by_day.values():
+        events.sort(key=lambda e: (e["all_day"] is False, e["start_time"] or ""))
+
+    return await _render_template(
+        "calendar_week.html",
+        collection=collection,
+        collection_url=collection_url,
+        parent_url=collection_url,
+        days=days,
+        by_day=by_day,
+        start=start,
+        end=end,
+        prev_day=start - timedelta(days=7),
+        next_day=start + timedelta(days=7),
+    )
+
+
 _TODO_STATUS_ORDER = {
     "IN-PROCESS": 0,
     "NEEDS-ACTION": 1,
