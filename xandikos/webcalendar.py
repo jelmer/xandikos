@@ -755,6 +755,54 @@ async def render_tasks(
     )
 
 
+async def render_subscription(
+    collection,
+    self_url: str,
+    days_ahead: int = 30,
+) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
+    """Render a read-only overview of a calendar subscription.
+
+    Shows the feed's source URL, colour and refresh rate, plus the
+    cached events falling within the next ``days_ahead`` days. The
+    subscription mirrors an external feed, so this view offers no
+    editing controls.
+    """
+    collection_url, _ = _self_url_normalised(self_url)
+
+    today = _today()
+    occurrences = await asyncio.to_thread(
+        collect_occurrences, collection, today, today + timedelta(days=days_ahead)
+    )
+    occurrences.sort(
+        key=lambda e: (e["date"], e["all_day"] is False, e["start_time"] or "")
+    )
+
+    def _safe(getter):
+        try:
+            value = getter()
+        except (KeyError, AttributeError):
+            return None
+        return value or None
+
+    source_url = _safe(collection.get_source_url)
+    color = _safe(collection.get_calendar_color)
+    description = _safe(collection.get_calendar_description)
+    refreshrate = _safe(collection.get_refreshrate)
+
+    return await _render_template(
+        "subscription.html",
+        collection=collection,
+        collection_url=collection_url,
+        parent_url=_parent_url(collection_url),
+        source_url=source_url,
+        color=color,
+        description=description,
+        refreshrate=refreshrate,
+        events=occurrences,
+        days_ahead=days_ahead,
+    )
+
+
 async def maybe_render_event(
     resource: ObjectResource,
     self_url: str,

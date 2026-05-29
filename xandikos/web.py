@@ -505,6 +505,14 @@ class StoreBasedCollection:
     async def get_etag(self) -> str:
         return create_strong_etag(self.store.get_ctag())
 
+    async def get_schedule_tag(self) -> str:
+        # Collections are not scheduling object resources, so they have
+        # no schedule-tag. Raising KeyError is the "no schedule-tag"
+        # signal the WebDAV GET handler expects; without this method a
+        # browser GET on a non-scheduling collection (e.g. a calendar
+        # subscription) would raise AttributeError instead.
+        raise KeyError
+
     def members(self) -> Iterator[tuple[str, webdav.Resource]]:
         for name, content_type, etag in self.store.iter_with_etag():
             resource = self._get_resource(name, content_type, etag)
@@ -1162,6 +1170,26 @@ class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
 
 
 class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get a read-only overview of the subscribed feed;
+        # CalDAV clients still use PROPFIND/REPORT and never GET the
+        # collection.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcalendar
+
+            return await webcalendar.render_subscription(self, self_url)
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
     def get_source_url(self):
         source_url = self.store.get_source_url()
         if source_url is None:
