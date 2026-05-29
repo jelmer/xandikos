@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{% if name %}Edit{% else %}New{% endif %} journal entry{% if journal.summary %} - {{ journal.summary }}{% endif %}{% endblock %}
+{% block page_width %}45em{% endblock %}
+{% block parent_link_text %}&larr; Back to journal{% endblock %}
+{% block extra_style %}
+      h1 { margin-bottom: 0.4em; }
+      fieldset { border: 1px solid #ddd; margin: 1em 0; padding: 0.5em 1em; }
+      legend { padding: 0 0.4em; font-weight: bold; }
+      label { display: block; margin: 0.4em 0; }
+      label .lbl { display: inline-block; min-width: 7em; }
+      input[type=text], input[type=date], textarea { font: inherit; padding: 0.25em; }
+      input[type=text] { width: 25em; max-width: 100%; }
+      textarea { width: 30em; max-width: 100%; height: 10em; }
+{% endblock %}
+{% block content %}
+    <h1>{% if name %}Edit{% else %}New{% endif %} journal entry</h1>
+
+    <form method="post" action="{{ collection_url }}">
+      <input type="hidden" name="action" value="{% if name %}update{% else %}create{% endif %}">
+      <input type="hidden" name="kind" value="journal">
+      {% if name %}<input type="hidden" name="name" value="{{ name }}">{% endif %}
+
+      <fieldset>
+        <legend>Entry</legend>
+        <label>
+          <span class="lbl">Title</span>
+          <input type="text" name="summary" value="{{ journal.summary }}">
+        </label>
+        <label>
+          <span class="lbl">Date</span>
+          <input type="date" name="start_date" value="{{ journal.start_date }}">
+        </label>
+        <label>
+          <span class="lbl">Body</span>
+          <textarea name="description">{{ journal.description }}</textarea>
+        </label>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit">Save</button>
+        <a href="{{ urljoin(collection_url, '+journal') }}">Cancel</a>
+      </div>
+    </form>
+
+    {% if name %}
+    <form method="post" action="{{ collection_url }}"
+          onsubmit="return confirm('Delete this journal entry?');">
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="name" value="{{ name }}">
+      <input type="hidden" name="back_url" value="{{ urljoin(collection_url, '+journal') }}">
+      <div class="actions">
+        <button type="submit" class="danger">Delete</button>
+      </div>
+    </form>
+    {% endif %}
+{% endblock %}

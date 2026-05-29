@@ -69,6 +69,21 @@ END:VCALENDAR
 """
 
 
+EXAMPLE_JOURNAL = b"""\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VJOURNAL
+UID:journal-1
+DTSTAMP:20260101T120000Z
+DTSTART;VALUE=DATE:20260516
+SUMMARY:Trip notes
+DESCRIPTION:Saw the mountains today. Long ride, good weather.
+END:VJOURNAL
+END:VCALENDAR
+"""
+
+
 EXAMPLE_RECURRING = b"""\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -540,6 +555,106 @@ class WebCalendarAppTests(unittest.TestCase):
         self.assertEqual(headers["Location"], "http://127.0.0.1/calendar/+tasks/")
         with self.assertRaises(KeyError):
             self.store.get_file("todo-1.ics", "text/calendar")
+
+    def test_journal_list_renders(self):
+        self.store.import_one("journal-1.ics", "text/calendar", [EXAMPLE_JOURNAL])
+        # An event must not appear on the journal list.
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        status, headers, body = self._request("GET", "/calendar/+journal")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/html", headers["Content-Type"])
+        text = body.decode("utf-8")
+        self.assertIn("Trip notes", text)
+        self.assertIn("Saw the mountains", text)
+        self.assertNotIn("Team sync", text)
+
+    def test_journal_list_empty(self):
+        status, _h, body = self._request("GET", "/calendar/+journal")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("No journal entries yet.", body.decode("utf-8"))
+
+    def test_journal_entry_view_html(self):
+        self.store.import_one("journal-1.ics", "text/calendar", [EXAMPLE_JOURNAL])
+        status, headers, body = self._request("GET", "/calendar/journal-1.ics")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/html", headers["Content-Type"])
+        text = body.decode("utf-8")
+        self.assertIn('name="kind" value="journal"', text)
+        self.assertIn("Trip notes", text)
+        self.assertIn("2026-05-16", text)
+
+    def test_journal_entry_raw_for_caldav(self):
+        self.store.import_one("journal-1.ics", "text/calendar", [EXAMPLE_JOURNAL])
+        status, headers, body = self._request(
+            "GET", "/calendar/journal-1.ics", accept="text/calendar"
+        )
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/calendar", headers["Content-Type"])
+        self.assertIn(b"BEGIN:VJOURNAL", body)
+
+    def test_new_journal_form(self):
+        status, _h, body = self._request("GET", "/calendar/+newjournal")
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        self.assertIn("New journal entry", text)
+        self.assertIn('name="kind" value="journal"', text)
+
+    def test_create_journal(self):
+        body = urlencode(
+            {
+                "action": "create",
+                "kind": "journal",
+                "summary": "Day one",
+                "start_date": "2026-06-01",
+                "description": "First entry.",
+            }
+        ).encode("utf-8")
+        status, headers, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        self.assertTrue(headers["Location"].endswith(".ics"))
+        files = [n for n, _ct, _e in self.store.iter_with_etag()]
+        self.assertEqual(len(files), 1)
+        stored = b"".join(
+            self.store.get_file(files[0], "text/calendar").content
+        ).decode("utf-8")
+        self.assertIn("BEGIN:VJOURNAL", stored)
+        self.assertIn("SUMMARY:Day one", stored)
+        self.assertIn("DTSTART;VALUE=DATE:20260601", stored)
+
+    def test_update_journal(self):
+        self.store.import_one("journal-1.ics", "text/calendar", [EXAMPLE_JOURNAL])
+        body = urlencode(
+            {
+                "action": "update",
+                "kind": "journal",
+                "name": "journal-1.ics",
+                "summary": "Edited title",
+                "start_date": "2026-05-16",
+                "description": "Updated body.",
+            }
+        ).encode("utf-8")
+        status, _h, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        stored = b"".join(
+            self.store.get_file("journal-1.ics", "text/calendar").content
+        ).decode("utf-8")
+        self.assertIn("UID:journal-1", stored)
+        self.assertIn("SUMMARY:Edited title", stored)
+
+    def test_delete_journal_redirects_back(self):
+        self.store.import_one("journal-1.ics", "text/calendar", [EXAMPLE_JOURNAL])
+        body = urlencode(
+            {
+                "action": "delete",
+                "name": "journal-1.ics",
+                "back_url": "http://127.0.0.1/calendar/+journal/",
+            }
+        ).encode("utf-8")
+        status, headers, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        self.assertEqual(headers["Location"], "http://127.0.0.1/calendar/+journal/")
+        with self.assertRaises(KeyError):
+            self.store.get_file("journal-1.ics", "text/calendar")
 
     def test_post_without_action_falls_through(self):
         # Real CalDAV add-member POST with raw ics still works.
