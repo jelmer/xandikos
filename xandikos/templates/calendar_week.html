@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Week of {{ start.isoformat() }} - {{ collection.get_displayname() }}{% endblock %}
+{% block page_width %}65em{% endblock %}
+{% block parent_link_text %}&larr; Back to calendar{% endblock %}
+{% block extra_style %}
+      .week { display: grid; grid-template-columns: 1fr; gap: 0.4em; }
+      .day {
+        border: 1px solid #ddd; border-radius: 4px; padding: 0.4em 0.6em;
+        background: #fff;
+      }
+      .day.today { background: #fffbe6; border-color: #e0c060; }
+      .day h2 {
+        margin: 0 0 0.3em; font-size: 0.95em; font-weight: bold;
+        display: flex; align-items: baseline; gap: 0.5em;
+      }
+      .day h2 a { color: inherit; text-decoration: none; }
+      .day h2 a:hover { text-decoration: underline; }
+      .day h2 .dow { color: #666; font-weight: normal; }
+      ul.events { list-style: none; padding: 0; margin: 0; }
+      ul.events li { padding: 0.15em 0; display: flex; gap: 0.4em; align-items: baseline; }
+      ul.events li.todo .ev-link { color: #530; }
+      ul.events li.todo.done .ev-link { text-decoration: line-through; color: #999; }
+      .time { color: #555; font-variant-numeric: tabular-nums; min-width: 3.5em; }
+      .ev-link { color: #034; text-decoration: none; }
+      .ev-link:hover { text-decoration: underline; }
+      .loc { color: #888; }
+      .none { color: #aaa; font-style: italic; font-size: 0.9em; }
+{% endblock %}
+{% block content %}
+    <h1>{{ collection.get_displayname() }}</h1>
+
+    <div class="nav">
+      <a href="{{ urljoin(collection_url, '+week/' + prev_day.isoformat()) }}">&laquo; Prev week</a>
+      <a href="{{ urljoin(collection_url, '+week/' + today.isoformat()) }}">This week</a>
+      <a href="{{ urljoin(collection_url, '+week/' + next_day.isoformat()) }}">Next week &raquo;</a>
+      <strong style="margin-left: 1em;">{{ start.strftime('%d %b') }} &ndash; {{ end.strftime('%d %b %Y') }}</strong>
+      <span class="spacer"></span>
+      <a href="{{ collection_url }}">Month</a>
+      <a href="{{ urljoin(collection_url, '+new') }}">+ New event</a>
+    </div>
+
+    <div class="week">
+    {% for day in days %}
+      <div class="day {% if day == today %}today{% endif %}">
+        <h2>
+          <a href="{{ urljoin(collection_url, '+day/' + day.isoformat()) }}">{{ day.day }}</a>
+          <span class="dow">{{ day.strftime('%A') }}</span>
+        </h2>
+        {% set evs = by_day.get(day, []) %}
+        {% if evs %}
+        <ul class="events">
+        {% for ev in evs %}
+          <li class="{{ ev.kind }} {% if ev.status == 'COMPLETED' %}done{% endif %}">
+            <span class="time">{% if ev.all_day %}all day{% else %}{{ ev.start_time or '--:--' }}{% endif %}</span>
+            <a class="ev-link" href="{{ urljoin(collection_url, quote(ev.name)) }}">{{ ev.summary or '(no title)' }}</a>
+            {% if ev.location %}<span class="loc">@ {{ ev.location }}</span>{% endif %}
+          </li>
+        {% endfor %}
+        </ul>
+        {% else %}
+        <div class="none">&mdash;</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+    </div>
+{% endblock %}

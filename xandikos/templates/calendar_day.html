@@ -29,6 +29,7 @@
       <a href="{{ urljoin(collection_url, '+day/' + prev_day.isoformat()) }}">&laquo; Prev day</a>
       <a href="{{ urljoin(collection_url, '+day/' + next_day.isoformat()) }}">Next day &raquo;</a>
       <span class="spacer"></span>
+      <a href="{{ urljoin(collection_url, '+week/' + day.isoformat()) }}">Week</a>
       <a href="{{ urljoin(collection_url, '+tasks') }}">Tasks</a>
       <a href="{{ urljoin(collection_url, '+new?date=' + day.isoformat()) }}">+ New event</a>
       <a href="{{ urljoin(collection_url, '+new?kind=todo&date=' + day.isoformat()) }}">+ New task</a>
