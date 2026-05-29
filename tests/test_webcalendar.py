@@ -286,6 +286,16 @@ class WebCalendarAppTests(unittest.TestCase):
         self.assertIn("Buy milk", text)
         self.assertIn("Mark done", text)  # VTODO quick-toggle
 
+    def test_day_view_shows_todo_on_due_date(self):
+        # A VTODO with only a DUE (no DTSTART) must appear on its due
+        # date, not pinned to today. EXAMPLE_TODO is DUE 2026-05-16.
+        self.store.import_one("todo-1.ics", "text/calendar", [EXAMPLE_TODO])
+        _s, _h, due_day = self._request("GET", "/calendar/+day/2026-05-16")
+        self.assertIn("Buy milk", due_day.decode("utf-8"))
+        # ... and not on some other day.
+        _s, _h, other_day = self._request("GET", "/calendar/+day/2026-05-17")
+        self.assertNotIn("Buy milk", other_day.decode("utf-8"))
+
     def test_day_view_bad_date(self):
         status, _h, _b = self._request("GET", "/calendar/+day/not-a-date")
         self.assertEqual(status, "404 Not Found")
