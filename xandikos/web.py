@@ -1387,6 +1387,44 @@ class _CalendarTasksResource(_TransientHtmlResource):
         return await webcalendar.render_tasks(self.collection, self_url)
 
 
+class _CalendarJournalsResource(_TransientHtmlResource):
+    """``<calendar>/+journal`` — every VJOURNAL in one list view."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_journals(self.collection, self_url)
+
+
+class _NewJournalResource(_TransientHtmlResource):
+    """``<calendar>/+newjournal`` — empty new-journal-entry form."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from urllib.parse import parse_qs, urlsplit
+
+        from . import webcalendar
+
+        parsed = urlsplit(self_url)
+        params = parse_qs(parsed.query)
+        initial = webcalendar._parse_date((params.get("date") or [None])[0])
+        parent_url = _clean_parent_url(self_url)
+        return await webcalendar.render_new_journal_form(
+            self.collection, parent_url, initial_date=initial
+        )
+
+
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
@@ -1424,6 +1462,10 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             return _CalendarWeekIndex(self)
         if name == "+tasks":
             return _CalendarTasksResource(self)
+        if name == "+journal":
+            return _CalendarJournalsResource(self)
+        if name == "+newjournal":
+            return _NewJournalResource(self)
         return super().get_member(name)
 
     async def handle_post(self, request, environ, path, body, content_type):
