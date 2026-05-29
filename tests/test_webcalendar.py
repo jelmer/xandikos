@@ -431,6 +431,76 @@ class WebCalendarAppTests(unittest.TestCase):
         self.assertIn("STATUS:NEEDS-ACTION", stored)
         self.assertNotIn("COMPLETED:", stored)
 
+    def test_tasks_view_renders(self):
+        self.store.import_one("todo-1.ics", "text/calendar", [EXAMPLE_TODO])
+        # An event should never appear on the task list.
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        status, headers, body = self._request("GET", "/calendar/+tasks")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/html", headers["Content-Type"])
+        text = body.decode("utf-8")
+        self.assertIn("Buy milk", text)
+        self.assertNotIn("Team sync", text)
+        self.assertIn("Mark done", text)
+        self.assertIn("Open", text)
+
+    def test_tasks_view_empty(self):
+        status, _h, body = self._request("GET", "/calendar/+tasks")
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        self.assertIn("No open tasks.", text)
+
+    def test_tasks_view_groups_open_and_done(self):
+        completed = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//\r\n"
+            b"BEGIN:VTODO\r\nUID:done-1\r\nDTSTAMP:20260101T000000Z\r\n"
+            b"SUMMARY:Old chore\r\nSTATUS:COMPLETED\r\n"
+            b"COMPLETED:20260101T000000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+        self.store.import_one("todo-1.ics", "text/calendar", [EXAMPLE_TODO])
+        self.store.import_one("done-1.ics", "text/calendar", [completed])
+        _s, _h, body = self._request("GET", "/calendar/+tasks")
+        text = body.decode("utf-8")
+        # Open task sorts before the done one in the rendered output.
+        self.assertIn("Buy milk", text)
+        self.assertIn("Old chore", text)
+        self.assertLess(text.index("Buy milk"), text.index("Old chore"))
+        # The "Done" section header appears once a done task exists.
+        self.assertIn("Done", text)
+        self.assertIn("Reopen", text)
+
+    def test_tasks_view_skips_recurrence_overrides(self):
+        recurring_todo = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//\r\n"
+            b"BEGIN:VTODO\r\nUID:rt-1\r\nDTSTAMP:20260101T000000Z\r\n"
+            b"SUMMARY:Water plants\r\nDUE:20260516T090000\r\n"
+            b"RRULE:FREQ=WEEKLY\r\nEND:VTODO\r\n"
+            b"BEGIN:VTODO\r\nUID:rt-1\r\nDTSTAMP:20260101T000000Z\r\n"
+            b"RECURRENCE-ID:20260523T090000\r\nSUMMARY:Water plants\r\n"
+            b"DUE:20260523T090000\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+        self.store.import_one("rt-1.ics", "text/calendar", [recurring_todo])
+        _s, _h, body = self._request("GET", "/calendar/+tasks")
+        text = body.decode("utf-8")
+        # The master VTODO appears exactly once; the RECURRENCE-ID
+        # override is not listed separately.
+        self.assertEqual(text.count("Water plants"), 1)
+
+    def test_tasks_view_delete_redirects_back(self):
+        self.store.import_one("todo-1.ics", "text/calendar", [EXAMPLE_TODO])
+        body = urlencode(
+            {
+                "action": "delete",
+                "name": "todo-1.ics",
+                "back_url": "http://127.0.0.1/calendar/+tasks/",
+            }
+        ).encode("utf-8")
+        status, headers, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        self.assertEqual(headers["Location"], "http://127.0.0.1/calendar/+tasks/")
+        with self.assertRaises(KeyError):
+            self.store.get_file("todo-1.ics", "text/calendar")
+
     def test_post_without_action_falls_through(self):
         # Real CalDAV add-member POST with raw ics still works.
         environ = {

@@ -1318,6 +1318,21 @@ class _CalendarDayIndex(_TransientHtmlResource):
         return await webcalendar.render_day(self.collection, self_url, _date.today())
 
 
+class _CalendarTasksResource(_TransientHtmlResource):
+    """``<calendar>/+tasks`` — every VTODO in one list view."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_tasks(self.collection, self_url)
+
+
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
@@ -1342,14 +1357,17 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
     def get_member(self, name):
         # Virtual children: ``+new`` serves an empty event/task form,
-        # and ``+day`` is a namespace for per-day views — the real
+        # ``+day`` is a namespace for per-day views — the real
         # date-suffixed child is resolved in get_resource on the
-        # backend (see _CalendarDayResource below). The "+" prefix
-        # keeps these clearly distinct from any real .ics filename.
+        # backend (see _CalendarDayResource below) — and ``+tasks``
+        # lists every VTODO. The "+" prefix keeps these clearly
+        # distinct from any real .ics filename.
         if name == "+new":
             return _NewEventResource(self)
         if name == "+day":
             return _CalendarDayIndex(self)
+        if name == "+tasks":
+            return _CalendarTasksResource(self)
         return super().get_member(name)
 
     async def handle_post(self, request, environ, path, body, content_type):
