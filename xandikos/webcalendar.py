@@ -230,11 +230,27 @@ def collect_occurrences(
             if comp.name not in ("VEVENT", "VTODO"):
                 continue
             dtstart = comp.get("DTSTART")
-            dtend = comp.get("DTEND") or comp.get("DUE")
+            due = comp.get("DUE")
+            dtend = comp.get("DTEND") or due
             if dtstart is None:
-                # VTODO without DUE — pin it to today so it shows up
-                # somewhere if it overlaps the window.
-                if comp.name == "VTODO" and start <= _today() <= end:
+                # A VTODO may carry a DUE without a DTSTART; anchor it to
+                # the due date so it lands on the day it's due. Only when
+                # there's neither do we pin it to today, so an undated
+                # task still shows up somewhere in the window.
+                if comp.name == "VTODO" and due is not None:
+                    anchor = _local_naive(due.dt)
+                    anchor_date = _as_date(anchor)
+                    if start <= anchor_date <= end:
+                        out.append(
+                            _summarize(
+                                name,
+                                etag,
+                                comp,
+                                anchor_date,
+                                anchor if isinstance(anchor, datetime) else None,
+                            )
+                        )
+                elif comp.name == "VTODO" and start <= _today() <= end:
                     out.append(_summarize(name, etag, comp, _today(), None))
                 continue
             s = _local_naive(dtstart.dt)
