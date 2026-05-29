@@ -300,6 +300,36 @@ class WebCalendarAppTests(unittest.TestCase):
         status, _h, _b = self._request("GET", "/calendar/+day/not-a-date")
         self.assertEqual(status, "404 Not Found")
 
+    def test_week_view_renders(self):
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        # 2026-05-16 is a Saturday; the week runs Mon 5/11 - Sun 5/17.
+        status, _h, body = self._request("GET", "/calendar/+week/2026-05-16")
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        self.assertIn("Team sync", text)
+        self.assertIn("11 May", text)
+        self.assertIn("17 May 2026", text)
+        # All seven weekday names appear.
+        for dow in ("Monday", "Sunday"):
+            self.assertIn(dow, text)
+
+    def test_week_view_bad_date(self):
+        status, _h, _b = self._request("GET", "/calendar/+week/not-a-date")
+        self.assertEqual(status, "404 Not Found")
+
+    def test_week_view_bare_renders_current_week(self):
+        status, _h, body = self._request("GET", "/calendar/+week")
+        self.assertEqual(status, "200 OK")
+        text = body.decode("utf-8")
+        self.assertIn("This week", text)
+
+    def test_week_view_excludes_events_outside_week(self):
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        # Week of 2026-05-18 (Mon) - 2026-05-24 (Sun) excludes the 5/16
+        # event.
+        _s, _h, body = self._request("GET", "/calendar/+week/2026-05-20")
+        self.assertNotIn("Team sync", body.decode("utf-8"))
+
     def test_event_view_html(self):
         self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
         status, headers, body = self._request("GET", "/calendar/event-1.ics")

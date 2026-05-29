@@ -1318,6 +1318,60 @@ class _CalendarDayIndex(_TransientHtmlResource):
         return await webcalendar.render_day(self.collection, self_url, _date.today())
 
 
+class _CalendarWeekResource(_TransientHtmlResource):
+    """``<calendar>/+week/<YYYY-MM-DD>`` — week containing the date."""
+
+    def __init__(self, collection: "CalendarCollection", day) -> None:
+        self.collection = collection
+        self.day = day
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_week(self.collection, self_url, self.day)
+
+
+class _CalendarWeekIndex(_TransientHtmlResource):
+    """``<calendar>/+week/`` — namespace whose children resolve a date.
+
+    Has ``COLLECTION_RESOURCE_TYPE`` so the backend's path resolver
+    walks through it to ``get_member(<YYYY-MM-DD>)``. The bare URL
+    renders the current week.
+    """
+
+    resource_types: list[str] = [webdav.COLLECTION_RESOURCE_TYPE]
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    def get_member(self, name: str) -> webdav.Resource:
+        from . import webcalendar
+
+        parsed = webcalendar._parse_date(name)
+        if parsed is None:
+            raise KeyError(name)
+        return _CalendarWeekResource(self.collection, parsed)
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from datetime import date as _date
+
+        from . import webcalendar
+
+        # Bare ``/+week/`` renders the week containing today. The URL is
+        # one segment shallower than ``+week/<date>``, so append the
+        # date and let render_week's two-segment strip find the
+        # collection.
+        anchor = _date.today()
+        week_url = self_url.rstrip("/") + "/" + anchor.isoformat()
+        return await webcalendar.render_week(self.collection, week_url, anchor)
+
+
 class _CalendarTasksResource(_TransientHtmlResource):
     """``<calendar>/+tasks`` — every VTODO in one list view."""
 
@@ -1357,15 +1411,17 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
     def get_member(self, name):
         # Virtual children: ``+new`` serves an empty event/task form,
-        # ``+day`` is a namespace for per-day views — the real
-        # date-suffixed child is resolved in get_resource on the
-        # backend (see _CalendarDayResource below) — and ``+tasks``
-        # lists every VTODO. The "+" prefix keeps these clearly
-        # distinct from any real .ics filename.
+        # ``+day`` and ``+week`` are namespaces for per-day and per-week
+        # views — the real date-suffixed child is resolved in
+        # get_resource on the backend (see _CalendarDayResource below) —
+        # and ``+tasks`` lists every VTODO. The "+" prefix keeps these
+        # clearly distinct from any real .ics filename.
         if name == "+new":
             return _NewEventResource(self)
         if name == "+day":
             return _CalendarDayIndex(self)
+        if name == "+week":
+            return _CalendarWeekIndex(self)
         if name == "+tasks":
             return _CalendarTasksResource(self)
         return super().get_member(name)
