@@ -661,6 +661,44 @@ class WebCalendarAppTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.store.get_file("journal-1.ics", "text/calendar")
 
+    def test_calendar_settings_form_renders(self):
+        self.collection.set_displayname("My calendar")
+        status, headers, body = self._request("GET", "/calendar/+settings")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/html", headers["Content-Type"])
+        text = body.decode("utf-8")
+        self.assertIn("Calendar settings", text)
+        self.assertIn('name="displayname"', text)
+        self.assertIn("My calendar", text)
+
+    def test_calendar_settings_save(self):
+        body = urlencode(
+            {
+                "action": "settings",
+                "displayname": "Renamed",
+                "color": "#ff8800",
+                "description": "My events.",
+            }
+        ).encode("utf-8")
+        status, headers, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        self.assertTrue(headers["Location"].endswith("/calendar/"))
+        # Re-resolve through the backend: writing the display name clears
+        # the open-store cache, so the collection captured in setUp now
+        # holds a stale store.
+        saved = self.backend.get_resource("/calendar")
+        self.assertEqual(saved.get_displayname(), "Renamed")
+        self.assertEqual(saved.get_calendar_color(), "#ff8800")
+        self.assertEqual(saved.get_calendar_description(), "My events.")
+
+    def test_month_view_shows_color_and_description(self):
+        self.collection.set_calendar_color("#ff8800")
+        self.collection.set_calendar_description("Holiday plans")
+        _s, _h, body = self._request("GET", "/calendar/", query="month=2026-05")
+        text = body.decode("utf-8")
+        self.assertIn("#ff8800", text)
+        self.assertIn("Holiday plans", text)
+
     def test_post_without_action_falls_through(self):
         # Real CalDAV add-member POST with raw ics still works.
         environ = {

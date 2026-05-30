@@ -19,9 +19,12 @@
       .ev.todo { background: #ffe6b3; color: #530; }
       .ev.todo.done { background: #d8d8d8; color: #777; text-decoration: line-through; }
       .ev .t { font-variant-numeric: tabular-nums; font-size: 0.85em; margin-right: 0.3em; }
+      .cal-swatch { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 2px;
+                    border: 1px solid #888; vertical-align: middle; margin-right: 0.35em; }
+      .cal-desc { color: #555; margin: 0.2em 0 0.8em; }
 {% endblock %}
 {% block content %}
-    <h1>{{ collection.get_displayname() }}</h1>
+    <h1>{% if color %}<span class="cal-swatch" style="background: {{ color }};"></span>{% endif %}{{ collection.get_displayname() }}</h1>
     <div class="nav">
       <a href="{{ prev_url }}">&laquo; Prev</a>
       <a href="{{ today_url }}">Today</a>
@@ -31,9 +34,12 @@
       <a href="{{ urljoin(collection_url, '+week') }}">Week</a>
       <a href="{{ urljoin(collection_url, '+tasks') }}">Tasks</a>
       <a href="{{ urljoin(collection_url, '+journal') }}">Journal</a>
+      <a href="{{ urljoin(collection_url, '+settings') }}">Settings</a>
       <a href="{{ urljoin(collection_url, '+new') }}">+ New event</a>
       <a href="{{ urljoin(collection_url, '+new?kind=todo') }}">+ New task</a>
     </div>
+
+    {% if description %}<p class="cal-desc">{{ description }}</p>{% endif %}
 
     <table class="month">
       <thead>

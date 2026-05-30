@@ -527,6 +527,21 @@ def _self_url_normalised(self_url: str) -> tuple[str, str]:
     )
 
 
+def _calendar_meta(collection) -> tuple[str | None, str | None]:
+    """Return ``(color, description)`` for a calendar, each or both None."""
+
+    def _safe(getter):
+        try:
+            value = getter()
+        except (KeyError, AttributeError):
+            return None
+        return value or None
+
+    return _safe(collection.get_calendar_color), _safe(
+        collection.get_calendar_description
+    )
+
+
 async def render_month(
     collection: CalendarCollection,
     self_url: str,
@@ -554,6 +569,8 @@ async def render_month(
     prev_year, prev_month = _shift_month(year, month, -1)
     next_year, next_month = _shift_month(year, month, +1)
 
+    color, description = _calendar_meta(collection)
+
     return await _render_template(
         "calendar_month.html",
         collection=collection,
@@ -568,6 +585,8 @@ async def render_month(
         next_url=f"{collection_url}?month={next_year:04d}-{next_month:02d}",
         today_url=collection_url,
         weekday_names=[stdcalendar.day_abbr[i] for i in range(7)],
+        color=color,
+        description=description,
     )
 
 
@@ -896,6 +915,37 @@ async def render_new_event_form(
     )
 
 
+async def render_settings_form(
+    collection: CalendarCollection,
+    self_url: str,
+):
+    """Render the calendar settings form (name, colour, description)."""
+    # self_url is the +settings URL; the collection URL is its parent.
+    parsed = urllib.parse.urlsplit(self_url)
+    clean = re.sub(r"/+", "/", parsed.path) or "/"
+    parts = clean.rstrip("/").split("/")[:-1]
+    coll_path = "/".join(parts) + "/"
+    collection_url = urllib.parse.urlunsplit(
+        parsed._replace(path=coll_path, query="", fragment="")
+    )
+
+    color, description = _calendar_meta(collection)
+    try:
+        displayname = collection.get_displayname()
+    except KeyError:
+        displayname = ""
+
+    return await _render_template(
+        "calendar_settings.html",
+        collection=collection,
+        collection_url=collection_url,
+        parent_url=collection_url,
+        displayname=displayname or "",
+        color=color or "",
+        description=description or "",
+    )
+
+
 def _journal_to_form(comp) -> dict[str, Any]:
     """Pull a VJOURNAL's fields into the journal form dict."""
     dtstart = comp.get("DTSTART")
@@ -1210,10 +1260,34 @@ async def handle_post(
     if form is None:
         return None
     action = (form.get("action") or "").strip().lower()
-    if action not in {"create", "update", "delete", "toggle_done"}:
+    if action not in {"create", "update", "delete", "toggle_done", "settings"}:
         return None
 
     collection_url = _post_target_url(request)
+
+    if action == "settings":
+        # Update the calendar's display name, colour and description from
+        # the settings form. The store's set_color rejects empty values,
+        # so an empty colour field is left untouched rather than cleared.
+        #
+        # Each write commits to the store, and set_displayname clears the
+        # backend's open-store cache — so a collection instance reused
+        # across writes ends up pointing at a stale store and the next
+        # write fails. Re-resolve the collection from the backend before
+        # each write so every mutation runs against a fresh store.
+        backend = collection.backend
+        # backend.get_resource expects an absolute path; collection.relpath
+        # is stored without a leading slash.
+        relpath = "/" + collection.relpath.lstrip("/")
+        color = (form.get("color") or "").strip()
+        if color:
+            backend.get_resource(relpath).set_calendar_color(color)
+        description = (form.get("description") or "").strip()
+        backend.get_resource(relpath).set_calendar_description(description)
+        name = (form.get("displayname") or "").strip()
+        if name:
+            backend.get_resource(relpath).set_displayname(name)
+        return _redirect(collection_url)
 
     if action == "delete":
         name = (form.get("name") or "").strip()

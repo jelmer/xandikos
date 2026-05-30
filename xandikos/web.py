@@ -1453,6 +1453,21 @@ class _NewJournalResource(_TransientHtmlResource):
         )
 
 
+class _CalendarSettingsResource(_TransientHtmlResource):
+    """``<calendar>/+settings`` — form to edit name, colour, description."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_settings_form(self.collection, self_url)
+
+
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
@@ -1494,6 +1509,8 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             return _CalendarJournalsResource(self)
         if name == "+newjournal":
             return _NewJournalResource(self)
+        if name == "+settings":
+            return _CalendarSettingsResource(self)
         return super().get_member(name)
 
     async def handle_post(self, request, environ, path, body, content_type):
