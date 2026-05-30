@@ -102,13 +102,77 @@ def _typed_values(vcard, name: str) -> list[dict[str, str]]:
     return result
 
 
+def _photo_data_uri(vcard) -> str:
+    """Return a usable ``src`` for the contact's PHOTO, or ``''``.
+
+    Handles both inline photos (base64-encoded, possibly with a TYPE
+    giving the image subtype) and photos given as a plain URI.
+    """
+    props = get_vcard_properties(vcard, "PHOTO")
+    if not props:
+        return ""
+    prop = props[0]
+    value = prop.value
+    params = getattr(prop, "params", {}) or {}
+    encoding = params.get("ENCODING")
+    if encoding:
+        encoding = (
+            str(encoding[0]) if isinstance(encoding, list) else str(encoding)
+        ).upper()
+    # Inline, base64-encoded binary.
+    if encoding in ("B", "BASE64") or isinstance(value, bytes):
+        import base64
+
+        if isinstance(value, bytes):
+            b64 = base64.b64encode(value).decode("ascii")
+        else:
+            # vobject hands us the already-encoded text; strip whitespace.
+            b64 = "".join(str(value).split())
+        types = params.get("TYPE")
+        subtype = ""
+        if types:
+            subtype = (str(types[0]) if isinstance(types, list) else str(types)).lower()
+        mime = f"image/{subtype}" if subtype else "image/jpeg"
+        return f"data:{mime};base64,{b64}"
+    # Otherwise treat it as a URI (http(s) or an existing data: URI).
+    text = str(value).strip()
+    if text.startswith(("http://", "https://", "data:")):
+        return text
+    return ""
+
+
+def _categories(vcard) -> list[str]:
+    """Return the contact's CATEGORIES as a flat list of labels."""
+    out: list[str] = []
+    for prop in get_vcard_properties(vcard, "CATEGORIES"):
+        value = prop.value
+        if isinstance(value, list):
+            out.extend(str(v).strip() for v in value if str(v).strip())
+        elif value:
+            out.extend(part.strip() for part in str(value).split(",") if part.strip())
+    return out
+
+
+def _initial(fn: str, fallback: str) -> str:
+    """First letter (uppercased) of ``fn`` for A-Z grouping; '#' otherwise."""
+    text = (fn or fallback or "").strip()
+    if not text:
+        return "#"
+    ch = text[0].upper()
+    return ch if ch.isalpha() else "#"
+
+
 def contact_summary(vcard) -> dict[str, Any]:
     """Compact summary for the list view."""
+    fn = _first_text(vcard, "FN")
     return {
-        "fn": _first_text(vcard, "FN"),
+        "fn": fn,
         "emails": [e["value"] for e in _typed_values(vcard, "EMAIL")],
         "tels": [t["value"] for t in _typed_values(vcard, "TEL")],
         "org": _first_text(vcard, "ORG"),
+        "photo": _photo_data_uri(vcard),
+        "categories": _categories(vcard),
+        "initial": _initial(fn, ""),
     }
 
 
@@ -264,17 +328,29 @@ def _iter_contacts(collection: AddressbookCollection):
     vCards we can't parse get a placeholder summary so the user can
     still see and delete them.
     """
+
+    def _placeholder(nm: str) -> dict[str, Any]:
+        return {
+            "fn": nm,
+            "emails": [],
+            "tels": [],
+            "org": "",
+            "photo": "",
+            "categories": [],
+            "initial": _initial(nm, nm),
+        }
+
     for name, content_type, etag in collection.store.iter_with_etag():
         if content_type != "text/vcard":
             continue
         try:
             file = collection.store.get_file(name, content_type, etag)
         except (KeyError, InvalidFileContents):
-            yield name, {"fn": name, "emails": [], "tels": [], "org": ""}, etag
+            yield name, _placeholder(name), etag
             continue
         card = _load_card(file)
         if card is None:
-            yield name, {"fn": name, "emails": [], "tels": [], "org": ""}, etag
+            yield name, _placeholder(name), etag
         else:
             yield name, contact_summary(card), etag
 

@@ -5,6 +5,12 @@
       table { width: 100%; border-collapse: collapse; }
       th, td { text-align: left; padding: 0.4em 0.6em; border-bottom: 1px solid #eee; vertical-align: top; }
       tr:hover { background: #f7f7f7; }
+      tr.section td { background: #f0f0f0; font-weight: bold; border-bottom: 1px solid #ddd; }
+      .photo { width: 2.2em; height: 2.2em; object-fit: cover; border-radius: 50%; vertical-align: middle; }
+      .photo-cell { width: 2.6em; }
+      .cats { margin-top: 0.2em; }
+      .cat { display: inline-block; padding: 0.05em 0.4em; margin: 0.1em 0.2em 0 0;
+             border-radius: 3px; background: #e6eefc; color: #244; font-size: 0.78em; }
       .delete-form { display: inline; }
       .delete-form button { color: #a00; border-color: #a00; background: #fff; }
 {% endblock %}
@@ -21,15 +27,26 @@
     {% if contacts %}
     <table>
       <thead>
-        <tr><th>Name</th><th>Email</th><th>Phone</th><th>Organisation</th><th></th></tr>
+        <tr><th class="photo-cell"></th><th>Name</th><th>Email</th><th>Phone</th><th>Organisation</th><th></th></tr>
       </thead>
       <tbody>
       {% for name, summary, etag in contacts %}
+        {% if loop.changed(summary.initial) %}
+        <tr class="section"><td colspan="6">{{ summary.initial }}</td></tr>
+        {% endif %}
         <tr>
+          <td class="photo-cell">
+            {% if summary.photo %}<img class="photo" src="{{ summary.photo }}" alt="">{% endif %}
+          </td>
           <td>
             <a href="{{ urljoin(self_url + '/', quote(name)) }}">
               {{ summary.fn or name }}
             </a>
+            {% if summary.categories %}
+            <div class="cats">
+              {% for cat in summary.categories %}<span class="cat">{{ cat }}</span>{% endfor %}
+            </div>
+            {% endif %}
           </td>
           <td>
             {% for email in summary.emails %}
