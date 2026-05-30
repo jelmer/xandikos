@@ -2850,6 +2850,42 @@ class PrincipalBare(CollectionSetResource, Principal):
             ):
                 yield (name, resource)
 
+    def dashboard_entries(self):
+        """Yield a richer summary per subcollection for the principal page.
+
+        Each entry is a dict with ``name``, ``kind``
+        (``calendar``/``addressbook``/``collection``), ``color`` (empty
+        when none is set) and ``count`` (number of members). Colour and
+        member access are guarded so a single broken collection doesn't
+        break the whole dashboard.
+        """
+        for name, resource in self.subcollections():
+            types = getattr(resource, "resource_types", ())
+            if caldav.CALENDAR_RESOURCE_TYPE in types:
+                kind = "calendar"
+            elif carddav.ADDRESSBOOK_RESOURCE_TYPE in types:
+                kind = "addressbook"
+            else:
+                kind = "collection"
+
+            color = ""
+            try:
+                color = resource.get_calendar_color() or ""
+            except (KeyError, AttributeError):
+                pass
+
+            try:
+                count = sum(1 for _ in resource.members())
+            except (KeyError, AttributeError):
+                count = 0
+
+            yield {
+                "name": name,
+                "kind": kind,
+                "color": color,
+                "count": count,
+            }
+
 
 class PrincipalCollection(Collection, Principal):
     """Principal user resource."""

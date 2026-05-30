@@ -1,17 +1,36 @@
 {% extends "base.html" %}
 {% block title %}{{ principal.get_displayname() }} - Xandikos{% endblock %}
+{% block extra_style %}
+      ul.collections { list-style: none; padding: 0; }
+      ul.collections li {
+        display: flex; align-items: baseline; gap: 0.5em;
+        padding: 0.35em 0; border-bottom: 1px solid #eee;
+      }
+      .swatch { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 2px;
+                border: 1px solid #888; flex: none; }
+      .swatch.none { border-style: dashed; background: transparent; }
+      .cname { font-weight: bold; }
+      .kind { color: #888; font-size: 0.85em; }
+      .count { color: #666; margin-left: auto; font-variant-numeric: tabular-nums; }
+{% endblock %}
 {% block content %}
     <h1>{{ principal.get_displayname() }}</h1>
 
     <p>This is a user principal. CalDAV/CardDAV clients that support
     autodiscovery can use this URL for discovery.</p>
 
-    <h2>Subcollections</h2>
-    <ul class="plain">
-    {% for name, resource in principal.subcollections() %}
-      <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
+    <h2>Collections</h2>
+    <ul class="collections">
+    {% for entry in principal.dashboard_entries() %}
+      <li>
+        <span class="swatch {% if not entry.color %}none{% endif %}"
+              {% if entry.color %}style="background: {{ entry.color }};"{% endif %}></span>
+        <a class="cname" href="{{ urljoin(self_url+'/', entry.name+'/') }}">{{ entry.name }}</a>
+        <span class="kind">{{ entry.kind }}</span>
+        <span class="count">{{ entry.count }} item{% if entry.count != 1 %}s{% endif %}</span>
+      </li>
     {% else %}
-      <li class="empty">(no subcollections)</li>
+      <li class="empty">(no collections)</li>
     {% endfor %}
     </ul>
 {% endblock %}

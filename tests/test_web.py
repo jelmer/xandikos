@@ -3116,6 +3116,37 @@ class PrincipalBareSubcollectionsTests(unittest.TestCase):
         for expected in ("calendars", "contacts", "inbox"):
             self.assertIn(expected, body)
 
+    def test_principal_page_shows_dashboard(self):
+        from wsgiref.util import setup_testing_defaults
+
+        app = XandikosApp(self.backend, "user")
+        environ = {
+            "PATH_INFO": "/user/",
+            "REQUEST_METHOD": "GET",
+            "QUERY_STRING": "",
+            "HTTP_ACCEPT": "text/html",
+        }
+        setup_testing_defaults(environ)
+        captured = {}
+
+        def sr(status, headers):
+            captured["s"] = status
+
+        body = b"".join(app(environ, sr)).decode("utf-8")
+        self.assertEqual(captured["s"], "200 OK")
+        # The dashboard renders a swatch and an item count per collection.
+        self.assertIn('class="swatch', body)
+        self.assertIn("item", body)
+
+    def test_dashboard_entries_reports_count_and_color(self):
+        principal = self.backend.get_resource("/user")
+        entries = {e["name"]: e for e in principal.dashboard_entries()}
+        # The default homes are listed with a numeric item count.
+        self.assertIn("calendars", entries)
+        self.assertIsInstance(entries["calendars"]["count"], int)
+        # A colour-less collection reports an empty colour string.
+        self.assertEqual(entries["inbox"]["color"], "")
+
 
 class PrincipalHomeSetTests(unittest.TestCase):
     """Per-principal calendar/addressbook-home-set overrides via .xandikos."""
