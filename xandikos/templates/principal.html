@@ -12,6 +12,16 @@
       .cname { font-weight: bold; }
       .kind { color: #888; font-size: 0.85em; }
       .count { color: #666; margin-left: auto; font-variant-numeric: tabular-nums; }
+      ul.agenda { list-style: none; padding: 0; }
+      ul.agenda li {
+        display: flex; align-items: baseline; gap: 0.5em;
+        padding: 0.25em 0; border-bottom: 1px solid #f0f0f0;
+      }
+      .agenda .when { color: #555; font-variant-numeric: tabular-nums; min-width: 9.5em; flex: none; }
+      .agenda .dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%;
+                     border: 1px solid #888; flex: none; }
+      .agenda .summary { font-weight: bold; }
+      .agenda .cal { color: #888; font-size: 0.85em; }
 {% endblock %}
 {% block content %}
     <h1>{{ principal.get_displayname() }}</h1>
@@ -33,4 +43,20 @@
       <li class="empty">(no collections)</li>
     {% endfor %}
     </ul>
+
+    {% if agenda is defined and agenda %}
+    <h2>Upcoming</h2>
+    <ul class="agenda">
+    {% for occ in agenda %}
+      <li>
+        <span class="when">
+          {{ occ.date.strftime('%a %d %b') }}{% if not occ.all_day %} {{ occ.start_time }}{% endif %}
+        </span>
+        <span class="dot" {% if occ.color %}style="background: {{ occ.color }};"{% endif %}></span>
+        <span class="summary">{{ occ.summary or '(no title)' }}</span>
+        <span class="cal">{{ occ.calendar }}</span>
+      </li>
+    {% endfor %}
+    </ul>
+    {% endif %}
 {% endblock %}

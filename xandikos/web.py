@@ -2828,11 +2828,15 @@ class PrincipalBare(CollectionSetResource, Principal):
     ):
         content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
+        from . import webcalendar
+
+        agenda = await asyncio.to_thread(webcalendar.collect_principal_agenda, self)
         return await render_jinja_page(
             "principal.html",
             accepted_content_languages,
             principal=self,
             self_url=self_url,
+            agenda=agenda,
         )
 
     def subcollections(self):

@@ -3147,6 +3147,52 @@ class PrincipalBareSubcollectionsTests(unittest.TestCase):
         # A colour-less collection reports an empty colour string.
         self.assertEqual(entries["inbox"]["color"], "")
 
+    def test_dashboard_agenda_lists_upcoming_event(self):
+        import datetime as _dt
+
+        from xandikos import webcalendar
+        from xandikos.store import STORE_TYPE_CALENDAR
+
+        # Put a calendar with an imminent event under the calendar home.
+        cal_path = os.path.join(self.tempdir, "user", "calendars", "work")
+        store = TreeGitStore.create(cal_path)
+        store.set_type(STORE_TYPE_CALENDAR)
+        store.load_extra_file_handler(ICalendarFile)
+        soon = (_dt.date.today() + _dt.timedelta(days=1)).strftime("%Y%m%d")
+        event = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//\r\n"
+            b"BEGIN:VEVENT\r\nUID:ag1\r\nDTSTAMP:20260101T000000Z\r\n"
+            b"SUMMARY:Agenda standup\r\n"
+            + f"DTSTART:{soon}T090000Z\r\nDTEND:{soon}T093000Z\r\n".encode()
+            + b"END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        store.import_one("ag1.ics", "text/calendar", [event])
+
+        principal = self.backend.get_resource("/user")
+        agenda = webcalendar.collect_principal_agenda(principal)
+        summaries = [a["summary"] for a in agenda]
+        self.assertIn("Agenda standup", summaries)
+
+        app = XandikosApp(self.backend, "user")
+        environ = {
+            "PATH_INFO": "/user/",
+            "REQUEST_METHOD": "GET",
+            "QUERY_STRING": "",
+            "HTTP_ACCEPT": "text/html",
+        }
+        from wsgiref.util import setup_testing_defaults
+
+        setup_testing_defaults(environ)
+        captured = {}
+
+        def sr(status, headers):
+            captured["s"] = status
+
+        body = b"".join(app(environ, sr)).decode("utf-8")
+        self.assertEqual(captured["s"], "200 OK")
+        self.assertIn("Upcoming", body)
+        self.assertIn("Agenda standup", body)
+
 
 class PrincipalHomeSetTests(unittest.TestCase):
     """Per-principal calendar/addressbook-home-set overrides via .xandikos."""
