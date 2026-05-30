@@ -373,6 +373,71 @@ class WebContactsAppTests(unittest.TestCase):
         # a Location header.
         self.assertIn(captured["status"], ("200 OK", "201 Created"))
 
+    def test_addressbook_shows_inline_photo(self):
+        card = (
+            b"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:p1\r\nFN:Photo Person\r\n"
+            b"PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRg==\r\n"
+            b"END:VCARD\r\n"
+        )
+        self.store.import_one("p1.vcf", "text/vcard", [card])
+        _status, _headers, body = self._request("GET", "/addressbook/")
+        text = body.decode("utf-8")
+        self.assertIn('class="photo"', text)
+        self.assertIn("data:image/jpeg;base64,/9j/4AAQSkZJRg==", text)
+
+    def test_addressbook_shows_categories(self):
+        card = (
+            b"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:c1\r\nFN:Tagged Person\r\n"
+            b"CATEGORIES:Friends,Work\r\nEND:VCARD\r\n"
+        )
+        self.store.import_one("c1.vcf", "text/vcard", [card])
+        _status, _headers, body = self._request("GET", "/addressbook/")
+        text = body.decode("utf-8")
+        self.assertIn('class="cat"', text)
+        self.assertIn("Friends", text)
+        self.assertIn("Work", text)
+
+    def test_addressbook_groups_alphabetically(self):
+        alice = (
+            b"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:a1\r\nFN:Alice Adams\r\nEND:VCARD\r\n"
+        )
+        bob = b"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:b1\r\nFN:Bob Brown\r\nEND:VCARD\r\n"
+        self.store.import_one("a1.vcf", "text/vcard", [alice])
+        self.store.import_one("b1.vcf", "text/vcard", [bob])
+        _status, _headers, body = self._request("GET", "/addressbook/")
+        text = body.decode("utf-8")
+        self.assertIn('class="section"', text)
+        self.assertIn(">A<", text)
+        self.assertIn(">B<", text)
+        self.assertLess(text.index(">A<"), text.index(">B<"))
+        self.assertLess(text.index("Alice Adams"), text.index("Bob Brown"))
+
+    def test_addressbook_search_box_present(self):
+        _status, _headers, body = self._request("GET", "/addressbook/")
+        self.assertIn('name="q"', body.decode("utf-8"))
+
+    def test_addressbook_search_filters(self):
+        alice = (
+            b"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:a1\r\nFN:Alice Adams\r\n"
+            b"EMAIL:alice@example.org\r\nEND:VCARD\r\n"
+        )
+        bob = b"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:b1\r\nFN:Bob Brown\r\nEND:VCARD\r\n"
+        self.store.import_one("a1.vcf", "text/vcard", [alice])
+        self.store.import_one("b1.vcf", "text/vcard", [bob])
+        _status, _headers, body = self._request(
+            "GET", "/addressbook/", extra_environ={"QUERY_STRING": "q=alice"}
+        )
+        text = body.decode("utf-8")
+        self.assertIn("Alice Adams", text)
+        self.assertNotIn("Bob Brown", text)
+
+    def test_addressbook_search_no_match(self):
+        self.store.import_one("alice.vcf", "text/vcard", [EXAMPLE_VCARD])
+        _status, _headers, body = self._request(
+            "GET", "/addressbook/", extra_environ={"QUERY_STRING": "q=zzzznomatch"}
+        )
+        self.assertIn("No contacts match", body.decode("utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

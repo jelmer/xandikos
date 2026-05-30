@@ -13,12 +13,21 @@
              border-radius: 3px; background: #e6eefc; color: #244; font-size: 0.78em; }
       .delete-form { display: inline; }
       .delete-form button { color: #a00; border-color: #a00; background: #fff; }
+      .search { margin: 0.5em 0 1em; }
+      .search input[type=search] { font: inherit; padding: 0.3em 0.5em; width: 18em; max-width: 100%; }
 {% endblock %}
 {% block content %}
     <h1>{{ collection.get_displayname() }}</h1>
     <div class="meta">
       {{ contacts|length }} contact{% if contacts|length != 1 %}s{% endif %}
+      {% if search %}matching &ldquo;{{ search }}&rdquo;{% endif %}
     </div>
+
+    <form class="search" method="get" action="{{ self_url }}">
+      <input type="search" name="q" value="{{ search }}" placeholder="Search name, email, organisation">
+      <button type="submit">Search</button>
+      {% if search %}<a href="{{ self_url }}">Clear</a>{% endif %}
+    </form>
 
     <div class="actions">
       <a href="{{ urljoin(self_url + '/', '+new') }}">Add contact</a>
@@ -71,6 +80,8 @@
       {% endfor %}
       </tbody>
     </table>
+    {% elif search %}
+    <p class="empty">No contacts match &ldquo;{{ search }}&rdquo;.</p>
     {% else %}
     <p class="empty">No contacts yet. Use &quot;Add contact&quot; to create one.</p>
     {% endif %}
