@@ -31,7 +31,18 @@
 
     <div class="actions">
       <a href="{{ urljoin(self_url + '/', '+new') }}">Add contact</a>
+      <a href="{{ self_url }}?export">Export</a>
     </div>
+
+    <details class="import">
+      <summary>Import vCards</summary>
+      <form method="post" action="{{ self_url }}">
+        <input type="hidden" name="action" value="import">
+        <p>Paste the contents of a <code>.vcf</code> file:</p>
+        <textarea name="data" rows="6" style="width: 100%; font: inherit;"></textarea>
+        <div class="actions"><button type="submit">Import</button></div>
+      </form>
+    </details>
 
     {% if contacts %}
     <table>
