@@ -822,6 +822,82 @@ async def render_subscription(
     )
 
 
+def _format_period(period) -> dict[str, str]:
+    """Turn an icalendar vPeriod into display strings for the outbox view."""
+    start, end = period.dt
+    fbtype = ""
+    params = getattr(period, "params", None)
+    if params:
+        fbtype = str(params.get("FBTYPE", "") or "")
+    return {
+        "start": _local_naive(start).strftime("%Y-%m-%d %H:%M")
+        if isinstance(start, datetime)
+        else str(start),
+        "end": _local_naive(end).strftime("%Y-%m-%d %H:%M")
+        if isinstance(end, datetime)
+        else str(end),
+        "fbtype": fbtype or "BUSY",
+    }
+
+
+async def render_outbox(
+    collection,
+    self_url: str,
+) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
+    """Render the schedule outbox as a free/busy lookup form.
+
+    A bare GET shows an empty form. When the query string carries
+    ``attendee``, ``start`` and ``end``, the attendee's busy periods over
+    that range are looked up via :meth:`ScheduleOutbox.get_attendee_busy_periods`
+    and listed.
+    """
+    collection_url, query_string = _self_url_normalised(self_url)
+    params = urllib.parse.parse_qs(query_string)
+    attendee = (params.get("attendee") or [""])[0].strip()
+    start_date = _parse_date((params.get("start") or [""])[0])
+    end_date = _parse_date((params.get("end") or [""])[0])
+
+    periods: list[dict[str, str]] | None = None
+    error = ""
+    submitted = bool(attendee or start_date or end_date)
+    if submitted:
+        if not attendee:
+            error = "Enter an attendee address."
+        elif start_date is None or end_date is None:
+            error = "Enter a valid start and end date."
+        elif end_date < start_date:
+            error = "The end date must not be before the start date."
+        else:
+            addr = (
+                attendee
+                if "@" not in attendee or ":" in attendee
+                else ("mailto:" + attendee)
+            )
+            start_dt = datetime.combine(start_date, time.min, tzinfo=timezone.utc)
+            end_dt = datetime.combine(end_date, time.max, tzinfo=timezone.utc)
+            raw = await collection.get_attendee_busy_periods(addr, start_dt, end_dt)
+            if raw is None:
+                error = (
+                    "This server has no authority over that attendee, so no "
+                    "free/busy information is available."
+                )
+            else:
+                periods = [_format_period(p) for p in raw]
+
+    return await _render_template(
+        "outbox.html",
+        collection=collection,
+        collection_url=collection_url,
+        parent_url=_parent_url(collection_url),
+        attendee=attendee,
+        start=(params.get("start") or [""])[0],
+        end=(params.get("end") or [""])[0],
+        periods=periods,
+        error=error,
+        submitted=submitted,
+    )
+
+
 async def maybe_render_event(
     resource: ObjectResource,
     self_url: str,

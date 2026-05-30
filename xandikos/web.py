@@ -1115,6 +1115,25 @@ async def _replace_member_body(member: "ObjectResource", new_cal: Calendar) -> N
 class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
     """A schedling outbox collection."""
 
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get a free/busy lookup form; CalDAV clients POST iTIP
+        # requests here and never GET the collection.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcalendar
+
+            return await webcalendar.render_outbox(self, self_url)
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
     async def get_attendee_busy_periods(self, attendee_address, start, end):
         """Look up busy periods for *attendee_address* within [start, end).
 

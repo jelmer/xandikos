@@ -32,10 +32,15 @@ from icalendar import Calendar as ICalendar
 
 from xandikos import webcalendar
 from xandikos.icalendar import ICalendarFile
-from xandikos.store import STORE_TYPE_CALENDAR, STORE_TYPE_SUBSCRIPTION
+from xandikos.store import (
+    STORE_TYPE_CALENDAR,
+    STORE_TYPE_SCHEDULE_OUTBOX,
+    STORE_TYPE_SUBSCRIPTION,
+)
 from xandikos.store.git import TreeGitStore
 from xandikos.web import (
     CalendarCollection,
+    ScheduleOutbox,
     SingleUserFilesystemBackend,
     SubscriptionCollection,
     XandikosApp,
@@ -794,6 +799,64 @@ class SubscriptionWebTests(unittest.TestCase):
         status, _h, body = self._request("GET", "/sub/s1.ics", accept="text/calendar")
         self.assertEqual(status, "200 OK")
         self.assertIn(b"BEGIN:VEVENT", body)
+
+
+class ScheduleOutboxWebTests(unittest.TestCase):
+    """End-to-end tests for the schedule-outbox free/busy view."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+
+        store_path = os.path.join(self.tempdir, "outbox")
+        self.store = TreeGitStore.create(store_path)
+        self.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
+        self.store.load_extra_file_handler(ICalendarFile)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.collection = ScheduleOutbox(self.backend, "outbox", self.store)
+        self.app = XandikosApp(self.backend, "user")
+
+    def _request(self, method, path, query="", accept="text/html"):
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": method,
+            "QUERY_STRING": query,
+            "HTTP_ACCEPT": accept,
+        }
+        setup_testing_defaults(environ)
+        environ["QUERY_STRING"] = query
+        captured = {}
+
+        def sr(status, headers):
+            captured["s"] = status
+            captured["h"] = dict(headers)
+
+        body = b"".join(self.app(environ, sr))
+        return captured["s"], captured["h"], body
+
+    def test_outbox_renders_form(self):
+        status, headers, body = self._request("GET", "/outbox/")
+        self.assertEqual(status, "200 OK")
+        self.assertIn("text/html", headers["Content-Type"])
+        text = body.decode("utf-8")
+        self.assertIn('name="attendee"', text)
+        self.assertIn('name="start"', text)
+        self.assertIn('name="end"', text)
+
+    def test_outbox_unowned_attendee(self):
+        # The outbox's principal does not own this address, so the server
+        # has no authority to answer free/busy for it.
+        status, _headers, body = self._request(
+            "GET",
+            "/outbox/",
+            query="attendee=nobody@example.com&start=2026-05-01&end=2026-05-02",
+        )
+        self.assertEqual(status, "200 OK")
+        self.assertIn("no authority", body.decode("utf-8"))
+
+    # TODO: a test that lists actual busy periods needs a principal that
+    # owns the attendee address and a calendar with events; deferred.
 
 
 if __name__ == "__main__":
