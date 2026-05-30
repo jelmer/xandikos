@@ -439,5 +439,68 @@ class WebContactsAppTests(unittest.TestCase):
         self.assertIn("No contacts match", body.decode("utf-8"))
 
 
+class AddressbookExportImportTests(unittest.TestCase):
+    """Export and import of vCards via the addressbook webview."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        store_path = os.path.join(self.tempdir, "addressbook")
+        self.store = TreeGitStore.create(store_path)
+        self.store.set_type(STORE_TYPE_ADDRESSBOOK)
+        self.store.load_extra_file_handler(VCardFile)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.collection = AddressbookCollection(self.backend, "addressbook", self.store)
+        self.app = XandikosApp(self.backend, "user")
+
+    def _request(self, method, path, body=b"", query=""):
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": method,
+            "QUERY_STRING": query,
+            "HTTP_ACCEPT": "text/html",
+        }
+        if body:
+            environ["wsgi.input"] = io.BytesIO(body)
+            environ["CONTENT_LENGTH"] = str(len(body))
+            environ["CONTENT_TYPE"] = "application/x-www-form-urlencoded"
+        setup_testing_defaults(environ)
+        environ["QUERY_STRING"] = query
+        captured = {}
+
+        def sr(status, headers):
+            captured["s"] = status
+            captured["h"] = dict(headers)
+
+        out = b"".join(self.app(environ, sr))
+        return captured["s"], captured["h"], out
+
+    def test_addressbook_export(self):
+        self.store.import_one("alice.vcf", "text/vcard", [EXAMPLE_VCARD])
+        status, headers, body = self._request("GET", "/addressbook/", query="export")
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "text/vcard; charset=utf-8")
+        card = vobject.readOne(body.decode("utf-8"))
+        self.assertEqual(card.fn.value, "Alice Example")
+
+    def test_addressbook_import(self):
+        vcf = (
+            "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:imp-1\r\n"
+            "FN:Imported Person\r\nEMAIL:imp@example.org\r\nEND:VCARD\r\n"
+        )
+        body = urlencode({"action": "import", "data": vcf}).encode("utf-8")
+        status, _headers, _ = self._request("POST", "/addressbook/", body=body)
+        self.assertEqual(status, "303 See Other")
+        names = [n for n, _ct, _e in self.store.iter_with_etag()]
+        self.assertEqual(names, ["imp-1.vcf"])
+        card = vobject.readOne(
+            b"".join(self.store.get_file("imp-1.vcf", "text/vcard").content).decode(
+                "utf-8"
+            )
+        )
+        self.assertEqual(card.fn.value, "Imported Person")
+
+
 if __name__ == "__main__":
     unittest.main()

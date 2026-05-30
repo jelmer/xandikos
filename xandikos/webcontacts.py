@@ -355,6 +355,36 @@ def _iter_contacts(collection: AddressbookCollection):
             yield name, contact_summary(card), etag
 
 
+def export_addressbook(
+    collection,
+) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
+    """Return all vCards in the addressbook as one downloadable file.
+
+    The stored cards are concatenated verbatim so the whole addressbook
+    can be saved as a single ``.vcf`` file.
+    """
+    chunks: list[bytes] = []
+    for name, content_type, etag in collection.store.iter_with_etag():
+        if content_type != "text/vcard":
+            continue
+        try:
+            file = collection.store.get_file(name, content_type, etag)
+            raw = b"".join(file.content)
+        except (KeyError, InvalidFileContents):
+            continue
+        if not raw.endswith(b"\n"):
+            raw += b"\r\n"
+        chunks.append(raw)
+    body = b"".join(chunks)
+    return (
+        [body],
+        len(body),
+        None,
+        "text/vcard; charset=utf-8",
+        ["en-UK"],
+    )
+
+
 async def render_addressbook(
     collection: AddressbookCollection,
     self_url: str,
@@ -367,7 +397,11 @@ async def render_addressbook(
     only accepts something other than text/html.
     """
     webdav.pick_content_types(accepted_content_types, ["text/html"])
-    query = urllib.parse.parse_qs(urllib.parse.urlsplit(self_url).query)
+    query = urllib.parse.parse_qs(
+        urllib.parse.urlsplit(self_url).query, keep_blank_values=True
+    )
+    if "export" in query:
+        return await asyncio.to_thread(export_addressbook, collection)
     search = (query.get("q") or [""])[0].strip()
     search_lc = search.lower()
 
@@ -535,10 +569,39 @@ async def handle_post(
     if form is None:
         return None
     action = (form.get("action") or "").strip().lower()
-    if action not in {"create", "update", "delete"}:
+    if action not in {"create", "update", "delete", "import"}:
         return None
 
     collection_url = _post_target_url(request, environ, path)
+
+    if action == "import":
+        # Import pasted vCard text: each card becomes its own resource.
+        raw = (form.get("data") or "").strip()
+        if not raw:
+            return _redirect(collection_url)
+        try:
+            cards = list(vobject.readComponents(raw))
+        except Exception:
+            return webdav.Response(status=400, reason="Invalid vCard data")
+        for card in cards:
+            uid = ""
+            if hasattr(card, "uid"):
+                uid = str(card.uid.value or "").strip()
+            if not uid:
+                uid = str(uuid.uuid4())
+            try:
+                await collection.create_member(
+                    uid + ".vcf",
+                    [card.serialize().encode("utf-8")],
+                    "text/vcard",
+                    remote_user=environ.get("REMOTE_USER"),
+                    requester=request.headers.get("User-Agent"),
+                )
+            except (FileExistsError, DuplicateUidError):
+                continue
+            except LockedError:
+                return webdav.Response(status=423, reason="Locked")
+        return _redirect(collection_url)
 
     if action == "delete":
         name = form.get("name", "").strip()

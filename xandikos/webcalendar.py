@@ -542,6 +542,40 @@ def _calendar_meta(collection) -> tuple[str | None, str | None]:
     )
 
 
+def export_calendar(
+    collection,
+) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
+    """Return all of the calendar's components as one downloadable VCALENDAR.
+
+    Every VEVENT/VTODO/VJOURNAL (and any timezones) from the stored
+    resources is merged into a single VCALENDAR so the whole calendar can
+    be saved as one ``.ics`` file.
+    """
+    out = ICalendar()
+    out.add("prodid", f"-//Xandikos//{xandikos_version}//EN")
+    out.add("version", "2.0")
+    for name, content_type, etag in collection.store.iter_with_etag():
+        if content_type != "text/calendar":
+            continue
+        try:
+            file = collection.store.get_file(name, content_type, etag)
+            cal = file.calendar
+        except (KeyError, InvalidFileContents, ValueError):
+            continue
+        if cal is None:
+            continue
+        for comp in cal.subcomponents:
+            out.add_component(comp)
+    body = out.to_ical()
+    return (
+        [body],
+        len(body),
+        None,
+        "text/calendar; charset=utf-8",
+        ["en-UK"],
+    )
+
+
 async def render_month(
     collection: CalendarCollection,
     self_url: str,
@@ -552,7 +586,9 @@ async def render_month(
     webdav.pick_content_types(accepted_content_types, ["text/html"])
     collection_url, query = _self_url_normalised(self_url)
 
-    params = urllib.parse.parse_qs(query)
+    params = urllib.parse.parse_qs(query, keep_blank_values=True)
+    if "export" in params:
+        return await asyncio.to_thread(export_calendar, collection)
     year, month = _parse_month((params.get("month") or [""])[0])
 
     grid = _month_grid(year, month)
@@ -1395,10 +1431,53 @@ async def handle_post(
     if form is None:
         return None
     action = (form.get("action") or "").strip().lower()
-    if action not in {"create", "update", "delete", "toggle_done", "settings"}:
+    if action not in {
+        "create",
+        "update",
+        "delete",
+        "toggle_done",
+        "settings",
+        "import",
+    }:
         return None
 
     collection_url = _post_target_url(request)
+
+    if action == "import":
+        # Import pasted iCalendar text: each top-level VEVENT/VTODO/VJOURNAL
+        # becomes its own resource, with any VTIMEZONEs carried along.
+        raw = (form.get("data") or "").strip()
+        if not raw:
+            return _redirect(collection_url)
+        try:
+            src = ICalendar.from_ical(raw)
+        except ValueError:
+            return webdav.Response(status=400, reason="Invalid iCalendar data")
+        timezones = [c for c in src.subcomponents if c.name == "VTIMEZONE"]
+        imported = 0
+        for comp in src.subcomponents:
+            if comp.name not in ("VEVENT", "VTODO", "VJOURNAL"):
+                continue
+            if "RECURRENCE-ID" in comp:
+                continue
+            cal = new_calendar(comp)
+            for tz in timezones:
+                cal.add_component(tz)
+            uid = str(comp.get("UID", "")) or str(uuid.uuid4())
+            try:
+                await collection.create_member(
+                    uid + ".ics",
+                    [cal.to_ical()],
+                    "text/calendar",
+                    remote_user=environ.get("REMOTE_USER"),
+                    requester=request.headers.get("User-Agent"),
+                )
+            except (FileExistsError, DuplicateUidError):
+                continue
+            except LockedError:
+                return webdav.Response(status=423, reason="Locked")
+            imported += 1
+        return _redirect(collection_url)
 
     if action == "settings":
         # Update the calendar's display name, colour and description from
