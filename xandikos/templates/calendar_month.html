@@ -35,6 +35,7 @@
       <a href="{{ urljoin(collection_url, '+tasks') }}">Tasks</a>
       <a href="{{ urljoin(collection_url, '+journal') }}">Journal</a>
       <a href="{{ urljoin(collection_url, '+settings') }}">Settings</a>
+      <a href="{{ collection_url }}?export">Export</a>
       <a href="{{ urljoin(collection_url, '+new') }}">+ New event</a>
       <a href="{{ urljoin(collection_url, '+new?kind=todo') }}">+ New task</a>
     </div>
@@ -73,4 +74,14 @@
       {% endfor %}
       </tbody>
     </table>
+
+    <details class="import">
+      <summary>Import iCalendar</summary>
+      <form method="post" action="{{ collection_url }}">
+        <input type="hidden" name="action" value="import">
+        <p>Paste the contents of an <code>.ics</code> file:</p>
+        <textarea name="data" rows="6" style="width: 100%; font: inherit;"></textarea>
+        <div class="actions"><button type="submit">Import</button></div>
+      </form>
+    </details>
 {% endblock %}

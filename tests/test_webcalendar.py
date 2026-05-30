@@ -704,6 +704,38 @@ class WebCalendarAppTests(unittest.TestCase):
         self.assertIn("#ff8800", text)
         self.assertIn("Holiday plans", text)
 
+    def test_calendar_export(self):
+        self.store.import_one("event-1.ics", "text/calendar", [EXAMPLE_EVENT])
+        status, headers, body = self._request("GET", "/calendar/", query="export")
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "text/calendar; charset=utf-8")
+        # The export body is a single VCALENDAR holding the one event.
+        cal = ICalendar.from_ical(body)
+        self.assertEqual(cal.name, "VCALENDAR")
+        events = [c for c in cal.subcomponents if c.name == "VEVENT"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(str(events[0]["SUMMARY"]), "Team sync")
+
+    def test_calendar_import(self):
+        ics = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//\r\n"
+            "BEGIN:VEVENT\r\nUID:imported-1\r\nDTSTAMP:20260101T000000Z\r\n"
+            "SUMMARY:Imported meeting\r\nDTSTART:20260601T100000Z\r\n"
+            "DTEND:20260601T110000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        body = urlencode({"action": "import", "data": ics}).encode("utf-8")
+        status, _headers, _ = self._request("POST", "/calendar/", body=body)
+        self.assertEqual(status, "303 See Other")
+        names = [n for n, _ct, _e in self.store.iter_with_etag()]
+        self.assertEqual(names, ["imported-1.ics"])
+        stored = ICalendar.from_ical(
+            b"".join(self.store.get_file("imported-1.ics", "text/calendar").content)
+        )
+        events = [c for c in stored.subcomponents if c.name == "VEVENT"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(str(events[0]["SUMMARY"]), "Imported meeting")
+        self.assertEqual(str(events[0]["UID"]), "imported-1")
+
     def test_post_without_action_falls_through(self):
         # Real CalDAV add-member POST with raw ics still works.
         environ = {
