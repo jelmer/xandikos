@@ -367,17 +367,36 @@ async def render_addressbook(
     only accepts something other than text/html.
     """
     webdav.pick_content_types(accepted_content_types, ["text/html"])
-    contacts = await asyncio.to_thread(
-        lambda: sorted(
+    query = urllib.parse.parse_qs(urllib.parse.urlsplit(self_url).query)
+    search = (query.get("q") or [""])[0].strip()
+    search_lc = search.lower()
+
+    def _gather():
+        rows = sorted(
             _iter_contacts(collection),
-            key=lambda item: (item[1]["fn"] or "").lower() or item[0].lower(),
+            key=lambda item: (
+                item[1]["initial"],
+                (item[1]["fn"] or "").lower() or item[0].lower(),
+            ),
         )
-    )
+        if not search_lc:
+            return rows
+        matched = []
+        for name, summary, etag in rows:
+            haystack = " ".join(
+                [summary["fn"] or name, summary["org"], *summary["emails"]]
+            ).lower()
+            if search_lc in haystack:
+                matched.append((name, summary, etag))
+        return matched
+
+    contacts = await asyncio.to_thread(_gather)
     return await _render_template(
         "addressbook.html",
         collection=collection,
         contacts=contacts,
         self_url=self_url,
+        search=search,
     )
 
 
