@@ -774,6 +774,65 @@ async def render_tasks(
     )
 
 
+def _iter_principal_calendars(principal):
+    """Yield ``(home_name, cal_name, resource)`` for the principal's calendars.
+
+    A principal's direct children are collection *homes*; the actual
+    calendars are their members. A member is treated as a calendar when
+    it exposes a ``store`` with ``iter_with_etag`` (what
+    :func:`collect_occurrences` needs) — this avoids importing CalDAV
+    resource-type constants here and tolerates odd collections.
+    """
+    try:
+        homes = list(principal.subcollections())
+    except (KeyError, AttributeError):
+        return
+    for home_name, home in homes:
+        members = getattr(home, "members", None)
+        if members is None:
+            continue
+        try:
+            entries = list(members())
+        except (KeyError, AttributeError, OSError):
+            continue
+        for cal_name, resource in entries:
+            store = getattr(resource, "store", None)
+            if store is None or not hasattr(store, "iter_with_etag"):
+                continue
+            yield home_name, cal_name, resource
+
+
+def collect_principal_agenda(principal, days: int = 7) -> list[dict[str, Any]]:
+    """Return upcoming occurrences across all the principal's calendars.
+
+    Walks every calendar reachable from ``principal``, collects the
+    occurrences over ``[today, today + days]`` and returns them sorted by
+    date and time. Each entry is a ``collect_occurrences`` dict augmented
+    with ``home`` (home name), ``calendar`` (calendar name) and ``color``.
+    """
+    today = _today()
+    end = today + timedelta(days=days)
+    out: list[dict[str, Any]] = []
+    for home_name, cal_name, resource in _iter_principal_calendars(principal):
+        try:
+            occurrences = collect_occurrences(resource, today, end)
+        except (KeyError, InvalidFileContents, ValueError):
+            continue
+        color = ""
+        try:
+            color = resource.get_calendar_color() or ""
+        except (KeyError, AttributeError):
+            pass
+        for occ in occurrences:
+            occ = dict(occ)
+            occ["home"] = home_name
+            occ["calendar"] = cal_name
+            occ["color"] = color
+            out.append(occ)
+    out.sort(key=lambda e: (e["date"], e["all_day"] is False, e["start_time"] or ""))
+    return out
+
+
 async def render_subscription(
     collection,
     self_url: str,
