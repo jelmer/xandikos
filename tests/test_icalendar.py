@@ -27,7 +27,7 @@ from icalendar.cal import Calendar, Event, Alarm, Todo
 from icalendar.prop import vCategory, vText, vDuration, vDDDTypes
 
 from xandikos import collation as _mod_collation
-from xandikos.store import InvalidFileContents
+from xandikos.store import InsufficientIndexDataError, InvalidFileContents
 
 from xandikos.icalendar import (
     CalendarFilter,
@@ -1008,6 +1008,64 @@ END:VCALENDAR
         }
         self.assertTrue(filter.check_from_indexes("file", indexes))
         self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_tzid_dst(self):
+        """Recurring events with a TZID DTSTART defer to the real file."""
+        # Weekly event at 09:05 Europe/Berlin: 07:05Z in summer, 08:05Z in winter.
+        self.cal = ICalendarFile(
+            [
+                b"""\
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;TZID=W. Europe Standard Time:20250722T090500
+DTEND;TZID=W. Europe Standard Time:20250722T095000
+RRULE:FREQ=WEEKLY;UNTIL=20270720T070500Z;BYDAY=TU
+UID:2a5666700a3972be13eed0a9183cad638dbb0deb32f45b65ba8b1b56c819ba77
+END:VEVENT
+END:VCALENDAR
+"""
+            ],
+            "text/calendar",
+        )
+
+        def make_filter(start, end):
+            filter = CalendarFilter(ZoneInfo("UTC"))
+            filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+                "VEVENT"
+            ).filter_time_range(start=self._tzify(start), end=self._tzify(end))
+            return filter
+
+        winter_hit = make_filter(
+            datetime(2026, 1, 6, 8, 0, 0), datetime(2026, 1, 6, 9, 0, 0)
+        )
+        keys = [key for key_set in winter_hit.index_keys() for key in key_set]
+        indexes = self.cal.get_indexes(keys)
+
+        # DTSTART is indexed as a naive wall-clock value (TZID dropped).
+        self.assertEqual(
+            indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"], [b"20250722T090500"]
+        )
+
+        # Real winter occurrence: 09:05 Berlin == 08:05Z. Index defers; real file matches.
+        self.assertRaises(
+            InsufficientIndexDataError,
+            winter_hit.check_from_indexes,
+            "file",
+            indexes,
+        )
+        self.assertTrue(winter_hit.check("file", self.cal))
+
+        # Ghost window that would match if the naive value were expanded in UTC.
+        winter_ghost = make_filter(
+            datetime(2026, 1, 6, 9, 0, 0), datetime(2026, 1, 6, 10, 0, 0)
+        )
+        self.assertRaises(
+            InsufficientIndexDataError,
+            winter_ghost.check_from_indexes,
+            "file",
+            indexes,
+        )
+        self.assertFalse(winter_ghost.check("file", self.cal))
 
     def test_rrule_index_based_filtering_with_exceptions(self):
         """Test rrule filtering with recurring events that have exception instances."""

@@ -943,6 +943,15 @@ class ComponentTimeRangeMatcher:
                 )
             return False
 
+        # The index drops the TZID parameter when serializing DTSTART, so a
+        # timezone-aware start comes back naive and can no longer be expanded
+        # across a DST boundary. Defer to the real file, which keeps its
+        # VTIMEZONE. UTC values keep their trailing Z and remain aware here.
+        if isinstance(dtstart_parsed, datetime) and dtstart_parsed.tzinfo is None:
+            raise InsufficientIndexDataError(
+                "recurring event with naive DTSTART; falling back to full file"
+            )
+
         # Get component handler for testing occurrences
         try:
             component_handler = self.component_handlers[self.comp]
