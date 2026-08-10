@@ -25,10 +25,12 @@ are always strong, and should be returned without wrapping quotes.
 
 from logging import getLogger
 import mimetypes
+import os
 import threading
 from collections.abc import Sequence, Iterator
 from typing import Optional
 
+from .config import is_metadata_file
 from .index import AutoIndexManager, IndexDict, IndexKey, IndexValueIterator
 
 logger = getLogger("xandikos")
@@ -254,6 +256,15 @@ class NotStoreError(Exception):
         self.path = path
 
 
+class InvalidFileNameError(Exception):
+    """An item name is not usable as a store member name."""
+
+    def __init__(self, name: str, reason: str) -> None:
+        self.name = name
+        self.reason = reason
+        super().__init__(f"Invalid item name {name!r}: {reason}")
+
+
 class InvalidFileContents(Exception):
     """Invalid file contents."""
 
@@ -461,6 +472,38 @@ class Store:
                 content_type,
                 extra_file_handlers=self.extra_file_handlers,
             )
+
+    @classmethod
+    def check_name(cls, name: str) -> None:
+        """Check that this store can hold an item under *name*.
+
+        Names are joined onto the store directory, so a name containing a
+        separator would address a nested path rather than a single member.
+        A store that can represent such names - by escaping them on disk,
+        say - may override this to accept them.
+
+        Xandikos' own metadata lives in a subdirectory, so those paths are
+        permitted.
+
+        Args:
+          name: Name of the item
+        Raises:
+          InvalidFileNameError: if this store can not hold such an item
+        """
+        if not name:
+            raise InvalidFileNameError(name, "name is empty")
+        if "\0" in name:
+            raise InvalidFileNameError(name, "name contains a NUL byte")
+        if "\\" in name:
+            raise InvalidFileNameError(name, "name contains a backslash")
+        segments = name.split("/")
+        if os.curdir in segments or os.pardir in segments:
+            raise InvalidFileNameError(name, "name is not a plain path")
+        # Xandikos keeps its own metadata in a subdirectory of the store.
+        if is_metadata_file(name):
+            return
+        if "/" in name:
+            raise InvalidFileNameError(name, "name contains a path separator")
 
     def _get_raw(self, name: str, etag: str | None = None) -> Sequence[bytes]:
         """Get the raw contents of an object.

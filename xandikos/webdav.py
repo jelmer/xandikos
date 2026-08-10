@@ -343,6 +343,25 @@ def path_from_environ(environ, name):
     return posixpath.normpath(path)
 
 
+def split_destination_path(dest_path):
+    """Split a still-encoded Destination header path into container and name.
+
+    Like :func:`split_path_preserving_encoding`, the split happens before
+    decoding so that an encoded slash stays inside the item name.
+
+    Returns:
+        tuple: (decoded_container_path, decoded_item_name)
+    """
+    container_path_raw, item_name_raw = posixpath.split(dest_path.rstrip("/"))
+    container_path = urllib.parse.unquote(
+        container_path_raw, encoding="utf-8", errors="strict"
+    )
+    item_name = urllib.parse.unquote(item_name_raw, encoding="utf-8", errors="strict")
+    if not container_path:
+        container_path = "/"
+    return container_path, item_name
+
+
 def split_path_preserving_encoding(request, environ):
     """Split a path into container and item parts, preserving percent-encoded slashes.
 
@@ -2743,9 +2762,7 @@ class MoveMethod(Method):
         if source_container is None:
             return _send_not_found(request)
 
-        dest_container_path, dest_name = posixpath.split(dest_path.rstrip("/"))
-        if not dest_container_path:
-            dest_container_path = "/"
+        dest_container_path, dest_name = split_destination_path(dest_path)
         dest_container = app.backend.get_resource(dest_container_path)
         if dest_container is None:
             return Response(
@@ -2977,9 +2994,7 @@ class CopyMethod(Method):
         if source_container is None:
             return _send_not_found(request)
 
-        dest_container_path, dest_name = posixpath.split(dest_path.rstrip("/"))
-        if not dest_container_path:
-            dest_container_path = "/"
+        dest_container_path, dest_name = split_destination_path(dest_path)
         dest_container = app.backend.get_resource(dest_container_path)
         if dest_container is None:
             return Response(

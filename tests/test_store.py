@@ -33,6 +33,7 @@ from xandikos.store import (
     File,
     Filter,
     InvalidETag,
+    InvalidFileNameError,
     NoSuchItem,
     STORE_TYPE_CALENDAR,
     STORE_TYPE_SCHEDULE_INBOX,
@@ -609,6 +610,85 @@ class TreeGitStoreTest(BaseGitStoreTest, unittest.TestCase):
         idx_after, _ctag_after = gc._open_index()
         self.assertIsNot(idx_before, idx_after)
         self.assertRaises(KeyError, gc.get_etag, "foo.ics")
+
+
+class CheckNameTests(unittest.TestCase):
+    """A member name addresses one item; these stores can't hold separators."""
+
+    def assertRejected(self, name):
+        self.assertRaises(InvalidFileNameError, Store.check_name, name)
+
+    def test_plain_name(self):
+        self.assertIsNone(Store.check_name("foo.ics"))
+
+    def test_name_with_space(self):
+        self.assertIsNone(Store.check_name("my file.ics"))
+
+    def test_metadata_subpath(self):
+        # Xandikos keeps collection metadata in a subdirectory of the store.
+        self.assertIsNone(Store.check_name(".xandikos/config"))
+        self.assertIsNone(Store.check_name(".xandikos/availability.ics"))
+
+    def test_separator(self):
+        self.assertRejected("itemwith/slash.ics")
+
+    def test_parent_traversal(self):
+        self.assertRejected("../foo.ics")
+
+    def test_parent_traversal_in_middle(self):
+        self.assertRejected("foo/../../bar.ics")
+
+    def test_traversal_below_metadata_directory(self):
+        # The metadata exemption must not become a way out of the store.
+        self.assertRejected(".xandikos/../../escaped.ics")
+
+    def test_absolute(self):
+        self.assertRejected("/etc/passwd")
+
+    def test_empty(self):
+        self.assertRejected("")
+
+    def test_trailing_separator(self):
+        self.assertRejected("foo/")
+
+    def test_directory_reference(self):
+        self.assertRejected(".")
+        self.assertRejected("..")
+
+    def test_nul_byte(self):
+        self.assertRejected("foo\0.ics")
+
+    def test_backslash(self):
+        self.assertRejected("foo\\bar.ics")
+
+
+class StoreTraversalTests(unittest.TestCase):
+    """A name that escapes the store must be refused, not written."""
+
+    def create_store(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        return VdirStore.create(os.path.join(d, "store"))
+
+    def test_import_one_rejects_traversal(self):
+        store = self.create_store()
+        outside = os.path.join(os.path.dirname(store.path), "escaped.ics")
+        self.assertRaises(
+            InvalidFileNameError,
+            store.import_one,
+            "../escaped.ics",
+            "text/calendar",
+            [EXAMPLE_VCALENDAR1],
+        )
+        self.assertFalse(os.path.exists(outside))
+
+    def test_delete_one_rejects_traversal(self):
+        store = self.create_store()
+        self.assertRaises(InvalidFileNameError, store.delete_one, "../../etc/passwd")
+
+    def test_get_etag_rejects_traversal(self):
+        store = self.create_store()
+        self.assertRaises(InvalidFileNameError, store.get_etag, "../escaped.ics")
 
 
 class ExtractRegularUIDTests(unittest.TestCase):
