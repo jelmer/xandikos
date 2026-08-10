@@ -34,6 +34,7 @@ from xandikos.webdav import (
     WebDAVApp,
     href_to_path,
     split_path_preserving_encoding,
+    split_destination_path,
     DisplayNameProperty,
     ResourceTypeProperty,
     apply_modify_prop,
@@ -1577,60 +1578,6 @@ class WebTests(WebTestCase):
         self.assertEqual("404 Not Found", code)
         self.assertTrue(contents.endswith(b"/resource not found."))
 
-    def test_delete_percent_encoded_slash(self):
-        """Test DELETE with percent-encoded slash in filename."""
-        deleted_items = []
-
-        class TestResource(Collection):
-            async def get_etag(self):
-                return '"foo"'
-
-            def delete_member(
-                unused_self, name, etag=None, remote_user=None, requester=None
-            ):
-                deleted_items.append(name)
-
-        # Create resources for the test
-        # /collection/itemwith%2fslash.ics should be treated as a single filename
-        # The backend expects decoded paths as keys
-        app = self.makeApp(
-            {
-                "/collection": TestResource(),
-                "/collection/itemwith/slash.ics": TestResource(),
-            },
-            [],
-        )
-        code, headers, contents = self.delete(app, "/collection/itemwith%2fslash.ics")
-        self.assertEqual("204 No Content", code)
-        self.assertEqual(b"", contents)
-        # Verify that the correct item name was passed to delete_member
-        self.assertEqual(["itemwith/slash.ics"], deleted_items)
-
-    def test_put_percent_encoded_slash(self):
-        """Test PUT with percent-encoded slash in filename."""
-        created_items = []
-
-        class TestResource(Collection):
-            async def create_member(
-                unused_self,
-                name,
-                contents,
-                content_type,
-                remote_user=None,
-                requester=None,
-            ):
-                created_items.append((name, contents))
-                return (name, '"new-etag"')
-
-        # Create resources for the test
-        app = self.makeApp({"/collection": TestResource()}, [])
-        code, headers = self.put(app, "/collection/itemwith%2fslash.ics", b"test data")
-        self.assertEqual("201 Created", code)
-        # Verify that the correct item name was passed to create_member
-        self.assertEqual(1, len(created_items))
-        self.assertEqual("itemwith/slash.ics", created_items[0][0])
-        self.assertEqual([b"test data"], created_items[0][1])
-
     def test_put_with_precondition_failure_returns_412_not_207(self):
         """Test that PUT with precondition failure returns 412, not 207."""
 
@@ -3149,6 +3096,30 @@ class PropertyRemovalTests(unittest.TestCase):
         self.assertEqual(len(propstat_list), 1)
         self.assertEqual(propstat_list[0].statuscode, "200 OK")
         self.assertEqual(resource.resource_types, [])
+
+
+class SplitDestinationPathTests(unittest.TestCase):
+    """MOVE/COPY destinations are split before decoding, like request paths."""
+
+    def test_normal_path(self):
+        self.assertEqual(
+            ("/collection", "item.ics"), split_destination_path("/collection/item.ics")
+        )
+
+    def test_encoded_slash(self):
+        self.assertEqual(
+            ("/collection", "itemwith/slash.ics"),
+            split_destination_path("/collection/itemwith%2Fslash.ics"),
+        )
+
+    def test_encoded_space(self):
+        self.assertEqual(
+            ("/my calendars", "my file.ics"),
+            split_destination_path("/my%20calendars/my%20file.ics"),
+        )
+
+    def test_root_level(self):
+        self.assertEqual(("/", "item.ics"), split_destination_path("/item.ics"))
 
 
 class SplitPathPreservingEncodingTests(unittest.TestCase):

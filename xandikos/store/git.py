@@ -415,6 +415,8 @@ class GitStore(Store):
             extension = MIMETYPES.guess_extension(content_type)
             if extension is not None:
                 name += extension
+        else:
+            self.check_name(name)
         fi.validate()
         try:
             uid = fi.get_uid()
@@ -711,6 +713,7 @@ class BareGitStore(GitStore):
         return tree
 
     def get_etag(self, name):
+        self.check_name(name)
         tree = self._get_current_tree()
         name = name.encode(DEFAULT_ENCODING)
         return tree[name][1].decode("ascii")
@@ -823,6 +826,7 @@ class BareGitStore(GitStore):
           NoSuchItem: when the item doesn't exist
           InvalidETag: If the specified ETag doesn't match the current
         """
+        self.check_name(name)
         tree = self._get_current_tree()
         name_enc = name.encode(DEFAULT_ENCODING)
         try:
@@ -917,6 +921,7 @@ class TreeGitStore(GitStore):
         return cls(repo)
 
     def get_etag(self, name):
+        self.check_name(name)
         index, _ctag = self._open_index()
         name = name.encode(DEFAULT_ENCODING)
         entry = index[name]
@@ -997,6 +1002,7 @@ class TreeGitStore(GitStore):
           NoSuchItem: when the item doesn't exist
           InvalidETag: If the specified ETag doesn't match the current
         """
+        self.check_name(name)
         p = os.path.join(self.repo.path, name)
         try:
             with open(p, "rb") as f:

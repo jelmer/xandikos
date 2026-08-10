@@ -553,6 +553,55 @@ class ObjectResourceSetBodyTests(unittest.TestCase):
             asyncio.run(resource.set_body([EXAMPLE_VCALENDAR1]))
 
 
+class UnstorableMemberNameTests(unittest.TestCase):
+    """A name the store can't hold is refused, not written to a nested path.
+
+    See https://github.com/jelmer/xandikos/issues/384: a percent-encoded slash
+    decodes to a name containing a separator, which these stores can't
+    represent as a single member.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.store = TreeGitStore.create(os.path.join(self.tempdir, "c"))
+        self.store.load_extra_file_handler(ICalendarFile)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.cal = CalendarCollection(self.backend, "c", self.store)
+
+    def test_create_member_with_separator(self):
+        with self.assertRaises(webdav.ForbiddenError):
+            asyncio.run(
+                self.cal.create_member(
+                    "itemwith/slash.ics", [EXAMPLE_VCALENDAR1], "text/calendar"
+                )
+            )
+        # No subdirectory conjured out of the separator.
+        self.assertFalse(os.path.exists(os.path.join(self.store.path, "itemwith")))
+
+    def test_create_member_traversal(self):
+        with self.assertRaises(webdav.ForbiddenError):
+            asyncio.run(
+                self.cal.create_member(
+                    "../../escaped.ics", [EXAMPLE_VCALENDAR1], "text/calendar"
+                )
+            )
+        self.assertFalse(os.path.exists(os.path.join(self.tempdir, "escaped.ics")))
+
+    def test_get_member_with_separator(self):
+        self.assertRaises(KeyError, self.cal.get_member, "itemwith/slash.ics")
+
+    def test_delete_member_with_separator(self):
+        self.assertRaises(KeyError, self.cal.delete_member, "itemwith/slash.ics")
+
+    def test_plain_name_still_works(self):
+        name, etag = asyncio.run(
+            self.cal.create_member("ok.ics", [EXAMPLE_VCALENDAR1], "text/calendar")
+        )
+        self.assertEqual("ok.ics", name)
+
+
 class CalendarCollectionMigrationTests(unittest.TestCase):
     """Test migration from .xandikos file to .xandikos/ directory structure."""
 

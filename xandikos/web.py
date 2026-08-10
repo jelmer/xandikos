@@ -77,6 +77,7 @@ from xandikos.store import (
     File,
     InvalidCTag,
     InvalidFileContents,
+    InvalidFileNameError,
     LockedError,
     NoSuchItem,
     NotStoreError,
@@ -278,6 +279,8 @@ class ObjectResource(webdav.Resource):
             raise webdav.PreconditionFailure(
                 "{%s}no-uid-conflict" % caldav.NAMESPACE, "UID already in use."
             ) from exc
+        except InvalidFileNameError as exc:
+            raise webdav.ForbiddenError(exc.reason) from exc
         except OutOfSpaceError as exc:
             raise webdav.InsufficientStorage() from exc
         except LockedError as exc:
@@ -476,6 +479,9 @@ class StoreBasedCollection:
         assert name != ""
         try:
             (content_type, etag) = self.store.get_file_meta(name)
+        except InvalidFileNameError as exc:
+            # A name that can't address a member can't match one either.
+            raise KeyError(name) from exc
         except KeyError:
             if name in self.store.subdirectories():
                 return self._get_subcollection(name)
@@ -491,6 +497,8 @@ class StoreBasedCollection:
                 remote_user=remote_user,
                 requester=requester,
             )
+        except InvalidFileNameError as exc:
+            raise KeyError(name) from exc
         except NoSuchItem:
             try:
                 _subcoll = self._get_subcollection(name)
@@ -536,6 +544,8 @@ class StoreBasedCollection:
             raise webdav.PreconditionFailure(
                 "{%s}no-uid-conflict" % caldav.NAMESPACE, "UID already in use."
             ) from exc
+        except InvalidFileNameError as exc:
+            raise webdav.ForbiddenError(exc.reason) from exc
         except OutOfSpaceError as exc:
             raise webdav.InsufficientStorage() from exc
         except LockedError as exc:

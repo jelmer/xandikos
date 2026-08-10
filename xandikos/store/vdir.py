@@ -90,6 +90,7 @@ class VdirStore(Store):
         return f"{type(self).__name__}({self.path!r})"
 
     def get_etag(self, name):
+        self.check_name(name)
         path = os.path.join(self.path, name)
         try:
             st = os.stat(path)
@@ -120,6 +121,7 @@ class VdirStore(Store):
           etag: Optional etag (ignored)
         Returns: raw contents as chunks
         """
+        self.check_name(name)
         path = os.path.join(self.path, name)
         try:
             with open(path, "rb") as f:
@@ -233,6 +235,8 @@ class VdirStore(Store):
             extension = MIMETYPES.guess_extension(content_type)
             if extension is not None:
                 name += extension
+        else:
+            self.check_name(name)
         fi.validate()
         try:
             uid = fi.get_uid()
@@ -426,6 +430,7 @@ class VdirStore(Store):
           NoSuchItem: when the item doesn't exist
           InvalidETag: If the specified ETag doesn't match the current
         """
+        self.check_name(name)
         path = os.path.join(self.path, name)
         if etag is not None:
             try:
