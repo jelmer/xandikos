@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Settings - {{ collection.get_displayname() }}{% endblock %}
+{% block page_width %}45em{% endblock %}
+{% block parent_link_text %}&larr; Back to calendar{% endblock %}
+{% block extra_style %}
+      h1 { margin-bottom: 0.4em; }
+      fieldset { border: 1px solid #ddd; margin: 1em 0; padding: 0.5em 1em; }
+      legend { padding: 0 0.4em; font-weight: bold; }
+      label { display: block; margin: 0.4em 0; }
+      label .lbl { display: inline-block; min-width: 8em; }
+      input[type=text], input[type=color], textarea { font: inherit; padding: 0.25em; }
+      input[type=text] { width: 25em; max-width: 100%; }
+      textarea { width: 25em; max-width: 100%; height: 4em; }
+      .note { color: #666; font-size: 0.9em; }
+{% endblock %}
+{% block content %}
+    <h1>Calendar settings</h1>
+
+    <form method="post" action="{{ collection_url }}">
+      <input type="hidden" name="action" value="settings">
+
+      <fieldset>
+        <legend>Calendar</legend>
+        <label>
+          <span class="lbl">Name</span>
+          <input type="text" name="displayname" value="{{ displayname }}">
+        </label>
+        <label>
+          <span class="lbl">Colour</span>
+          <input type="color" name="color" value="{{ color or '#3366cc' }}">
+        </label>
+        <label>
+          <span class="lbl">Description</span>
+          <textarea name="description">{{ description }}</textarea>
+        </label>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit">Save</button>
+        <a href="{{ collection_url }}">Cancel</a>
+      </div>
+    </form>
+{% endblock %}

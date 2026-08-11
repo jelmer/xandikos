@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ month_name }} {{ year }} - {{ collection.get_displayname() }}{% endblock %}
+{% block page_width %}75em{% endblock %}
+{% block extra_style %}
+      table.month { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      table.month th { background: #eee; padding: 0.3em; border: 1px solid #ddd; font-weight: normal; }
+      table.month td { border: 1px solid #ddd; vertical-align: top; height: 6em; padding: 0.2em; }
+      td.other-month { background: #fafafa; color: #aaa; }
+      td.today { background: #fffbe6; }
+      .day-num { font-size: 0.85em; color: #666; margin-bottom: 0.2em; }
+      td.today .day-num { color: #a60; font-weight: bold; }
+      .ev {
+        display: block; padding: 1px 4px; margin: 1px 0; border-radius: 3px;
+        background: #d3e8ff; color: #034; text-decoration: none;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        font-size: 0.82em;
+      }
+      .ev:hover { background: #b6d9ff; }
+      .ev.todo { background: #ffe6b3; color: #530; }
+      .ev.todo.done { background: #d8d8d8; color: #777; text-decoration: line-through; }
+      .ev .t { font-variant-numeric: tabular-nums; font-size: 0.85em; margin-right: 0.3em; }
+      .cal-swatch { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 2px;
+                    border: 1px solid #888; vertical-align: middle; margin-right: 0.35em; }
+      .cal-desc { color: #555; margin: 0.2em 0 0.8em; }
+{% endblock %}
+{% block content %}
+    <h1>{% if color %}<span class="cal-swatch" style="background: {{ color }};"></span>{% endif %}{{ collection.get_displayname() }}</h1>
+    <div class="nav">
+      <a href="{{ prev_url }}">&laquo; Prev</a>
+      <a href="{{ today_url }}">Today</a>
+      <a href="{{ next_url }}">Next &raquo;</a>
+      <strong style="margin-left: 1em;">{{ month_name }} {{ year }}</strong>
+      <span class="spacer"></span>
+      <a href="{{ urljoin(collection_url, '+week') }}">Week</a>
+      <a href="{{ urljoin(collection_url, '+tasks') }}">Tasks</a>
+      <a href="{{ urljoin(collection_url, '+journal') }}">Journal</a>
+      <a href="{{ urljoin(collection_url, '+settings') }}">Settings</a>
+      <a href="{{ collection_url }}?export">Export</a>
+      <a href="{{ urljoin(collection_url, '+new') }}">+ New event</a>
+      <a href="{{ urljoin(collection_url, '+new?kind=todo') }}">+ New task</a>
+    </div>
+
+    {% if description %}<p class="cal-desc">{{ description }}</p>{% endif %}
+
+    <table class="month">
+      <thead>
+        <tr>
+        {% for name in weekday_names %}
+          <th>{{ name }}</th>
+        {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for week in grid %}
+        <tr>
+        {% for day in week %}
+          {% set is_other = (day.month != month) %}
+          {% set is_today = (day == today) %}
+          <td class="{% if is_other %}other-month{% endif %} {% if is_today %}today{% endif %}">
+            <div class="day-num">
+              <a href="{{ urljoin(collection_url, '+day/' + day.isoformat()) }}"
+                 style="color: inherit; text-decoration: none;">{{ day.day }}</a>
+            </div>
+            {% for ev in by_day.get(day, []) %}
+              <a class="ev {% if ev.kind == 'todo' %}todo{% endif %} {% if ev.status == 'COMPLETED' %}done{% endif %}"
+                 href="{{ urljoin(collection_url, quote(ev.name)) }}"
+                 title="{{ ev.summary }}{% if ev.location %} - {{ ev.location }}{% endif %}">
+                {% if ev.start_time %}<span class="t">{{ ev.start_time }}</span>{% endif %}{{ ev.summary or '(no title)' }}
+              </a>
+            {% endfor %}
+          </td>
+        {% endfor %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <details class="import">
+      <summary>Import iCalendar</summary>
+      <form method="post" action="{{ collection_url }}">
+        <input type="hidden" name="action" value="import">
+        <p>Paste the contents of an <code>.ics</code> file:</p>
+        <textarea name="data" rows="6" style="width: 100%; font: inherit;"></textarea>
+        <div class="actions"><button type="submit">Import</button></div>
+      </form>
+    </details>
+{% endblock %}

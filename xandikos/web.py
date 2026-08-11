@@ -32,6 +32,7 @@ import logging
 from logging import getLogger
 import os
 import posixpath
+import re
 import shutil
 import socket
 import urllib.parse
@@ -176,6 +177,21 @@ jinja_env = jinja2.Environment(
 )
 
 
+def parent_url(self_url: str) -> str | None:
+    """Return the URL one path segment up, or None for the root.
+
+    Repeated slashes (which reverse proxies sometimes inject) are
+    collapsed first. The trailing slash is preserved so the link
+    resolves to a directory.
+    """
+    parsed = urllib.parse.urlsplit(self_url)
+    clean = re.sub(r"/+", "/", parsed.path or "/")
+    if clean == "/":
+        return None
+    trimmed = clean.rstrip("/").rsplit("/", 1)[0] + "/"
+    return urllib.parse.urlunsplit(parsed._replace(path=trimmed, query="", fragment=""))
+
+
 async def render_jinja_page(
     name: str, accepted_content_languages: list[str], **kwargs
 ) -> tuple[Iterable[bytes], int, str | None, str, list[str]]:
@@ -188,6 +204,7 @@ async def render_jinja_page(
     """
     # TODO(jelmer): Support rendering other languages
     encoding = "utf-8"
+    kwargs.setdefault("parent_url", parent_url(kwargs["self_url"]))
     template = jinja_env.get_template(name)
     body = await template.render_async(
         version=xandikos_version, urljoin=urllib.parse.urljoin, **kwargs
@@ -346,6 +363,33 @@ class ObjectResource(webdav.Resource):
         signature = itip.extract_scheduling_signature(cal)
         return create_strong_etag(signature.hex())
 
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # vCard and iCalendar resources also render as HTML when the
+        # browser asks for it, so users can view and edit contacts and
+        # events in a web UI. CardDAV/CalDAV clients only ask for the
+        # native types and continue to get the raw body.
+        if self.content_type == "text/vcard":
+            from . import webcontacts
+
+            rendered = await webcontacts.maybe_render_contact(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+            if rendered is not None:
+                return rendered
+        elif self.content_type == "text/calendar":
+            from . import webcalendar
+
+            rendered = await webcalendar.maybe_render_event(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+            if rendered is not None:
+                return rendered
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
 
 async def _run_change_listener(awaitable) -> None:
     try:
@@ -463,6 +507,14 @@ class StoreBasedCollection:
 
     async def get_etag(self) -> str:
         return create_strong_etag(self.store.get_ctag())
+
+    async def get_schedule_tag(self) -> str:
+        # Collections are not scheduling object resources, so they have
+        # no schedule-tag. Raising KeyError is the "no schedule-tag"
+        # signal the WebDAV GET handler expects; without this method a
+        # browser GET on a non-scheduling collection (e.g. a calendar
+        # subscription) would raise AttributeError instead.
+        raise KeyError
 
     def members(self) -> Iterator[tuple[str, webdav.Resource]]:
         for name, content_type, etag in self.store.iter_with_etag():
@@ -673,6 +725,37 @@ class Collection(StoreBasedCollection, webdav.Collection):
 
 class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
     """A schedling inbox collection."""
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get a list of pending iTIP messages; CalDAV clients
+        # still use PROPFIND/REPORT and never hit GET on the collection.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcalendar
+
+            return await webcalendar.render_inbox(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
+    async def handle_post(self, request, environ, path, body, content_type):
+        from . import webcalendar
+
+        handled = await webcalendar.handle_inbox_post(
+            self, request, environ, path, body, content_type
+        )
+        if handled is not None:
+            return handled
+        return await super().handle_post(request, environ, path, body, content_type)
 
     def get_schedule_default_calendar_url(self) -> str | None:
         """Return the default calendar URL for incoming iTIP messages.
@@ -900,6 +983,108 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
                 member_name,
             )
 
+    async def apply_attendee_action(self, name: str, partstat: str) -> None:
+        """Set the user's own PARTSTAT on inbox message *name* and reply.
+
+        Loads the iTIP REQUEST in *name*, picks the ATTENDEE entry whose
+        address belongs to the owning principal, sends a METHOD:REPLY
+        back to the organiser with the chosen *partstat*, and (if the
+        principal has a default calendar) updates the local copy's
+        PARTSTAT to match. Finally removes the message from the inbox.
+
+        Raises ``KeyError`` if *name* doesn't exist; ``ValueError`` if
+        the message isn't a usable REQUEST (no owning principal, no
+        matching attendee, no organiser, malformed body).
+        """
+        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        if owning is None:
+            raise ValueError("Inbox has no owning principal")
+        _, principal = owning
+        own_addresses = set(principal.get_calendar_user_address_set())
+        if not own_addresses:
+            raise ValueError("Principal has no calendar-user addresses")
+
+        member = self.get_member(name)
+        if not isinstance(member, ObjectResource):
+            raise ValueError(f"Inbox member {name!r} is not an iTIP message")
+        file = await member.get_file()
+        if not isinstance(file, ICalendarFile):
+            raise ValueError(f"Inbox member {name!r} is not text/calendar")
+        request_cal = file.calendar
+        if not isinstance(request_cal, Calendar):
+            raise ValueError(f"Inbox member {name!r} did not parse as a calendar")
+        if str(request_cal.get("METHOD", "")).upper() != "REQUEST":
+            raise ValueError(f"Inbox member {name!r} is not METHOD:REQUEST")
+
+        own_address: str | None = None
+        organiser: str | None = None
+        for comp in request_cal.subcomponents:
+            if comp.name not in itip.SCHEDULING_COMPONENTS:
+                continue
+            if organiser is None:
+                org = comp.get("ORGANIZER")
+                if org is not None:
+                    organiser = str(org)
+            attendees = comp.get("ATTENDEE", [])
+            if not isinstance(attendees, list):
+                attendees = [attendees]
+            for a in attendees:
+                if own_address is None and str(a) in own_addresses:
+                    own_address = str(a)
+        if own_address is None:
+            raise ValueError(
+                f"Inbox member {name!r} has no ATTENDEE for this principal"
+            )
+        if organiser is None:
+            raise ValueError(f"Inbox member {name!r} has no ORGANIZER")
+
+        # Build the reply with our chosen PARTSTAT before delivery.
+        reply_source = request_cal.copy()
+        reply_source.subcomponents = [c.copy() for c in request_cal.subcomponents]
+        for comp in reply_source.subcomponents:
+            if comp.name not in itip.SCHEDULING_COMPONENTS:
+                continue
+            attendees = comp.get("ATTENDEE", [])
+            if not isinstance(attendees, list):
+                attendees = [attendees]
+            for a in attendees:
+                if str(a) == own_address:
+                    a.params["PARTSTAT"] = partstat
+        reply = itip.build_itip_reply(reply_source, own_address)
+        await _deliver_status(self.backend, organiser, reply, originator=own_address)
+
+        # Mirror the chosen PARTSTAT onto the local copy so the user's
+        # calendar reflects the decision. Missing default-calendar is
+        # tolerable here: the REPLY has already gone to the organiser.
+        calendar = self._default_calendar()
+        if calendar is not None:
+            uid = itip.itip_uid(request_cal)
+            if uid is not None:
+                existing = await _find_calendar_member_by_uid(calendar, uid)
+                if existing is not None:
+                    _, local_member, local_cal = existing
+                    changed = False
+                    for comp in local_cal.subcomponents:
+                        if comp.name not in itip.SCHEDULING_COMPONENTS:
+                            continue
+                        if str(comp.get("UID", "")) != uid:
+                            continue
+                        attendees = comp.get("ATTENDEE", [])
+                        if not isinstance(attendees, list):
+                            attendees = [attendees]
+                        for a in attendees:
+                            if (
+                                str(a) == own_address
+                                and a.params.get("PARTSTAT") != partstat
+                            ):
+                                a.params["PARTSTAT"] = partstat
+                                changed = True
+                    if changed:
+                        await _replace_member_body(local_member, local_cal)
+
+        # Decision recorded — remove the original REQUEST from the inbox.
+        self.delete_member(name)
+
 
 async def _find_calendar_member_by_uid(
     calendar: "CalendarCollection", uid: str
@@ -939,6 +1124,25 @@ async def _replace_member_body(member: "ObjectResource", new_cal: Calendar) -> N
 
 class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
     """A schedling outbox collection."""
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get a free/busy lookup form; CalDAV clients POST iTIP
+        # requests here and never GET the collection.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcalendar
+
+            return await webcalendar.render_outbox(self, self_url)
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
 
     async def get_attendee_busy_periods(self, attendee_address, start, end):
         """Look up busy periods for *attendee_address* within [start, end).
@@ -995,6 +1199,26 @@ class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
 
 
 class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get a read-only overview of the subscribed feed;
+        # CalDAV clients still use PROPFIND/REPORT and never GET the
+        # collection.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcalendar
+
+            return await webcalendar.render_subscription(self, self_url)
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
     def get_source_url(self):
         source_url = self.store.get_source_url()
         if source_url is None:
@@ -1022,7 +1246,312 @@ class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
         return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"]
 
 
+class _TransientHtmlResource(webdav.Resource):
+    """Base for the virtual web-UI resources (forms, day views).
+
+    These resources don't exist on disk — they only exist long enough
+    to render an HTML page in response to a GET. Subclasses override
+    ``render``; the rest is plumbing that says "I have no body, no
+    etag, no locks" so the WebDAV layer doesn't try to do anything
+    interesting with them.
+    """
+
+    resource_types: list[str] = []
+    content_type = "text/html"
+
+    def get_content_type(self) -> str:
+        return "text/html"
+
+    async def get_etag(self) -> str:
+        raise KeyError
+
+    def get_supported_locks(self):
+        return []
+
+    def get_active_locks(self):
+        return []
+
+    def get_owner(self):
+        return None
+
+    async def get_body(self):
+        raise KeyError
+
+    def get_content_language(self):
+        raise KeyError
+
+    def get_last_modified(self):
+        raise KeyError
+
+
+def _clean_parent_url(self_url: str, levels: int = 1) -> str:
+    """Return ``self_url`` minus the last ``levels`` path segments.
+
+    Path slashes are collapsed first so that proxy-injected ``//``
+    runs don't poison the resulting URL (see
+    ``webcontacts._post_target_url``).
+    """
+    import re
+    from urllib.parse import urlsplit, urlunsplit
+
+    parsed = urlsplit(self_url)
+    clean = re.sub(r"/+", "/", parsed.path) or "/"
+    parts = clean.rstrip("/").split("/")
+    parts = parts[: max(0, len(parts) - levels)]
+    new_path = "/".join(parts) + "/"
+    return urlunsplit(parsed._replace(path=new_path, query="", fragment=""))
+
+
+class _NewEventResource(_TransientHtmlResource):
+    """``<calendar>/+new`` — empty new-event/new-task form."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from urllib.parse import parse_qs, urlsplit
+
+        from . import webcalendar
+
+        parsed = urlsplit(self_url)
+        params = parse_qs(parsed.query)
+        kind = (params.get("kind") or ["event"])[0]
+        initial = webcalendar._parse_date((params.get("date") or [None])[0])
+        parent_url = _clean_parent_url(self_url)
+        return await webcalendar.render_new_event_form(
+            self.collection, parent_url, kind=kind, initial_date=initial
+        )
+
+
+class _CalendarDayResource(_TransientHtmlResource):
+    """``<calendar>/+day/<YYYY-MM-DD>`` — list of events for one day."""
+
+    def __init__(self, collection: "CalendarCollection", day) -> None:
+        self.collection = collection
+        self.day = day
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_day(self.collection, self_url, self.day)
+
+
+class _CalendarDayIndex(_TransientHtmlResource):
+    """``<calendar>/+day/`` — namespace whose children resolve a date.
+
+    Has ``COLLECTION_RESOURCE_TYPE`` so the backend's path resolver
+    walks through it to ``get_member(<YYYY-MM-DD>)``.
+    """
+
+    resource_types: list[str] = [webdav.COLLECTION_RESOURCE_TYPE]
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    def get_member(self, name: str) -> webdav.Resource:
+        from . import webcalendar
+
+        parsed = webcalendar._parse_date(name)
+        if parsed is None:
+            raise KeyError(name)
+        return _CalendarDayResource(self.collection, parsed)
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Bare ``/_day/`` redirects users to today's day view by
+        # rendering it directly — no point making them guess a URL.
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from datetime import date as _date
+
+        from . import webcalendar
+
+        return await webcalendar.render_day(self.collection, self_url, _date.today())
+
+
+class _CalendarWeekResource(_TransientHtmlResource):
+    """``<calendar>/+week/<YYYY-MM-DD>`` — week containing the date."""
+
+    def __init__(self, collection: "CalendarCollection", day) -> None:
+        self.collection = collection
+        self.day = day
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_week(self.collection, self_url, self.day)
+
+
+class _CalendarWeekIndex(_TransientHtmlResource):
+    """``<calendar>/+week/`` — namespace whose children resolve a date.
+
+    Has ``COLLECTION_RESOURCE_TYPE`` so the backend's path resolver
+    walks through it to ``get_member(<YYYY-MM-DD>)``. The bare URL
+    renders the current week.
+    """
+
+    resource_types: list[str] = [webdav.COLLECTION_RESOURCE_TYPE]
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    def get_member(self, name: str) -> webdav.Resource:
+        from . import webcalendar
+
+        parsed = webcalendar._parse_date(name)
+        if parsed is None:
+            raise KeyError(name)
+        return _CalendarWeekResource(self.collection, parsed)
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from datetime import date as _date
+
+        from . import webcalendar
+
+        # Bare ``/+week/`` renders the week containing today. The URL is
+        # one segment shallower than ``+week/<date>``, so append the
+        # date and let render_week's two-segment strip find the
+        # collection.
+        anchor = _date.today()
+        week_url = self_url.rstrip("/") + "/" + anchor.isoformat()
+        return await webcalendar.render_week(self.collection, week_url, anchor)
+
+
+class _CalendarTasksResource(_TransientHtmlResource):
+    """``<calendar>/+tasks`` — every VTODO in one list view."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_tasks(self.collection, self_url)
+
+
+class _CalendarJournalsResource(_TransientHtmlResource):
+    """``<calendar>/+journal`` — every VJOURNAL in one list view."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_journals(self.collection, self_url)
+
+
+class _NewJournalResource(_TransientHtmlResource):
+    """``<calendar>/+newjournal`` — empty new-journal-entry form."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from urllib.parse import parse_qs, urlsplit
+
+        from . import webcalendar
+
+        parsed = urlsplit(self_url)
+        params = parse_qs(parsed.query)
+        initial = webcalendar._parse_date((params.get("date") or [None])[0])
+        parent_url = _clean_parent_url(self_url)
+        return await webcalendar.render_new_journal_form(
+            self.collection, parent_url, initial_date=initial
+        )
+
+
+class _CalendarSettingsResource(_TransientHtmlResource):
+    """``<calendar>/+settings`` — form to edit name, colour, description."""
+
+    def __init__(self, collection: "CalendarCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcalendar
+
+        return await webcalendar.render_settings_form(self.collection, self_url)
+
+
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get the month-grid calendar UI; CalDAV clients still
+        # use PROPFIND/REPORT and never hit GET on the collection.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcalendar
+
+            return await webcalendar.render_month(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
+    def get_member(self, name):
+        # Virtual children: ``+new`` serves an empty event/task form,
+        # ``+day`` and ``+week`` are namespaces for per-day and per-week
+        # views — the real date-suffixed child is resolved in
+        # get_resource on the backend (see _CalendarDayResource below) —
+        # and ``+tasks`` lists every VTODO. The "+" prefix keeps these
+        # clearly distinct from any real .ics filename.
+        if name == "+new":
+            return _NewEventResource(self)
+        if name == "+day":
+            return _CalendarDayIndex(self)
+        if name == "+week":
+            return _CalendarWeekIndex(self)
+        if name == "+tasks":
+            return _CalendarTasksResource(self)
+        if name == "+journal":
+            return _CalendarJournalsResource(self)
+        if name == "+newjournal":
+            return _NewJournalResource(self)
+        if name == "+settings":
+            return _CalendarSettingsResource(self)
+        return super().get_member(name)
+
+    async def handle_post(self, request, environ, path, body, content_type):
+        from . import webcalendar
+
+        handled = await webcalendar.handle_post(
+            self, request, environ, path, body, content_type
+        )
+        if handled is not None:
+            return handled
+        return await super().handle_post(request, environ, path, body, content_type)
+
     def get_calendar_description(self):
         return self.store.get_description()
 
@@ -1765,7 +2294,68 @@ def _user_partstats(cal: Calendar, address: str) -> dict[tuple[str, str, str], s
     return out
 
 
+class _NewContactResource(_TransientHtmlResource):
+    """``<addressbook>/+new`` — empty new-contact form.
+
+    Lives only long enough to render an HTML page; nothing is written
+    until the form posts back to the collection.
+    """
+
+    def __init__(self, collection: "AddressbookCollection") -> None:
+        self.collection = collection
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        webdav.pick_content_types(accepted_content_types, ["text/html"])
+        from . import webcontacts
+
+        parent_url = _clean_parent_url(self_url)
+        return await webcontacts.render_new_contact_form(self.collection, parent_url)
+
+
 class AddressbookCollection(StoreBasedCollection, carddav.Addressbook):
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        # Browsers get the contact list; CardDAV clients still get the
+        # raw multistatus via PROPFIND. The override only matters when
+        # the client explicitly asked for text/html via GET.
+        try:
+            content_types = webdav.pick_content_types(
+                accepted_content_types, ["text/html"]
+            )
+        except webdav.NotAcceptableError:
+            content_types = []
+        if content_types == ["text/html"]:
+            from . import webcontacts
+
+            return await webcontacts.render_addressbook(
+                self, self_url, accepted_content_types, accepted_content_languages
+            )
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
+
+    def get_member(self, name):
+        # Pseudo-member: the "+new" path serves an empty edit form.
+        # It isn't stored, only rendered, so we hand back a transient
+        # resource that ignores set_body and reports no etag. The "+"
+        # prefix keeps these distinct from any real .vcf filename.
+        if name == "+new":
+            return _NewContactResource(self)
+        return super().get_member(name)
+
+    async def handle_post(self, request, environ, path, body, content_type):
+        from . import webcontacts
+
+        handled = await webcontacts.handle_post(
+            self, request, environ, path, body, content_type
+        )
+        if handled is not None:
+            return handled
+        return await super().handle_post(request, environ, path, body, content_type)
+
     def get_addressbook_description(self):
         return self.store.get_description()
 
@@ -2251,16 +2841,67 @@ class PrincipalBare(CollectionSetResource, Principal):
     ):
         content_types = webdav.pick_content_types(accepted_content_types, ["text/html"])
         assert content_types == ["text/html"]
+        from . import webcalendar
+
+        agenda = await asyncio.to_thread(webcalendar.collect_principal_agenda, self)
         return await render_jinja_page(
             "principal.html",
             accepted_content_languages,
             principal=self,
             self_url=self_url,
+            agenda=agenda,
         )
 
     def subcollections(self):
-        # TODO(jelmer): Return members
-        return []
+        # Every direct child of a bare principal is a collection of
+        # some kind — calendar homes, addressbook homes, the inbox,
+        # plus any user-created collection-set directories. Yield
+        # only the ones that report COLLECTION_RESOURCE_TYPE so the
+        # principal page doesn't list non-collection junk if any ends
+        # up on disk.
+        for name, resource in self.members():
+            if resource is None:
+                continue
+            if webdav.COLLECTION_RESOURCE_TYPE in getattr(
+                resource, "resource_types", ()
+            ):
+                yield (name, resource)
+
+    def dashboard_entries(self):
+        """Yield a richer summary per subcollection for the principal page.
+
+        Each entry is a dict with ``name``, ``kind``
+        (``calendar``/``addressbook``/``collection``), ``color`` (empty
+        when none is set) and ``count`` (number of members). Colour and
+        member access are guarded so a single broken collection doesn't
+        break the whole dashboard.
+        """
+        for name, resource in self.subcollections():
+            types = getattr(resource, "resource_types", ())
+            if caldav.CALENDAR_RESOURCE_TYPE in types:
+                kind = "calendar"
+            elif carddav.ADDRESSBOOK_RESOURCE_TYPE in types:
+                kind = "addressbook"
+            else:
+                kind = "collection"
+
+            color = ""
+            try:
+                color = resource.get_calendar_color() or ""
+            except (KeyError, AttributeError):
+                pass
+
+            try:
+                count = sum(1 for _ in resource.members())
+            except (KeyError, AttributeError):
+                count = 0
+
+            yield {
+                "name": name,
+                "kind": kind,
+                "color": color,
+                "count": count,
+            }
 
 
 class PrincipalCollection(Collection, Principal):
@@ -2388,6 +3029,18 @@ class SingleUserFilesystemBackend(FilesystemBackend):
                     return PrincipalBare(self, relpath)
                 return CollectionSetResource(self, relpath)
             else:
+                store_type = store.get_type()
+                # An untyped collection sitting directly under an
+                # address-book or calendar home is almost certainly
+                # meant to be one — promote it so the browser UI and
+                # the CardDAV/CalDAV protocol features both light up
+                # without requiring an explicit MKCOL resource-type.
+                if store_type == STORE_TYPE_OTHER:
+                    parent_basename = posixpath.basename(posixpath.dirname(relpath))
+                    if parent_basename in ADDRESSBOOK_HOME_SET:
+                        store_type = STORE_TYPE_ADDRESSBOOK
+                    elif parent_basename in CALENDAR_HOME_SET:
+                        store_type = STORE_TYPE_CALENDAR
                 return {
                     STORE_TYPE_CALENDAR: CalendarCollection,
                     STORE_TYPE_ADDRESSBOOK: AddressbookCollection,
@@ -2396,7 +3049,7 @@ class SingleUserFilesystemBackend(FilesystemBackend):
                     STORE_TYPE_SCHEDULE_OUTBOX: ScheduleOutbox,
                     STORE_TYPE_SUBSCRIPTION: SubscriptionCollection,
                     STORE_TYPE_OTHER: Collection,
-                }[store.get_type()](self, relpath, store)
+                }[store_type](self, relpath, store)
         else:
             (basepath, name) = os.path.split(relpath)
             assert name != "", f"path is {relpath!r}"

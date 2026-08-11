@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Tasks - {{ collection.get_displayname() }}{% endblock %}
+{% block page_width %}55em{% endblock %}
+{% block parent_link_text %}&larr; Back to calendar{% endblock %}
+{% block extra_style %}
+      .meta { color: #666; margin-bottom: 1em; }
+      ul.tasks { list-style: none; padding: 0; }
+      ul.tasks li {
+        border: 1px solid #ddd; border-left: 4px solid #c80; padding: 0.5em 0.8em;
+        margin: 0.4em 0; background: #fff;
+      }
+      ul.tasks li.done { opacity: 0.65; border-left-color: #999; }
+      .row { display: flex; gap: 0.5em; align-items: center; }
+      .row .spacer { flex: 1; }
+      .task-link { color: inherit; text-decoration: none; font-weight: bold; }
+      .task-link:hover { text-decoration: underline; }
+      li.done .task-link { text-decoration: line-through; font-weight: normal; }
+      .due { color: #555; font-variant-numeric: tabular-nums; }
+      .loc { color: #777; margin-left: 0.4em; }
+      .status-tag {
+        display: inline-block; padding: 0.05em 0.4em; border-radius: 3px;
+        font-size: 0.78em; background: #eef; color: #335; margin-left: 0.4em;
+      }
+      .quick { display: inline; }
+      .quick button {
+        background: #eee; border: 1px solid #aaa; padding: 0.2em 0.6em;
+        cursor: pointer; font: inherit;
+      }
+      .quick.delete button { color: #a00; border-color: #a00; background: #fff; }
+{% endblock %}
+{% block content %}
+    <h1>Tasks &mdash; {{ collection.get_displayname() }}</h1>
+    <div class="meta">
+      {{ total }} task{% if total != 1 %}s{% endif %}.
+    </div>
+
+    <div class="nav">
+      <a href="{{ collection_url }}">Calendar</a>
+      <span class="spacer"></span>
+      <a href="{{ urljoin(collection_url, '+new?kind=todo') }}">+ New task</a>
+    </div>
+
+    {% macro task_row(t) %}
+      <li class="{% if t.done %}done{% endif %}">
+        <div class="row">
+          <span class="due">{{ t.due_str or 'no due date' }}</span>
+          <a class="task-link" href="{{ urljoin(collection_url, quote(t.name)) }}">{{ t.summary or '(no title)' }}</a>
+          {% if t.location %}<span class="loc">@ {{ t.location }}</span>{% endif %}
+          {% if t.status == 'IN-PROCESS' %}<span class="status-tag">in progress</span>{% endif %}
+          {% if t.status == 'CANCELLED' %}<span class="status-tag">cancelled</span>{% endif %}
+          <span class="spacer"></span>
+          <form class="quick" method="post" action="{{ collection_url }}">
+            <input type="hidden" name="action" value="toggle_done">
+            <input type="hidden" name="name" value="{{ t.name }}">
+            <input type="hidden" name="back_url" value="{{ tasks_url }}">
+            <button type="submit">
+              {% if t.done %}Reopen{% else %}Mark done{% endif %}
+            </button>
+          </form>
+          <form class="quick delete" method="post" action="{{ collection_url }}"
+                onsubmit="return confirm('Delete this task?');">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="name" value="{{ t.name }}">
+            <input type="hidden" name="back_url" value="{{ tasks_url }}">
+            <button type="submit">Delete</button>
+          </form>
+        </div>
+      </li>
+    {% endmacro %}
+
+    <h2>Open</h2>
+    {% if open_tasks %}
+    <ul class="tasks">
+    {% for t in open_tasks %}{{ task_row(t) }}{% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No open tasks.</p>
+    {% endif %}
+
+    {% if done_tasks %}
+    <h2>Done</h2>
+    <ul class="tasks">
+    {% for t in done_tasks %}{{ task_row(t) }}{% endfor %}
+    </ul>
+    {% endif %}
+{% endblock %}

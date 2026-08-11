@@ -1,25 +1,62 @@
-<html>
-  <head>
-    <title>WebDAV Principal - {{ principal.get_displayname() }}</title>
-  </head>
-  <body>
-    <h1>{{ principal.get_displayname() }} </h1>
+{% extends "base.html" %}
+{% block title %}{{ principal.get_displayname() }} - Xandikos{% endblock %}
+{% block extra_style %}
+      ul.collections { list-style: none; padding: 0; }
+      ul.collections li {
+        display: flex; align-items: baseline; gap: 0.5em;
+        padding: 0.35em 0; border-bottom: 1px solid #eee;
+      }
+      .swatch { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 2px;
+                border: 1px solid #888; flex: none; }
+      .swatch.none { border-style: dashed; background: transparent; }
+      .cname { font-weight: bold; }
+      .kind { color: #888; font-size: 0.85em; }
+      .count { color: #666; margin-left: auto; font-variant-numeric: tabular-nums; }
+      ul.agenda { list-style: none; padding: 0; }
+      ul.agenda li {
+        display: flex; align-items: baseline; gap: 0.5em;
+        padding: 0.25em 0; border-bottom: 1px solid #f0f0f0;
+      }
+      .agenda .when { color: #555; font-variant-numeric: tabular-nums; min-width: 9.5em; flex: none; }
+      .agenda .dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%;
+                     border: 1px solid #888; flex: none; }
+      .agenda .summary { font-weight: bold; }
+      .agenda .cal { color: #888; font-size: 0.85em; }
+{% endblock %}
+{% block content %}
+    <h1>{{ principal.get_displayname() }}</h1>
 
     <p>This is a user principal. CalDAV/CardDAV clients that support
-    autodiscovery can use the URL for this page for discovery.
-    </p>
+    autodiscovery can use this URL for discovery.</p>
 
-    <h2>Subcollections</h2>
-
-    <ul>
-    {% for name, resource in principal.subcollections() %}
-       <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
+    <h2>Collections</h2>
+    <ul class="collections">
+    {% for entry in principal.dashboard_entries() %}
+      <li>
+        <span class="swatch {% if not entry.color %}none{% endif %}"
+              {% if entry.color %}style="background: {{ entry.color }};"{% endif %}></span>
+        <a class="cname" href="{{ urljoin(self_url+'/', entry.name+'/') }}">{{ entry.name }}</a>
+        <span class="kind">{{ entry.kind }}</span>
+        <span class="count">{{ entry.count }} item{% if entry.count != 1 %}s{% endif %}</span>
+      </li>
+    {% else %}
+      <li class="empty">(no collections)</li>
     {% endfor %}
     </ul>
 
-    <p>For more information about Xandikos, see <a
-    href="https://www.xandikos.org/">https://www.xandikos.org/</a>
-    or <a href="https://github.com/jelmer/xandikos">https://github.com/jelmer/xandikos</a>.
-    </p>
-  </body>
-</html>
+    {% if agenda is defined and agenda %}
+    <h2>Upcoming</h2>
+    <ul class="agenda">
+    {% for occ in agenda %}
+      <li>
+        <span class="when">
+          {{ occ.date.strftime('%a %d %b') }}{% if not occ.all_day %} {{ occ.start_time }}{% endif %}
+        </span>
+        <span class="dot" {% if occ.color %}style="background: {{ occ.color }};"{% endif %}></span>
+        <span class="summary">{{ occ.summary or '(no title)' }}</span>
+        <span class="cal">{{ occ.calendar }}</span>
+      </li>
+    {% endfor %}
+    </ul>
+    {% endif %}
+{% endblock %}
