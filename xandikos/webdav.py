@@ -1805,7 +1805,12 @@ def create_href(href: str, base_href: str | None = None) -> ET.Element:
     et = ET.Element("{DAV:}href")
     if base_href is not None:
         href = urllib.parse.urljoin(ensure_trailing_slash(base_href), href)
-    et.text = urllib.parse.quote(href)
+    ## ":" and "@" are delimiters rather than data (RFC 3986 §3.1 and §3.2),
+    ## and are also legal unescaped inside a path segment (the pchar rule in
+    ## §3.3).  quote()'s default safe="/" escapes them, which turns an
+    ## absolute href into a relative reference whose first segment is e.g.
+    ## "https%3A".
+    et.text = urllib.parse.quote(href, safe="/:@")
     return et
 
 

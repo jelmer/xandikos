@@ -897,7 +897,7 @@ class ScheduleOutboxFreeBusyTests(unittest.TestCase):
             r.find(CALDAV_NS + "recipient/{DAV:}href").text: r for r in responses
         }
         # Local user gets a calendar-data REPLY.
-        alice = recipients["mailto%3Aalice%40example.com"]
+        alice = recipients["mailto:alice@example.com"]
         self.assertEqual(
             scheduling.REQUEST_STATUS_SUCCESS,
             alice.find(CALDAV_NS + "request-status").text,
@@ -908,7 +908,7 @@ class ScheduleOutboxFreeBusyTests(unittest.TestCase):
         self.assertIn("FREEBUSY", cd)
 
         # Unknown user gets 3.8 No authority and no calendar-data.
-        bob = recipients["mailto%3Abob%40example.com"]
+        bob = recipients["mailto:bob@example.com"]
         self.assertEqual(
             scheduling.REQUEST_STATUS_NO_AUTHORITY,
             bob.find(CALDAV_NS + "request-status").text,
