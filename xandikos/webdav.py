@@ -1805,7 +1805,9 @@ def create_href(href: str, base_href: str | None = None) -> ET.Element:
     et = ET.Element("{DAV:}href")
     if base_href is not None:
         href = urllib.parse.urljoin(ensure_trailing_slash(base_href), href)
-    et.text = urllib.parse.quote(href)
+    # Keep ":" and "@" unescaped so absolute URIs (http://, mailto:) survive;
+    # both are legal pchars (RFC 3986 §3.3).
+    et.text = urllib.parse.quote(href, safe="/:@")
     return et
 
 

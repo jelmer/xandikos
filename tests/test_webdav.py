@@ -1389,7 +1389,7 @@ class WebTests(WebTestCase):
         self.assertMultiLineEqual(
             contents.decode("utf-8"),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:href>http://127.0.0.1/resource</ns0:href>"
             "<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status>"
             "<ns0:prop><ns0:displayname /></ns0:prop>"
             "</ns0:propstat>"
@@ -1430,7 +1430,7 @@ class WebTests(WebTestCase):
         self.assertMultiLineEqual(
             contents.decode("utf-8"),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:href>http://127.0.0.1/resource</ns0:href>"
             "<ns0:propstat><ns0:status>HTTP/1.1 403 Forbidden</ns0:status>"
             "<ns0:prop><ns0:creationdate /><ns0:getlastmodified /></ns0:prop>"
             "</ns0:propstat>"
@@ -1811,7 +1811,7 @@ class WebTests(WebTestCase):
         self.assertMultiLineEqual(
             contents.decode("utf-8"),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:href>http://127.0.0.1/resource</ns0:href>"
             "<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status><ns0:prop><ns0:displayname /></ns0:prop></ns0:propstat>"
             "</ns0:response></ns0:multistatus>",
         )
@@ -1861,7 +1861,7 @@ class WebTests(WebTestCase):
         self.assertMultiLineEqual(
             contents.decode("utf-8"),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:href>http://127.0.0.1/resource</ns0:href>"
             "<ns0:propstat><ns0:status>HTTP/1.1 200 OK</ns0:status><ns0:prop><ns0:displayname /></ns0:prop></ns0:propstat>"
             "</ns0:response></ns0:multistatus>",
         )
@@ -1889,7 +1889,7 @@ class WebTests(WebTestCase):
         self.assertMultiLineEqual(
             contents.decode("utf-8"),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            "<ns0:href>http%3A//127.0.0.1/nonexistent</ns0:href>"
+            "<ns0:href>http://127.0.0.1/nonexistent</ns0:href>"
             "<ns0:status>HTTP/1.1 404 Not Found</ns0:status>"
             "</ns0:response></ns0:multistatus>",
         )
@@ -1923,7 +1923,7 @@ class WebTests(WebTestCase):
         self.assertMultiLineEqual(
             contents.decode("utf-8"),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:href>http://127.0.0.1/resource</ns0:href>"
             "<ns0:propstat><ns0:status>HTTP/1.1 403 Forbidden</ns0:status><ns0:prop><ns0:getetag /></ns0:prop></ns0:propstat>"
             "</ns0:response></ns0:multistatus>",
         )
@@ -2013,7 +2013,7 @@ class WebTests(WebTestCase):
         self.assertMultiLineEqual(
             contents.decode("utf-8"),
             '<ns0:multistatus xmlns:ns0="DAV:" xmlns:ns1="http://example.com/ns"><ns0:response>'
-            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:href>http://127.0.0.1/resource</ns0:href>"
             "<ns0:propstat><ns0:status>HTTP/1.1 403 Forbidden</ns0:status><ns0:prop><ns1:deadproperty /></ns0:prop></ns0:propstat>"
             "</ns0:response></ns0:multistatus>",
         )
@@ -2808,7 +2808,7 @@ class WebTests(WebTestCase):
         self.assertMultiLineEqual(
             contents.decode("utf-8"),
             '<ns0:multistatus xmlns:ns0="DAV:"><ns0:response>'
-            "<ns0:href>http%3A//127.0.0.1/resource</ns0:href>"
+            "<ns0:href>http://127.0.0.1/resource</ns0:href>"
             "<ns0:propstat><ns0:status>HTTP/1.1 403 Forbidden</ns0:status>"
             "<ns0:prop><ns0:getetag /></ns0:prop></ns0:propstat>"
             "</ns0:response></ns0:multistatus>",
@@ -3702,3 +3702,87 @@ class ChunkedTransferEncodingTests(WebTestCase):
         self.assertIn(code.split()[0], ["200", "201", "204"])
         # Verify binary data integrity
         self.assertEqual(resources["/binary.dat"].contents, test_data)
+
+
+class CreateHrefTests(unittest.TestCase):
+    """create_href() must not corrupt absolute URLs.
+
+    urllib.parse.quote() defaults to safe="/", so it percent-encodes the
+    colon that separates a URI's scheme from its authority, and the colon
+    in front of a port number.  RFC 3986 section 3.1 defines that colon as
+    a delimiter, not as data: once it is percent-encoded the string is no
+    longer an absolute URI at all, but a relative reference whose first
+    path segment happens to be "https%3A".  A client resolving it against
+    the request URL therefore ends up somewhere entirely different.
+
+    Relative hrefs contain no colons, which is why this has gone unnoticed.
+    """
+
+    def test_absolute_url_keeps_scheme_separator(self):
+        el = webdav.create_href("https://example.com/tz/")
+        self.assertEqual("https://example.com/tz/", el.text)
+
+    def test_absolute_url_keeps_port_separator(self):
+        el = webdav.create_href("http://localhost:8993/user/calendars/")
+        self.assertEqual("http://localhost:8993/user/calendars/", el.text)
+
+    def test_absolute_url_survives_round_trip(self):
+        """What we emit must be readable by our own href parser."""
+        el = webdav.create_href("http://localhost:8993/user/calendars/")
+        self.assertEqual("/user/calendars/", webdav.read_href_element(el))
+
+    def test_relative_href_unchanged(self):
+        el = webdav.create_href("/user/calendars/")
+        self.assertEqual("/user/calendars/", el.text)
+
+    def test_reserved_characters_in_path_still_escaped(self):
+        """The fix must not stop us escaping characters that do need it."""
+        el = webdav.create_href("/user/my calendar/")
+        self.assertEqual("/user/my%20calendar/", el.text)
+
+
+class PropfindNotFoundTests(WebTestCase):
+    """PROPFIND on a missing resource must produce a usable href.
+
+    Xandikos reports a missing resource as a response-level 404 inside a 207
+    Multi-Status (which RFC 4918 section 14.24 permits), and builds that
+    response's href from the absolute request URL rather than from the path.
+    That is the one PROPFIND path where create_href() is handed an absolute
+    URL, so it is where the quoting bug above becomes visible on the wire.
+    """
+
+    def propfind(self, app, path, body, depth=None):
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": "PROPFIND",
+            "CONTENT_TYPE": "text/xml",
+            "wsgi.input": BytesIO(body),
+        }
+        if depth is not None:
+            environ["HTTP_DEPTH"] = depth
+        setup_testing_defaults(environ)
+        _code = []
+        _headers = []
+
+        def start_response(code, headers):
+            _code.append(code)
+            _headers.extend(headers)
+
+        contents = b"".join(app(environ, start_response))
+        return _code[0], _headers, contents
+
+    def test_missing_resource_href_is_a_usable_url(self):
+        app = self.makeApp({}, [])
+        code, headers, contents = self.propfind(
+            app,
+            "/nonexistent/",
+            b"""<?xml version="1.0" encoding="utf-8" ?>
+<D:propfind xmlns:D="DAV:"><D:prop><D:displayname/></D:prop></D:propfind>""",
+            depth="0",
+        )
+        self.assertEqual("207 Multi-Status", code)
+        et = ET.fromstring(contents)
+        hrefs = et.findall("{DAV:}response/{DAV:}href")
+        self.assertEqual(1, len(hrefs))
+        self.assertNotIn("%3A", hrefs[0].text)
+        self.assertEqual("/nonexistent/", webdav.read_href_element(hrefs[0]))
