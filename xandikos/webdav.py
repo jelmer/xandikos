@@ -2509,6 +2509,8 @@ class PostMethod(Method):
         # add-member, scheduling free-busy, ...).
         if app.post_handlers and content_type in ("application/xml", "text/xml"):
             joined = b"".join(new_contents)
+            if os.environ.get("XANDIKOS_DUMP_DAV_XML"):
+                print("IN: " + joined.decode("utf-8", errors="replace"))
             try:
                 root = xmlparse(joined)
             except (ET.ParseError, ValueError):
