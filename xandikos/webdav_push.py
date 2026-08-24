@@ -409,8 +409,12 @@ def parse_push_register(root) -> tuple[Subscription, datetime | None]:
             f"auth-secret is not valid base64url: {exc}"
         ) from exc
 
-    triggers = _parse_triggers(root)
+    triggers, unsupported = _parse_triggers(root)
     if not triggers:
+        if unsupported:
+            raise NoSupportedTriggerError(
+                "no supported trigger requested; unsupported: " + ", ".join(unsupported)
+            )
         raise NoSupportedTriggerError("no supported trigger requested")
 
     expires_el = root.find("{%s}expires" % NAMESPACE)
@@ -434,11 +438,18 @@ def parse_push_register(root) -> tuple[Subscription, datetime | None]:
     return sub, expires
 
 
-def _parse_triggers(root) -> list[Trigger]:
+def _parse_triggers(root) -> tuple[list[Trigger], list[str]]:
+    """Parse trigger children.
+
+    Returns ``(supported, unsupported)``. ``unsupported`` holds the tag
+    names of trigger children we don't understand, so the caller can
+    surface them in the error response.
+    """
     triggers: list[Trigger] = []
+    unsupported: list[str] = []
     trigger_el = root.find("{%s}trigger" % NAMESPACE)
     if trigger_el is None:
-        return triggers
+        return triggers, unsupported
     for child in trigger_el:
         if child.tag == "{%s}content-update" % NAMESPACE:
             depth_el = child.find("{DAV:}depth")
@@ -455,8 +466,9 @@ def _parse_triggers(root) -> list[Trigger]:
             triggers.append(
                 Trigger(kind=TRIGGER_PROPERTY_UPDATE, depth=depth, props=props)
             )
-        # Unknown trigger children are ignored.
-    return triggers
+        else:
+            unsupported.append(child.tag)
+    return triggers, unsupported
 
 
 def build_push_message_xml(
