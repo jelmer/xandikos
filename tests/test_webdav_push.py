@@ -123,10 +123,21 @@ class ParsePushRegisterTests(unittest.TestCase):
 
     def test_no_supported_trigger(self):
         triggers = '<unknown-trigger xmlns="https://bitfire.at/webdav-push"/>'
-        with self.assertRaises(webdav_push.NoSupportedTriggerError):
+        with self.assertRaises(webdav_push.NoSupportedTriggerError) as cm:
             webdav_push.parse_push_register(
                 _parse(_push_register_xml(triggers_xml=triggers))
             )
+        self.assertIn(
+            "{https://bitfire.at/webdav-push}unknown-trigger", str(cm.exception)
+        )
+
+    def test_no_trigger_element(self):
+        body = _push_register_xml(triggers_xml="")
+        # Strip the empty <trigger> wrapper so no trigger element is present.
+        body = body.replace(b"<trigger></trigger>", b"")
+        with self.assertRaises(webdav_push.NoSupportedTriggerError) as cm:
+            webdav_push.parse_push_register(_parse(body))
+        self.assertEqual("no supported trigger requested", str(cm.exception))
 
     def test_expires_parsed(self):
         sub, expires = webdav_push.parse_push_register(
