@@ -3175,3 +3175,35 @@ class PrincipalHomeSetTests(unittest.TestCase):
         # Old default paths are not created.
         self.assertIsNone(backend.get_resource("/alice/calendars"))
         self.assertIsNone(backend.get_resource("/alice/contacts"))
+
+
+class FilesystemBackendMapPathTests(unittest.TestCase):
+    """Tests for FilesystemBackend._map_to_file_path traversal handling."""
+
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+
+    def test_map_normal_path(self):
+        self.assertEqual(
+            os.path.join(self.tempdir, "alice", "calendars"),
+            self.backend._map_to_file_path("/alice/calendars"),
+        )
+
+    def test_map_root(self):
+        self.assertEqual(self.tempdir, self.backend._map_to_file_path("/"))
+
+    def test_map_dotdot_stays_inside_root(self):
+        # `..` segments must never escape the WebDAV root.
+        for candidate in (
+            "/alice/../../CANARY/pwn",
+            "/../../etc/passwd",
+            "/alice/../bob/x",
+        ):
+            mapped = self.backend._map_to_file_path(candidate)
+            self.assertEqual(
+                os.path.commonpath([self.tempdir, mapped]),
+                self.tempdir,
+                f"{candidate!r} mapped to {mapped!r} escaped {self.tempdir!r}",
+            )
