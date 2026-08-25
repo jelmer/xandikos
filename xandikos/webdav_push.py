@@ -37,10 +37,12 @@ import binascii
 import contextvars
 import dataclasses
 import email.utils
+import ipaddress
 import json
 import logging
 import os
 import secrets
+import socket
 import tempfile
 import urllib.parse
 from collections.abc import Iterable
@@ -138,6 +140,81 @@ def _b64url_decode(data: str) -> bytes:
     data = data.strip()
     padding = "=" * (-len(data) % 4)
     return base64.urlsafe_b64decode(data + padding)
+
+
+# Environment override to allow push-resource URLs that would otherwise be
+# rejected as internal (loopback/link-local/private). Intended for tests and
+# for deployments where the push service genuinely lives on a private network.
+_ALLOW_INTERNAL_ENV = "XANDIKOS_ALLOW_INTERNAL_PUSH_RESOURCE"
+
+
+def _allow_internal_push_resource() -> bool:
+    return os.environ.get(_ALLOW_INTERNAL_ENV, "").lower() in ("1", "true", "yes")
+
+
+_IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
+
+
+def _addresses_for(host: str) -> list[_IPAddress]:
+    """Resolve ``host`` to IP addresses, tolerating literal IPs."""
+    try:
+        return [ipaddress.ip_address(host)]
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return []
+    addrs: list[_IPAddress] = []
+    for info in infos:
+        sockaddr = info[4]
+        try:
+            addrs.append(ipaddress.ip_address(sockaddr[0]))
+        except ValueError:
+            continue
+    return addrs
+
+
+def _validate_push_resource(url: str) -> None:
+    """Reject push-resource URLs that would enable SSRF.
+
+    Only http/https targets are accepted, and the host must not resolve
+    to a loopback, link-local, private, multicast, or otherwise reserved
+    address. Set ``XANDIKOS_ALLOW_INTERNAL_PUSH_RESOURCE=1`` to disable
+    the network-location check (useful in tests or when the push service
+    genuinely lives on an internal network).
+    """
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError as exc:
+        raise InvalidSubscriptionError(f"invalid push-resource URL: {exc}") from exc
+    if parsed.scheme not in ("http", "https"):
+        raise InvalidSubscriptionError(
+            f"push-resource scheme {parsed.scheme!r} is not allowed"
+        )
+    host = parsed.hostname
+    if not host:
+        raise InvalidSubscriptionError("push-resource is missing a host")
+    if _allow_internal_push_resource():
+        return
+    addrs = _addresses_for(host)
+    if not addrs:
+        raise InvalidSubscriptionError(
+            f"push-resource host {host!r} did not resolve to any address"
+        )
+    for addr in addrs:
+        if (
+            addr.is_loopback
+            or addr.is_link_local
+            or addr.is_private
+            or addr.is_multicast
+            or addr.is_reserved
+            or addr.is_unspecified
+        ):
+            raise InvalidSubscriptionError(
+                f"push-resource host {host!r} resolves to a non-routable "
+                f"address ({addr})"
+            )
 
 
 @dataclasses.dataclass
@@ -373,6 +450,7 @@ def parse_push_register(root) -> tuple[Subscription, datetime | None]:
     )
     if not push_resource_text:
         raise InvalidSubscriptionError("missing push-resource")
+    _validate_push_resource(push_resource_text)
     push_resource = push_resource_text
 
     ce_el = wp.find("{%s}content-encoding" % NAMESPACE)

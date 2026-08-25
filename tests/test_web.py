@@ -330,6 +330,20 @@ END:VCALENDAR"""
         self.assertEqual("text/html; encoding=utf-8", content_type)
         self.assertEqual(["en-UK"], languages)
 
+    def test_render_html_escapes_displayname(self):
+        """User-controlled displayname must be HTML-escaped."""
+        self.cal.set_displayname('<script>alert("xss")</script>')
+        body, _length, _etag, _content_type, _languages = asyncio.run(
+            self.cal.render(
+                "http://example.com/c/",
+                [("text/html", {})],
+                ["en"],
+            )
+        )
+        html = b"".join(body).decode("utf-8")
+        self.assertNotIn("<script>alert", html)
+        self.assertIn("&lt;script&gt;alert(&#34;xss&#34;)&lt;/script&gt;", html)
+
     def test_render_ics_via_accept(self):
         """A request with only text/calendar in Accept returns ICS."""
         self.store.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
@@ -3175,3 +3189,35 @@ class PrincipalHomeSetTests(unittest.TestCase):
         # Old default paths are not created.
         self.assertIsNone(backend.get_resource("/alice/calendars"))
         self.assertIsNone(backend.get_resource("/alice/contacts"))
+
+
+class FilesystemBackendMapPathTests(unittest.TestCase):
+    """Tests for FilesystemBackend._map_to_file_path traversal handling."""
+
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+
+    def test_map_normal_path(self):
+        self.assertEqual(
+            os.path.join(self.tempdir, "alice", "calendars"),
+            self.backend._map_to_file_path("/alice/calendars"),
+        )
+
+    def test_map_root(self):
+        self.assertEqual(self.tempdir, self.backend._map_to_file_path("/"))
+
+    def test_map_dotdot_stays_inside_root(self):
+        # `..` segments must never escape the WebDAV root.
+        for candidate in (
+            "/alice/../../CANARY/pwn",
+            "/../../etc/passwd",
+            "/alice/../bob/x",
+        ):
+            mapped = self.backend._map_to_file_path(candidate)
+            self.assertEqual(
+                os.path.commonpath([self.tempdir, mapped]),
+                self.tempdir,
+                f"{candidate!r} mapped to {mapped!r} escaped {self.tempdir!r}",
+            )

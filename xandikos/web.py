@@ -172,7 +172,9 @@ def get_validation_error(exc: InvalidFileContents):
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 jinja_env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(TEMPLATES_DIR), enable_async=True
+    loader=jinja2.FileSystemLoader(TEMPLATES_DIR),
+    enable_async=True,
+    autoescape=jinja2.select_autoescape(["html", "htm", "xml"]),
 )
 
 

@@ -21,6 +21,7 @@
 
 import functools
 import os
+import posixpath
 import shutil
 
 from xandikos import webdav
@@ -54,8 +55,15 @@ class FilesystemBackend(webdav.Backend):
         self.path = path
 
     def _map_to_file_path(self, relpath: str) -> str:
-        """Map a WebDAV relative path to an absolute filesystem path."""
-        return os.path.join(self.path, relpath.lstrip("/"))
+        """Map a WebDAV relative path to an absolute filesystem path.
+
+        ``..`` segments are collapsed against the WebDAV root before joining
+        so that a client-supplied ``relpath`` cannot escape ``self.path``.
+        """
+        normalized = posixpath.normpath("/" + relpath.lstrip("/"))
+        if normalized == "/":
+            return self.path
+        return os.path.join(self.path, *normalized[1:].split("/"))
 
     async def copy_collection(
         self, source_path: str, dest_path: str, overwrite: bool = True

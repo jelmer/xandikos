@@ -923,6 +923,18 @@ class MultiUserXandikosAppAuthorizationTests(unittest.TestCase):
         with self.assertRaises(ForbiddenError):
             self.app.check_access(environ, "/bob/", "GET")
 
+    def test_dotdot_traversal_is_denied(self):
+        """`..` segments must not defeat the principal prefix check."""
+        environ = {"REMOTE_USER": "alice"}
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(
+                environ, "/alice/../bob/calendars/calendar/x.ics", "GET"
+            )
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/alice/../bob/", "PUT")
+        with self.assertRaises(ForbiddenError):
+            self.app.check_access(environ, "/alice/../bob", "DELETE")
+
 
 class MultiUserXandikosAppCustomPrefixTests(unittest.TestCase):
     """Tests for MultiUserXandikosApp with custom principal path prefix/suffix."""
