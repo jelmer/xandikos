@@ -330,6 +330,20 @@ END:VCALENDAR"""
         self.assertEqual("text/html; encoding=utf-8", content_type)
         self.assertEqual(["en-UK"], languages)
 
+    def test_render_html_escapes_displayname(self):
+        """User-controlled displayname must be HTML-escaped."""
+        self.cal.set_displayname('<script>alert("xss")</script>')
+        body, _length, _etag, _content_type, _languages = asyncio.run(
+            self.cal.render(
+                "http://example.com/c/",
+                [("text/html", {})],
+                ["en"],
+            )
+        )
+        html = b"".join(body).decode("utf-8")
+        self.assertNotIn("<script>alert", html)
+        self.assertIn("&lt;script&gt;alert(&#34;xss&#34;)&lt;/script&gt;", html)
+
     def test_render_ics_via_accept(self):
         """A request with only text/calendar in Accept returns ICS."""
         self.store.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
