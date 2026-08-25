@@ -27,6 +27,7 @@ principals are automatically created for authenticated users.
 import asyncio
 import logging
 import os
+import posixpath
 import signal
 
 from .web import (
@@ -191,13 +192,13 @@ class MultiUserXandikosApp(XandikosApp):
     def _normalize_path(self, path: str) -> str:
         """Normalize a path for comparison.
 
-        Ensures path starts with / and handles trailing slashes consistently.
+        Ensures path starts with /, collapses ``.`` and ``..`` segments so a
+        traversal cannot fool prefix matching, and strips a trailing slash so
+        principal comparisons are consistent.
         """
         if not path.startswith("/"):
             path = "/" + path
-        # Remove trailing slash for comparison, but keep root as "/"
-        if path != "/" and path.endswith("/"):
-            path = path.rstrip("/")
+        path = posixpath.normpath(path)
         return path
 
     def check_access(self, environ: dict, path: str, method: str) -> None:
