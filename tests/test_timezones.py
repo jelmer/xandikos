@@ -117,8 +117,7 @@ class TimezoneServiceSetPropertyTests(unittest.TestCase):
             # Check exact values in order
             self.assertEqual(hrefs[0].text, "/timezones/")
             self.assertEqual(hrefs[1].text, "/tz-service/")
-            # Absolute URLs are URL-encoded by create_href
-            self.assertEqual(hrefs[2].text, "https%3A//example.com/tz/")
+            self.assertEqual(hrefs[2].text, "https://example.com/tz/")
 
         asyncio.run(run_test())
 
