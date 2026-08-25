@@ -63,7 +63,7 @@ class FilesystemBackend(webdav.Backend):
         normalized = posixpath.normpath("/" + relpath.lstrip("/"))
         if normalized == "/":
             return self.path
-        return os.path.join(self.path, normalized[1:])
+        return os.path.join(self.path, *normalized[1:].split("/"))
 
     async def copy_collection(
         self, source_path: str, dest_path: str, overwrite: bool = True
