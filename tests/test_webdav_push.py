@@ -32,6 +32,17 @@ from xandikos import webdav, webdav_push
 PUSH_NS = webdav_push.NAMESPACE
 
 
+def setUpModule():
+    # Existing tests use example.com-style push URLs that don't resolve or
+    # resolve to non-routable addresses. Bypass the SSRF check by default;
+    # the dedicated PushResourceValidationTests exercise it explicitly.
+    os.environ[webdav_push._ALLOW_INTERNAL_ENV] = "1"
+
+
+def tearDownModule():
+    os.environ.pop(webdav_push._ALLOW_INTERNAL_ENV, None)
+
+
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
@@ -147,6 +158,50 @@ class ParsePushRegisterTests(unittest.TestCase):
         self.assertEqual(expires.year, 2023)
         self.assertEqual(expires.month, 12)
         self.assertEqual(expires.day, 20)
+
+
+class PushResourceValidationTests(unittest.TestCase):
+    """Directly exercise the push-resource URL validator."""
+
+    def setUp(self):
+        # The module-level setUpModule set the bypass env var. Undo it here
+        # so these tests see the real validator; put it back on tearDown so
+        # subsequent tests in the module continue to bypass DNS.
+        os.environ.pop(webdav_push._ALLOW_INTERNAL_ENV, None)
+
+    def tearDown(self):
+        os.environ[webdav_push._ALLOW_INTERNAL_ENV] = "1"
+
+    def test_rejects_non_http_scheme(self):
+        with self.assertRaises(webdav_push.InvalidSubscriptionError):
+            webdav_push._validate_push_resource("file:///etc/passwd")
+        with self.assertRaises(webdav_push.InvalidSubscriptionError):
+            webdav_push._validate_push_resource("ftp://example.com/x")
+
+    def test_rejects_loopback_literal(self):
+        with self.assertRaises(webdav_push.InvalidSubscriptionError):
+            webdav_push._validate_push_resource("http://127.0.0.1:9911/x")
+        with self.assertRaises(webdav_push.InvalidSubscriptionError):
+            webdav_push._validate_push_resource("http://[::1]/x")
+
+    def test_rejects_link_local_metadata_address(self):
+        with self.assertRaises(webdav_push.InvalidSubscriptionError):
+            webdav_push._validate_push_resource("http://169.254.169.254/latest")
+
+    def test_rejects_private_address(self):
+        with self.assertRaises(webdav_push.InvalidSubscriptionError):
+            webdav_push._validate_push_resource("http://10.0.0.1/x")
+
+    def test_rejects_missing_host(self):
+        with self.assertRaises(webdav_push.InvalidSubscriptionError):
+            webdav_push._validate_push_resource("http:///no-host")
+
+    def test_env_override_allows_loopback(self):
+        os.environ[webdav_push._ALLOW_INTERNAL_ENV] = "1"
+        try:
+            webdav_push._validate_push_resource("http://127.0.0.1:9911/x")
+        finally:
+            os.environ.pop(webdav_push._ALLOW_INTERNAL_ENV, None)
 
 
 class PushSubscriptionStoreTests(unittest.TestCase):
