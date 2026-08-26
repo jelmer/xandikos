@@ -24,7 +24,7 @@ from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from collections.abc import Callable
 from typing import Any, Protocol, cast, overload, runtime_checkable
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import dateutil.rrule
 from icalendar.cal import Calendar, Component, Timezone
@@ -918,6 +918,14 @@ class ComponentTimeRangeMatcher:
 
             # Parse DTSTART and create rrule
             dtstart_parsed = vDDDTypes.from_ical(dtstart_str)
+            # A DTSTART with a TZID loses its timezone through the index (the
+            # parameter is dropped when the value is serialized). Reattach it
+            # from the companion A=TZID sub-index; without a timezone, DST
+            # boundaries would shift every occurrence by an hour.
+            if isinstance(dtstart_parsed, datetime) and dtstart_parsed.tzinfo is None:
+                dtstart_parsed = _attach_indexed_tzid(
+                    dtstart_parsed, indexes["P=DTSTART/A=TZID"]
+                )
             # Normalize UNTIL to be UTC if dtstart is timezone-aware
             rrule_str = _normalize_rrule_until(rrule_str, dtstart_parsed)
             rrule = dateutil.rrule.rrulestr(rrule_str, dtstart=dtstart_parsed)
@@ -1003,7 +1011,13 @@ class ComponentTimeRangeMatcher:
                 if isinstance(dtstart_parsed, datetime) and isinstance(
                     end_parsed_val, datetime
                 ):
-                    return end_parsed_val - dtstart_parsed
+                    # DTEND is parsed from the index without its TZID, so it
+                    # may be naive while DTSTART has been reattached to one.
+                    # Subtract on wall-clock values to sidestep the mismatch;
+                    # for the RRULE occurrence window this is what we want.
+                    return end_parsed_val.replace(tzinfo=None) - dtstart_parsed.replace(
+                        tzinfo=None
+                    )
         return None
 
     def _get_occurrences_in_range(self, rrule, dtstart_parsed, query_start, query_end):
@@ -1111,7 +1125,12 @@ class ComponentTimeRangeMatcher:
             props = ["TRIGGER", "DURATION", "REPEAT"]
         else:
             props = self.all_props
-        return [["P=" + prop] for prop in props]
+        keys = [["P=" + prop] for prop in props]
+        # DTSTART's TZID travels alongside via a sub-key so RRULE expansion
+        # can reconstruct the timezone and stay DST-correct.
+        if "DTSTART" in props:
+            keys.append(["P=DTSTART/A=TZID"])
+        return keys
 
 
 class TextMatcher:
@@ -1586,6 +1605,51 @@ class CalendarFilter(Filter):
         return f"{self.__class__.__name__}({self.children!r})"
 
 
+def _index_property_parameter(prop, param_name: str) -> bytes | None:
+    """Extract a property parameter value for indexing.
+
+    For TZID on a datetime-valued property, prefer the tzinfo icalendar
+    already resolved (a real ZoneInfo, including Windows-name mappings like
+    "W. Europe Standard Time" -> Europe/Berlin) so the reader can rebuild
+    the timezone without needing the file's VTIMEZONE.
+    """
+    if (
+        param_name == "TZID"
+        and isinstance(prop, TimeProperty)
+        and isinstance(prop.dt, datetime)
+        and prop.dt.tzinfo is not None
+    ):
+        return str(prop.dt.tzinfo).encode("utf-8")
+    try:
+        raw = prop.params[param_name]
+    except KeyError:
+        return None
+    return raw if isinstance(raw, bytes) else str(raw).encode("utf-8")
+
+
+def _attach_indexed_tzid(dt: datetime, tzid_values: list[bytes | bool]) -> datetime:
+    """Reattach a TZID from the index to a naive datetime.
+
+    Empty ``tzid_values`` means the property had no TZID (floating time), in
+    which case the datetime stays naive.
+    """
+    if not tzid_values:
+        return dt
+    tzid_bytes = tzid_values[0]
+    assert isinstance(tzid_bytes, bytes)
+    tzid = tzid_bytes.decode("utf-8")
+    try:
+        tzinfo = ZoneInfo(tzid)
+    except ZoneInfoNotFoundError:
+        # Unresolvable TZID. The file may still expand via its VTIMEZONE, so
+        # hand off rather than pick a wrong offset.
+        raise InsufficientIndexDataError(
+            f"recurring event with unresolvable indexed TZID {tzid!r}; "
+            "falling back to full file"
+        )
+    return dt.replace(tzinfo=tzinfo)
+
+
 class ICalendarFile(File):
     """Handle for ICalendar files."""
 
@@ -1741,7 +1805,6 @@ class ICalendarFile(File):
             if not segments:
                 yield True
             elif segments[0].startswith("P="):
-                assert len(segments) == 1
                 prop_name = segments[0][2:]
                 try:
                     p = c[prop_name]
@@ -1749,6 +1812,12 @@ class ICalendarFile(File):
                     pass
                 else:
                     if p is not None:
+                        if len(segments) == 2 and segments[1].startswith("A="):
+                            value = _index_property_parameter(p, segments[1][2:])
+                            if value is not None:
+                                yield value
+                            continue
+                        assert len(segments) == 1, f"segments: {segments!r}"
                         ical = p.to_ical()
                         # Special handling for VALARM TRIGGER property
                         if (

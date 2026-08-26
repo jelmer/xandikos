@@ -27,7 +27,7 @@ from icalendar.cal import Calendar, Event, Alarm, Todo
 from icalendar.prop import vCategory, vText, vDuration, vDDDTypes
 
 from xandikos import collation as _mod_collation
-from xandikos.store import InvalidFileContents
+from xandikos.store import InsufficientIndexDataError, InvalidFileContents
 
 from xandikos.icalendar import (
     CalendarFilter,
@@ -580,6 +580,7 @@ class CalendarFilterTests(unittest.TestCase):
                 ["C=VCALENDAR/C=VTODO/P=CREATED"],
                 ["C=VCALENDAR/C=VTODO/P=COMPLETED"],
                 ["C=VCALENDAR/C=VTODO/P=RRULE"],
+                ["C=VCALENDAR/C=VTODO/P=DTSTART/A=TZID"],
                 ["C=VCALENDAR/C=VTODO"],
             ],
         )
@@ -678,6 +679,7 @@ class CalendarFilterTests(unittest.TestCase):
                 ["C=VCALENDAR/C=VEVENT/P=DTEND"],
                 ["C=VCALENDAR/C=VEVENT/P=DURATION"],
                 ["C=VCALENDAR/C=VEVENT/P=RRULE"],
+                ["C=VCALENDAR/C=VEVENT/P=DTSTART/A=TZID"],
                 ["C=VCALENDAR/C=VEVENT"],
             ],
         )
@@ -1008,6 +1010,141 @@ END:VCALENDAR
         }
         self.assertTrue(filter.check_from_indexes("file", indexes))
         self.assertTrue(filter.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_tzid_dst(self):
+        """Recurring events with a TZID DTSTART expand DST-correctly from the index.
+
+        Uses a Windows TZID (mapped by icalendar to Europe/Berlin) to also cover
+        the resolution path. The event is at 09:05 wall-clock all year, which is
+        07:05Z in summer and 08:05Z in winter.
+        """
+        self.cal = ICalendarFile(
+            [
+                b"""\
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;TZID=W. Europe Standard Time:20250722T090500
+DTEND;TZID=W. Europe Standard Time:20250722T095000
+RRULE:FREQ=WEEKLY;UNTIL=20270720T070500Z;BYDAY=TU
+UID:2a5666700a3972be13eed0a9183cad638dbb0deb32f45b65ba8b1b56c819ba77
+END:VEVENT
+END:VCALENDAR
+"""
+            ],
+            "text/calendar",
+        )
+
+        def make_filter(start, end):
+            filter = CalendarFilter(ZoneInfo("UTC"))
+            filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+                "VEVENT"
+            ).filter_time_range(start=self._tzify(start), end=self._tzify(end))
+            return filter
+
+        winter_hit = make_filter(
+            datetime(2026, 1, 6, 8, 0, 0), datetime(2026, 1, 6, 9, 0, 0)
+        )
+        keys = [key for key_set in winter_hit.index_keys() for key in key_set]
+        indexes = self.cal.get_indexes(keys)
+
+        # DTSTART is indexed as a naive wall-clock value; the TZID travels
+        # alongside via the A=TZID sub-key. icalendar resolves the Windows
+        # zone name to Europe/Berlin.
+        self.assertEqual(
+            indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"], [b"20250722T090500"]
+        )
+        self.assertEqual(
+            indexes["C=VCALENDAR/C=VEVENT/P=DTSTART/A=TZID"], [b"Europe/Berlin"]
+        )
+
+        # Real winter occurrence at 08:05Z: index and file agree.
+        self.assertTrue(winter_hit.check_from_indexes("file", indexes))
+        self.assertTrue(winter_hit.check("file", self.cal))
+
+        # Ghost window that would only match if the naive value were mis-expanded
+        # in UTC. Both paths reject it.
+        winter_ghost = make_filter(
+            datetime(2026, 1, 6, 9, 0, 0), datetime(2026, 1, 6, 10, 0, 0)
+        )
+        self.assertFalse(winter_ghost.check_from_indexes("file", indexes))
+        self.assertFalse(winter_ghost.check("file", self.cal))
+
+        # Summer occurrence at 07:05Z: DST-correct on both paths.
+        summer_hit = make_filter(
+            datetime(2026, 7, 7, 7, 0, 0), datetime(2026, 7, 7, 8, 0, 0)
+        )
+        self.assertTrue(summer_hit.check_from_indexes("file", indexes))
+        self.assertTrue(summer_hit.check("file", self.cal))
+
+    def test_rrule_index_based_filtering_unresolvable_tzid(self):
+        """A recurring event whose TZID isn't in tzdata falls back to the file."""
+        cal = ICalendarFile(
+            [
+                b"""\
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;TZID=Some/Bogus:20250722T090500
+DTEND;TZID=Some/Bogus:20250722T095000
+RRULE:FREQ=WEEKLY;COUNT=5
+UID:bogus-tz
+END:VEVENT
+END:VCALENDAR
+"""
+            ],
+            "text/calendar",
+        )
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2025, 7, 22, 8, 0, 0)),
+            end=self._tzify(datetime(2025, 7, 22, 10, 0, 0)),
+        )
+        keys = [key for key_set in filter.index_keys() for key in key_set]
+        indexes = cal.get_indexes(keys)
+        self.assertEqual(
+            indexes["C=VCALENDAR/C=VEVENT/P=DTSTART/A=TZID"], [b"Some/Bogus"]
+        )
+        self.assertRaises(
+            InsufficientIndexDataError,
+            filter.check_from_indexes,
+            "file",
+            indexes,
+        )
+
+    def test_rrule_index_based_filtering_floating_recurring(self):
+        """A genuine floating-time recurring event expands without a TZID."""
+        cal = ICalendarFile(
+            [
+                b"""\
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART:20250722T090500
+DTEND:20250722T095000
+RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=TU
+UID:floating-uid
+END:VEVENT
+END:VCALENDAR
+"""
+            ],
+            "text/calendar",
+        )
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VEVENT"
+        ).filter_time_range(
+            start=self._tzify(datetime(2025, 8, 5, 9, 0, 0)),
+            end=self._tzify(datetime(2025, 8, 5, 10, 0, 0)),
+        )
+        keys = [key for key_set in filter.index_keys() for key in key_set]
+        indexes = cal.get_indexes(keys)
+        # No TZID param on the property, so the sub-index is empty.
+        self.assertEqual(indexes["C=VCALENDAR/C=VEVENT/P=DTSTART/A=TZID"], [])
+        # Index and file agree on the floating expansion.
+        self.assertEqual(
+            filter.check_from_indexes("file", indexes),
+            filter.check("file", cal),
+        )
 
     def test_rrule_index_based_filtering_with_exceptions(self):
         """Test rrule filtering with recurring events that have exception instances."""
