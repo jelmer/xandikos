@@ -1,3 +1,10 @@
+0.4.6	UNRELEASED
+
+ * Implement the RFC 5842 ``DAV:resource-id`` property. Calendar and
+   addressbook object resources derive their identifier from the file
+   UID; collections auto-generate and persist a UUID. (Jelmer Vernooĳ,
+   #89)
+
 0.4.5	2026-07-21
 
  * Implement the RFC 3744 ``principal-property-search`` REPORT, the

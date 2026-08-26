@@ -195,6 +195,22 @@ class CollectionMetadata:
         """
         raise NotImplementedError(self.set_addressbook_home_set)
 
+    def get_resource_id(self) -> str:
+        """Get the persisted DAV:resource-id UUID for this collection.
+
+        Returns: UUID string
+        Raises: KeyError if not set
+        """
+        raise NotImplementedError(self.get_resource_id)
+
+    def set_resource_id(self, resource_id: str) -> None:
+        """Persist the DAV:resource-id UUID for this collection.
+
+        Args:
+            resource_id: UUID string, or None to unset
+        """
+        raise NotImplementedError(self.set_resource_id)
+
 
 class FileBasedCollectionMetadata(CollectionMetadata):
     """Metadata for a configuration."""
@@ -388,3 +404,15 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         self._set_principal_option(
             "addressbook-home-set", joined, "Set addressbook-home-set."
         )
+
+    def get_resource_id(self):
+        if not self._configparser.has_option("DEFAULT", "resource-id"):
+            raise KeyError
+        return self._configparser["DEFAULT"]["resource-id"]
+
+    def set_resource_id(self, resource_id):
+        if resource_id is not None:
+            self._configparser["DEFAULT"]["resource-id"] = resource_id
+        else:
+            del self._configparser["DEFAULT"]["resource-id"]
+        self._save("Set resource-id.")

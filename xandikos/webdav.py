@@ -33,6 +33,7 @@ from logging import getLogger
 import os
 import posixpath
 import urllib.parse
+import uuid
 from collections.abc import AsyncIterable, Callable, Iterable, Iterator, Sequence
 from datetime import datetime
 from wsgiref.util import request_uri
@@ -47,6 +48,27 @@ logger = getLogger("xandikos")
 DEFAULT_ENCODING = "utf-8"
 COLLECTION_RESOURCE_TYPE = "{DAV:}collection"
 PRINCIPAL_RESOURCE_TYPE = "{DAV:}principal"
+
+# Namespace UUID for deriving stable urn:uuid: values from arbitrary
+# identifier strings (RFC 4122 §4.3, RFC 5842 §3.1).
+_RESOURCE_ID_NAMESPACE = uuid.UUID("cbe1cd76-b0c8-46d7-9c8a-1f6bd6c8a7f2")
+
+
+def _resource_id_from_name(name: str) -> str:
+    """Return a ``urn:uuid:`` URI derived from a stable name.
+
+    If ``name`` already parses as a UUID (with or without a ``urn:uuid:``
+    prefix) it is used directly; otherwise a deterministic UUIDv5 is
+    generated under a xandikos-specific namespace, so repeated calls
+    with the same name always return the same URI.
+    """
+    candidate = name
+    if candidate.startswith("urn:uuid:"):
+        candidate = candidate[len("urn:uuid:") :]
+    try:
+        return "urn:uuid:" + str(uuid.UUID(candidate))
+    except ValueError:
+        return "urn:uuid:" + str(uuid.uuid5(_RESOURCE_ID_NAMESPACE, name))
 
 
 PropStatus = collections.namedtuple(
@@ -691,6 +713,17 @@ class Resource:
         """
         raise NotImplementedError(self.get_quota_available_bytes)
 
+    async def get_resource_id(self) -> str:
+        """Return a URI identifying this resource (RFC 5842).
+
+        The value is a URI in a scheme that guarantees uniqueness across
+        all resources for all time (typically ``urn:uuid:``). Immutable
+        for the lifetime of the resource.
+
+        :raise KeyError: if no stable identifier is available
+        """
+        raise KeyError
+
 
 class Property:
     """Handler for listing, retrieving and updating DAV Properties."""
@@ -893,6 +926,25 @@ class AddMemberProperty(Property):
     async def get_value(self, href, resource, el, environ):
         # Support POST against collection URL
         el.append(create_href(".", href))
+
+
+class ResourceIdProperty(Property):
+    """Provides {DAV:}resource-id.
+
+    https://tools.ietf.org/html/rfc5842, section 3.1
+
+    Contains a URI (typically ``urn:uuid:``) that uniquely identifies a
+    resource across all bindings and across time.
+    """
+
+    name = "{DAV:}resource-id"
+    resource_type = None
+    in_allprops = False
+    live = True
+
+    async def get_value(self, href, resource, el, environ):
+        resource_id = await resource.get_resource_id()
+        ET.SubElement(el, "{DAV:}href").text = resource_id
 
 
 class GetLastModifiedProperty(Property):

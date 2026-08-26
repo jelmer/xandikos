@@ -518,11 +518,14 @@ Other Notable Specifications
 rfc5842.txt (WebDAV BIND)
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Not supported.
+Partial: only the ``DAV:resource-id`` property is implemented.
 
 - BIND method [not supported]
 - UNBIND method [not supported]
 - REBIND method [not supported]
+- ``DAV:resource-id`` property [supported - urn:uuid: identifiers,
+  derived from the file UID for calendar/addressbook object resources
+  and auto-generated and persisted per collection]
 
 rfc8144.txt (Prefer Header)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
