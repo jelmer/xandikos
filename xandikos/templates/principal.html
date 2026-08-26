@@ -17,6 +17,26 @@
     {% endfor %}
     </ul>
 
+    {% set proxy_read_for = principal.get_calendar_proxy_read_for() %}
+    {% if proxy_read_for %}
+    <h2>Read-only proxy for</h2>
+    <ul>
+    {% for href in proxy_read_for %}
+       <li><a href="{{ urljoin(self_url+'/', href) }}">{{ href }}</a></li>
+    {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% set proxy_write_for = principal.get_calendar_proxy_write_for() %}
+    {% if proxy_write_for %}
+    <h2>Read-write proxy for</h2>
+    <ul>
+    {% for href in proxy_write_for %}
+       <li><a href="{{ urljoin(self_url+'/', href) }}">{{ href }}</a></li>
+    {% endfor %}
+    </ul>
+    {% endif %}
+
     <p>For more information about Xandikos, see <a
     href="https://www.xandikos.org/">https://www.xandikos.org/</a>
     or <a href="https://github.com/jelmer/xandikos">https://github.com/jelmer/xandikos</a>.

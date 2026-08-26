@@ -3253,6 +3253,52 @@ class PrincipalHomeSetTests(unittest.TestCase):
         self.assertIsNone(backend.get_resource("/alice/contacts"))
 
 
+class PrincipalCalendarProxyForTests(unittest.TestCase):
+    """Per-principal calendar-proxy-{read,write}-for overrides via .xandikos."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/user", create_defaults=False)
+        self.principal = self.backend.get_resource("/user")
+
+    def test_defaults_when_no_config(self):
+        self.assertEqual([], self.principal.get_calendar_proxy_read_for())
+        self.assertEqual([], self.principal.get_calendar_proxy_write_for())
+
+    def test_read_for_roundtrip(self):
+        self.principal.set_calendar_proxy_read_for(["/alice/"])
+        self.assertEqual(["/alice/"], self.principal.get_calendar_proxy_read_for())
+        self.assertEqual([], self.principal.get_calendar_proxy_write_for())
+
+    def test_write_for_roundtrip(self):
+        self.principal.set_calendar_proxy_write_for(["/bob/"])
+        self.assertEqual(["/bob/"], self.principal.get_calendar_proxy_write_for())
+        self.assertEqual([], self.principal.get_calendar_proxy_read_for())
+
+    def test_multiple_hrefs(self):
+        self.principal.set_calendar_proxy_read_for(["/alice/", "/carol/"])
+        self.principal.set_calendar_proxy_write_for(["/bob/", "/dave/"])
+        self.assertEqual(
+            ["/alice/", "/carol/"], self.principal.get_calendar_proxy_read_for()
+        )
+        self.assertEqual(
+            ["/bob/", "/dave/"], self.principal.get_calendar_proxy_write_for()
+        )
+
+    def test_persists_across_lookups(self):
+        self.principal.set_calendar_proxy_read_for(["/alice/"])
+        fresh = self.backend.get_resource("/user")
+        self.assertEqual(["/alice/"], fresh.get_calendar_proxy_read_for())
+
+    def test_unset_returns_empty(self):
+        self.principal.set_calendar_proxy_read_for(["/alice/"])
+        self.principal.set_calendar_proxy_read_for([])
+        self.assertEqual([], self.principal.get_calendar_proxy_read_for())
+
+
 class FilesystemBackendMapPathTests(unittest.TestCase):
     """Tests for FilesystemBackend._map_to_file_path traversal handling."""
 

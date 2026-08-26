@@ -2229,12 +2229,40 @@ class Principal(webdav.Principal):
         self._metadata().set_schedule_default_calendar_url(url)
 
     def get_calendar_proxy_read_for(self):
-        # TODO(jelmer)
-        return []
+        """Return principals this principal is a read-only proxy for.
+
+        Reads from the principal's ``.xandikos`` config; falls back
+        to an empty list when nothing is configured.
+        """
+        try:
+            return self._metadata().get_calendar_proxy_read_for()
+        except KeyError:
+            return []
+
+    def set_calendar_proxy_read_for(self, hrefs: list[str]) -> None:
+        """Persist the calendar-proxy-read-for list.
+
+        Pass an empty list to unset the override.
+        """
+        self._metadata().set_calendar_proxy_read_for(hrefs)
 
     def get_calendar_proxy_write_for(self):
-        # TODO(jelmer)
-        return []
+        """Return principals this principal is a read-write proxy for.
+
+        Reads from the principal's ``.xandikos`` config; falls back
+        to an empty list when nothing is configured.
+        """
+        try:
+            return self._metadata().get_calendar_proxy_write_for()
+        except KeyError:
+            return []
+
+    def set_calendar_proxy_write_for(self, hrefs: list[str]) -> None:
+        """Persist the calendar-proxy-write-for list.
+
+        Pass an empty list to unset the override.
+        """
+        self._metadata().set_calendar_proxy_write_for(hrefs)
 
     def get_owner(self):
         return None

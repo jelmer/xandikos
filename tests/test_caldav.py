@@ -1488,3 +1488,177 @@ class ExtractFreebusyDeclinedTests(unittest.TestCase):
         comp = self._comp("DECLINED")
         result = extract_freebusy(comp, self._tzify)
         self.assertIsNotNone(result)
+
+
+class CalendarProxyReadForPropertyTests(unittest.TestCase):
+    """Tests for CalendarProxyReadForProperty."""
+
+    def test_property_name(self):
+        prop = caldav.CalendarProxyReadForProperty()
+        self.assertEqual(
+            "{http://calendarserver.org/ns/}calendar-proxy-read-for", prop.name
+        )
+
+    def test_property_attributes(self):
+        prop = caldav.CalendarProxyReadForProperty()
+        self.assertFalse(prop.in_allprops)
+        self.assertTrue(prop.live)
+        self.assertEqual("{DAV:}principal", prop.resource_type)
+
+    def test_get_value_emits_hrefs(self):
+        import asyncio
+
+        async def run_test():
+            prop = caldav.CalendarProxyReadForProperty()
+
+            class MockResource:
+                def get_calendar_proxy_read_for(self):
+                    return ["/principals/alice/", "/principals/bob/"]
+
+            el = ET.Element("test")
+            await prop.get_value("/principals/user1/", MockResource(), el, {})
+            hrefs = [h.text for h in el.findall("{DAV:}href")]
+            self.assertEqual(["/principals/alice/", "/principals/bob/"], hrefs)
+
+        asyncio.run(run_test())
+
+    def test_get_value_empty(self):
+        import asyncio
+
+        async def run_test():
+            prop = caldav.CalendarProxyReadForProperty()
+
+            class MockResource:
+                def get_calendar_proxy_read_for(self):
+                    return []
+
+            el = ET.Element("test")
+            await prop.get_value("/principals/user1/", MockResource(), el, {})
+            self.assertEqual([], el.findall("{DAV:}href"))
+
+        asyncio.run(run_test())
+
+    def test_set_value_extracts_hrefs(self):
+        import asyncio
+
+        async def run_test():
+            prop = caldav.CalendarProxyReadForProperty()
+            captured: list[list[str]] = []
+
+            class MockResource:
+                def set_calendar_proxy_read_for(self, hrefs):
+                    captured.append(hrefs)
+
+            el = ET.Element(prop.name)
+            ET.SubElement(el, "{DAV:}href").text = "/principals/alice/"
+            ET.SubElement(el, "{DAV:}href").text = "/principals/bob/"
+
+            await prop.set_value("/principals/user1/", MockResource(), el)
+            self.assertEqual([["/principals/alice/", "/principals/bob/"]], captured)
+
+        asyncio.run(run_test())
+
+    def test_set_value_remove_clears(self):
+        import asyncio
+
+        async def run_test():
+            prop = caldav.CalendarProxyReadForProperty()
+            captured: list[list[str]] = []
+
+            class MockResource:
+                def set_calendar_proxy_read_for(self, hrefs):
+                    captured.append(hrefs)
+
+            await prop.set_value("/principals/user1/", MockResource(), None)
+            self.assertEqual([[]], captured)
+
+        asyncio.run(run_test())
+
+    def test_set_value_skips_blank_hrefs(self):
+        import asyncio
+
+        async def run_test():
+            prop = caldav.CalendarProxyReadForProperty()
+            captured: list[list[str]] = []
+
+            class MockResource:
+                def set_calendar_proxy_read_for(self, hrefs):
+                    captured.append(hrefs)
+
+            el = ET.Element(prop.name)
+            ET.SubElement(el, "{DAV:}href").text = "/principals/alice/"
+            ET.SubElement(el, "{DAV:}href").text = "  "
+            ET.SubElement(el, "{DAV:}href").text = None
+
+            await prop.set_value("/principals/user1/", MockResource(), el)
+            self.assertEqual([["/principals/alice/"]], captured)
+
+        asyncio.run(run_test())
+
+
+class CalendarProxyWriteForPropertyTests(unittest.TestCase):
+    """Tests for CalendarProxyWriteForProperty."""
+
+    def test_property_name(self):
+        prop = caldav.CalendarProxyWriteForProperty()
+        self.assertEqual(
+            "{http://calendarserver.org/ns/}calendar-proxy-write-for", prop.name
+        )
+
+    def test_property_attributes(self):
+        prop = caldav.CalendarProxyWriteForProperty()
+        self.assertFalse(prop.in_allprops)
+        self.assertTrue(prop.live)
+        self.assertEqual("{DAV:}principal", prop.resource_type)
+
+    def test_get_value_emits_hrefs(self):
+        import asyncio
+
+        async def run_test():
+            prop = caldav.CalendarProxyWriteForProperty()
+
+            class MockResource:
+                def get_calendar_proxy_write_for(self):
+                    return ["/principals/alice/"]
+
+            el = ET.Element("test")
+            await prop.get_value("/principals/user1/", MockResource(), el, {})
+            hrefs = [h.text for h in el.findall("{DAV:}href")]
+            self.assertEqual(["/principals/alice/"], hrefs)
+
+        asyncio.run(run_test())
+
+    def test_set_value_extracts_hrefs(self):
+        import asyncio
+
+        async def run_test():
+            prop = caldav.CalendarProxyWriteForProperty()
+            captured: list[list[str]] = []
+
+            class MockResource:
+                def set_calendar_proxy_write_for(self, hrefs):
+                    captured.append(hrefs)
+
+            el = ET.Element(prop.name)
+            ET.SubElement(el, "{DAV:}href").text = "/principals/alice/"
+
+            await prop.set_value("/principals/user1/", MockResource(), el)
+            self.assertEqual([["/principals/alice/"]], captured)
+
+        asyncio.run(run_test())
+
+    def test_set_value_remove_clears(self):
+        import asyncio
+
+        async def run_test():
+            prop = caldav.CalendarProxyWriteForProperty()
+            captured: list[list[str]] = []
+
+            class MockResource:
+                def set_calendar_proxy_write_for(self, hrefs):
+                    captured.append(hrefs)
+
+            await prop.set_value("/principals/user1/", MockResource(), None)
+            self.assertEqual([[]], captured)
+
+        asyncio.run(run_test())
