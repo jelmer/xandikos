@@ -195,6 +195,42 @@ class CollectionMetadata:
         """
         raise NotImplementedError(self.set_addressbook_home_set)
 
+    def get_calendar_proxy_read_for(self) -> list[str]:
+        """Get the principals this principal is a read-only proxy for.
+
+        See the CalDAV proxy extension, section 5.3.1.
+
+        Returns: list of principal URLs.
+        Raises: KeyError if not set
+        """
+        raise NotImplementedError(self.get_calendar_proxy_read_for)
+
+    def set_calendar_proxy_read_for(self, hrefs: list[str]) -> None:
+        """Set the principals this principal is a read-only proxy for.
+
+        Args:
+            hrefs: list of principal URLs, or empty list to unset
+        """
+        raise NotImplementedError(self.set_calendar_proxy_read_for)
+
+    def get_calendar_proxy_write_for(self) -> list[str]:
+        """Get the principals this principal is a read-write proxy for.
+
+        See the CalDAV proxy extension, section 5.3.2.
+
+        Returns: list of principal URLs.
+        Raises: KeyError if not set
+        """
+        raise NotImplementedError(self.get_calendar_proxy_write_for)
+
+    def set_calendar_proxy_write_for(self, hrefs: list[str]) -> None:
+        """Set the principals this principal is a read-write proxy for.
+
+        Args:
+            hrefs: list of principal URLs, or empty list to unset
+        """
+        raise NotImplementedError(self.set_calendar_proxy_write_for)
+
     def get_resource_id(self) -> str:
         """Get the persisted DAV:resource-id UUID for this collection.
 
@@ -403,6 +439,24 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         joined = ", ".join(paths) if paths else None
         self._set_principal_option(
             "addressbook-home-set", joined, "Set addressbook-home-set."
+        )
+
+    def get_calendar_proxy_read_for(self):
+        return self._get_principal_path_list("calendar-proxy-read-for")
+
+    def set_calendar_proxy_read_for(self, hrefs):
+        joined = ", ".join(hrefs) if hrefs else None
+        self._set_principal_option(
+            "calendar-proxy-read-for", joined, "Set calendar-proxy-read-for."
+        )
+
+    def get_calendar_proxy_write_for(self):
+        return self._get_principal_path_list("calendar-proxy-write-for")
+
+    def set_calendar_proxy_write_for(self, hrefs):
+        joined = ", ".join(hrefs) if hrefs else None
+        self._set_principal_option(
+            "calendar-proxy-write-for", joined, "Set calendar-proxy-write-for."
         )
 
     def get_resource_id(self):

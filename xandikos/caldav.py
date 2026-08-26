@@ -947,6 +947,17 @@ class CalendarProxyReadForProperty(webdav.Property):
         for href in resource.get_calendar_proxy_read_for():
             el.append(webdav.create_href(href, base_href))
 
+    async def set_value(self, href, resource, el):
+        if el is None:
+            resource.set_calendar_proxy_read_for([])
+            return
+        hrefs = [
+            child.text.strip()
+            for child in el.findall("{DAV:}href")
+            if child.text and child.text.strip()
+        ]
+        resource.set_calendar_proxy_read_for(hrefs)
+
 
 class CalendarProxyWriteForProperty(webdav.Property):
     """calendar-proxy-write-for property.
@@ -964,6 +975,17 @@ class CalendarProxyWriteForProperty(webdav.Property):
     async def get_value(self, base_href, resource, el, environ):
         for href in resource.get_calendar_proxy_write_for():
             el.append(webdav.create_href(href, base_href))
+
+    async def set_value(self, href, resource, el):
+        if el is None:
+            resource.set_calendar_proxy_write_for([])
+            return
+        hrefs = [
+            child.text.strip()
+            for child in el.findall("{DAV:}href")
+            if child.text and child.text.strip()
+        ]
+        resource.set_calendar_proxy_write_for(hrefs)
 
 
 class ScheduleCalendarTransparencyProperty(webdav.Property):

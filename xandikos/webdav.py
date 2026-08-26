@@ -1538,12 +1538,32 @@ class Principal(Resource):
         """
         raise NotImplementedError(self.get_calendar_proxy_read_for)
 
+    def set_calendar_proxy_read_for(self, hrefs: list[str]) -> None:
+        """Set the principals this principal is a read-only proxy for.
+
+        Default raises NotImplementedError so PROPPATCH on
+        calendar-proxy-read-for returns 403 on backends that haven't
+        implemented persistent storage. Pass an empty list to remove
+        any persisted value.
+        """
+        raise NotImplementedError(self.set_calendar_proxy_read_for)
+
     def get_calendar_proxy_write_for(self) -> list[str]:
         """List principals for which this one is a write proxy.
 
         Returns: List of principal hrefs
         """
         raise NotImplementedError(self.get_calendar_proxy_write_for)
+
+    def set_calendar_proxy_write_for(self, hrefs: list[str]) -> None:
+        """Set the principals this principal is a read-write proxy for.
+
+        Default raises NotImplementedError so PROPPATCH on
+        calendar-proxy-write-for returns 403 on backends that haven't
+        implemented persistent storage. Pass an empty list to remove
+        any persisted value.
+        """
+        raise NotImplementedError(self.set_calendar_proxy_write_for)
 
     def get_schedule_inbox_url(self) -> str:
         raise NotImplementedError(self.get_schedule_inbox_url)

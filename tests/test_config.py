@@ -187,6 +187,42 @@ class FileBasedPrincipalConfigTests(TestCase):
         self._config.set_calendar_home_set([])
         self.assertFalse(self._config._configparser.has_section("principal"))
 
+    def test_calendar_proxy_read_for_missing(self):
+        self.assertRaises(KeyError, self._config.get_calendar_proxy_read_for)
+
+    def test_calendar_proxy_read_for_roundtrip(self):
+        self._config.set_calendar_proxy_read_for(["/alice/"])
+        self.assertEqual(["/alice/"], self._config.get_calendar_proxy_read_for())
+
+    def test_calendar_proxy_read_for_multiple(self):
+        self._config.set_calendar_proxy_read_for(["/alice/", "/bob/"])
+        self.assertEqual(
+            ["/alice/", "/bob/"], self._config.get_calendar_proxy_read_for()
+        )
+
+    def test_calendar_proxy_read_for_unset(self):
+        self._config.set_calendar_proxy_read_for(["/alice/"])
+        self._config.set_calendar_proxy_read_for([])
+        self.assertRaises(KeyError, self._config.get_calendar_proxy_read_for)
+
+    def test_calendar_proxy_write_for_missing(self):
+        self.assertRaises(KeyError, self._config.get_calendar_proxy_write_for)
+
+    def test_calendar_proxy_write_for_roundtrip(self):
+        self._config.set_calendar_proxy_write_for(["/alice/"])
+        self.assertEqual(["/alice/"], self._config.get_calendar_proxy_write_for())
+
+    def test_calendar_proxy_write_for_multiple(self):
+        self._config.set_calendar_proxy_write_for(["/alice/", "/bob/"])
+        self.assertEqual(
+            ["/alice/", "/bob/"], self._config.get_calendar_proxy_write_for()
+        )
+
+    def test_calendar_proxy_write_for_unset(self):
+        self._config.set_calendar_proxy_write_for(["/alice/"])
+        self._config.set_calendar_proxy_write_for([])
+        self.assertRaises(KeyError, self._config.get_calendar_proxy_write_for)
+
 
 class FileMetadataTests(TestCase, MetadataTests):
     def setUp(self):
