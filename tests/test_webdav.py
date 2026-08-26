@@ -3098,6 +3098,66 @@ class PropertyRemovalTests(unittest.TestCase):
         self.assertEqual(resource.resource_types, [])
 
 
+class ResourceIdFromNameTests(unittest.TestCase):
+    """Deterministic mapping of arbitrary names to ``urn:uuid:`` URIs."""
+
+    def test_plain_uuid(self):
+        self.assertEqual(
+            "urn:uuid:12345678-1234-5678-1234-567812345678",
+            webdav._resource_id_from_name("12345678-1234-5678-1234-567812345678"),
+        )
+
+    def test_urn_uuid_prefixed(self):
+        self.assertEqual(
+            "urn:uuid:12345678-1234-5678-1234-567812345678",
+            webdav._resource_id_from_name(
+                "urn:uuid:12345678-1234-5678-1234-567812345678"
+            ),
+        )
+
+    def test_non_uuid_stable(self):
+        first = webdav._resource_id_from_name("my-vevent-uid")
+        second = webdav._resource_id_from_name("my-vevent-uid")
+        self.assertEqual(first, second)
+        self.assertTrue(first.startswith("urn:uuid:"))
+
+    def test_non_uuid_distinct(self):
+        self.assertNotEqual(
+            webdav._resource_id_from_name("uid-a"),
+            webdav._resource_id_from_name("uid-b"),
+        )
+
+
+class ResourceIdPropertyTests(unittest.TestCase):
+    """DAV:resource-id property value handling (RFC 5842 §3.1)."""
+
+    def test_returns_href_child(self):
+        class TestResource(Resource):
+            async def get_resource_id(self):
+                return "urn:uuid:12345678-1234-5678-1234-567812345678"
+
+        prop = webdav.ResourceIdProperty()
+        el = ET.Element(prop.name)
+
+        async def run():
+            await prop.get_value("/x", TestResource(), el, {})
+
+        asyncio.run(run())
+        [child] = list(el)
+        self.assertEqual("{DAV:}href", child.tag)
+        self.assertEqual("urn:uuid:12345678-1234-5678-1234-567812345678", child.text)
+
+    def test_missing_raises(self):
+        prop = webdav.ResourceIdProperty()
+        el = ET.Element(prop.name)
+
+        async def run():
+            await prop.get_value("/x", Resource(), el, {})
+
+        with self.assertRaises(KeyError):
+            asyncio.run(run())
+
+
 class SplitDestinationPathTests(unittest.TestCase):
     """MOVE/COPY destinations are split before decoding, like request paths."""
 

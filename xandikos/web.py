@@ -35,6 +35,7 @@ import posixpath
 import shutil
 import socket
 import urllib.parse
+import uuid
 from collections.abc import Iterable, Iterator
 from email.utils import parseaddr
 from dulwich.web import make_wsgi_chain
@@ -347,6 +348,14 @@ class ObjectResource(webdav.Resource):
         assert isinstance(cal, Calendar)
         signature = itip.extract_scheduling_signature(cal)
         return create_strong_etag(signature.hex())
+
+    async def get_resource_id(self) -> str:
+        file = await self.get_file()
+        try:
+            uid = file.get_uid()
+        except (NotImplementedError, KeyError):
+            raise KeyError
+        return webdav._resource_id_from_name(uid)
 
 
 async def _run_change_listener(awaitable) -> None:
@@ -667,6 +676,17 @@ class StoreBasedCollection:
 
     def set_refreshrate(self, value):
         self.store.config.set_refreshrate(value)
+
+    async def get_resource_id(self) -> str:
+        try:
+            resource_id = self.store.get_resource_id()
+        except (KeyError, NotImplementedError):
+            resource_id = str(uuid.uuid4())
+            try:
+                self.store.set_resource_id(resource_id)
+            except NotImplementedError:
+                pass
+        return f"urn:uuid:{resource_id}"
 
 
 class Collection(StoreBasedCollection, webdav.Collection):
@@ -2487,6 +2507,7 @@ class XandikosApp(webdav.WebDAVApp):
                 webdav.GetLastModifiedProperty(),
                 timezones.TimezoneServiceSetProperty([]),
                 webdav.AddMemberProperty(),
+                webdav.ResourceIdProperty(),
                 caldav.ScheduleCalendarTransparencyProperty(),
                 scheduling.ScheduleDefaultCalendarURLProperty(),
                 caldav.MaxInstancesProperty(),

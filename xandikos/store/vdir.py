@@ -378,6 +378,17 @@ class VdirStore(Store):
         assert color.startswith("#")
         self._write_metadata("color", color)
 
+    def get_resource_id(self):
+        """Get the persisted DAV:resource-id UUID."""
+        resource_id = self._read_metadata("resource-id")
+        if resource_id is None:
+            raise KeyError
+        return resource_id
+
+    def set_resource_id(self, resource_id):
+        """Persist the DAV:resource-id UUID."""
+        self._write_metadata("resource-id", resource_id)
+
     def get_source_url(self):
         """Get source URL."""
         return self._read_metadata("source")

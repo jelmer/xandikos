@@ -50,6 +50,7 @@ class MemoryStore(Store):
         self._comment = None
         self._color = None
         self._type: str | None = None
+        self._resource_id: str | None = None
 
     def _generate_etag(self) -> str:
         """Generate a unique etag."""
@@ -202,6 +203,16 @@ class MemoryStore(Store):
     def set_color(self, color: str) -> None:
         """Set color (no-op for memory store)."""
         self._color = color
+
+    def get_resource_id(self) -> str:
+        """Get the persisted DAV:resource-id UUID."""
+        if self._resource_id is None:
+            raise KeyError
+        return self._resource_id
+
+    def set_resource_id(self, resource_id: str) -> None:
+        """Persist the DAV:resource-id UUID."""
+        self._resource_id = resource_id
 
     def iter_changes(self, old_ctag: str, new_ctag: str):
         """Get changes between versions (not implemented for memory store)."""

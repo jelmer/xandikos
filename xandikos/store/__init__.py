@@ -643,6 +643,22 @@ class Store:
         """Set the color code for this store."""
         raise NotImplementedError(self.set_color)
 
+    def get_resource_id(self) -> str:
+        """Get the persisted DAV:resource-id UUID for this store.
+
+        Returns: UUID string
+        Raises: KeyError if not set
+        """
+        raise NotImplementedError(self.get_resource_id)
+
+    def set_resource_id(self, resource_id: str) -> None:
+        """Persist the DAV:resource-id UUID for this store.
+
+        Args:
+          resource_id: UUID string
+        """
+        raise NotImplementedError(self.set_resource_id)
+
     def iter_changes(
         self, old_ctag: str, new_ctag: str
     ) -> Iterator[tuple[str, str, str, str]]:

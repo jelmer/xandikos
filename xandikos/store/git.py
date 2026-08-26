@@ -138,6 +138,18 @@ class RepoCollectionMetadata(CollectionMetadata):
             config.remove(b"xandikos", b"color")
         self._write_config(config)
 
+    def get_resource_id(self):
+        config = self._get_config()
+        resource_id = config.get(b"xandikos", b"resource-id")
+        if resource_id in (None, b""):
+            raise KeyError
+        return resource_id.decode(DEFAULT_ENCODING)
+
+    def set_resource_id(self, resource_id):
+        config = self._get_config()
+        config.set(b"xandikos", b"resource-id", resource_id.encode(DEFAULT_ENCODING))
+        self._write_config(config)
+
     def _write_config(self, config):
         f = BytesIO()
         config.write_to_file(f)
@@ -595,6 +607,14 @@ class GitStore(Store):
     def set_color(self, color):
         """Set the color code for this store."""
         self.config.set_color(color)
+
+    def get_resource_id(self):
+        """Get the persisted DAV:resource-id UUID."""
+        return self.config.get_resource_id()
+
+    def set_resource_id(self, resource_id):
+        """Persist the DAV:resource-id UUID."""
+        self.config.set_resource_id(resource_id)
 
     def get_source_url(self):
         """Get source URL."""

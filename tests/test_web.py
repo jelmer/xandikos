@@ -78,6 +78,31 @@ class CalendarCollectionTests(unittest.TestCase):
         self.cal.set_calendar_color("#aabbcc")
         self.assertEqual("#aabbcc", self.cal.get_calendar_color())
 
+    def test_resource_id_generated_and_persisted(self):
+        """Collections auto-generate and persist a stable resource-id."""
+        import uuid as uuid_mod
+
+        first = asyncio.run(self.cal.get_resource_id())
+        self.assertTrue(first.startswith("urn:uuid:"))
+        # Value parses as a UUID and is idempotent across calls.
+        uuid_mod.UUID(first[len("urn:uuid:") :])
+        second = asyncio.run(self.cal.get_resource_id())
+        self.assertEqual(first, second)
+        # Persisted to the store so it survives a fresh collection view.
+        stored = self.store.get_resource_id()
+        self.assertEqual(f"urn:uuid:{stored}", first)
+
+    def test_object_resource_id_from_uid(self):
+        """Object resources derive resource-id from their file UID."""
+        (name, _etag) = self.store.import_one(
+            "foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1]
+        )
+        member = self.cal.get_member(name)
+        rid = asyncio.run(member.get_resource_id())
+        # The UID in EXAMPLE_VCALENDAR1 is itself a UUID, so it's used
+        # directly under the urn:uuid: scheme.
+        self.assertEqual("urn:uuid:bdc22720-b9e1-42c9-89c2-a85405d8fbff", rid)
+
     def test_get_supported_calendar_components(self):
         self.assertEqual(
             ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"],
@@ -186,6 +211,43 @@ class CalendarCollectionTests(unittest.TestCase):
 
         self.assertEqual(["200 OK"], codes)
         self.assertEqual(b"".join([commit_hash, b"\t", default_branch, b"\n"]), body)
+
+    def test_propfind_resource_id(self):
+        """PROPFIND for {DAV:}resource-id returns a urn:uuid: href."""
+        from io import BytesIO
+        from wsgiref.util import setup_testing_defaults
+
+        self.store.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        app = XandikosApp(self.backend, "user")
+
+        body = (
+            b'<?xml version="1.0" encoding="utf-8" ?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b"<D:prop><D:resource-id/></D:prop>"
+            b"</D:propfind>"
+        )
+        environ = {
+            "PATH_INFO": "/c/foo.ics",
+            "REQUEST_METHOD": "PROPFIND",
+            "CONTENT_TYPE": "application/xml",
+            "CONTENT_LENGTH": str(len(body)),
+            "HTTP_DEPTH": "0",
+            "wsgi.input": BytesIO(body),
+        }
+        setup_testing_defaults(environ)
+
+        codes = []
+
+        def start_response(code, _headers):
+            codes.append(code)
+
+        resp = b"".join(app(environ, start_response))
+
+        self.assertEqual(["207 Multi-Status"], codes)
+        self.assertIn(
+            b"<ns0:href>urn:uuid:bdc22720-b9e1-42c9-89c2-a85405d8fbff</ns0:href>",
+            resp,
+        )
 
     def test_calendar_availability_not_set(self):
         """Test getting availability when none is set raises KeyError."""
