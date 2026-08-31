@@ -1,9 +1,11 @@
-0.4.6	UNRELEASED
+0.4.6	2026-08-31
 
  * Implement the RFC 5842 ``DAV:resource-id`` property. Calendar and
    addressbook object resources derive their identifier from the file
    UID; collections auto-generate and persist a UUID. (Jelmer Vernooĳ,
    #89)
+ * Fall back to full file check for recurring events with a TZID DTSTART. (Vincent Wilms)
+ * Don't path-quote URI delimiters in create_href. (Tobias Brox)
 
 0.4.5	2026-07-21
 
