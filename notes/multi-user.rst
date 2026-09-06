@@ -20,6 +20,19 @@ user. E.g. Apache or uWSGI sets the REMOTE_USER environment variable. If
 REMOTE_USER is not present for an operation that requires authentication, a 401
 error is returned.
 
+Multi-user mode also accepts the authenticated user via an
+``X-Remote-User`` HTTP header, but only when the operator has
+explicitly declared which peers are allowed to send it (via
+``--trust-x-remote-user-from``). Without that flag the header is
+ignored, because otherwise any client could pick their own principal
+simply by naming it.
+
+Alternatively, ``xandikos multi-user`` can perform HTTP Basic
+authentication itself against an htpasswd file: pass ``--htpasswd
+FILE`` together with ``--autocert`` (for a self-signed development
+TLS cert) or run behind a proxy that terminates TLS. In production
+prefer a real TLS certificate at the proxy.
+
 Authorization
 -------------
 

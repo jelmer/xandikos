@@ -1,3 +1,14 @@
+0.4.7	UNRELEASED
+
+ * Ignore ``X-Remote-User`` unless the operator has explicitly
+   declared trusted proxy addresses via ``--trust-x-remote-user-from``
+   (CLI) or ``TRUST_X_REMOTE_USER_FROM`` (WSGI). Previously the header
+   was trusted unconditionally, which let any client name their own
+   principal in multi-user mode. Reported by @archnexus707. (Jelmer Vernooĳ)
+ * Wire ``--htpasswd`` and ``--autocert`` into ``xandikos multi-user``,
+   so multi-user mode can perform HTTP Basic auth itself instead of
+   requiring an external reverse proxy. (Jelmer Vernooĳ)
+
 0.4.6	2026-08-31
 
  * Implement the RFC 5842 ``DAV:resource-id`` property. Calendar and

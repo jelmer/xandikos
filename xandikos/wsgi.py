@@ -67,4 +67,17 @@ if not backend.get_resource(current_user_principal):
         )
 
 backend._mark_as_principal(current_user_principal)
-app = XandikosApp(backend, current_user_principal)
+
+# Trust incoming X-Remote-User headers only when the operator explicitly
+# opts in via TRUST_X_REMOTE_USER_FROM (comma-separated IPs/CIDRs). The
+# genuine REMOTE_USER environ key set by an authenticating WSGI
+# middleware or the upstream server is always honored regardless.
+trust_from_env = os.environ.get("TRUST_X_REMOTE_USER_FROM")
+trust_from = (
+    [entry.strip() for entry in trust_from_env.split(",") if entry.strip()]
+    if trust_from_env
+    else None
+)
+app = XandikosApp(
+    backend, current_user_principal, trusted_x_remote_user_hosts=trust_from
+)

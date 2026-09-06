@@ -2471,8 +2471,13 @@ class XandikosApp(webdav.WebDAVApp):
         strict=True,
         vapid_keystore: "webdav_push.VapidKeystore | None" = None,
         state_dir: str | None = None,
+        trusted_x_remote_user_hosts: Iterable[str] | None = None,
     ) -> None:
-        super().__init__(backend, strict=strict)
+        super().__init__(
+            backend,
+            strict=strict,
+            trusted_x_remote_user_hosts=trusted_x_remote_user_hosts,
+        )
         self.state_dir = state_dir
 
         def get_current_user_principal(env):
@@ -2662,9 +2667,12 @@ def _make_subscription_delete_handler(main_app: "XandikosApp"):
     async def handler(request):
         sub_id = request.match_info["sub_id"]
         # Mirror what WebDAVApp._handle_request does for REMOTE_USER so
-        # check_access sees the authenticated principal.
+        # check_access sees the authenticated principal. Route the
+        # header through the same trust check WebDAVApp uses; a raw
+        # X-Remote-User is only honored if the operator has explicitly
+        # trusted the peer's address.
         environ: dict = {"SCRIPT_NAME": ""}
-        remote_user = request.headers.get("X-Remote-User")
+        remote_user = main_app._resolve_remote_user(request, environ)
         if remote_user and hasattr(main_app.backend, "set_principal"):
             environ["REMOTE_USER"] = remote_user
             main_app.backend.set_principal(remote_user)
@@ -2845,12 +2853,15 @@ def basic_auth_middleware(htpasswd_file):
         except htpasswd_mod.HtpasswdError as exc:
             logger.error("htpasswd check failed: %s", exc)
             return web.Response(status=500, text="Authentication misconfigured.\n")
-        # Propagate the authenticated user to the WebDAV layer, which reads
-        # X-Remote-User the same way it would behind a reverse proxy.
-        new_request = request.clone(
-            headers={**request.headers, "X-Remote-User": username}
-        )
-        return await handler(new_request)
+        # Propagate the authenticated user to the WebDAV layer via an
+        # in-process attribute on the request. Do NOT stash it in
+        # X-Remote-User: that would tell WebDAVApp to trust an HTTP
+        # header, which is exactly the class of bug this middleware
+        # exists to avoid (a client could pre-set it to impersonate
+        # another principal). WebDAVApp reads AUTHENTICATED_USER_ATTR
+        # before consulting any headers.
+        request[webdav.AUTHENTICATED_USER_ATTR] = username
+        return await handler(request)
 
     return middleware
 
@@ -2937,6 +2948,24 @@ def add_parser(parser):
             "credentials in cleartext and must not be served over plain "
             "HTTP. If you run Xandikos behind a reverse proxy, configure "
             "authentication there instead of using this flag."
+        ),
+    )
+    access_group.add_argument(
+        "--trust-x-remote-user-from",
+        dest="trust_x_remote_user_from",
+        action="append",
+        default=None,
+        metavar="ADDR/CIDR",
+        help=(
+            "Trust the X-Remote-User HTTP header (and its WSGI "
+            "translation HTTP_X_REMOTE_USER) when the request "
+            "originates from this IP address or CIDR block. May be "
+            "given multiple times. Without this flag the header is "
+            "IGNORED, because a client can send it directly and thereby "
+            "impersonate any principal. Only use this flag when Xandikos "
+            "sits behind a reverse proxy that (a) authenticates the "
+            "user itself and (b) strips or overwrites any incoming "
+            "X-Remote-User header before forwarding the request."
         ),
     )
     parser.add_argument(
@@ -3087,6 +3116,7 @@ async def main(options, parser):
         strict=options.strict,
         vapid_keystore=vapid_keystore,
         state_dir=state_dir,
+        trusted_x_remote_user_hosts=getattr(options, "trust_x_remote_user_from", None),
     )
 
     async def xandikos_handler(request):

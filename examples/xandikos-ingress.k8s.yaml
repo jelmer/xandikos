@@ -6,6 +6,13 @@ metadata:
     nginx.ingress.kubernetes.io/auth-type: basic
     nginx.ingress.kubernetes.io/auth-secret: my-htpasswd
     nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required - mysite'
+    # Tell Xandikos which user this request belongs to. Strip any
+    # client-supplied X-Remote-User first, then set it from the value
+    # basic auth verified above. Start Xandikos with
+    # --trust-x-remote-user-from=<ingress pod CIDR> so it honors this.
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Remote-User $remote_user;
+      proxy_set_header X-Forwarded-User "";
 spec:
   ingressClassName: nginx
   rules:
