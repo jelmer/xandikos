@@ -29,12 +29,14 @@ import logging
 import os
 import posixpath
 import signal
+from collections.abc import Iterable
 
 from .web import (
     SingleUserFilesystemBackend,
     XandikosApp,
     WELLKNOWN_DAV_PATHS,
     RedirectDavHandler,
+    basic_auth_middleware,
     get_systemd_listen_sockets,
     systemd_imported,
 )
@@ -150,6 +152,7 @@ class MultiUserXandikosApp(XandikosApp):
         require_auth: bool = True,
         vapid_keystore=None,
         state_dir: str | None = None,
+        trusted_x_remote_user_hosts: Iterable[str] | None = None,
     ) -> None:
         """Initialize the multi-user app.
 
@@ -162,6 +165,10 @@ class MultiUserXandikosApp(XandikosApp):
             vapid_keystore: Optional VAPID keystore enabling WebDAV-Push.
             state_dir: Xandikos server state directory; required if
                 ``vapid_keystore`` is provided.
+            trusted_x_remote_user_hosts: See
+                :class:`xandikos.webdav.WebDAVApp`. Off by default so
+                that no client-supplied header can override the
+                authenticated principal.
         """
         super().__init__(
             backend,
@@ -169,6 +176,7 @@ class MultiUserXandikosApp(XandikosApp):
             strict=strict,
             vapid_keystore=vapid_keystore,
             state_dir=state_dir,
+            trusted_x_remote_user_hosts=trusted_x_remote_user_hosts,
         )
         self._backend = backend
         self._require_auth = require_auth
@@ -320,6 +328,47 @@ def add_parser(parser):
             "[%(default)s]"
         ),
     )
+    access_group.add_argument(
+        "--autocert",
+        action="store_true",
+        help=(
+            "Serve HTTPS using a self-signed certificate, generating one "
+            "under <state-dir>/certs if missing. "
+            "For development and testing only - do not use in production."
+        ),
+    )
+    access_group.add_argument(
+        "--htpasswd",
+        dest="htpasswd",
+        default=None,
+        metavar="FILE",
+        help=(
+            "Require HTTP Basic authentication using credentials from the "
+            "given Apache-style htpasswd file. bcrypt entries (htpasswd -B) "
+            "are recommended. Requires --autocert: Basic auth sends "
+            "credentials in cleartext and must not be served over plain "
+            "HTTP. If you run Xandikos behind a reverse proxy, configure "
+            "authentication there instead of using this flag."
+        ),
+    )
+    access_group.add_argument(
+        "--trust-x-remote-user-from",
+        dest="trust_x_remote_user_from",
+        action="append",
+        default=None,
+        metavar="ADDR/CIDR",
+        help=(
+            "Trust the X-Remote-User HTTP header (and its WSGI "
+            "translation HTTP_X_REMOTE_USER) when the request "
+            "originates from this IP address or CIDR block. May be "
+            "given multiple times. Without this flag the header is "
+            "IGNORED, because a client can send it directly and thereby "
+            "impersonate any principal. Only use this flag when Xandikos "
+            "sits behind a reverse proxy that (a) authenticates the "
+            "user itself and (b) strips or overwrites any incoming "
+            "X-Remote-User header before forwarding the request."
+        ),
+    )
     parser.add_argument(
         "-d",
         "--directory",
@@ -455,6 +504,7 @@ async def main(options, parser):
         strict=options.strict,
         vapid_keystore=vapid_keystore,
         state_dir=state_dir,
+        trusted_x_remote_user_hosts=options.trust_x_remote_user_from,
     )
 
     async def xandikos_handler(request):
@@ -491,6 +541,49 @@ async def main(options, parser):
 
     from aiohttp import web
 
+    ssl_context = None
+    if options.autocert:
+        logging.warning(
+            "--autocert is enabled. The generated certificate is self-signed "
+            "and intended for development or testing only. Do NOT use this "
+            "in production; instead, run Xandikos behind a reverse proxy "
+            "(e.g. nginx, Apache, or Caddy) that terminates TLS using a "
+            "certificate from a trusted CA such as Let's Encrypt."
+        )
+        if socket_path is not None:
+            parser.error("--autocert cannot be combined with a unix domain socket")
+        if listen_socks:
+            parser.error("--autocert cannot be combined with systemd socket activation")
+        from . import autocert as autocert_mod
+
+        try:
+            cert_path, key_path = autocert_mod.ensure_self_signed(
+                os.path.join(state_dir, "certs"),
+                hostname=listen_address or "localhost",
+            )
+        except RuntimeError as exc:
+            parser.error(str(exc))
+        ssl_context = autocert_mod.make_ssl_context(cert_path, key_path)
+
+    htpasswd_file = None
+    if options.htpasswd:
+        if ssl_context is None:
+            parser.error(
+                "--htpasswd requires --autocert. Basic authentication sends "
+                "credentials in cleartext and must not be served over plain "
+                "HTTP. If you are running Xandikos behind a reverse proxy, "
+                "configure authentication at the proxy instead."
+            )
+        from . import htpasswd as htpasswd_mod
+
+        try:
+            htpasswd_file = htpasswd_mod.HtpasswdFile(options.htpasswd)
+        except htpasswd_mod.HtpasswdError as exc:
+            parser.error(str(exc))
+        logging.info(
+            "HTTP Basic authentication enabled (htpasswd: %s)", options.htpasswd
+        )
+
     if options.metrics_port == options.port:
         parser.error("Metrics port cannot be the same as the main port")
 
@@ -523,6 +616,8 @@ async def main(options, parser):
 
     if options.route_prefix.strip("/"):
         xandikos_app = web.Application()
+        if htpasswd_file is not None:
+            xandikos_app.middlewares.append(basic_auth_middleware(htpasswd_file))
         _maybe_mount_subscription_route(xandikos_app, main_app)
         xandikos_app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
 
@@ -532,6 +627,8 @@ async def main(options, parser):
         app.router.add_route("*", "/", redirect_to_subprefix)
         app.add_subapp(options.route_prefix, xandikos_app)
     else:
+        if htpasswd_file is not None:
+            app.middlewares.append(basic_auth_middleware(htpasswd_file))
         _maybe_mount_subscription_route(app, main_app)
         app.router.add_route("*", "/{path_info:.*}", xandikos_handler)
 
@@ -561,7 +658,9 @@ async def main(options, parser):
     elif socket_path:
         sites.append(web.UnixSite(runner, socket_path))
     else:
-        sites.append(web.TCPSite(runner, listen_address, listen_port))
+        sites.append(
+            web.TCPSite(runner, listen_address, listen_port, ssl_context=ssl_context)
+        )
 
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()

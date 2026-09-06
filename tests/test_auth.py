@@ -28,7 +28,7 @@ import warnings
 from unittest.mock import MagicMock, AsyncMock
 from wsgiref.util import setup_testing_defaults
 
-from xandikos.webdav import WebDAVApp
+from xandikos.webdav import WebDAVApp, AUTHENTICATED_USER_ATTR
 from xandikos.multi_user import MultiUserFilesystemBackend
 
 
@@ -46,143 +46,189 @@ class MockBackend:
         return self.resources.get(path)
 
 
-class AuthenticationTests(unittest.TestCase):
-    """Tests for authentication header handling."""
+def _make_aiohttp_request(header_map, *, remote=None, extras=None):
+    """Build a MagicMock modelling the aiohttp Request surface we touch."""
+    mock_request = AsyncMock()
+    mock_headers = MagicMock()
+    mock_headers.get.side_effect = lambda k, d=None: header_map.get(k, d)
+    mock_headers.__getitem__.side_effect = lambda k: header_map[k]
+    mock_headers.__contains__.side_effect = lambda k: k in header_map
+    mock_request.headers = mock_headers
+    mock_request.method = "OPTIONS"
+    mock_request.path = "/"
+    mock_request.url = "http://example.com/"
+    mock_request.raw_path = "/"
+    mock_request.match_info = {"path_info": "/"}
+    mock_request.content_type = "text/plain"
+    mock_request.content_length = 0
+    mock_request.can_read_body = False
+    mock_request.remote = remote
+
+    storage = dict(extras or {})
+    mock_request.get = storage.get
+    mock_request.__getitem__ = lambda self_, k: storage[k]
+    mock_request.__setitem__ = lambda self_, k, v: storage.__setitem__(k, v)
+    mock_request.__contains__ = lambda self_, k: k in storage
+    return mock_request
+
+
+class WSGIAuthenticationTests(unittest.TestCase):
+    """WSGI-side handling of REMOTE_USER and X-Remote-User."""
 
     def setUp(self):
         self.backend = MockBackend()
-        self.app = WebDAVApp(self.backend)
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
+
+        mock_resource = MagicMock()
+        mock_resource.resource_types = []
+        self.backend.resources["/"] = mock_resource
 
     def tearDown(self):
         self.loop.close()
         asyncio.set_event_loop(None)
 
-    def test_wsgi_x_remote_user_header(self):
-        """Test that HTTP_X_REMOTE_USER is handled in WSGI."""
-        environ = {
-            "REQUEST_METHOD": "OPTIONS",
-            "PATH_INFO": "/",
-            "HTTP_X_REMOTE_USER": "testuser",
-        }
+    def _run_wsgi(self, app, environ):
         setup_testing_defaults(environ)
-
-        # Mock the resource
-        mock_resource = MagicMock()
-        mock_resource.resource_types = []
-        self.backend.resources["/"] = mock_resource
-
-        # Mock start_response
         responses = []
 
         def start_response(status, headers):
             responses.append((status, headers))
             return lambda x: None
 
-        # Call the WSGI handler
-        list(self.app.handle_wsgi_request(environ, start_response))
+        list(app.handle_wsgi_request(environ, start_response))
+        self.assertTrue(responses)
 
-        # Check that we got a response
-        self.assertTrue(len(responses) > 0)
-
-        # Check that set_principal was called with the user
-        self.assertEqual(["testuser"], self.backend.set_principal_calls)
-
-        # Check that REMOTE_USER was set in environ for the request
-        # (The environ is recreated in handle_wsgi_request, so we can't check it directly)
-
-    def test_wsgi_no_remote_user(self):
-        """Test WSGI without authentication header."""
+    def test_genuine_remote_user_env_is_honored(self):
+        """REMOTE_USER set by an authenticating WSGI middleware is trusted."""
+        app = WebDAVApp(self.backend)
         environ = {
             "REQUEST_METHOD": "OPTIONS",
             "PATH_INFO": "/",
+            "REMOTE_USER": "wsgiuser",
         }
-        setup_testing_defaults(environ)
+        self._run_wsgi(app, environ)
+        self.assertEqual(["wsgiuser"], self.backend.set_principal_calls)
 
-        # Mock the resource
-        mock_resource = MagicMock()
-        mock_resource.resource_types = []
-        self.backend.resources["/"] = mock_resource
+    def test_http_x_remote_user_ignored_by_default(self):
+        """HTTP_X_REMOTE_USER (from a client X-Remote-User header) is ignored.
 
-        # Mock start_response
-        responses = []
-
-        def start_response(status, headers):
-            responses.append((status, headers))
-            return lambda x: None
-
-        # Call the WSGI handler
-        self.app.handle_wsgi_request(environ, start_response)
-
-        # Check that set_principal was NOT called
+        Without an explicit trust opt-in the header is client-supplied and
+        must not be allowed to name the authenticated principal (CVE-worthy
+        impersonation otherwise).
+        """
+        app = WebDAVApp(self.backend)
+        environ = {
+            "REQUEST_METHOD": "OPTIONS",
+            "PATH_INFO": "/",
+            "HTTP_X_REMOTE_USER": "attacker",
+        }
+        self._run_wsgi(app, environ)
         self.assertEqual([], self.backend.set_principal_calls)
 
-    def test_aiohttp_x_remote_user_header(self):
-        """Test that X-Remote-User header is handled in aiohttp."""
-        # Create a mock aiohttp request
-        mock_request = AsyncMock()
-        mock_headers = MagicMock()
-        mock_headers.get.side_effect = lambda k, d=None: (
-            "aiohttpuser" if k == "X-Remote-User" else d
-        )
-        mock_headers.__getitem__.side_effect = lambda k: (
-            "aiohttpuser" if k == "X-Remote-User" else None
-        )
-        mock_request.headers = mock_headers
-        mock_request.method = "OPTIONS"
-        mock_request.path = "/"
-        mock_request.url = "http://example.com/"
-        mock_request.raw_path = "/"
-        mock_request.match_info = {"path_info": "/"}
-        mock_request.content_type = "text/plain"
-        mock_request.content_length = 0
-        mock_request.can_read_body = False
+    def test_http_x_remote_user_honored_when_peer_trusted(self):
+        """With trusted-hosts + matching REMOTE_ADDR, the header is trusted."""
+        app = WebDAVApp(self.backend, trusted_x_remote_user_hosts=["10.0.0.0/8"])
+        environ = {
+            "REQUEST_METHOD": "OPTIONS",
+            "PATH_INFO": "/",
+            "HTTP_X_REMOTE_USER": "proxied",
+            "REMOTE_ADDR": "10.1.2.3",
+        }
+        self._run_wsgi(app, environ)
+        self.assertEqual(["proxied"], self.backend.set_principal_calls)
 
-        # Mock the resource
+    def test_http_x_remote_user_rejected_when_peer_untrusted(self):
+        """Trusted-hosts is a CIDR gate: a non-matching peer is rejected."""
+        app = WebDAVApp(self.backend, trusted_x_remote_user_hosts=["10.0.0.0/8"])
+        environ = {
+            "REQUEST_METHOD": "OPTIONS",
+            "PATH_INFO": "/",
+            "HTTP_X_REMOTE_USER": "attacker",
+            "REMOTE_ADDR": "192.0.2.5",
+        }
+        self._run_wsgi(app, environ)
+        self.assertEqual([], self.backend.set_principal_calls)
+
+    def test_wsgi_no_remote_user(self):
+        """Without any signal there is no authenticated principal."""
+        app = WebDAVApp(self.backend)
+        environ = {"REQUEST_METHOD": "OPTIONS", "PATH_INFO": "/"}
+        self._run_wsgi(app, environ)
+        self.assertEqual([], self.backend.set_principal_calls)
+
+
+class AiohttpAuthenticationTests(unittest.TestCase):
+    """aiohttp-side handling of X-Remote-User and in-process markers."""
+
+    def setUp(self):
+        self.backend = MockBackend()
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+
         mock_resource = MagicMock()
         mock_resource.resource_types = []
         self.backend.resources["/"] = mock_resource
 
-        # Call the aiohttp handler
+    def tearDown(self):
+        self.loop.close()
+        asyncio.set_event_loop(None)
+
+    def _dispatch(self, app, request):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             warnings.simplefilter("ignore", ResourceWarning)
-            self.loop.run_until_complete(self.app.aiohttp_handler(mock_request, "/"))
+            self.loop.run_until_complete(app.aiohttp_handler(request, "/"))
             gc.collect()
 
-        # Check that set_principal was called with the user
-        self.assertEqual(["aiohttpuser"], self.backend.set_principal_calls)
+    def test_x_remote_user_header_ignored_by_default(self):
+        """Client-supplied X-Remote-User is rejected without trust config."""
+        app = WebDAVApp(self.backend)
+        request = _make_aiohttp_request(
+            {"X-Remote-User": "attacker"}, remote="203.0.113.4"
+        )
+        self._dispatch(app, request)
+        self.assertEqual([], self.backend.set_principal_calls)
+
+    def test_x_remote_user_header_honored_when_peer_trusted(self):
+        """Trusted-proxy CIDR enables the header."""
+        app = WebDAVApp(self.backend, trusted_x_remote_user_hosts=["127.0.0.0/8"])
+        request = _make_aiohttp_request(
+            {"X-Remote-User": "proxied"}, remote="127.0.0.1"
+        )
+        self._dispatch(app, request)
+        self.assertEqual(["proxied"], self.backend.set_principal_calls)
+
+    def test_x_remote_user_header_rejected_when_peer_untrusted(self):
+        """A request from outside the trusted CIDR is not honored."""
+        app = WebDAVApp(self.backend, trusted_x_remote_user_hosts=["127.0.0.0/8"])
+        request = _make_aiohttp_request(
+            {"X-Remote-User": "attacker"}, remote="198.51.100.7"
+        )
+        self._dispatch(app, request)
+        self.assertEqual([], self.backend.set_principal_calls)
+
+    def test_in_process_marker_beats_header(self):
+        """Middleware may set an in-process marker on the request.
+
+        This is the mechanism basic_auth_middleware uses. It must take
+        precedence over any client-supplied X-Remote-User (which is left
+        untrusted), so that an attacker cannot set X-Remote-User to
+        override the actually-authenticated identity.
+        """
+        app = WebDAVApp(self.backend)
+        request = _make_aiohttp_request(
+            {"X-Remote-User": "attacker"},
+            remote="203.0.113.4",
+            extras={AUTHENTICATED_USER_ATTR: "authed"},
+        )
+        self._dispatch(app, request)
+        self.assertEqual(["authed"], self.backend.set_principal_calls)
 
     def test_aiohttp_no_remote_user(self):
-        """Test aiohttp without authentication header."""
-        # Create a mock aiohttp request
-        mock_request = AsyncMock()
-        mock_headers = MagicMock()
-        mock_headers.get.return_value = None
-        mock_request.headers = mock_headers
-        mock_request.method = "OPTIONS"
-        mock_request.path = "/"
-        mock_request.url = "http://example.com/"
-        mock_request.raw_path = "/"
-        mock_request.match_info = {"path_info": "/"}
-        mock_request.content_type = "text/plain"
-        mock_request.content_length = 0
-        mock_request.can_read_body = False
-
-        # Mock the resource
-        mock_resource = MagicMock()
-        mock_resource.resource_types = []
-        self.backend.resources["/"] = mock_resource
-
-        # Call the aiohttp handler
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            warnings.simplefilter("ignore", ResourceWarning)
-            self.loop.run_until_complete(self.app.aiohttp_handler(mock_request, "/"))
-            gc.collect()
-
-        # Check that set_principal was NOT called
+        app = WebDAVApp(self.backend)
+        request = _make_aiohttp_request({}, remote="127.0.0.1")
+        self._dispatch(app, request)
         self.assertEqual([], self.backend.set_principal_calls)
 
 
@@ -199,39 +245,72 @@ class IntegrationTests(unittest.TestCase):
         self.loop.close()
         asyncio.set_event_loop(None)
 
-    def test_multiuser_backend_with_aiohttp_auth(self):
-        """Test MultiUserFilesystemBackend with aiohttp authentication."""
-        backend = MultiUserFilesystemBackend(self.d)
-        app = WebDAVApp(backend)
-
-        # Create a mock aiohttp request with auth
-        mock_request = AsyncMock()
-        mock_headers = MagicMock()
-        mock_headers.get.side_effect = lambda k, d=None: (
-            "alice" if k == "X-Remote-User" else d
-        )
-        mock_headers.__getitem__.side_effect = lambda k: (
-            "alice" if k == "X-Remote-User" else None
-        )
-        mock_request.headers = mock_headers
-        mock_request.method = "PROPFIND"
-        mock_request.path = "/alice/"
-        mock_request.url = "http://example.com/alice/"
-        mock_request.raw_path = "/alice/"
-        mock_request.match_info = {"path_info": "/alice/"}
-        mock_request.content_type = "application/xml"
-        mock_request.content_length = 0
-        mock_request.can_read_body = False
-
-        # Call the aiohttp handler
+    def _dispatch(self, app, request):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             warnings.simplefilter("ignore", ResourceWarning)
-            self.loop.run_until_complete(app.aiohttp_handler(mock_request, "/"))
+            self.loop.run_until_complete(app.aiohttp_handler(request, "/"))
             gc.collect()
 
-        # Check that the principal was created
+    def test_multiuser_rejects_untrusted_x_remote_user(self):
+        """Multi-user + no trust config: X-Remote-User cannot create alice."""
+        backend = MultiUserFilesystemBackend(self.d)
+        app = WebDAVApp(backend)
+
+        request = _make_aiohttp_request(
+            {"X-Remote-User": "alice"}, remote="203.0.113.4"
+        )
+        request.method = "PROPFIND"
+        request.path = "/alice/"
+        request.url = "http://example.com/alice/"
+        request.raw_path = "/alice/"
+        request.match_info = {"path_info": "/alice/"}
+        request.content_type = "application/xml"
+
+        self._dispatch(app, request)
+
+        # No principal was created, since the header is untrusted.
+        self.assertIsNone(backend.get_resource("/alice/"))
+        self.assertNotIn("/alice", backend._user_principals)
+
+    def test_multiuser_honors_x_remote_user_from_trusted_peer(self):
+        """Multi-user + explicit trust: header creates & auths the principal."""
+        backend = MultiUserFilesystemBackend(self.d)
+        app = WebDAVApp(backend, trusted_x_remote_user_hosts=["127.0.0.0/8", "::1"])
+
+        request = _make_aiohttp_request({"X-Remote-User": "alice"}, remote="127.0.0.1")
+        request.method = "PROPFIND"
+        request.path = "/alice/"
+        request.url = "http://example.com/alice/"
+        request.raw_path = "/alice/"
+        request.match_info = {"path_info": "/alice/"}
+        request.content_type = "application/xml"
+
+        self._dispatch(app, request)
+
         resource = backend.get_resource("/alice/")
         self.assertIsNotNone(resource)
-        # _mark_as_principal normalizes the path, removing trailing slashes
         self.assertIn("/alice", backend._user_principals)
+
+    def test_multiuser_in_process_marker_creates_principal(self):
+        """basic_auth_middleware's in-process marker also creates principals."""
+        backend = MultiUserFilesystemBackend(self.d)
+        app = WebDAVApp(backend)
+
+        request = _make_aiohttp_request(
+            {},
+            remote="203.0.113.4",
+            extras={AUTHENTICATED_USER_ATTR: "bob"},
+        )
+        request.method = "PROPFIND"
+        request.path = "/bob/"
+        request.url = "http://example.com/bob/"
+        request.raw_path = "/bob/"
+        request.match_info = {"path_info": "/bob/"}
+        request.content_type = "application/xml"
+
+        self._dispatch(app, request)
+
+        resource = backend.get_resource("/bob/")
+        self.assertIsNotNone(resource)
+        self.assertIn("/bob", backend._user_principals)

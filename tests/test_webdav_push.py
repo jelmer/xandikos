@@ -1011,6 +1011,14 @@ class SubscriptionDeleteHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.app = XandikosApp.__new__(XandikosApp)
         self.app.backend = self.backend
         self.app.extra_features = [webdav_push.FEATURE]
+        # Delete handler now routes X-Remote-User through the same trust
+        # check WebDAVApp uses. Tests here exercise header forwarding, so
+        # trust the loopback range that the fake requests come from.
+        from xandikos.webdav import _parse_trusted_hosts
+
+        self.app.trusted_x_remote_user_hosts = _parse_trusted_hosts(
+            ["0.0.0.0/0", "::/0"]
+        )
 
         self._prev_index = webdav_push._index
         webdav_push._index = webdav_push.SubscriptionIndex(self.state_dir)
@@ -1040,6 +1048,7 @@ class SubscriptionDeleteHandlerTests(unittest.IsolatedAsyncioTestCase):
             def __init__(self, sub_id, headers):
                 self.match_info = {"sub_id": sub_id}
                 self.headers = headers or {}
+                self.remote = "127.0.0.1"
 
         handler = _make_subscription_delete_handler(self.app)
         return await handler(_Request(sub_id, headers))

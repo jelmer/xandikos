@@ -29,6 +29,7 @@ import asyncio
 import collections
 import fnmatch
 import functools
+import ipaddress
 from logging import getLogger
 import os
 import posixpath
@@ -3562,15 +3563,73 @@ class WSGIRequest:
         return self._environ["wsgi.input"].read()
 
 
+# Sentinel that in-process middleware (e.g. basic_auth_middleware) attaches
+# to an aiohttp request to communicate an authenticated principal to
+# WebDAVApp without going through client-controllable HTTP headers.
+AUTHENTICATED_USER_ATTR = "xandikos.authenticated_user"
+
+
+def _parse_trusted_hosts(
+    hosts: Iterable[str] | None,
+) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network] | None:
+    """Parse trusted-host entries into a list of IP networks.
+
+    Each entry may be a bare address (``"127.0.0.1"``, ``"::1"``) or a CIDR
+    (``"10.0.0.0/8"``). Returns ``None`` when ``hosts`` is ``None`` (meaning
+    "no trust"); returns an empty list when the iterable is empty.
+    """
+    if hosts is None:
+        return None
+    result: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for entry in hosts:
+        result.append(ipaddress.ip_network(entry, strict=False))
+    return result
+
+
+def _peer_in_trusted_hosts(
+    peer: str | None,
+    trusted: list[ipaddress.IPv4Network | ipaddress.IPv6Network] | None,
+) -> bool:
+    """Return True if ``peer`` is inside any of the trusted networks."""
+    if not trusted or not peer:
+        return False
+    try:
+        addr = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return any(addr in network for network in trusted)
+
+
 class WebDAVApp:
     """A wsgi App that provides a WebDAV server.
 
     A concrete implementation should provide an implementation of the
     lookup_resource function that can map a path to a Resource object
     (returning None for nonexistent objects).
+
+    Args:
+        backend: The storage backend.
+        strict: If True, be strict about DAV compliance.
+        trusted_x_remote_user_hosts: Iterable of IP addresses or CIDR
+            networks whose ``X-Remote-User`` header (and its WSGI
+            translation ``HTTP_X_REMOTE_USER``) should be honored as the
+            authenticated principal. When ``None`` (the default) the
+            header is ignored entirely: authenticated identity must come
+            either from ``REMOTE_USER`` in the WSGI environ (set by an
+            authenticating WSGI middleware or the upstream proxy) or from
+            in-process middleware such as :func:`basic_auth_middleware`.
+            Setting this to a permissive value such as ``["0.0.0.0/0"]``
+            re-enables the pre-fix behavior and lets any client choose
+            their own principal - only do so behind a reverse proxy that
+            strips or overwrites ``X-Remote-User`` before forwarding.
     """
 
-    def __init__(self, backend, strict=True) -> None:
+    def __init__(
+        self,
+        backend,
+        strict=True,
+        trusted_x_remote_user_hosts: Iterable[str] | None = None,
+    ) -> None:
         self.backend = backend
         self.properties: dict[str, type[Property]] = {}
         self.reporters: dict[str, type[Reporter]] = {}
@@ -3581,6 +3640,9 @@ class WebDAVApp:
         # discriminator, not the URL or method.
         self.post_handlers: dict[str, Callable] = {}
         self.strict = strict
+        self.trusted_x_remote_user_hosts = _parse_trusted_hosts(
+            trusted_x_remote_user_hosts
+        )
         self.extra_features: list[str] = []
         self.register_methods(
             [
@@ -3673,16 +3735,64 @@ class WebDAVApp:
         # Default implementation allows all access
         pass
 
-    async def _handle_request(self, request, environ, start_response=None):
-        # Handle remote user authentication
-        remote_user = None
-        if hasattr(request, "headers"):
-            # aiohttp request
-            remote_user = request.headers.get("X-Remote-User")
+    def _resolve_remote_user(self, request, environ) -> str | None:
+        """Determine the authenticated principal for a request.
 
+        Order of preference:
+
+        1. An in-process marker set by trusted middleware (e.g.
+           :func:`basic_auth_middleware`). This cannot be forged by a
+           client because it lives on the request object, not in
+           headers.
+        2. ``REMOTE_USER`` already present in the WSGI environ. This is
+           the value an authenticating WSGI middleware, uWSGI's
+           ``router_basicauth`` plugin, or a reverse proxy that speaks
+           the CGI-style ``REMOTE_USER`` variable will set after
+           actually verifying credentials.
+        3. The ``X-Remote-User`` HTTP header (or its WSGI translation
+           ``HTTP_X_REMOTE_USER``) - but *only* if the peer address is
+           inside :attr:`trusted_x_remote_user_hosts`. Without an
+           explicit opt-in this branch is never taken, because the
+           header is client-controllable and would otherwise allow
+           trivial impersonation of any principal.
+        """
+        marker = None
+        if hasattr(request, "get"):
+            try:
+                marker = request.get(AUTHENTICATED_USER_ATTR)
+            except TypeError:
+                marker = None
+        if marker:
+            return marker
+
+        env_user = environ.get("REMOTE_USER")
+        if env_user:
+            return env_user
         if "ORIGINAL_ENVIRON" in environ:
-            # WSGI request
-            remote_user = environ["ORIGINAL_ENVIRON"].get("HTTP_X_REMOTE_USER")
+            env_user = environ["ORIGINAL_ENVIRON"].get("REMOTE_USER")
+            if env_user:
+                return env_user
+
+        if not self.trusted_x_remote_user_hosts:
+            return None
+
+        peer = None
+        if hasattr(request, "remote"):
+            peer = request.remote
+        if peer is None and "ORIGINAL_ENVIRON" in environ:
+            peer = environ["ORIGINAL_ENVIRON"].get("REMOTE_ADDR")
+        if not _peer_in_trusted_hosts(peer, self.trusted_x_remote_user_hosts):
+            return None
+
+        header_user = None
+        if hasattr(request, "headers"):
+            header_user = request.headers.get("X-Remote-User")
+        if not header_user and "ORIGINAL_ENVIRON" in environ:
+            header_user = environ["ORIGINAL_ENVIRON"].get("HTTP_X_REMOTE_USER")
+        return header_user or None
+
+    async def _handle_request(self, request, environ, start_response=None):
+        remote_user = self._resolve_remote_user(request, environ)
 
         if remote_user and hasattr(self.backend, "set_principal"):
             environ["REMOTE_USER"] = remote_user
