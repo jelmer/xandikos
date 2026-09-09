@@ -41,11 +41,11 @@ imip-listen = ["aiosmtpd"]
 webdav-push = ["pywebpush>=2.0", "py-vapid>=1.9"]
 htpasswd = ["bcrypt"]
 dev = [
-   "ruff==0.16.2",
+   "ruff==0.16.5",
    "pytest",
 ]
 typing = [
-   "mypy==2.3.0",
+   "mypy==2.3.1",
    "types-python-dateutil"
 ]
 

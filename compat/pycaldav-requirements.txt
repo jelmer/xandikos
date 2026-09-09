@@ -2,7 +2,7 @@
 # Pin icalendar <7.0: pycaldav v1.2.1 uses icalendar.cal.component_factory as a
 # dict, but in icalendar 7.x it became a module (need ComponentFactory()
 # instead). Do not let dependabot relax this bound.
-icalendar>=5.0,<7.0
+icalendar>=5.0,<8.0
 pytest
 lxml
 requests
