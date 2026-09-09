@@ -57,7 +57,7 @@ xandikos-milter = "xandikos.milter:cli_main"
 include-package-data = false
 
 [tool.setuptools.packages]
-find = {namespaces = false, exclude = ["benchmarks*"]}
+find = {namespaces = false, exclude = ["benchmarks*", "tests*"]}
 
 [tool.setuptools.package-data]
 xandikos = [
