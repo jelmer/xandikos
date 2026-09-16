@@ -177,10 +177,10 @@ trap shutdown_handler SIGTERM SIGINT
 
 # If user provided arguments, pass them directly to xandikos
 if [ $# -gt 0 ]; then
-    python3 -m xandikos.web "$@" &
+    python3 -m xandikos "$@" &
 else
     # Use environment variable configuration
-    python3 -m xandikos.web "${ARGS[@]}" &
+    python3 -m xandikos "${ARGS[@]}" &
 fi
 
 XANDIKOS_PID=$!
