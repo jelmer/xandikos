@@ -103,6 +103,25 @@ class MultiUserFilesystemBackendTests(unittest.TestCase):
         assert principal is not None
         self.assertEqual([], principal.get_calendar_user_address_set())
 
+    def test_create_defaults_off_by_default(self):
+        """Principals start out without collections unless asked."""
+        backend = MultiUserFilesystemBackend(self.test_dir)
+        self.assertFalse(backend.create_defaults)
+        backend.set_principal("alice")
+
+        self.assertIsNone(backend.get_resource("/alice/calendars/calendar"))
+        self.assertIsNone(backend.get_resource("/alice/contacts/addressbook"))
+
+    def test_create_defaults_seeds_collections(self):
+        """create_defaults seeds a calendar, address book and inbox."""
+        backend = MultiUserFilesystemBackend(self.test_dir, create_defaults=True)
+        self.assertTrue(backend.create_defaults)
+        backend.set_principal("alice")
+
+        self.assertIsNotNone(backend.get_resource("/alice/calendars/calendar"))
+        self.assertIsNotNone(backend.get_resource("/alice/contacts/addressbook"))
+        self.assertIsNotNone(backend.get_resource("/alice/inbox"))
+
     def test_set_principal_creates_principal(self):
         """Test that set_principal creates a new principal."""
         backend = MultiUserFilesystemBackend(self.test_dir)
@@ -213,7 +232,7 @@ class MultiUserFilesystemBackendTests(unittest.TestCase):
 
     def test_set_principal_creates_defaults(self):
         """Test that set_principal creates default calendar and addressbook."""
-        backend = MultiUserFilesystemBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir, create_defaults=True)
         backend.set_principal("ivan")
 
         # Check calendar was created
@@ -611,7 +630,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
     def test_principal_calendar_operations(self):
         """Test basic calendar operations after principal creation."""
-        backend = MultiUserFilesystemBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir, create_defaults=True)
         backend.set_principal("caluser")
 
         calendar = backend.get_resource("/caluser/calendars/calendar/")
@@ -626,7 +645,7 @@ class MultiUserIntegrationTests(unittest.TestCase):
 
     def test_principal_addressbook_operations(self):
         """Test basic addressbook operations after principal creation."""
-        backend = MultiUserFilesystemBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir, create_defaults=True)
         backend.set_principal("addruser")
 
         addressbook = backend.get_resource("/addruser/contacts/addressbook/")
@@ -664,7 +683,7 @@ class UserAccessControlTests(unittest.TestCase):
 
     def test_users_have_separate_calendar_homes(self):
         """Test that each user has a separate calendar home path."""
-        backend = MultiUserFilesystemBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir, create_defaults=True)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -683,7 +702,7 @@ class UserAccessControlTests(unittest.TestCase):
 
     def test_users_have_separate_addressbook_homes(self):
         """Test that each user has a separate addressbook home path."""
-        backend = MultiUserFilesystemBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir, create_defaults=True)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -724,7 +743,7 @@ class UserAccessControlTests(unittest.TestCase):
         enforce access control. This is intentional as access control
         is expected to be handled by a reverse proxy.
         """
-        backend = MultiUserFilesystemBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir, create_defaults=True)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -774,7 +793,7 @@ class UserAccessControlTests(unittest.TestCase):
 
     def test_each_user_gets_own_inbox(self):
         """Test that each user has their own schedule inbox."""
-        backend = MultiUserFilesystemBackend(self.test_dir)
+        backend = MultiUserFilesystemBackend(self.test_dir, create_defaults=True)
 
         backend.set_principal("alice")
         backend.set_principal("bob")
@@ -1161,7 +1180,7 @@ class PropfindAuthorizationTests(unittest.TestCase):
 
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.backend = MultiUserFilesystemBackend(self.test_dir)
+        self.backend = MultiUserFilesystemBackend(self.test_dir, create_defaults=True)
         self.backend.set_principal("alice")
         self.backend.set_principal("bob")
         self.app = MultiUserXandikosApp(
@@ -1347,6 +1366,18 @@ class ModuleExportsTests(unittest.TestCase):
         self.assertIn("validate_username", __all__)
         self.assertIn("add_parser", __all__)
         self.assertIn("main", __all__)
+
+    def test_parser_accepts_defaults(self):
+        """--defaults is accepted and defaults to off."""
+        import argparse
+
+        from xandikos.multi_user import add_parser
+
+        parser = argparse.ArgumentParser()
+        add_parser(parser)
+
+        self.assertFalse(parser.parse_args(["-d", "/tmp"]).defaults)
+        self.assertTrue(parser.parse_args(["-d", "/tmp", "--defaults"]).defaults)
 
     def test_multi_user_backend_importable(self):
         """Test that MultiUserFilesystemBackend can be imported directly."""

@@ -98,11 +98,13 @@ class MultiUserFilesystemBackend(SingleUserFilesystemBackend):
         path,
         principal_path_prefix="/",
         principal_path_suffix="/",
+        create_defaults=False,
         **kwargs,
     ):
         super().__init__(path, autocreate=True, **kwargs)
         self.principal_path_prefix = principal_path_prefix
         self.principal_path_suffix = principal_path_suffix
+        self.create_defaults = create_defaults
 
     def set_principal(
         self, user, principal_path_prefix=None, principal_path_suffix=None
@@ -113,6 +115,10 @@ class MultiUserFilesystemBackend(SingleUserFilesystemBackend):
             user: Username (will be validated for safety)
             principal_path_prefix: Override prefix for this call
             principal_path_suffix: Override suffix for this call
+
+        Newly created principals are seeded with a default calendar and
+        address book only when the backend was created with
+        ``create_defaults``.
 
         Raises:
             InvalidUsernameError: If the username is invalid or unsafe
@@ -128,7 +134,7 @@ class MultiUserFilesystemBackend(SingleUserFilesystemBackend):
         principal = principal_path_prefix + user + principal_path_suffix
 
         if not self.get_resource(principal):
-            self.create_principal(principal, create_defaults=True)
+            self.create_principal(principal, create_defaults=self.create_defaults)
         self._mark_as_principal(principal)
 
 
@@ -428,6 +434,15 @@ def add_parser(parser):
         ),
     )
     parser.add_argument(
+        "--defaults",
+        action="store_true",
+        dest="defaults",
+        help=(
+            "Create an initial calendar and address book for each new user. "
+            "Without this, new principals start out empty."
+        ),
+    )
+    parser.add_argument(
         "--hide-principals",
         action="store_true",
         dest="hide_principals",
@@ -465,6 +480,7 @@ async def main(options, parser):
         os.path.abspath(options.directory),
         principal_path_prefix=options.principal_path_prefix,
         principal_path_suffix=options.principal_path_suffix,
+        create_defaults=options.defaults,
         paranoid=options.paranoid,
         index_threshold=options.index_threshold,
         show_principals_on_root=not options.hide_principals,

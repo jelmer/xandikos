@@ -8,6 +8,10 @@
  * Wire ``--htpasswd`` and ``--autocert`` into ``xandikos multi-user``,
    so multi-user mode can perform HTTP Basic auth itself instead of
    requiring an external reverse proxy. (Jelmer Vernooĳ)
+ * Add ``--defaults`` to ``xandikos multi-user``, creating an initial
+   calendar and address book for each new user. Note that multi-user
+   mode previously created these unconditionally; new principals are
+   now empty unless ``--defaults`` is passed. (Jelmer Vernooĳ)
  * container: run ``python3 -m xandikos`` rather than
    ``python3 -m xandikos.web`` in the entrypoint, so subcommands like
    ``multi-user`` work in the container image. (Jelmer Vernooĳ)
