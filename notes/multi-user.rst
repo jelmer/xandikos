@@ -51,6 +51,11 @@ Storage
 
 By default, the principal for a user is simply "/%(username)s".
 
+Principals are created on first login. They start out empty; pass
+``--defaults`` to also create an initial calendar and address book for
+each new user, matching the behaviour of the same flag on ``xandikos
+serve``.
+
 Roadmap
 =======
 

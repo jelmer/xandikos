@@ -25,7 +25,7 @@ spec:
          command:
           - "python3"
           - "-m"
-          - "xandikos.web"
+          - "xandikos"
           - "--port=8080"
           - "-d/data"
           - "--defaults"
