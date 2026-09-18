@@ -27,6 +27,10 @@ jobs:
           pip install -U pip pycalendar vobject requests pytz attrs aiohttp aiohttp-wsgi prometheus-client multidict pytest "recurring-ical-events>=1.1.0b" typing-extensions defusedxml
           python -m pip install -e .
       - name: Run pycaldav tests
+        env:
+          # testSchedulingInfo needs the principal to have a
+          # calendar-user-address-set, which is derived from $EMAIL.
+          EMAIL: xandikos@example.com
         run: |
           sudo apt -y update
           sudo apt install libxml2-dev libxslt1-dev
