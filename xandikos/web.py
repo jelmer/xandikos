@@ -716,7 +716,9 @@ class StoreBasedCollection:
         present = _calendar_component_types(content_type, contents)
         unsupported = present - allowed
         if unsupported:
-            raise webdav.PreconditionFailure(
+            # 403 rather than 412: the component type will never be
+            # accepted here, so repeating the request cannot help.
+            raise webdav.ForbiddenPrecondition(
                 "{%s}supported-calendar-component" % caldav.NAMESPACE,
                 "This calendar does not accept %s components."
                 % ", ".join(sorted(unsupported)),

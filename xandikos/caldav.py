@@ -758,29 +758,29 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
         components = []
         for subel in el:
             if subel.tag != "{urn:ietf:params:xml:ns:caldav}comp":
-                raise webdav.PreconditionFailure(
-                    "{DAV:}valid-calendar-data",
+                raise webdav.ForbiddenPrecondition(
+                    "{%s}valid-calendar-data" % NAMESPACE,
                     f"Unexpected element {subel.tag} in "
                     "supported-calendar-component-set",
                 )
             name = subel.get("name")
             if name is None:
-                raise webdav.PreconditionFailure(
-                    "{DAV:}valid-calendar-data",
+                raise webdav.ForbiddenPrecondition(
+                    "{%s}valid-calendar-data" % NAMESPACE,
                     "comp element without a name attribute",
                 )
             name = name.upper()
             if name not in SUPPORTED_CALENDAR_COMPONENTS:
                 # The server cannot honour a restriction to a component
                 # type it does not support at all.
-                raise webdav.PreconditionFailure(
+                raise webdav.ForbiddenPrecondition(
                     "{%s}supported-calendar-component" % NAMESPACE,
                     f"Unsupported calendar component {name}",
                 )
             components.append(name)
         if not components:
-            raise webdav.PreconditionFailure(
-                "{DAV:}valid-calendar-data",
+            raise webdav.ForbiddenPrecondition(
+                "{%s}valid-calendar-data" % NAMESPACE,
                 "supported-calendar-component-set must list at least one comp",
             )
         resource.set_supported_calendar_components(components)
@@ -1691,7 +1691,7 @@ class MkcalendarMethod(webdav.Method):
                     rollback()
                     return webdav._send_simple_dav_error(
                         request,
-                        "403 Forbidden",
+                        exc.statuscode,
                         error=ET.Element(exc.precondition),
                         description=exc.description,
                     )

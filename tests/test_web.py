@@ -1137,6 +1137,9 @@ class SupportedCalendarComponentSetTests(unittest.TestCase):
             "{urn:ietf:params:xml:ns:caldav}supported-calendar-component",
             cm.exception.precondition,
         )
+        # RFC 4791 section 1.2: a precondition that will always fail is
+        # reported as 403, not as an HTTP conditional-header 412.
+        self.assertEqual("403 Forbidden", cm.exception.statuscode)
 
     def test_supported_component_is_stored(self):
         cal = self._calendar()
