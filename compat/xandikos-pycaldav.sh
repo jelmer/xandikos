@@ -45,7 +45,7 @@ only_private = True
 
 caldav_servers = [
     {'url': 'http://localhost:5233/',
-     'incompatibilities': ['no_scheduling', 'text_search_not_working'],
+     'incompatibilities': ['text_search_not_working'],
     }
 ]
 EOF
