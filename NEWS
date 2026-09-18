@@ -1,4 +1,4 @@
-0.4.7	UNRELEASED
+0.4.7	2026-09-18
 
  * Ignore ``X-Remote-User`` unless the operator has explicitly
    declared trusted proxy addresses via ``--trust-x-remote-user-from``
