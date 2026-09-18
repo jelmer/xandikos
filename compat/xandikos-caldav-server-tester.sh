@@ -58,11 +58,6 @@ class TestXandikosCompatibility(unittest.TestCase):
         xandikos_features = FeatureSet({
             # Principal property search returns 403 (not implemented)
             "principal-search": "ungraceful",
-            # RFC6638 scheduling: ScheduleInbox/Outbox are stubs that raise
-            # NotImplementedError, and the DAV header advertises the legacy
-            # "calendar-auto-scheduling" token rather than RFC6638's
-            # "calendar-auto-schedule".
-            "scheduling": "unsupported",
             # MKCALENDAR accepts CALDAV:supported-calendar-component-set but
             # does not enforce it: any component type can still be stored.
             "create-calendar.with-supported-component-types": "unsupported",

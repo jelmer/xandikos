@@ -2310,7 +2310,8 @@ class Principal(webdav.Principal):
         return None
 
     def get_schedule_outbox_url(self):
-        raise KeyError
+        # TODO(jelmer): make this configurable
+        return "outbox"
 
     def get_schedule_inbox_url(self):
         # TODO(jelmer): make this configurable
@@ -2691,6 +2692,14 @@ def create_principal_defaults(backend, principal):
     else:
         resource.store.set_type(STORE_TYPE_SCHEDULE_INBOX)
         logger.info("Create inbox in %s.", resource.store.path)
+    outbox_path = posixpath.join(principal.relpath, principal.get_schedule_outbox_url())
+    try:
+        resource = backend.create_collection(outbox_path)
+    except FileExistsError:
+        pass
+    else:
+        resource.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
+        logger.info("Create outbox in %s.", resource.store.path)
 
 
 class RedirectDavHandler:

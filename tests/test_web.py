@@ -1184,8 +1184,6 @@ class ScheduleOutboxLookupTests(unittest.TestCase):
         cal.store.import_one("event.ics", "text/calendar", [body])
 
     def _outbox(self):
-        # SingleUserFilesystemBackend does not autocreate the outbox in
-        # principal defaults, so create one explicitly here.
         from xandikos.store import STORE_TYPE_SCHEDULE_OUTBOX
 
         outbox_path = "/user/outbox"
@@ -1193,6 +1191,19 @@ class ScheduleOutboxLookupTests(unittest.TestCase):
             outbox_resource = self.backend.create_collection(outbox_path)
             outbox_resource.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
         return self.backend.get_resource(outbox_path)
+
+    def test_defaults_create_outbox(self):
+        """Principal defaults create a schedule outbox.
+
+        RFC 6638 requires a principal to expose both a schedule inbox
+        and outbox; clients probe schedule-outbox-URL to decide whether
+        scheduling is usable.
+        """
+        from xandikos.store import STORE_TYPE_SCHEDULE_OUTBOX
+
+        outbox = self.backend.get_resource("/user/outbox")
+        self.assertIsNotNone(outbox)
+        self.assertEqual(outbox.store.get_type(), STORE_TYPE_SCHEDULE_OUTBOX)
 
     def test_returns_none_for_unknown_attendee(self):
         outbox = self._outbox()

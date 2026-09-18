@@ -3699,7 +3699,9 @@ class WebDAVApp:
             "2",
             "3",
             "calendar-access",
-            "calendar-auto-scheduling",
+            # Keep in sync with scheduling.FEATURE; not imported from there
+            # because scheduling imports this module.
+            "calendar-auto-schedule",
             "addressbook",
             "extended-mkcol",
             "add-member",
