@@ -1615,6 +1615,21 @@ class MkcalendarMethod(webdav.Method):
                 ret = ET.Element("{urn:ietf:params:xml:ns:carldav:}mkcalendar-response")
             for propstat_el in webdav.propstat_as_xml(propstat):
                 ret.append(propstat_el)
+            # RFC 4791 §5.3.1: the DAV:set instructions are all-or-nothing,
+            # so a property that could not be set means the collection is
+            # not created — 201 is reserved for a request carried out "in
+            # its entirety". Undo the collection before reporting back.
+            if any(not ps.statuscode.startswith("200 ") for ps in propstat):
+                destroy = getattr(resource, "destroy", None)
+                if destroy is None:
+                    logger.warning(
+                        "unable to roll back partially created calendar %r", path
+                    )
+                else:
+                    destroy()
+                return webdav._send_xml_response(
+                    "207 Multi-Status", ret, webdav.DEFAULT_ENCODING
+                )
             return webdav._send_xml_response(
                 "201 Created", ret, webdav.DEFAULT_ENCODING
             )
