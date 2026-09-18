@@ -82,6 +82,22 @@ class CollectionMetadata:
     def set_order(self, order: str) -> None:
         raise NotImplementedError(self.set_order)
 
+    def get_supported_calendar_components(self) -> list[str]:
+        """Get the calendar component types this collection accepts.
+
+        Returns: list of component names (e.g. ``["VEVENT"]``)
+        Raises: KeyError if unrestricted
+        """
+        raise NotImplementedError(self.get_supported_calendar_components)
+
+    def set_supported_calendar_components(self, components: "list[str] | None") -> None:
+        """Restrict the component types this collection accepts.
+
+        Args:
+            components: list of component names, or None to accept all
+        """
+        raise NotImplementedError(self.set_supported_calendar_components)
+
     def get_refreshrate(self) -> str:
         """Get the recommended refresh rate for this collection.
 
@@ -354,6 +370,23 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         else:
             self._configparser["calendar"]["order"] = order
         self._save("Set calendar order.")
+
+    def get_supported_calendar_components(self):
+        raw = self._configparser["calendar"]["supported-components"]
+        return [c for c in (x.strip() for x in raw.split(",")) if c]
+
+    def set_supported_calendar_components(self, components):
+        try:
+            self._configparser.add_section("calendar")
+        except configparser.DuplicateSectionError:
+            pass
+        if components is None:
+            del self._configparser["calendar"]["supported-components"]
+        else:
+            self._configparser["calendar"]["supported-components"] = ",".join(
+                components
+            )
+        self._save("Set supported calendar components.")
 
     def get_refreshrate(self):
         return self._configparser["DEFAULT"]["refreshrate"]

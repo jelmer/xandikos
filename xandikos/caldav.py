@@ -58,6 +58,21 @@ NAMESPACE = "urn:ietf:params:xml:ns:caldav"
 # https://tools.ietf.org/html/rfc4791, section 4.2
 CALENDAR_RESOURCE_TYPE = "{%s}calendar" % NAMESPACE
 
+# Component types a client may name in supported-calendar-component-set.
+# VTIMEZONE is accepted because RFC 4791 section 5.2.3 allows a
+# collection dedicated to standalone VTIMEZONE objects, and support for
+# VTIMEZONE alongside VEVENT/VTODO is assumed regardless.
+SUPPORTED_CALENDAR_COMPONENTS = frozenset(
+    {
+        "VEVENT",
+        "VTODO",
+        "VJOURNAL",
+        "VFREEBUSY",
+        "VAVAILABILITY",
+        "VTIMEZONE",
+    }
+)
+
 SUBSCRIPTION_RESOURCE_TYPE = "{http://calendarserver.org/ns/}subscribed"
 
 # Scheduling resource types (RFC 6638)
@@ -732,6 +747,43 @@ class SupportedCalendarComponentSetProperty(webdav.Property):
         for component in resource.get_supported_calendar_components():
             subel = ET.SubElement(el, "{urn:ietf:params:xml:ns:caldav}comp")
             subel.set("name", component)
+
+    async def init_value(self, href, resource, el):
+        """Initialize the component set at MKCALENDAR time.
+
+        The property is protected, so PROPPATCH cannot touch it, but RFC
+        4791 section 5.2.3 lets a client set it when creating the
+        collection.
+        """
+        components = []
+        for subel in el:
+            if subel.tag != "{urn:ietf:params:xml:ns:caldav}comp":
+                raise webdav.PreconditionFailure(
+                    "{DAV:}valid-calendar-data",
+                    f"Unexpected element {subel.tag} in "
+                    "supported-calendar-component-set",
+                )
+            name = subel.get("name")
+            if name is None:
+                raise webdav.PreconditionFailure(
+                    "{DAV:}valid-calendar-data",
+                    "comp element without a name attribute",
+                )
+            name = name.upper()
+            if name not in SUPPORTED_CALENDAR_COMPONENTS:
+                # The server cannot honour a restriction to a component
+                # type it does not support at all.
+                raise webdav.PreconditionFailure(
+                    "{%s}supported-calendar-component" % NAMESPACE,
+                    f"Unsupported calendar component {name}",
+                )
+            components.append(name)
+        if not components:
+            raise webdav.PreconditionFailure(
+                "{DAV:}valid-calendar-data",
+                "supported-calendar-component-set must list at least one comp",
+            )
+        resource.set_supported_calendar_components(components)
 
 
 class SupportedCalendarDataProperty(webdav.Property):
@@ -1591,35 +1643,25 @@ class MkcalendarMethod(webdav.Method):
         )
         ET.SubElement(el, "{urn:ietf:params:xml:ns:caldav}calendar")
         await app.properties["{DAV:}resourcetype"].set_value(href, resource, el)
+        # Setting the resourcetype changes what kind of collection this is
+        # (a calendar rather than a plain one), so re-resolve it: the object
+        # created above still reports the pre-MKCALENDAR resource types, and
+        # the calendar-only properties below are not "supported on" it.
+        refetched = app.backend.get_resource(path)
+        if refetched is not None:
+            resource = refetched
         if base_content_type in ("text/xml", "application/xml"):
             et = await webdav._readXmlBody(
                 request,
                 "{urn:ietf:params:xml:ns:caldav}mkcalendar",
                 strict=app.strict,
             )
-            propstat = []
-            for el in et:
-                if el.tag != "{DAV:}set":
-                    webdav.nonfatal_bad_request(
-                        f"Unknown tag {el.tag} in mkcalendar", app.strict
-                    )
-                    continue
-                propstat.extend(
-                    [
-                        ps
-                        async for ps in webdav.apply_modify_prop(
-                            el, href, resource, app.properties
-                        )
-                    ]
-                )
-                ret = ET.Element("{urn:ietf:params:xml:ns:carldav:}mkcalendar-response")
-            for propstat_el in webdav.propstat_as_xml(propstat):
-                ret.append(propstat_el)
-            # RFC 4791 §5.3.1: the DAV:set instructions are all-or-nothing,
-            # so a property that could not be set means the collection is
-            # not created — 201 is reserved for a request carried out "in
-            # its entirety". Undo the collection before reporting back.
-            if any(not ps.statuscode.startswith("200 ") for ps in propstat):
+
+            # RFC 4791 §5.3.1: "If a MKCALENDAR request fails, the server
+            # state preceding the request MUST be restored", and the
+            # DAV:set instructions are all-or-nothing. Undo the collection
+            # on any failure rather than leaving a half-configured one.
+            def rollback():
                 destroy = getattr(resource, "destroy", None)
                 if destroy is None:
                     logger.warning(
@@ -1627,6 +1669,38 @@ class MkcalendarMethod(webdav.Method):
                     )
                 else:
                     destroy()
+
+            propstat = []
+            ret = ET.Element("{urn:ietf:params:xml:ns:carldav:}mkcalendar-response")
+            for el in et:
+                if el.tag != "{DAV:}set":
+                    webdav.nonfatal_bad_request(
+                        f"Unknown tag {el.tag} in mkcalendar", app.strict
+                    )
+                    continue
+                try:
+                    propstat.extend(
+                        [
+                            ps
+                            async for ps in webdav.apply_modify_prop(
+                                el, href, resource, app.properties, initializing=True
+                            )
+                        ]
+                    )
+                except webdav.PreconditionFailure as exc:
+                    rollback()
+                    return webdav._send_simple_dav_error(
+                        request,
+                        "403 Forbidden",
+                        error=ET.Element(exc.precondition),
+                        description=exc.description,
+                    )
+            for propstat_el in webdav.propstat_as_xml(propstat):
+                ret.append(propstat_el)
+            # 201 is reserved for a request carried out "in its entirety";
+            # a DAV:set that could not be processed means 207 instead.
+            if any(not ps.statuscode.startswith("200 ") for ps in propstat):
+                rollback()
                 return webdav._send_xml_response(
                     "207 Multi-Status", ret, webdav.DEFAULT_ENCODING
                 )

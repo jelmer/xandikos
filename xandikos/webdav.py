@@ -2415,7 +2415,9 @@ def _send_method_not_allowed(allowed_methods):
     )
 
 
-async def apply_modify_prop(el, href, resource, properties, environ=None):
+async def apply_modify_prop(
+    el, href, resource, properties, environ=None, initializing=False
+):
     """Apply property set/remove operations.
 
     Returns:
@@ -2424,6 +2426,10 @@ async def apply_modify_prop(el, href, resource, properties, environ=None):
       resource: Resource to apply property modifications on
       properties: Known properties
       environ: WSGI environ dict (for properties whose setter needs it)
+      initializing: True when the resource is being created (MKCOL or
+        MKCALENDAR). Some properties are protected against PROPPATCH but
+        may be initialized at creation time, e.g.
+        CALDAV:supported-calendar-component-set (RFC 4791 section 5.2.3).
     Returns: PropStatus objects
     """
     if el.tag not in ("{DAV:}set", "{DAV:}remove"):
@@ -2461,7 +2467,9 @@ async def apply_modify_prop(el, href, resource, properties, environ=None):
                 statuscode = "403 Forbidden"
             else:
                 try:
-                    if hasattr(handler, "set_value_ext"):
+                    if initializing and hasattr(handler, "init_value"):
+                        await handler.init_value(href, resource, newval)
+                    elif hasattr(handler, "set_value_ext"):
                         await handler.set_value_ext(
                             href, resource, newval, environ or {}
                         )

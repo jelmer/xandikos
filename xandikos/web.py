@@ -147,6 +147,40 @@ def default_state_dir() -> str:
 
 CALENDAR_HOME_SET = ["calendars"]
 ADDRESSBOOK_HOME_SET = ["contacts"]
+
+
+def _calendar_component_types(content_type, contents):
+    """Return the calendar component types present in *contents*.
+
+    Returns an empty set for anything that is not parseable iCalendar;
+    validation of the data itself happens in the store.
+    """
+    if content_type is not None and not content_type.startswith("text/calendar"):
+        return set()
+    from icalendar.cal import Calendar as ICalendar
+
+    try:
+        cal = ICalendar.from_ical(b"".join(contents))
+    except Exception:
+        return set()
+    return {
+        comp.name.upper()
+        for comp in cal.subcomponents
+        if comp.name is not None and comp.name.upper() != "VTIMEZONE"
+    }
+
+
+# Component types a calendar accepts when it carries no
+# supported-calendar-component-set restriction. RFC 4791 section 5.2.3:
+# in the absence of that property the server must accept all component
+# types, so this is what an unrestricted calendar advertises.
+DEFAULT_CALENDAR_COMPONENTS = (
+    "VEVENT",
+    "VTODO",
+    "VJOURNAL",
+    "VFREEBUSY",
+    "VAVAILABILITY",
+)
 GIT_PATH = ".git"
 
 # Mapping from content types to their validation error tags
@@ -279,6 +313,9 @@ class ObjectResource(webdav.Resource):
         remote_user: str | None = None,
         requester: str | None = None,
     ) -> str:
+        data = list(data)
+        if self._parent is not None:
+            self._parent._check_supported_calendar_component(self.content_type, data)
         try:
             (name, etag) = await asyncio.to_thread(
                 self.store.import_one,
@@ -554,6 +591,8 @@ class StoreBasedCollection:
                 # Member doesn't exist, which is what we want for create_member
                 pass
 
+        self._check_supported_calendar_component(content_type, contents)
+
         try:
             (name, etag) = self.store.import_one(
                 name,
@@ -658,6 +697,30 @@ class StoreBasedCollection:
         # RFC2518, section 8.6.2 says this should recursively delete.
         self.store.destroy()
         self.backend._open_store.cache_clear()
+
+    def _check_supported_calendar_component(self, content_type, contents) -> None:
+        """Enforce supported-calendar-component-set on a stored object.
+
+        RFC 4791 section 5.2.3: storing a component type not listed in
+        the collection's supported-calendar-component-set MUST violate
+        the CALDAV:supported-calendar-component precondition. A
+        collection without the property accepts everything.
+        """
+        get_supported = getattr(self, "get_supported_calendar_components", None)
+        if get_supported is None:
+            return
+        try:
+            allowed = {c.upper() for c in get_supported()}
+        except (KeyError, NotImplementedError):
+            return
+        present = _calendar_component_types(content_type, contents)
+        unsupported = present - allowed
+        if unsupported:
+            raise webdav.PreconditionFailure(
+                "{%s}supported-calendar-component" % caldav.NAMESPACE,
+                "This calendar does not accept %s components."
+                % ", ".join(sorted(unsupported)),
+            )
 
     async def get_body(self):
         raise NotImplementedError(self.get_body)
@@ -1055,7 +1118,13 @@ class SubscriptionCollection(StoreBasedCollection, caldav.Subscription):
         self.store.set_color(color)
 
     def get_supported_calendar_components(self):
-        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"]
+        try:
+            return self.store.config.get_supported_calendar_components()
+        except (KeyError, NotImplementedError):
+            return list(DEFAULT_CALENDAR_COMPONENTS)
+
+    def set_supported_calendar_components(self, components):
+        self.store.config.set_supported_calendar_components(components)
 
 
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
@@ -1194,7 +1263,13 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             )
 
     def get_supported_calendar_components(self):
-        return ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"]
+        try:
+            return self.store.config.get_supported_calendar_components()
+        except (KeyError, NotImplementedError):
+            return list(DEFAULT_CALENDAR_COMPONENTS)
+
+    def set_supported_calendar_components(self, components):
+        self.store.config.set_supported_calendar_components(components)
 
     def get_supported_calendar_data_types(self):
         return [("text/calendar", "1.0"), ("text/calendar", "2.0")]

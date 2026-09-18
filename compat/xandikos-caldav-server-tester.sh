@@ -50,17 +50,6 @@ class TestXandikosCompatibility(unittest.TestCase):
             # nowhere legal to put such a time-range, but accepting it is a
             # superset of the required behaviour.
             "search.time-range.comp-type-optional": {"support": "full"},
-            # supported-calendar-component-set has no setter: every calendar
-            # reports the same hardcoded component list. RFC 4791 section
-            # 5.3.1 makes the DAV:set instructions all-or-nothing, so
-            # MKCALENDAR refuses rather than quietly dropping the request.
-            "create-calendar.with-supported-component-types": {
-                "support": "ungraceful",
-                "behaviour": (
-                    "MKCALENDAR is refused with 207 and a 403 propstat when "
-                    "it carries a component set; no calendar is created"
-                ),
-            },
         })
 
         # Multi-user mode with two principals, so the cross-user RFC 6638

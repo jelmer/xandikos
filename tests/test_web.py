@@ -1095,6 +1095,76 @@ END:VCALENDAR\r
 """
 
 
+class SupportedCalendarComponentSetTests(unittest.TestCase):
+    """RFC 4791 section 5.2.3 restrictions on stored component types."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/user", create_defaults=True)
+
+    def _calendar(self):
+        return self.backend.get_resource("/user/calendars/calendar")
+
+    def _put(self, collection, name, body):
+        return asyncio.run(collection.create_member(name, [body], "text/calendar"))
+
+    def test_unrestricted_calendar_accepts_all(self):
+        """Without the property the server must accept every type."""
+        cal = self._calendar()
+        self.assertEqual(
+            ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"],
+            cal.get_supported_calendar_components(),
+        )
+        self._put(cal, "event.ics", SCHEDULING_BASE)
+
+    def test_restriction_round_trips(self):
+        cal = self._calendar()
+        cal.set_supported_calendar_components(["VTODO"])
+        self.assertEqual(
+            ["VTODO"],
+            self._calendar().get_supported_calendar_components(),
+        )
+
+    def test_unsupported_component_is_refused(self):
+        cal = self._calendar()
+        cal.set_supported_calendar_components(["VTODO"])
+        with self.assertRaises(webdav.PreconditionFailure) as cm:
+            self._put(self._calendar(), "event.ics", SCHEDULING_BASE)
+        self.assertEqual(
+            "{urn:ietf:params:xml:ns:caldav}supported-calendar-component",
+            cm.exception.precondition,
+        )
+
+    def test_supported_component_is_stored(self):
+        cal = self._calendar()
+        cal.set_supported_calendar_components(["VTODO"])
+        todo = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T//EN\r\n"
+            b"BEGIN:VTODO\r\nUID:t1@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\nSUMMARY:Task\r\n"
+            b"END:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+        self._put(self._calendar(), "todo.ics", todo)
+
+    def test_vtimezone_is_always_allowed(self):
+        """Section 5.2.3: VTIMEZONE alongside VEVENT/VTODO is assumed."""
+        cal = self._calendar()
+        cal.set_supported_calendar_components(["VTODO"])
+        todo = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T//EN\r\n"
+            b"BEGIN:VTIMEZONE\r\nTZID:UTC\r\nBEGIN:STANDARD\r\n"
+            b"DTSTART:19700101T000000\r\nTZOFFSETFROM:+0000\r\n"
+            b"TZOFFSETTO:+0000\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n"
+            b"BEGIN:VTODO\r\nUID:t2@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\nSUMMARY:Task\r\n"
+            b"END:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+        self._put(self._calendar(), "todo-tz.ics", todo)
+
+
 class ObjectResourceScheduleTagTests(unittest.TestCase):
     def setUp(self):
         super().setUp()
