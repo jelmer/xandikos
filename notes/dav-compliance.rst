@@ -337,13 +337,15 @@ DAV:current-user-principal
 rfc7809.txt (CalDAV Time Zone Extensions)
 -----------------------------------------
 
-Not supported
+Partially supported. The timezone service itself (a store of timezone
+data that clients can fetch) is not provided, so
+CALDAV:timezone-service-set is always empty.
 
 DAV Properties
 ^^^^^^^^^^^^^^
 
 - CALDAV:timezone-service-set [supported]
-- CALDAV:calendar-timezone-id [not supported]
+- CALDAV:calendar-timezone-id [supported]
 
 rfc5397.txt (WebDAV Current Principal Extension)
 ------------------------------------------------

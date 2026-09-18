@@ -63,6 +63,15 @@ class TestXandikosCompatibility(unittest.TestCase):
             # "calendar-auto-scheduling" token rather than RFC6638's
             # "calendar-auto-schedule".
             "scheduling": "unsupported",
+            # MKCALENDAR accepts CALDAV:supported-calendar-component-set but
+            # does not enforce it: any component type can still be stored.
+            "create-calendar.with-supported-component-types": "unsupported",
+            # Xandikos applies a time-range filter that carries no component
+            # type to every component, rather than rejecting the query. The
+            # tester defaults to "unsupported" because RFC4791 section 9.7 has
+            # nowhere legal to put such a time-range, but accepting it is a
+            # superset of the required behaviour.
+            "search.time-range.comp-type-optional": "full",
         })
 
         cls.caldav = caldav.DAVClient(

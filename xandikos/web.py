@@ -87,6 +87,7 @@ from xandikos.store import (
 )
 
 from icalendar.cal import Calendar
+from icalendar.cal import Timezone as VTimezone
 
 from .icalendar import CalendarFilter, ICalendarFile
 from .store.git import GitStore, TreeGitStore
@@ -153,6 +154,19 @@ CONTENT_TYPE_ERROR_TAGS = {
     "text/calendar": ("{%s}valid-calendar-data" % caldav.NAMESPACE, "calendar"),
     "text/vcard": ("{%s}valid-address-data" % carddav.NAMESPACE, "vCard"),
 }
+
+
+def _wrap_vtimezone_in_calendar(vtimezone: VTimezone) -> Calendar:
+    """Wrap a VTIMEZONE component in a VCALENDAR.
+
+    RFC 4791 section 5.2.2 requires the CALDAV:calendar-timezone
+    property to hold a complete iCalendar object.
+    """
+    cal = Calendar()
+    cal["VERSION"] = "2.0"
+    cal["PRODID"] = caldav.PRODID
+    cal.add_component(vtimezone)
+    return cal
 
 
 def get_validation_error(exc: InvalidFileContents):
@@ -1075,7 +1089,35 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         return self.store.config.get_timezone()
 
     def set_calendar_timezone(self, content):
+        # RFC 7809 section 3.1.5: calendar-timezone and calendar-timezone-id
+        # are alternate representations, so keep them in sync.
+        if content is None:
+            self.store.config.set_timezone(None)
+            self.store.config.set_timezone_id(None)
+            return
+        try:
+            tzid = str(caldav.extract_tzid(Calendar.from_ical(content)))
+        except (ValueError, IndexError, KeyError) as exc:
+            raise caldav.InvalidTimezoneError(str(exc)) from exc
         self.store.config.set_timezone(content)
+        self.store.config.set_timezone_id(tzid)
+
+    def get_calendar_timezone_id(self):
+        return self.store.config.get_timezone_id()
+
+    def set_calendar_timezone_id(self, timezone_id):
+        if timezone_id is None:
+            self.store.config.set_timezone_id(None)
+            self.store.config.set_timezone(None)
+            return
+        try:
+            vtimezone = VTimezone.from_tzid(timezone_id)
+        except ValueError as exc:
+            raise caldav.UnknownTimezoneError(timezone_id) from exc
+        self.store.config.set_timezone_id(timezone_id)
+        self.store.config.set_timezone(
+            _wrap_vtimezone_in_calendar(vtimezone).to_ical().decode("utf-8")
+        )
 
     def _ensure_metadata_directory(self):
         """Ensure .xandikos/ metadata directory exists, migrating from old .xandikos config file if needed."""
@@ -2517,6 +2559,7 @@ class XandikosApp(webdav.WebDAVApp):
                 sync.SyncTokenProperty(),
                 caldav.SupportedCalendarDataProperty(),
                 caldav.CalendarTimezoneProperty(),
+                caldav.CalendarTimezoneIdProperty(),
                 caldav.CalendarAvailabilityProperty(),
                 caldav.MinDateTimeProperty(),
                 caldav.MaxDateTimeProperty(),

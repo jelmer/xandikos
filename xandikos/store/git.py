@@ -271,6 +271,23 @@ class RepoCollectionMetadata(CollectionMetadata):
             config.remove(b"xandikos", b"timezone")
         self._write_config(config)
 
+    def get_timezone_id(self):
+        config = self._get_config()
+        timezone_id = config.get(b"xandikos", b"timezone-id")
+        if timezone_id == b"":
+            raise KeyError
+        return timezone_id.decode(DEFAULT_ENCODING)
+
+    def set_timezone_id(self, timezone_id):
+        config = self._get_config()
+        if timezone_id is not None:
+            config.set(
+                b"xandikos", b"timezone-id", timezone_id.encode(DEFAULT_ENCODING)
+            )
+        else:
+            config.remove(b"xandikos", b"timezone-id")
+        self._write_config(config)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository."""
