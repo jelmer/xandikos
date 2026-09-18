@@ -64,19 +64,57 @@ class TestXandikosCompatibility(unittest.TestCase):
             },
         })
 
-        cls.caldav = caldav.DAVClient(
-            url='http://localhost:5233/',
-            username=None,
-            password=None
-        )
+        # Multi-user mode with two principals, so the cross-user RFC 6638
+        # checks (free/busy lookup, inbox delivery, auto-schedule,
+        # schedule-tag) actually run instead of reporting "unknown".
+        # X-Remote-User is trusted from localhost; see the server flags below.
+        cls.caldav = cls._client('alice')
         cls.caldav.features = xandikos_features
+        cls.extra = cls._client('bob')
+
+        # Each principal needs its own calendar-user-address-set to be
+        # addressable as an attendee; multi-user mode has no default email
+        # to fall back on.
+        for client, address in ((cls.caldav, 'alice'), (cls.extra, 'bob')):
+            client.principal().set_properties([
+                caldav.elements.cdav.CalendarUserAddressSet()
+                + caldav.elements.dav.Href(value='mailto:%s@example.com' % address)
+            ])
+
+    @staticmethod
+    def _client(user):
+        return caldav.DAVClient(
+            url='http://127.0.0.1:5233/',
+            headers={'X-Remote-User': user},
+        )
 
     def test_check_compatibility(self):
         """Run server quirk checker against Xandikos."""
         from caldav_server_tester import ServerQuirkChecker
 
-        checker = ServerQuirkChecker(self.caldav, debug_mode="assert")
+        checker = ServerQuirkChecker(
+            self.caldav, debug_mode="assert", extra_clients=[self.extra]
+        )
         checker.check_all()
+
+        # The cross-user setup is easy to break (a stale trust CIDR, a
+        # principal without an address); without it the RFC 6638 checks
+        # quietly report "unknown" and the run still passes. Fail loudly
+        # instead.
+        self.assertEqual(1, len(checker.extra_principals))
+        for feature in (
+            'scheduling',
+            'scheduling.mailbox',
+            'scheduling.freebusy-query',
+            'scheduling.auto-schedule',
+            'scheduling.schedule-tag',
+            'scheduling.schedule-tag.stable-partstat',
+        ):
+            self.assertEqual(
+                'full',
+                checker.features_checked.is_supported(feature, str),
+                '%s was not established as supported' % feature,
+            )
 
         # Report results
         observed = checker.features_checked.dotted_feature_set_list(compact=True)
@@ -96,7 +134,8 @@ if __name__ == '__main__':
     unittest.main(verbosity=2)
 EOF
 
-run_xandikos 5233 5234 --defaults
+XANDIKOS_SUBCOMMAND=multi-user \
+	run_xandikos 5233 5234 --defaults --trust-x-remote-user-from=127.0.0.1/32
 
 # Reactivate the virtual environment to run tests
 source "${VENV_DIR}/bin/activate"
