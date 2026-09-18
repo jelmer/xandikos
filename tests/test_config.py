@@ -141,6 +141,13 @@ class MetadataTests:
         self._config.set_timezone(None)
         self.assertRaises(KeyError, self._config.get_timezone)
 
+    def test_timezone_id(self):
+        self.assertRaises(KeyError, self._config.get_timezone_id)
+        self._config.set_timezone_id("America/New_York")
+        self.assertEqual("America/New_York", self._config.get_timezone_id())
+        self._config.set_timezone_id(None)
+        self.assertRaises(KeyError, self._config.get_timezone_id)
+
 
 class FileBasedPrincipalConfigTests(TestCase):
     """Tests for the [principal] section in FileBasedCollectionMetadata."""

@@ -72,6 +72,18 @@ TRANSPARENCY_TRANSPARENT = "transparent"
 TRANSPARENCY_OPAQUE = "opaque"
 
 
+class UnknownTimezoneError(Exception):
+    """A timezone identifier was not recognized."""
+
+    def __init__(self, timezone_id: str) -> None:
+        super().__init__(f"Unknown timezone identifier {timezone_id!r}")
+        self.timezone_id = timezone_id
+
+
+class InvalidTimezoneError(Exception):
+    """A calendar timezone could not be parsed."""
+
+
 class Calendar(webdav.Collection):
     resource_types = webdav.Collection.resource_types + [CALENDAR_RESOURCE_TYPE]
 
@@ -123,6 +135,21 @@ class Calendar(webdav.Collection):
         VTIMEZONE component.
         """
         raise NotImplementedError(self.set_calendar_timezone)
+
+    def get_calendar_timezone_id(self) -> str:
+        """Return the calendar timezone identifier.
+
+        This is a time zone identifier, such as "Europe/Amsterdam".
+        """
+        raise NotImplementedError(self.get_calendar_timezone_id)
+
+    def set_calendar_timezone_id(self, timezone_id: str | None) -> None:
+        """Set the calendar timezone identifier.
+
+        Args:
+            timezone_id: Time zone identifier, or None to unset
+        """
+        raise NotImplementedError(self.set_calendar_timezone_id)
 
     def get_calendar_availability(self) -> str:
         """Return calendar availability.
@@ -745,10 +772,40 @@ class CalendarTimezoneProperty(webdav.Property):
         el.text = resource.get_calendar_timezone()
 
     async def set_value(self, href, resource, el):
-        if el is not None:
-            resource.set_calendar_timezone(el.text)
-        else:
+        if el is None:
             resource.set_calendar_timezone(None)
+            return
+        try:
+            resource.set_calendar_timezone(el.text)
+        except InvalidTimezoneError as exc:
+            raise webdav.PreconditionFailure(
+                "{%s}valid-calendar-data" % NAMESPACE, str(exc)
+            ) from exc
+
+
+class CalendarTimezoneIdProperty(webdav.Property):
+    """calendar-timezone-id property.
+
+    See https://tools.ietf.org/html/rfc7809, section 5.2
+    """
+
+    name = "{urn:ietf:params:xml:ns:caldav}calendar-timezone-id"
+    resource_type = (CALENDAR_RESOURCE_TYPE, SCHEDULE_INBOX_RESOURCE_TYPE)
+    in_allprops = False
+
+    async def get_value(self, href, resource, el, environ):
+        el.text = resource.get_calendar_timezone_id()
+
+    async def set_value(self, href, resource, el):
+        if el is None or not el.text:
+            resource.set_calendar_timezone_id(None)
+            return
+        try:
+            resource.set_calendar_timezone_id(el.text)
+        except UnknownTimezoneError as exc:
+            raise webdav.PreconditionFailure(
+                "{%s}valid-timezone" % NAMESPACE, str(exc)
+            ) from exc
 
 
 class CalendarAvailabilityProperty(webdav.Property):

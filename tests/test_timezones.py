@@ -22,7 +22,7 @@
 import asyncio
 import unittest
 
-from xandikos import timezones, webdav
+from xandikos import caldav, timezones, webdav
 from xandikos.webdav import ET
 
 
@@ -175,3 +175,86 @@ class TimezoneServiceSetPropertyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CalendarTimezoneIdPropertyTests(unittest.TestCase):
+    """Tests for CalendarTimezoneIdProperty (RFC 7809 Section 5.2)."""
+
+    def setUp(self):
+        super().setUp()
+        self.prop = caldav.CalendarTimezoneIdProperty()
+
+    def test_property_attributes(self):
+        self.assertEqual(
+            "{urn:ietf:params:xml:ns:caldav}calendar-timezone-id", self.prop.name
+        )
+        self.assertFalse(self.prop.in_allprops)
+
+    def test_get_value(self):
+        class Resource:
+            def get_calendar_timezone_id(self):
+                return "Europe/Amsterdam"
+
+        el = ET.Element(self.prop.name)
+        asyncio.run(self.prop.get_value("/", Resource(), el, {}))
+        self.assertEqual("Europe/Amsterdam", el.text)
+
+    def test_set_value(self):
+        class Resource:
+            timezone_id = None
+
+            def set_calendar_timezone_id(self, timezone_id):
+                self.timezone_id = timezone_id
+
+        resource = Resource()
+        el = ET.Element(self.prop.name)
+        el.text = "Europe/Amsterdam"
+        asyncio.run(self.prop.set_value("/", resource, el))
+        self.assertEqual("Europe/Amsterdam", resource.timezone_id)
+
+    def test_remove_value(self):
+        class Resource:
+            timezone_id = "Europe/Amsterdam"
+
+            def set_calendar_timezone_id(self, timezone_id):
+                self.timezone_id = timezone_id
+
+        resource = Resource()
+        asyncio.run(self.prop.set_value("/", resource, None))
+        self.assertIsNone(resource.timezone_id)
+
+    def test_unknown_timezone_raises_precondition(self):
+        """An unrecognized identifier fails the valid-timezone precondition."""
+
+        class Resource:
+            def set_calendar_timezone_id(self, timezone_id):
+                raise caldav.UnknownTimezoneError(timezone_id)
+
+        el = ET.Element(self.prop.name)
+        el.text = "Nonexistent/Timezone"
+        with self.assertRaises(webdav.PreconditionFailure) as cm:
+            asyncio.run(self.prop.set_value("/", Resource(), el))
+        self.assertEqual(
+            "{urn:ietf:params:xml:ns:caldav}valid-timezone", cm.exception.precondition
+        )
+
+
+class CalendarTimezonePropertyTests(unittest.TestCase):
+    """Tests for CalendarTimezoneProperty error handling."""
+
+    def test_invalid_timezone_raises_precondition(self):
+        """Unparseable calendar data fails the valid-calendar-data precondition."""
+
+        class Resource:
+            def set_calendar_timezone(self, content):
+                raise caldav.InvalidTimezoneError("could not parse")
+
+        prop = caldav.CalendarTimezoneProperty()
+        el = ET.Element(prop.name)
+        el.text = "junk"
+        with self.assertRaises(webdav.PreconditionFailure) as cm:
+            asyncio.run(prop.set_value("/", Resource(), el))
+        self.assertEqual(
+            "{urn:ietf:params:xml:ns:caldav}valid-calendar-data",
+            cm.exception.precondition,
+        )

@@ -34,10 +34,12 @@ The following standards are implemented:
   (WebDAV-Push) - *implemented; enabled with* ``--webdav-push``.
   *Uses Web Push (RFC 8030) with VAPID (RFC 8292) and aes128gcm
   message encryption (RFC 8291).*
+- :RFC:`7809` (CalDAV Time Zone Extensions) - *partially implemented;
+  CALDAV:calendar-timezone-id is supported, but no timezone service is
+  provided*
 
 The following standards are not implemented:
 
-- :RFC:`7809` (CalDAV Time Zone Extensions) - *not implemented*
 - :RFC:`7529` (WebDAV Quota) - *not implemented*
 - :RFC:`4709` (WebDAV Mount) - `intentionally <https://github.com/jelmer/xandikos/issues/48>`_ *not implemented*
 - :RFC:`4324` (iCAL CAP) - *not implemented*

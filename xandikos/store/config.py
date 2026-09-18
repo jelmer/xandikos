@@ -114,6 +114,22 @@ class CollectionMetadata:
         """
         raise NotImplementedError(self.set_timezone)
 
+    def get_timezone_id(self) -> str:
+        """Get the calendar timezone identifier.
+
+        Returns: Timezone identifier, e.g. "Europe/Amsterdam"
+        Raises: KeyError if not set
+        """
+        raise NotImplementedError(self.get_timezone_id)
+
+    def set_timezone_id(self, timezone_id: str | None) -> None:
+        """Set the calendar timezone identifier.
+
+        Args:
+            timezone_id: Timezone identifier, or None to unset
+        """
+        raise NotImplementedError(self.set_timezone_id)
+
     def get_calendar_user_address_set(self) -> list[str]:
         """Get the calendar-user-address-set (RFC 6638 §2.4.1).
 
@@ -358,6 +374,16 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         else:
             del self._configparser["DEFAULT"]["timezone"]
         self._save("Set timezone.")
+
+    def get_timezone_id(self):
+        return self._configparser["DEFAULT"]["timezone-id"]
+
+    def set_timezone_id(self, timezone_id):
+        if timezone_id is not None:
+            self._configparser["DEFAULT"]["timezone-id"] = timezone_id
+        else:
+            del self._configparser["DEFAULT"]["timezone-id"]
+        self._save("Set timezone id.")
 
     def _set_scheduling_option(self, key: str, value: str | None, message: str) -> None:
         if value is not None:

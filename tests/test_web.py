@@ -24,9 +24,13 @@ import os
 import shutil
 import tempfile
 import unittest
+import unittest.mock
+
+from icalendar.cal import Calendar
 
 from xandikos import caldav, webdav
 from xandikos.icalendar import ICalendarFile
+from xandikos.store.config import FileBasedCollectionMetadata
 from xandikos.store.git import TreeGitStore
 from xandikos.web import (
     CalendarCollection,
@@ -35,6 +39,21 @@ from xandikos.web import (
     StoreBasedCollection,
     XandikosApp,
 )
+
+EXAMPLE_VTIMEZONE = """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VTIMEZONE
+TZID:Europe/Amsterdam
+BEGIN:STANDARD
+DTSTART:19701025T030000
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+END:STANDARD
+END:VTIMEZONE
+END:VCALENDAR
+"""
 
 EXAMPLE_VCALENDAR1 = b"""\
 BEGIN:VCALENDAR
@@ -77,6 +96,59 @@ class CalendarCollectionTests(unittest.TestCase):
         self.assertRaises(KeyError, self.cal.get_calendar_color)
         self.cal.set_calendar_color("#aabbcc")
         self.assertEqual("#aabbcc", self.cal.get_calendar_color())
+
+    def test_timezone_id_roundtrip(self):
+        self.assertRaises(KeyError, self.cal.get_calendar_timezone_id)
+        self.cal.set_calendar_timezone_id("Europe/Amsterdam")
+        self.assertEqual("Europe/Amsterdam", self.cal.get_calendar_timezone_id())
+
+    def test_setting_timezone_id_updates_timezone(self):
+        # RFC 7809 section 3.1.5: the alternate property must be updated.
+        # Note: configparser collapses the CRLF line folding that iCalendar
+        # relies on, so a stored VTIMEZONE does not survive a round-trip
+        # through the config intact. Check what gets handed to the store.
+        stored = []
+        with unittest.mock.patch.object(
+            FileBasedCollectionMetadata,
+            "set_timezone",
+            lambda self, tz: stored.append(tz),
+        ):
+            self.cal.set_calendar_timezone_id("Europe/Amsterdam")
+        self.assertEqual(
+            "Europe/Amsterdam",
+            str(caldav.extract_tzid(Calendar.from_ical(stored[0]))),
+        )
+
+    def test_setting_timezone_updates_timezone_id(self):
+        self.cal.set_calendar_timezone(EXAMPLE_VTIMEZONE)
+        self.assertEqual("Europe/Amsterdam", self.cal.get_calendar_timezone_id())
+
+    def test_unsetting_timezone_id_unsets_timezone(self):
+        self.cal.set_calendar_timezone_id("Europe/Amsterdam")
+        self.cal.set_calendar_timezone_id(None)
+        self.assertRaises(KeyError, self.cal.get_calendar_timezone_id)
+        self.assertRaises(KeyError, self.cal.get_calendar_timezone)
+
+    def test_unsetting_timezone_unsets_timezone_id(self):
+        self.cal.set_calendar_timezone(EXAMPLE_VTIMEZONE)
+        self.cal.set_calendar_timezone(None)
+        self.assertRaises(KeyError, self.cal.get_calendar_timezone)
+        self.assertRaises(KeyError, self.cal.get_calendar_timezone_id)
+
+    def test_malformed_timezone_rejected(self):
+        for body in ("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n", "junk"):
+            self.assertRaises(
+                caldav.InvalidTimezoneError, self.cal.set_calendar_timezone, body
+            )
+        self.assertRaises(KeyError, self.cal.get_calendar_timezone)
+
+    def test_unknown_timezone_id_rejected(self):
+        self.assertRaises(
+            caldav.UnknownTimezoneError,
+            self.cal.set_calendar_timezone_id,
+            "Nonexistent/Timezone",
+        )
+        self.assertRaises(KeyError, self.cal.get_calendar_timezone_id)
 
     def test_resource_id_generated_and_persisted(self):
         """Collections auto-generate and persist a stable resource-id."""
