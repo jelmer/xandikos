@@ -360,7 +360,7 @@ class ObjectResource(webdav.Resource):
         assert isinstance(file, ICalendarFile)
         cal = file.calendar
         assert isinstance(cal, Calendar)
-        signature = itip.extract_scheduling_signature(cal)
+        signature = itip.extract_scheduling_signature(cal, mask_attendee_status=True)
         return create_strong_etag(signature.hex())
 
     async def get_resource_id(self) -> str:

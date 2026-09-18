@@ -1130,7 +1130,14 @@ class ObjectResourceScheduleTagTests(unittest.TestCase):
 
         self.assertEqual(tag1, tag2)
 
-    def test_schedule_tag_changes_on_attendee_partstat(self):
+    def test_schedule_tag_stable_across_attendee_partstat(self):
+        """RFC 6638 section 3.2.10: a PARTSTAT-only update keeps the tag.
+
+        When an attendee replies and the server applies the new
+        participation status to the organiser's copy, the schedule-tag
+        must not move -- that is what lets a client hold an
+        If-Schedule-Tag-Match across an "inconsequential" change.
+        """
         etag1 = self._put("event.ics", SCHEDULING_BASE)
         tag1 = asyncio.run(self._resource("event.ics", etag1).get_schedule_tag())
 
@@ -1138,6 +1145,21 @@ class ObjectResourceScheduleTagTests(unittest.TestCase):
             b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED"
         )
         etag2 = self._put("event.ics", replied)
+        tag2 = asyncio.run(self._resource("event.ics", etag2).get_schedule_tag())
+
+        self.assertEqual(tag1, tag2)
+
+    def test_schedule_tag_changes_on_attendee_list_change(self):
+        """Adding an attendee is substantive, so the tag must move."""
+        etag1 = self._put("event.ics", SCHEDULING_BASE)
+        tag1 = asyncio.run(self._resource("event.ics", etag1).get_schedule_tag())
+
+        extra = SCHEDULING_BASE.replace(
+            b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r\n",
+            b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r\n"
+            b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:carol@example.com\r\n",
+        )
+        etag2 = self._put("event.ics", extra)
         tag2 = asyncio.run(self._resource("event.ics", etag2).get_schedule_tag())
 
         self.assertNotEqual(tag1, tag2)

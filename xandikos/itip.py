@@ -81,6 +81,16 @@ SCHEDULING_PROPERTIES = frozenset(
 )
 
 
+# ATTENDEE parameters that carry participation status rather than the
+# substance of the invitation. RFC 6638 3.2.10 requires the schedule-tag
+# to stay put when a resource is updated by automatically processing a
+# scheduling message that only changes these, so they are excluded from
+# the signature the tag is derived from.
+PARTICIPATION_STATUS_PARAMS = frozenset(
+    {"PARTSTAT", "RSVP", "SCHEDULE-STATUS", "SCHEDULE-AGENT", "SCHEDULE-FORCE-SEND"}
+)
+
+
 # Components that carry scheduling state. Other component types (VTIMEZONE,
 # VALARM, VFREEBUSY responses inside replies, etc.) are intentionally skipped
 # so they do not destabilise the tag.
@@ -102,21 +112,25 @@ def _serialize_scheduling_value(value: PropTypes) -> bytes:
     ATTENDEE, which is exactly the kind of state the schedule-tag must
     track. We fold params and value into one sorted, opaque byte string.
     """
-    rendered = value.to_ical()
-    if value.params:
-        # Parameter names are case-insensitive; normalise to upper for stability.
-        param_items = sorted(
-            (k.upper().encode("ascii"), str(v).encode("utf-8"))
-            for k, v in value.params.items()
-        )
-        rendered = b";".join(b"=".join(item) for item in param_items) + b":" + rendered
-    return rendered
+    return _serialize_params(value.params, value.to_ical())
+
+
+def _serialize_params(params, rendered: bytes) -> bytes:
+    """Prefix *rendered* with *params*, sorted for stability."""
+    if not params:
+        return rendered
+    # Parameter names are case-insensitive; normalise to upper for stability.
+    param_items = sorted(
+        (k.upper().encode("ascii"), str(v).encode("utf-8")) for k, v in params.items()
+    )
+    return b";".join(b"=".join(item) for item in param_items) + b":" + rendered
 
 
 def extract_scheduling_signature(
     cal: Calendar,
     mask_own_attendee_params: "frozenset[str] | None" = None,
     skip_attendees: "frozenset[str] | None" = None,
+    mask_attendee_status: bool = False,
 ) -> bytes:
     """Compute a stable signature of the scheduling-relevant content in *cal*.
 
@@ -137,6 +151,10 @@ def extract_scheduling_signature(
         as params). Used by the attendee-write check to allow adding
         delegates: an attendee may add an ATTENDEE entry whose
         DELEGATED-FROM matches their own address (RFC 6638 §3.2.6).
+      mask_attendee_status: drop PARTICIPATION_STATUS_PARAMS from every
+        ATTENDEE. Used for the schedule-tag, which RFC 6638 §3.2.10
+        requires to stay put across a PARTSTAT-only update applied by
+        the server from a scheduling message.
 
     Returns: opaque ``bytes`` value suitable for hashing or direct comparison.
     """
@@ -171,7 +189,9 @@ def extract_scheduling_signature(
             if field.upper() == "ATTENDEE":
                 values = value if isinstance(value, list) else [value]
                 items = [
-                    _serialize_attendee_value(v, mask_own_attendee_params)
+                    _serialize_attendee_value(
+                        v, mask_own_attendee_params, mask_attendee_status
+                    )
                     for v in values
                     if skip_attendees is None or str(v) not in skip_attendees
                 ]
@@ -206,16 +226,26 @@ def extract_scheduling_signature(
 
 
 def _serialize_attendee_value(
-    value: PropTypes, mask_own: "frozenset[str] | None"
+    value: PropTypes,
+    mask_own: "frozenset[str] | None",
+    mask_status: bool = False,
 ) -> bytes:
     """Like _serialize_scheduling_value but drops params when masked.
 
     Used by extract_scheduling_signature to ignore the user's own
     PARTSTAT/RSVP/etc. when checking whether anything *else* has
-    changed.
+    changed. With *mask_status*, the participation-status parameters are
+    dropped from every ATTENDEE rather than just the user's own.
     """
     if mask_own is not None and str(value) in mask_own:
         return value.to_ical()
+    if mask_status:
+        params = {
+            k: v
+            for k, v in value.params.items()
+            if k.upper() not in PARTICIPATION_STATUS_PARAMS
+        }
+        return _serialize_params(params, value.to_ical())
     return _serialize_scheduling_value(value)
 
 
