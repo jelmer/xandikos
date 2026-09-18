@@ -19,13 +19,10 @@ source "${VENV_DIR}/bin/activate"
 # Install caldav and caldav-server-tester
 echo "Installing caldav and caldav-server-tester..."
 pip install -q --upgrade pip
-# Install pinned versions from requirements file
-if pip install -q -r "$(dirname $0)/caldav-server-tester-requirements.txt" 2>/dev/null; then
-    echo "caldav-server-tester installed successfully"
-else
-    echo "WARNING: caldav-server-tester not available on PyPI, skipping..."
-    echo "The testCheckCompatibility test will be skipped"
-fi
+# Install pinned versions from requirements file. A failure here used to be
+# swallowed, which left the compatibility test failing later with a confusing
+# ImportError instead of the actual pip error.
+pip install -q -r "$(dirname $0)/caldav-server-tester-requirements.txt"
 
 # Deactivate venv before running xandikos so it uses system Python
 deactivate
@@ -43,30 +40,28 @@ class TestXandikosCompatibility(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Set up test class."""
-        # Configure known Xandikos limitations/quirks
-        #
-        # Xandikos supports most core CalDAV features including:
-        # - Basic calendar operations (create, delete, read, update)
-        # - Event and todo management
-        # - Time-range searches for events and todos
-        # - Category searches (basic)
-        # - Combined searches (logical AND of time-range and category)
-        # - Recurring events (basic support)
-        # - Server-side recurrence expansion
-        #
-        # Known limitations/unsupported features:
+        # Where Xandikos deviates from the checker's default expectations.
         xandikos_features = FeatureSet({
             # Principal property search returns 403 (not implemented)
             "principal-search": "ungraceful",
-            # MKCALENDAR accepts CALDAV:supported-calendar-component-set but
-            # does not enforce it: any component type can still be stored.
-            "create-calendar.with-supported-component-types": "unsupported",
             # Xandikos applies a time-range filter that carries no component
             # type to every component, rather than rejecting the query. The
             # tester defaults to "unsupported" because RFC4791 section 9.7 has
             # nowhere legal to put such a time-range, but accepting it is a
             # superset of the required behaviour.
-            "search.time-range.comp-type-optional": "full",
+            "search.time-range.comp-type-optional": {"support": "full"},
+            # supported-calendar-component-set has no setter: every calendar
+            # reports the same hardcoded component list and accepts any
+            # component, yet MKCALENDAR still answers 201.
+            "create-calendar.with-supported-component-types": {
+                "support": "unsupported",
+                "behaviour": (
+                    "the restriction is ignored: asked for ['VTODO'], it "
+                    "advertises ['VAVAILABILITY', 'VEVENT', 'VFREEBUSY', "
+                    "'VJOURNAL', 'VTODO'], and a VEVENT can be saved to the "
+                    "calendar"
+                ),
+            },
         })
 
         cls.caldav = caldav.DAVClient(
