@@ -1095,6 +1095,79 @@ END:VCALENDAR\r
 """
 
 
+class SupportedCalendarComponentSetTests(unittest.TestCase):
+    """RFC 4791 section 5.2.3 restrictions on stored component types."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/user", create_defaults=True)
+
+    def _calendar(self):
+        return self.backend.get_resource("/user/calendars/calendar")
+
+    def _put(self, collection, name, body):
+        return asyncio.run(collection.create_member(name, [body], "text/calendar"))
+
+    def test_unrestricted_calendar_accepts_all(self):
+        """Without the property the server must accept every type."""
+        cal = self._calendar()
+        self.assertEqual(
+            ["VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY"],
+            cal.get_supported_calendar_components(),
+        )
+        self._put(cal, "event.ics", SCHEDULING_BASE)
+
+    def test_restriction_round_trips(self):
+        cal = self._calendar()
+        cal.set_supported_calendar_components(["VTODO"])
+        self.assertEqual(
+            ["VTODO"],
+            self._calendar().get_supported_calendar_components(),
+        )
+
+    def test_unsupported_component_is_refused(self):
+        cal = self._calendar()
+        cal.set_supported_calendar_components(["VTODO"])
+        with self.assertRaises(webdav.PreconditionFailure) as cm:
+            self._put(self._calendar(), "event.ics", SCHEDULING_BASE)
+        self.assertEqual(
+            "{urn:ietf:params:xml:ns:caldav}supported-calendar-component",
+            cm.exception.precondition,
+        )
+        # RFC 4791 section 1.2: a precondition that will always fail is
+        # reported as 403, not as an HTTP conditional-header 412.
+        self.assertEqual("403 Forbidden", cm.exception.statuscode)
+
+    def test_supported_component_is_stored(self):
+        cal = self._calendar()
+        cal.set_supported_calendar_components(["VTODO"])
+        todo = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T//EN\r\n"
+            b"BEGIN:VTODO\r\nUID:t1@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\nSUMMARY:Task\r\n"
+            b"END:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+        self._put(self._calendar(), "todo.ics", todo)
+
+    def test_vtimezone_is_always_allowed(self):
+        """Section 5.2.3: VTIMEZONE alongside VEVENT/VTODO is assumed."""
+        cal = self._calendar()
+        cal.set_supported_calendar_components(["VTODO"])
+        todo = (
+            b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T//EN\r\n"
+            b"BEGIN:VTIMEZONE\r\nTZID:UTC\r\nBEGIN:STANDARD\r\n"
+            b"DTSTART:19700101T000000\r\nTZOFFSETFROM:+0000\r\n"
+            b"TZOFFSETTO:+0000\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n"
+            b"BEGIN:VTODO\r\nUID:t2@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\nSUMMARY:Task\r\n"
+            b"END:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+        self._put(self._calendar(), "todo-tz.ics", todo)
+
+
 class ObjectResourceScheduleTagTests(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -1130,7 +1203,14 @@ class ObjectResourceScheduleTagTests(unittest.TestCase):
 
         self.assertEqual(tag1, tag2)
 
-    def test_schedule_tag_changes_on_attendee_partstat(self):
+    def test_schedule_tag_stable_across_attendee_partstat(self):
+        """RFC 6638 section 3.2.10: a PARTSTAT-only update keeps the tag.
+
+        When an attendee replies and the server applies the new
+        participation status to the organiser's copy, the schedule-tag
+        must not move -- that is what lets a client hold an
+        If-Schedule-Tag-Match across an "inconsequential" change.
+        """
         etag1 = self._put("event.ics", SCHEDULING_BASE)
         tag1 = asyncio.run(self._resource("event.ics", etag1).get_schedule_tag())
 
@@ -1138,6 +1218,21 @@ class ObjectResourceScheduleTagTests(unittest.TestCase):
             b"PARTSTAT=NEEDS-ACTION", b"PARTSTAT=ACCEPTED"
         )
         etag2 = self._put("event.ics", replied)
+        tag2 = asyncio.run(self._resource("event.ics", etag2).get_schedule_tag())
+
+        self.assertEqual(tag1, tag2)
+
+    def test_schedule_tag_changes_on_attendee_list_change(self):
+        """Adding an attendee is substantive, so the tag must move."""
+        etag1 = self._put("event.ics", SCHEDULING_BASE)
+        tag1 = asyncio.run(self._resource("event.ics", etag1).get_schedule_tag())
+
+        extra = SCHEDULING_BASE.replace(
+            b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r\n",
+            b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r\n"
+            b"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:carol@example.com\r\n",
+        )
+        etag2 = self._put("event.ics", extra)
         tag2 = asyncio.run(self._resource("event.ics", etag2).get_schedule_tag())
 
         self.assertNotEqual(tag1, tag2)
@@ -1184,8 +1279,6 @@ class ScheduleOutboxLookupTests(unittest.TestCase):
         cal.store.import_one("event.ics", "text/calendar", [body])
 
     def _outbox(self):
-        # SingleUserFilesystemBackend does not autocreate the outbox in
-        # principal defaults, so create one explicitly here.
         from xandikos.store import STORE_TYPE_SCHEDULE_OUTBOX
 
         outbox_path = "/user/outbox"
@@ -1193,6 +1286,19 @@ class ScheduleOutboxLookupTests(unittest.TestCase):
             outbox_resource = self.backend.create_collection(outbox_path)
             outbox_resource.store.set_type(STORE_TYPE_SCHEDULE_OUTBOX)
         return self.backend.get_resource(outbox_path)
+
+    def test_defaults_create_outbox(self):
+        """Principal defaults create a schedule outbox.
+
+        RFC 6638 requires a principal to expose both a schedule inbox
+        and outbox; clients probe schedule-outbox-URL to decide whether
+        scheduling is usable.
+        """
+        from xandikos.store import STORE_TYPE_SCHEDULE_OUTBOX
+
+        outbox = self.backend.get_resource("/user/outbox")
+        self.assertIsNotNone(outbox)
+        self.assertEqual(outbox.store.get_type(), STORE_TYPE_SCHEDULE_OUTBOX)
 
     def test_returns_none_for_unknown_attendee(self):
         outbox = self._outbox()

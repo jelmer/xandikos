@@ -814,6 +814,16 @@ class SchedulingConstantsTests(unittest.TestCase):
         """
         self.assertEqual(scheduling.FEATURE, "calendar-auto-schedule")
 
+    def test_feature_advertised_in_dav_header(self):
+        """The DAV header advertises the RFC 6638 feature token.
+
+        RFC 6638 Section 10.1 names the token "calendar-auto-schedule";
+        clients (python-caldav among them) probe OPTIONS for exactly
+        that string to decide whether scheduling is available.
+        """
+        app = webdav.WebDAVApp(None)
+        self.assertIn(scheduling.FEATURE, app._get_dav_features(None))
+
     def test_resource_type_constants(self):
         """Test resource type constants are properly namespaced."""
         self.assertEqual(

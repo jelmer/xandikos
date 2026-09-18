@@ -18,6 +18,7 @@
 # MA  02110-1301, USA.
 
 import unittest
+from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from wsgiref.util import setup_testing_defaults
 
@@ -38,19 +39,48 @@ from xandikos.caldav import (
 from xandikos.webdav import ET, Property, WebDAVApp
 
 
+def _mkcalendar_body(comps):
+    return (
+        b'<?xml version="1.0" encoding="utf-8"?>'
+        b'<C:mkcalendar xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+        b"<D:set><D:prop><C:supported-calendar-component-set>"
+        + comps
+        + b"</C:supported-calendar-component-set></D:prop></D:set>"
+        b"</C:mkcalendar>"
+    )
+
+
+class _ResourceTypeProperty(Property):
+    name = "{DAV:}resourcetype"
+
+    async def get_value(self, href, resource, ret, environ):
+        ET.SubElement(ret, "{DAV:}collection")
+
+    async def set_value(self, href, resource, ret):
+        pass
+
+
 class WebTests(test_webdav.WebTestCase):
     def makeApp(self, backend):
         app = WebDAVApp(backend)
         app.register_methods([caldav.MkcalendarMethod()])
         return app
 
-    def mkcalendar(self, app, path):
+    def mkcalendar(self, app, path, body=None):
         environ = {
             "PATH_INFO": path,
             "REQUEST_METHOD": "MKCALENDAR",
             "SCRIPT_NAME": "",
         }
+        if body is not None:
+            environ["CONTENT_TYPE"] = "application/xml"
+            environ["wsgi.input"] = BytesIO(body)
+            environ["CONTENT_LENGTH"] = str(len(body))
         setup_testing_defaults(environ)
+        if body is not None:
+            # setup_testing_defaults resets wsgi.input to an empty stream.
+            environ["wsgi.input"] = BytesIO(body)
+            environ["CONTENT_LENGTH"] = str(len(body))
         _code = []
         _headers = []
 
@@ -89,6 +119,124 @@ class WebTests(test_webdav.WebTestCase):
         code, headers, contents = self.mkcalendar(app, "/resource/bla")
         self.assertEqual("201 Created", code)
         self.assertEqual(b"", contents)
+
+    def test_mkcalendar_initializes_component_set(self):
+        """RFC 4791 section 5.2.3: MKCALENDAR may initialize the set.
+
+        The property is protected against PROPPATCH, but a client can
+        set it when creating the collection.
+        """
+        stored = []
+
+        class Collection:
+            resource_types = [
+                "{DAV:}collection",
+                CALENDAR_RESOURCE_TYPE,
+            ]
+
+            def set_supported_calendar_components(unused_self, components):
+                stored.append(components)
+
+        class Backend:
+            def create_collection(unused_self, relpath):
+                return Collection()
+
+            def get_resource(unused_self, relpath):
+                return None
+
+        app = self.makeApp(Backend())
+        app.register_properties(
+            [_ResourceTypeProperty(), caldav.SupportedCalendarComponentSetProperty()]
+        )
+        code, headers, contents = self.mkcalendar(
+            app, "/resource/bla", _mkcalendar_body(b'<C:comp name="VTODO"/>')
+        )
+        self.assertEqual("201 Created", code)
+        self.assertEqual([["VTODO"]], stored)
+
+    def test_mkcalendar_rejects_unknown_component(self):
+        """A component type the server cannot honour is refused.
+
+        RFC 4791 section 5.3.1 also requires the preceding server state
+        to be restored, so no collection is left behind.
+        """
+        created = []
+
+        class Collection:
+            resource_types = [
+                "{DAV:}collection",
+                CALENDAR_RESOURCE_TYPE,
+            ]
+
+            def __init__(unused_self, relpath):
+                unused_self.relpath = relpath
+
+            def set_supported_calendar_components(unused_self, components):
+                raise AssertionError("should not be reached")
+
+            def destroy(unused_self):
+                created.remove(unused_self.relpath)
+
+        class Backend:
+            def create_collection(unused_self, relpath):
+                created.append(relpath)
+                return Collection(relpath)
+
+            def get_resource(unused_self, relpath):
+                return None
+
+        app = self.makeApp(Backend())
+        app.register_properties(
+            [_ResourceTypeProperty(), caldav.SupportedCalendarComponentSetProperty()]
+        )
+        code, headers, contents = self.mkcalendar(
+            app, "/resource/bla", _mkcalendar_body(b'<C:comp name="VNONSENSE"/>')
+        )
+        self.assertEqual("403 Forbidden", code)
+        self.assertIn(b"supported-calendar-component", contents)
+        self.assertEqual([], created)
+
+    def test_mkcalendar_unsettable_property_is_not_created(self):
+        """RFC 4791 section 5.3.1: a failed DAV:set means no calendar.
+
+        201 means the collection was created "in its entirety"; when a
+        DAV:set cannot be processed the server answers 207 and, since
+        instructions are all-or-nothing, leaves nothing behind.
+        """
+        created = []
+
+        class Collection:
+            resource_types = [
+                "{DAV:}collection",
+                CALENDAR_RESOURCE_TYPE,
+            ]
+
+            def __init__(unused_self, relpath):
+                unused_self.relpath = relpath
+
+            def destroy(unused_self):
+                created.remove(unused_self.relpath)
+
+        class Backend:
+            def create_collection(unused_self, relpath):
+                created.append(relpath)
+                return Collection(relpath)
+
+            def get_resource(unused_self, relpath):
+                return None
+
+        app = self.makeApp(Backend())
+        app.register_properties([_ResourceTypeProperty()])
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<C:mkcalendar xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            b"<D:set><D:prop><D:getetag/></D:prop></D:set>"
+            b"</C:mkcalendar>"
+        )
+        code, headers, contents = self.mkcalendar(app, "/resource/bla", body)
+        self.assertEqual("207 Multi-Status", code)
+        self.assertIn(b"403 Forbidden", contents)
+        self.assertEqual([], created)
 
 
 class ExtractfromCalendarTests(unittest.TestCase):

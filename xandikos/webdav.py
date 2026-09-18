@@ -241,9 +241,26 @@ def parse_accept_header(accept):
 class PreconditionFailure(Exception):
     """A precondition failed."""
 
+    # Status to report. RFC 4791 §1.2 (and RFC 3253 §1.6, which it
+    # follows) require 403 when the request will always fail and 409
+    # when the user might resolve the conflict and resubmit; 412 is for
+    # the HTTP-level conditional headers (If-Match and friends), which
+    # is what most of these are.
+    statuscode = "412 Precondition Failed"
+
     def __init__(self, precondition, description) -> None:
         self.precondition = precondition
         self.description = description
+
+
+class ForbiddenPrecondition(PreconditionFailure):
+    """A precondition that failed in a way the client cannot resolve.
+
+    Reported as 403 with the precondition element, per RFC 4791 §1.2:
+    repeating the request would always fail.
+    """
+
+    statuscode = "403 Forbidden"
 
 
 class InsufficientStorage(Exception):
@@ -1320,7 +1337,7 @@ class Collection(Resource):
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 request,
-                "412 Precondition Failed",
+                e.statuscode,
                 error=ET.Element(e.precondition),
                 description=e.description,
             )
@@ -2415,7 +2432,9 @@ def _send_method_not_allowed(allowed_methods):
     )
 
 
-async def apply_modify_prop(el, href, resource, properties, environ=None):
+async def apply_modify_prop(
+    el, href, resource, properties, environ=None, initializing=False
+):
     """Apply property set/remove operations.
 
     Returns:
@@ -2424,6 +2443,10 @@ async def apply_modify_prop(el, href, resource, properties, environ=None):
       resource: Resource to apply property modifications on
       properties: Known properties
       environ: WSGI environ dict (for properties whose setter needs it)
+      initializing: True when the resource is being created (MKCOL or
+        MKCALENDAR). Some properties are protected against PROPPATCH but
+        may be initialized at creation time, e.g.
+        CALDAV:supported-calendar-component-set (RFC 4791 section 5.2.3).
     Returns: PropStatus objects
     """
     if el.tag not in ("{DAV:}set", "{DAV:}remove"):
@@ -2461,7 +2484,9 @@ async def apply_modify_prop(el, href, resource, properties, environ=None):
                 statuscode = "403 Forbidden"
             else:
                 try:
-                    if hasattr(handler, "set_value_ext"):
+                    if initializing and hasattr(handler, "init_value"):
+                        await handler.init_value(href, resource, newval)
+                    elif hasattr(handler, "set_value_ext"):
                         await handler.set_value_ext(
                             href, resource, newval, environ or {}
                         )
@@ -2649,7 +2674,7 @@ class PutMethod(Method):
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
                     request,
-                    "412 Precondition Failed",
+                    e.statuscode,
                     error=ET.Element(e.precondition),
                     description=e.description,
                 )
@@ -2687,7 +2712,7 @@ class PutMethod(Method):
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 request,
-                "412 Precondition Failed",
+                e.statuscode,
                 error=ET.Element(e.precondition),
                 description=e.description,
             )
@@ -2820,7 +2845,7 @@ class MoveMethod(Method):
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
                     request,
-                    "412 Precondition Failed",
+                    e.statuscode,
                     error=ET.Element(e.precondition),
                     description=e.description,
                 )
@@ -2888,7 +2913,7 @@ class MoveMethod(Method):
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 request,
-                "412 Precondition Failed",
+                e.statuscode,
                 error=ET.Element(e.precondition),
                 description=e.description,
             )
@@ -3052,7 +3077,7 @@ class CopyMethod(Method):
             except PreconditionFailure as e:
                 return _send_simple_dav_error(
                     request,
-                    "412 Precondition Failed",
+                    e.statuscode,
                     error=ET.Element(e.precondition),
                     description=e.description,
                 )
@@ -3120,7 +3145,7 @@ class CopyMethod(Method):
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 request,
-                "412 Precondition Failed",
+                e.statuscode,
                 error=ET.Element(e.precondition),
                 description=e.description,
             )
@@ -3176,7 +3201,7 @@ class ReportMethod(Method):
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 request,
-                "412 Precondition Failed",
+                e.statuscode,
                 error=ET.Element(e.precondition),
                 description=e.description,
             )
@@ -3250,7 +3275,7 @@ class ProppatchMethod(Method):
         except PreconditionFailure as e:
             return _send_simple_dav_error(
                 request,
-                "412 Precondition Failed",
+                e.statuscode,
                 error=ET.Element(e.precondition),
                 description=e.description,
             )
@@ -3699,7 +3724,9 @@ class WebDAVApp:
             "2",
             "3",
             "calendar-access",
-            "calendar-auto-scheduling",
+            # Keep in sync with scheduling.FEATURE; not imported from there
+            # because scheduling imports this module.
+            "calendar-auto-schedule",
             "addressbook",
             "extended-mkcol",
             "add-member",

@@ -34,10 +34,14 @@ run_xandikos()
 		HEALTH_URL="http://localhost:${PORT}/"
 	fi
 
-	echo "Writing daemon log to $DAEMON_LOG"
-	echo "Running: ${XANDIKOS} serve --no-detect-systemd --port=${PORT} ${METRICS_ARGS} -l localhost -d ${SERVEDIR} $@"
+	# Subcommand to run; callers that need multi-user mode set this to
+	# "multi-user" before calling.
+	SUBCOMMAND="${XANDIKOS_SUBCOMMAND:-serve}"
 
-	${XANDIKOS} serve --no-detect-systemd --port=${PORT} ${METRICS_ARGS} -l localhost -d ${SERVEDIR} "$@" >$DAEMON_LOG 2>&1 &
+	echo "Writing daemon log to $DAEMON_LOG"
+	echo "Running: ${XANDIKOS} ${SUBCOMMAND} --no-detect-systemd --port=${PORT} ${METRICS_ARGS} -l localhost -d ${SERVEDIR} $@"
+
+	${XANDIKOS} ${SUBCOMMAND} --no-detect-systemd --port=${PORT} ${METRICS_ARGS} -l localhost -d ${SERVEDIR} "$@" >$DAEMON_LOG 2>&1 &
 	XANDIKOS_PID=$!
 	trap xandikos_cleanup 0 EXIT
 	i=0
