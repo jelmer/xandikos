@@ -113,6 +113,7 @@ Xandikos has been tested and works with the following CalDAV/CardDAV clients:
 - `pimsync <https://pimsync.whynothugo.nl/>`_
 - `davcli <https://git.sr.ht/~whynothugo/davcli>`_
 - `Thunderbird <https://www.thunderbird.net/>`_
+- `KashCal <https://f-droid.org/packages/org.onekash.kashcal>`_ (Android)
 
 Dependencies
 ============
