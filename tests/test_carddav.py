@@ -111,6 +111,26 @@ class AddressbookQueryReporterTests(unittest.TestCase):
         reporter = AddressbookQueryReporter()
         self.assertEqual(reporter.resource_type, ADDRESSBOOK_RESOURCE_TYPE)
 
+    def test_uses_vcard_parse_filter(self):
+        """Filter parsing must delegate to vcard.parse_filter.
+
+        Regression test: a previous duplicate parse_filter in carddav.py
+        called a nonexistent CardDAVFilter.add_prop_filter method and crashed
+        with AttributeError on any addressbook-query REPORT containing a
+        text-match.
+        """
+        from xandikos import carddav, vcard
+
+        self.assertIs(carddav.parse_vcard_filter, vcard.parse_filter)
+
+        el = ET.Element("{%s}filter" % NAMESPACE)
+        pf = ET.SubElement(el, "{%s}prop-filter" % NAMESPACE, name="FN")
+        tm = ET.SubElement(pf, "{%s}text-match" % NAMESPACE, {"match-type": "contains"})
+        tm.text = "Jeffrey"
+        fi = VCardFile([EXAMPLE_VCARD1], "text/vcard")
+        filter_obj = carddav.parse_vcard_filter(el, CardDAVFilter())
+        self.assertTrue(filter_obj.check("test.vcf", fi))
+
 
 class AddressbookMultigetReporterTests(unittest.TestCase):
     """Tests for addressbook-multiget REPORT (RFC 6352 Section 8.7)."""
