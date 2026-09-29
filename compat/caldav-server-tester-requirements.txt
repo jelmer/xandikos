@@ -1,7 +1,10 @@
 # Requirements for caldav-server-tester compatibility tests
-# caldav-server-tester from git includes fix for search.category feature names
-# (renamed to search.text.category to match caldav's FeatureSet)
-# The git version requires caldav >= 3.2.0
+# Pinned to v1.3.0: post-v1.3.0 main adds a WWW-Authenticate probe that
+# references feature keys ("auth.www-authenticate",
+# "auth.www-authenticate.usable-scheme") not present in the released
+# caldav library, tripping the FeatureSet.find_feature assertion.
+# Upstream is aware; see
+# https://github.com/python-caldav/caldav-server-tester/commit/ddebe23b9
 caldav>=3.2.1
 vobject
-caldav-server-tester @ git+https://github.com/python-caldav/caldav-server-tester.git
+caldav-server-tester @ git+https://github.com/python-caldav/caldav-server-tester.git@v1.3.0
