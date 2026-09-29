@@ -122,6 +122,25 @@ class AsciiCasemapCollationTests(unittest.TestCase):
         self.assertTrue(self.coll("123", "123", "equals"))
         self.assertTrue(self.coll("a-z", "A-Z", "equals"))
 
+    def test_non_ascii_input(self):
+        """Accept all input while folding only ASCII letters (RFC 4790)."""
+        cases = [
+            ("CAFé", "café", "equals", True),
+            ("café", "CAFÉ", "equals", False),
+            ("Straße", "STRASSE", "equals", False),
+            ("café", "cafe\u0301", "equals", False),
+            ("café meeting", "MEETING", "contains", True),
+            ("meeting", "réunion", "contains", False),
+            ("réunion café", "café", "contains", True),
+            ("Réunion café", "réunion", "starts-with", True),
+            ("réunion café", "CAFÉ", "ends-with", False),
+            ("Meeting 東京", "東京", "ends-with", True),
+            ("日本語", "日本", "starts-with", True),
+        ]
+        for value, text, match_type, expected in cases:
+            with self.subTest(value=value, text=text, match_type=match_type):
+                self.assertEqual(self.coll(value, text, match_type), expected)
+
 
 class OctetCollationTests(unittest.TestCase):
     """Tests for i;octet collation (RFC 4790)."""

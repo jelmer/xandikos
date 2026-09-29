@@ -43,7 +43,9 @@ def _match(a, b, k):
 
 collations: dict[str, Callable[[str, str, str], bool]] = {
     "i;ascii-casemap": lambda a, b, k: _match(
-        a.encode("ascii").upper(), b.encode("ascii").upper(), k
+        a.encode("utf-8", "surrogateescape").upper(),
+        b.encode("utf-8", "surrogateescape").upper(),
+        k,
     ),
     "i;octet": lambda a, b, k: _match(a, b, k),
     # TODO(jelmer): Follow all rules as specified in
