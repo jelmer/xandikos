@@ -27,6 +27,26 @@ from .test_vcard import EXAMPLE_VCARD1
 
 
 class TestApplyFilter(unittest.TestCase):
+    def test_ascii_casemap_non_ascii(self):
+        data = EXAMPLE_VCARD1.replace(b"Jeffrey Harris", "Café Example".encode())
+        fi = VCardFile([data], "text/vcard")
+        for text, expected in [("café example", True), ("CAFÉ EXAMPLE", False)]:
+            with self.subTest(text=text):
+                el = ET.Element("{%s}filter" % NAMESPACE)
+                pf = ET.SubElement(el, "{%s}prop-filter" % NAMESPACE, name="FN")
+                tm = ET.SubElement(pf, "{%s}text-match" % NAMESPACE)
+                tm.set("collation", "i;ascii-casemap")
+                tm.set("match-type", "equals")
+                tm.text = text
+                filter_obj = parse_filter(el, CardDAVFilter())
+                self.assertEqual(filter_obj.check("test.vcf", fi), expected)
+                self.assertEqual(
+                    filter_obj.check_from_indexes(
+                        "test.vcf", {"P=FN": ["Café Example".encode()]}
+                    ),
+                    expected,
+                )
+
     def test_parse_filter(self):
         """Test parsing filter XML into CardDAVFilter object."""
         el = ET.Element("{%s}filter" % NAMESPACE)

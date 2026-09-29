@@ -1589,6 +1589,18 @@ END:VCALENDAR
 
 
 class TextMatchTest(unittest.TestCase):
+    def test_default_collation_non_ascii(self):
+        value = vText("Café meeting")
+        for text, expected in [("MEETING", True), ("café", True), ("CAFÉ", False)]:
+            for negate in [False, True]:
+                with self.subTest(text=text, negate=negate):
+                    tm = TextMatcher("summary", text, negate_condition=negate)
+                    result = not expected if negate else expected
+                    self.assertEqual(tm.match(value), result)
+                    self.assertEqual(
+                        tm.match_indexes({None: [value.to_ical()]}), result
+                    )
+
     def test_default_collation(self):
         tm = TextMatcher("summary", "foobar")
         self.assertTrue(tm.match(vText("FOOBAR")))
