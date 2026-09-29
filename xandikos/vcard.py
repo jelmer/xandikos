@@ -133,22 +133,7 @@ class TextMatch:
 
     def match(self, value: str) -> bool:
         """Check if a value matches this text match."""
-        # Convert both to uppercase for case-insensitive comparison
-        text_upper = self.text.upper()
-        value_upper = value.upper()
-
-        if self.match_type == "equals":
-            result = self.collation(self.text, value, "equals")
-        elif self.match_type == "contains":
-            # Bypass collation for contains since it's implemented incorrectly
-            result = text_upper in value_upper
-        elif self.match_type == "starts-with":
-            result = value_upper.startswith(text_upper)
-        elif self.match_type == "ends-with":
-            result = value_upper.endswith(text_upper)
-        else:
-            result = False
-
+        result = self.collation(value, self.text, self.match_type)
         return not result if self.negate_condition else result
 
 

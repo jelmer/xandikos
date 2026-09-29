@@ -21,7 +21,7 @@
 
 import unittest
 
-from xandikos.vcard import VCardFile, CardDAVFilter
+from xandikos.vcard import CardDAVFilter, TextMatch, VCardFile
 
 EXAMPLE_VCARD1 = b"""\
 BEGIN:VCARD
@@ -206,3 +206,43 @@ class CardDAVFilterTests(unittest.TestCase):
         param_filter4 = prop_filter4.add_param_filter("TYPE")
         param_filter4.add_text_match("INTERNET", match_type="equals")
         self.assertTrue(filter4.check("test.vcf", fi))
+
+
+class TextMatchTests(unittest.TestCase):
+    def test_octet_case_sensitive(self):
+        for match_type, needle, value, expected in [
+            ("equals", "foo", "FOO", False),
+            ("equals", "foo", "foo", True),
+            ("contains", "FOO", "hello foo world", False),
+            ("contains", "foo", "hello foo world", True),
+            ("starts-with", "foo", "Foo bar", False),
+            ("starts-with", "foo", "foo bar", True),
+            ("ends-with", "FOO", "bar foo", False),
+            ("ends-with", "foo", "bar foo", True),
+        ]:
+            with self.subTest(match_type=match_type, needle=needle, value=value):
+                tm = TextMatch(needle, collation="i;octet", match_type=match_type)
+                self.assertEqual(tm.match(value), expected)
+
+    def test_ascii_casemap_case_insensitive(self):
+        for match_type, needle, value in [
+            ("equals", "foo", "FOO"),
+            ("contains", "BAR", "hello bar world"),
+            ("starts-with", "foo", "FOO bar"),
+            ("ends-with", "foo", "bar FOO"),
+        ]:
+            with self.subTest(match_type=match_type, needle=needle, value=value):
+                tm = TextMatch(
+                    needle, collation="i;ascii-casemap", match_type=match_type
+                )
+                self.assertTrue(tm.match(value))
+
+    def test_negate_condition(self):
+        tm = TextMatch(
+            "foo",
+            collation="i;ascii-casemap",
+            match_type="contains",
+            negate_condition=True,
+        )
+        self.assertFalse(tm.match("FOO bar"))
+        self.assertTrue(tm.match("baz qux"))
