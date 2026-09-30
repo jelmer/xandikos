@@ -159,6 +159,7 @@ class MultiUserXandikosApp(XandikosApp):
         vapid_keystore=None,
         state_dir: str | None = None,
         trusted_x_remote_user_hosts: Iterable[str] | None = None,
+        trust_x_remote_user_unix: bool = False,
     ) -> None:
         """Initialize the multi-user app.
 
@@ -175,6 +176,8 @@ class MultiUserXandikosApp(XandikosApp):
                 :class:`xandikos.webdav.WebDAVApp`. Off by default so
                 that no client-supplied header can override the
                 authenticated principal.
+            trust_x_remote_user_unix: See
+                :class:`xandikos.webdav.WebDAVApp`. Off by default.
         """
         super().__init__(
             backend,
@@ -183,6 +186,7 @@ class MultiUserXandikosApp(XandikosApp):
             vapid_keystore=vapid_keystore,
             state_dir=state_dir,
             trusted_x_remote_user_hosts=trusted_x_remote_user_hosts,
+            trust_x_remote_user_unix=trust_x_remote_user_unix,
         )
         self._backend = backend
         self._require_auth = require_auth
@@ -375,6 +379,22 @@ def add_parser(parser):
             "X-Remote-User header before forwarding the request."
         ),
     )
+    access_group.add_argument(
+        "--trust-x-remote-user-unix",
+        dest="trust_x_remote_user_unix",
+        action="store_true",
+        default=False,
+        help=(
+            "Trust the X-Remote-User HTTP header on requests that "
+            "arrive over a Unix domain socket. Use this instead of "
+            "--trust-x-remote-user-from when Xandikos listens on a "
+            "unix socket, since such connections have no peer IP "
+            "address to match. Same security caveats apply: only use "
+            "when the reverse proxy connecting over the socket "
+            "authenticates the user and strips any incoming "
+            "X-Remote-User header before forwarding."
+        ),
+    )
     parser.add_argument(
         "-d",
         "--directory",
@@ -521,6 +541,7 @@ async def main(options, parser):
         vapid_keystore=vapid_keystore,
         state_dir=state_dir,
         trusted_x_remote_user_hosts=options.trust_x_remote_user_from,
+        trust_x_remote_user_unix=options.trust_x_remote_user_unix,
     )
 
     async def xandikos_handler(request):

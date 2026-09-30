@@ -3647,6 +3647,13 @@ class WebDAVApp:
             re-enables the pre-fix behavior and lets any client choose
             their own principal - only do so behind a reverse proxy that
             strips or overwrites ``X-Remote-User`` before forwarding.
+        trust_x_remote_user_unix: If True, honor ``X-Remote-User`` on
+            requests that arrive over a Unix domain socket (i.e. with
+            no peer IP address). Same security caveats as
+            ``trusted_x_remote_user_hosts``: only enable when the
+            reverse proxy connecting over the socket authenticates the
+            user itself and strips any incoming ``X-Remote-User``
+            before forwarding.
     """
 
     def __init__(
@@ -3654,6 +3661,7 @@ class WebDAVApp:
         backend,
         strict=True,
         trusted_x_remote_user_hosts: Iterable[str] | None = None,
+        trust_x_remote_user_unix: bool = False,
     ) -> None:
         self.backend = backend
         self.properties: dict[str, type[Property]] = {}
@@ -3668,6 +3676,7 @@ class WebDAVApp:
         self.trusted_x_remote_user_hosts = _parse_trusted_hosts(
             trusted_x_remote_user_hosts
         )
+        self.trust_x_remote_user_unix = trust_x_remote_user_unix
         self.extra_features: list[str] = []
         self.register_methods(
             [
@@ -3778,10 +3787,12 @@ class WebDAVApp:
            actually verifying credentials.
         3. The ``X-Remote-User`` HTTP header (or its WSGI translation
            ``HTTP_X_REMOTE_USER``) - but *only* if the peer address is
-           inside :attr:`trusted_x_remote_user_hosts`. Without an
-           explicit opt-in this branch is never taken, because the
-           header is client-controllable and would otherwise allow
-           trivial impersonation of any principal.
+           inside :attr:`trusted_x_remote_user_hosts`, or the request
+           arrived over a Unix domain socket and
+           :attr:`trust_x_remote_user_unix` is set. Without an explicit
+           opt-in this branch is never taken, because the header is
+           client-controllable and would otherwise allow trivial
+           impersonation of any principal.
         """
         marker = None
         if hasattr(request, "get"):
@@ -3800,15 +3811,20 @@ class WebDAVApp:
             if env_user:
                 return env_user
 
-        if not self.trusted_x_remote_user_hosts:
+        if not self.trusted_x_remote_user_hosts and not self.trust_x_remote_user_unix:
             return None
 
         peer = None
         if hasattr(request, "remote"):
             peer = request.remote
-        if peer is None and "ORIGINAL_ENVIRON" in environ:
+        if not peer and "ORIGINAL_ENVIRON" in environ:
             peer = environ["ORIGINAL_ENVIRON"].get("REMOTE_ADDR")
-        if not _peer_in_trusted_hosts(peer, self.trusted_x_remote_user_hosts):
+        trusted = False
+        if not peer and self.trust_x_remote_user_unix:
+            trusted = True
+        elif _peer_in_trusted_hosts(peer, self.trusted_x_remote_user_hosts):
+            trusted = True
+        if not trusted:
             return None
 
         header_user = None

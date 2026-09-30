@@ -29,7 +29,9 @@ There are two supported ways to tell it:
 2. **Send an ``X-Remote-User`` HTTP header** and start Xandikos with
    ``--trust-x-remote-user-from=<IP or CIDR>`` naming the reverse
    proxy. Xandikos will then only honor the header when the request
-   comes from one of the listed peers.
+   comes from one of the listed peers. When Xandikos listens on a
+   Unix domain socket use ``--trust-x-remote-user-unix`` instead,
+   since such connections have no peer IP.
 
 .. warning::
 
@@ -70,7 +72,9 @@ Example: nginx reverse proxy
 
 Start Xandikos with ``--trust-x-remote-user-from=127.0.0.1`` (or the
 address nginx connects from) so it accepts the header this config
-injects.
+injects. When nginx reaches Xandikos over a Unix domain socket instead
+of TCP, pass ``--trust-x-remote-user-unix`` in place of
+``--trust-x-remote-user-from``.
 
 .. code-block:: nginx
 

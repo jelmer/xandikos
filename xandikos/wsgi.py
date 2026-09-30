@@ -78,6 +78,14 @@ trust_from = (
     if trust_from_env
     else None
 )
+trust_unix = os.environ.get("TRUST_X_REMOTE_USER_UNIX", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 app = XandikosApp(
-    backend, current_user_principal, trusted_x_remote_user_hosts=trust_from
+    backend,
+    current_user_principal,
+    trusted_x_remote_user_hosts=trust_from,
+    trust_x_remote_user_unix=trust_unix,
 )
