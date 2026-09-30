@@ -1,10 +1,23 @@
-0.4.8	UNRELEASED
+0.4.8	2026-09-30
 
  * Add ``--trust-x-remote-user-unix`` (CLI) and
    ``TRUST_X_REMOTE_USER_UNIX`` (WSGI) to trust ``X-Remote-User`` on
    requests arriving over a Unix domain socket, where there is no
    peer IP for ``--trust-x-remote-user-from`` to match against.
    (Jelmer Vernooĳ)
+
+ * carddav: route addressbook-query REPORT through
+   ``vcard.parse_filter``, and honour the requested collation in
+   ``TextMatch``. (Jelmer Vernooĳ)
+
+ * Accept non-ASCII values in ASCII casemap comparisons, fixing
+   ``UnicodeEncodeError`` on accented calendar text and CardDAV
+   filters. (bensynapse)
+
+ * Add KashCal to the list of supported clients. (one-kash)
+
+ * compat: pin ``caldav-server-tester`` to v1.3.0 to avoid a
+   ``find_feature`` assertion in post-v1.3.0 main. (Jelmer Vernooĳ)
 
 0.4.7	2026-09-18
 
