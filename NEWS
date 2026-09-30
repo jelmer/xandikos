@@ -1,3 +1,11 @@
+0.4.8	UNRELEASED
+
+ * Add ``--trust-x-remote-user-unix`` (CLI) and
+   ``TRUST_X_REMOTE_USER_UNIX`` (WSGI) to trust ``X-Remote-User`` on
+   requests arriving over a Unix domain socket, where there is no
+   peer IP for ``--trust-x-remote-user-from`` to match against.
+   (Jelmer Vernooĳ)
+
 0.4.7	2026-09-18
 
  * Ignore ``X-Remote-User`` unless the operator has explicitly

@@ -2592,11 +2592,13 @@ class XandikosApp(webdav.WebDAVApp):
         vapid_keystore: "webdav_push.VapidKeystore | None" = None,
         state_dir: str | None = None,
         trusted_x_remote_user_hosts: Iterable[str] | None = None,
+        trust_x_remote_user_unix: bool = False,
     ) -> None:
         super().__init__(
             backend,
             strict=strict,
             trusted_x_remote_user_hosts=trusted_x_remote_user_hosts,
+            trust_x_remote_user_unix=trust_x_remote_user_unix,
         )
         self.state_dir = state_dir
 
@@ -3246,6 +3248,7 @@ async def main(options, parser):
         vapid_keystore=vapid_keystore,
         state_dir=state_dir,
         trusted_x_remote_user_hosts=getattr(options, "trust_x_remote_user_from", None),
+        trust_x_remote_user_unix=getattr(options, "trust_x_remote_user_unix", False),
     )
 
     async def xandikos_handler(request):

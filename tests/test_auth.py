@@ -150,6 +150,42 @@ class WSGIAuthenticationTests(unittest.TestCase):
         self._run_wsgi(app, environ)
         self.assertEqual([], self.backend.set_principal_calls)
 
+    def test_http_x_remote_user_honored_on_unix_socket_when_opted_in(self):
+        """trust_x_remote_user_unix trusts the header for peerless requests."""
+        app = WebDAVApp(self.backend, trust_x_remote_user_unix=True)
+        environ = {
+            "REQUEST_METHOD": "OPTIONS",
+            "PATH_INFO": "/",
+            "HTTP_X_REMOTE_USER": "proxied",
+            "REMOTE_ADDR": "",
+        }
+        self._run_wsgi(app, environ)
+        self.assertEqual(["proxied"], self.backend.set_principal_calls)
+
+    def test_http_x_remote_user_ignored_on_unix_socket_by_default(self):
+        """Without trust_x_remote_user_unix, a peerless request is untrusted."""
+        app = WebDAVApp(self.backend)
+        environ = {
+            "REQUEST_METHOD": "OPTIONS",
+            "PATH_INFO": "/",
+            "HTTP_X_REMOTE_USER": "attacker",
+            "REMOTE_ADDR": "",
+        }
+        self._run_wsgi(app, environ)
+        self.assertEqual([], self.backend.set_principal_calls)
+
+    def test_unix_flag_does_not_trust_tcp_peer(self):
+        """trust_x_remote_user_unix must not cover requests with a peer IP."""
+        app = WebDAVApp(self.backend, trust_x_remote_user_unix=True)
+        environ = {
+            "REQUEST_METHOD": "OPTIONS",
+            "PATH_INFO": "/",
+            "HTTP_X_REMOTE_USER": "attacker",
+            "REMOTE_ADDR": "192.0.2.5",
+        }
+        self._run_wsgi(app, environ)
+        self.assertEqual([], self.backend.set_principal_calls)
+
     def test_wsgi_no_remote_user(self):
         """Without any signal there is no authenticated principal."""
         app = WebDAVApp(self.backend)
@@ -204,6 +240,29 @@ class AiohttpAuthenticationTests(unittest.TestCase):
         app = WebDAVApp(self.backend, trusted_x_remote_user_hosts=["127.0.0.0/8"])
         request = _make_aiohttp_request(
             {"X-Remote-User": "attacker"}, remote="198.51.100.7"
+        )
+        self._dispatch(app, request)
+        self.assertEqual([], self.backend.set_principal_calls)
+
+    def test_x_remote_user_header_honored_over_unix_socket(self):
+        """trust_x_remote_user_unix honors the header when request.remote is None."""
+        app = WebDAVApp(self.backend, trust_x_remote_user_unix=True)
+        request = _make_aiohttp_request({"X-Remote-User": "proxied"}, remote=None)
+        self._dispatch(app, request)
+        self.assertEqual(["proxied"], self.backend.set_principal_calls)
+
+    def test_x_remote_user_header_honored_when_remote_is_empty_string(self):
+        """aiohttp reports '' for peerless connections; that also counts."""
+        app = WebDAVApp(self.backend, trust_x_remote_user_unix=True)
+        request = _make_aiohttp_request({"X-Remote-User": "proxied"}, remote="")
+        self._dispatch(app, request)
+        self.assertEqual(["proxied"], self.backend.set_principal_calls)
+
+    def test_unix_flag_does_not_trust_tcp_peer(self):
+        """Enabling the unix flag must not trust requests with a peer IP."""
+        app = WebDAVApp(self.backend, trust_x_remote_user_unix=True)
+        request = _make_aiohttp_request(
+            {"X-Remote-User": "attacker"}, remote="203.0.113.4"
         )
         self._dispatch(app, request)
         self.assertEqual([], self.backend.set_principal_calls)
