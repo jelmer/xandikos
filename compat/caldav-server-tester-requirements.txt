@@ -5,6 +5,6 @@
 # caldav library, tripping the FeatureSet.find_feature assertion.
 # Upstream is aware; see
 # https://github.com/python-caldav/caldav-server-tester/commit/ddebe23b9
-caldav>=3.2.1
+caldav>=3.3.1
 vobject
 caldav-server-tester @ git+https://github.com/python-caldav/caldav-server-tester.git@v1.3.0
