@@ -649,16 +649,39 @@ def _push_store_for(resource) -> PushSubscriptionStore | None:
 
 
 def build_subscription_location(script_name: str, sub_id: str) -> str:
-    """Construct the Location header URL for a registered subscription.
+    """Construct the path of a registered subscription.
 
-    The URL is rooted at the app's ``script_name`` (route prefix) and
-    sits in a server-private namespace — it is not a WebDAV resource,
+    The path is rooted at the app's ``script_name`` (route prefix) and
+    sits in a server-private namespace: it is not a WebDAV resource,
     it's served by a dedicated aiohttp DELETE handler.
     """
     base = script_name.rstrip("/")
     return urllib.parse.quote(
         base + "/" + SUBSCRIPTION_ROUTE + "/" + sub_id, safe="/:%"
     )
+
+
+def _first_header_value(request, name: str) -> str | None:
+    """Return the first element of a comma-separated header, if present."""
+    value = request.headers.get(name)
+    if value is None:
+        return None
+    return value.split(",", 1)[0].strip() or None
+
+
+def absolute_url(request, path: str) -> str:
+    """Resolve ``path`` against the URL the client used to reach us.
+
+    WebDAV-Push requires the registration URL to be absolute. Behind a
+    reverse proxy the scheme and host Xandikos sees differ from the
+    ones the client used, so X-Forwarded-Proto and X-Forwarded-Host
+    take precedence when set. Trusting them is safe here: they only
+    affect the URL echoed back to the client that sent them.
+    """
+    url = urllib.parse.urlsplit(str(request.url))
+    scheme = _first_header_value(request, "X-Forwarded-Proto") or url.scheme
+    host = _first_header_value(request, "X-Forwarded-Host") or url.netloc
+    return urllib.parse.urlunsplit((scheme, host, path, "", ""))
 
 
 async def _handle_push_register(
@@ -712,7 +735,7 @@ async def _handle_push_register(
         _index.add(sub.id, collection_path)
 
     script_name = environ.get("SCRIPT_NAME", "")
-    location = build_subscription_location(script_name, sub.id)
+    location = absolute_url(request, build_subscription_location(script_name, sub.id))
     expires_header = email.utils.format_datetime(sub.expires, usegmt=True)
     headers = {"Location": location, "Expires": expires_header}
     status = 200 if existing is not None else 201

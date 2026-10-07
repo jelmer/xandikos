@@ -13,6 +13,14 @@ If you expose Xandikos at the root of a domain, no further configuration is
 necessary. When exposing it on a different path prefix, make sure to set the
 ``--route-prefix`` argument to Xandikos appropriately.
 
+Some responses carry absolute URLs, such as the WebDAV-Push registration
+URL in the ``Location`` header. Xandikos derives these from the ``Host``
+header and the scheme of the incoming connection, and prefers
+``X-Forwarded-Host`` and ``X-Forwarded-Proto`` when the proxy sets them.
+Pass at least ``Host`` and ``X-Forwarded-Proto`` through, as in the
+examples below; otherwise clients will be handed URLs pointing at the
+internal address that Xandikos listens on.
+
 .. _reverse-proxy-x-remote-user:
 
 Passing the authenticated user to Xandikos
@@ -128,6 +136,9 @@ injects.
            # then set it from the value Apache actually authenticated.
            RequestHeader unset X-Remote-User
            RequestHeader set X-Remote-User "%{REMOTE_USER}s"
+
+           # mod_proxy does not set this one by itself.
+           RequestHeader set X-Forwarded-Proto "https"
 
            ProxyPass http://localhost:8080/
            ProxyPassReverse http://localhost:8080/
