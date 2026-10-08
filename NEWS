@@ -1,3 +1,10 @@
+0.4.9	UNRELEASED
+
+ * Handle properties that occur more than once in a component (e.g.
+   several CATEGORIES lines) in calendar-query filters and indexes,
+   rather than failing every indexed REPORT on the collection with a
+   500. (Tobias Brox, #741)
+
 0.4.8	2026-09-30
 
  * Add ``--trust-x-remote-user-unix`` (CLI) and
