@@ -289,21 +289,22 @@ class HandlePushRegisterTests(unittest.IsolatedAsyncioTestCase):
         self.collection = self.backend.get_resource("/cal")
         self.store = webdav_push.PushSubscriptionStore(store_path)
 
-    def _fake_request(self):
+    def _fake_request(self, headers=None):
         class _R:
             url = "http://example.com/cal/"
             path = "/cal/"
-            headers: dict = {}
 
-        return _R()
+        request = _R()
+        request.headers = headers or {}
+        return request
 
     def _headers_dict(self, response):
         return {k: v for (k, v) in response.headers}
 
-    async def _dispatch(self, body: bytes):
+    async def _dispatch(self, body: bytes, headers=None, script_name=""):
         return await webdav_push._handle_push_register(
-            self._fake_request(),
-            {"SCRIPT_NAME": ""},
+            self._fake_request(headers),
+            {"SCRIPT_NAME": script_name},
             "/cal/",
             _parse(body),
             self.collection,
@@ -317,9 +318,47 @@ class HandlePushRegisterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Expires", headers)
         listed = self.store.list()
         self.assertEqual(len(listed), 1)
+        # WebDAV-Push requires an absolute registration URL.
         self.assertEqual(
             headers["Location"],
-            "/" + webdav_push.SUBSCRIPTION_ROUTE + "/" + listed[0].id,
+            "http://example.com/" + webdav_push.SUBSCRIPTION_ROUTE + "/" + listed[0].id,
+        )
+
+    async def test_register_location_uses_route_prefix(self):
+        response = await self._dispatch(_push_register_xml(), script_name="/dav/")
+        [sub] = self.store.list()
+        self.assertEqual(
+            self._headers_dict(response)["Location"],
+            "http://example.com/dav/" + webdav_push.SUBSCRIPTION_ROUTE + "/" + sub.id,
+        )
+
+    async def test_register_location_honours_forwarded_headers(self):
+        response = await self._dispatch(
+            _push_register_xml(),
+            headers={
+                "X-Forwarded-Proto": "https",
+                "X-Forwarded-Host": "dav.example.org",
+            },
+        )
+        [sub] = self.store.list()
+        self.assertEqual(
+            self._headers_dict(response)["Location"],
+            "https://dav.example.org/" + webdav_push.SUBSCRIPTION_ROUTE + "/" + sub.id,
+        )
+
+    async def test_register_location_uses_first_forwarded_value(self):
+        # Each proxy in a chain appends its own value.
+        response = await self._dispatch(
+            _push_register_xml(),
+            headers={
+                "X-Forwarded-Proto": "https, http",
+                "X-Forwarded-Host": "dav.example.org, internal.example",
+            },
+        )
+        [sub] = self.store.list()
+        self.assertEqual(
+            self._headers_dict(response)["Location"],
+            "https://dav.example.org/" + webdav_push.SUBSCRIPTION_ROUTE + "/" + sub.id,
         )
 
     async def test_register_same_resource_updates(self):

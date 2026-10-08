@@ -1,3 +1,9 @@
+0.4.9	UNRELEASED
+
+ * webdav-push: Return an absolute registration URL in the ``Location``
+   header, honouring ``X-Forwarded-Proto`` and ``X-Forwarded-Host``.
+   Fixes push subscription renewal with DAVx5. (Jelmer Vernooĳ, #739)
+
 0.4.8	2026-09-30
 
  * Add ``--trust-x-remote-user-unix`` (CLI) and
