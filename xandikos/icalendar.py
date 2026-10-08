@@ -1406,14 +1406,13 @@ class PropertyFilter:
             return self.name not in comp
 
         try:
-            props = comp[self.name]
+            found = comp[self.name]
         except KeyError:
             return False
 
         # A property that occurs more than once (e.g. several CATEGORIES
         # lines) is returned as a list by icalendar; match any instance.
-        if not isinstance(props, list):
-            props = [props]
+        props: list[Any] = found if isinstance(found, list) else [found]
         return any(self._match_property(prop, tzify) for prop in props)
 
     def _match_property(self, prop: PropTypes, tzify: TzifyFunction) -> bool:
@@ -1822,13 +1821,12 @@ class ICalendarFile(File):
             elif segments[0].startswith("P="):
                 prop_name = segments[0][2:]
                 try:
-                    props = c[prop_name]
+                    found = c[prop_name]
                 except KeyError:
                     continue
                 # A property that occurs more than once (e.g. several
                 # CATEGORIES lines) is returned as a list by icalendar.
-                if not isinstance(props, list):
-                    props = [props]
+                props: list[Any] = found if isinstance(found, list) else [found]
                 for p in props:
                     if p is not None:
                         if len(segments) == 2 and segments[1].startswith("A="):
