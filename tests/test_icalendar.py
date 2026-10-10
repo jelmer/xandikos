@@ -485,6 +485,79 @@ class CalendarFilterTests(unittest.TestCase):
         )
         self.assertTrue(filter.check("file", self.cal))
 
+    def test_prop_text_match_multiple_category_lines(self):
+        # RFC 5545 allows CATEGORIES to occur more than once in a component;
+        # icalendar then returns a list of vCategory objects.
+        cal = ICalendarFile(
+            [
+                EXAMPLE_VCALENDAR1.replace(
+                    b"CATEGORIES:home\n", b"CATEGORIES:home\nCATEGORIES:work,errand\n"
+                )
+            ],
+            "text/calendar",
+        )
+        self.assertEqual(
+            cal.get_indexes(["C=VCALENDAR/C=VTODO/P=CATEGORIES"]),
+            {"C=VCALENDAR/C=VTODO/P=CATEGORIES": [b"home", b"work,errand"]},
+        )
+        for text, expected in [("home", True), ("errand", True), ("other", False)]:
+            filter = CalendarFilter(None)
+            filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+                "VTODO"
+            ).filter_property("CATEGORIES").filter_text_match(text)
+            self.assertEqual(expected, filter.check("file", cal), text)
+            self.assertEqual(
+                expected,
+                filter.check_from_indexes(
+                    "file",
+                    cal.get_indexes(["C=VCALENDAR/C=VTODO/P=CATEGORIES"]),
+                ),
+                text,
+            )
+
+    def test_param_match_multiple_attendees(self):
+        cal = ICalendarFile(
+            [
+                EXAMPLE_VCALENDAR1.replace(
+                    b"CATEGORIES:home\n",
+                    b"ATTENDEE;PARTSTAT=DECLINED:mailto:a@example.com\n"
+                    b"ATTENDEE;PARTSTAT=ACCEPTED:mailto:b@example.com\n",
+                )
+            ],
+            "text/calendar",
+        )
+        keys = [
+            "C=VCALENDAR/C=VTODO/P=ATTENDEE",
+            "C=VCALENDAR/C=VTODO/P=ATTENDEE/A=PARTSTAT",
+        ]
+        filter = CalendarFilter(None)
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            "VTODO"
+        ).filter_property("ATTENDEE").filter_parameter("PARTSTAT").filter_text_match(
+            "ACCEPTED"
+        )
+        self.assertTrue(filter.check("file", cal))
+        self.assertTrue(filter.check_from_indexes("file", cal.get_indexes(keys)))
+
+        # Text and parameter must hold for the same instance: a@ declined.
+        # The flattened indexes can't tell, so the index path must defer
+        # to a full check rather than answer.
+        filter = CalendarFilter(None)
+        f = (
+            filter.filter_subcomponent("VCALENDAR")
+            .filter_subcomponent("VTODO")
+            .filter_property("ATTENDEE")
+        )
+        f.filter_text_match("a@example.com")
+        f.filter_parameter("PARTSTAT").filter_text_match("ACCEPTED")
+        self.assertFalse(filter.check("file", cal))
+        self.assertRaises(
+            InsufficientIndexDataError,
+            filter.check_from_indexes,
+            "file",
+            cal.get_indexes(keys),
+        )
+
     def test_param_text_match(self):
         self.cal = ICalendarFile([EXAMPLE_VCALENDAR_WITH_PARAM], "text/calendar")
         filter = CalendarFilter(None)

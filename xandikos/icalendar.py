@@ -1406,10 +1406,16 @@ class PropertyFilter:
             return self.name not in comp
 
         try:
-            prop = comp[self.name]
+            found = comp[self.name]
         except KeyError:
             return False
 
+        # A property that occurs more than once (e.g. several CATEGORIES
+        # lines) is returned as a list by icalendar; match any instance.
+        props: list[Any] = found if isinstance(found, list) else [found]
+        return any(self._match_property(prop, tzify) for prop in props)
+
+    def _match_property(self, prop: PropTypes, tzify: TzifyFunction) -> bool:
         if self.time_range and not self.time_range.match(prop, tzify):
             return False
 
@@ -1435,6 +1441,14 @@ class PropertyFilter:
         subindexes: SubIndexDict = create_subindexes(indexes, myindex)
         if not self.children and not self.time_range:
             return bool(indexes[myindex])
+
+        # The indexes are flattened over all instances of a repeated
+        # property, so they can't tell whether several conditions hold for
+        # the same instance.
+        if len(self.children) + bool(self.time_range) > 1 and len(indexes[myindex]) > 1:
+            raise InsufficientIndexDataError(
+                f"Repeated property {self.name} with several conditions"
+            )
 
         if self.time_range is not None and not self.time_range.match_indexes(
             subindexes, tzify, context
@@ -1807,10 +1821,13 @@ class ICalendarFile(File):
             elif segments[0].startswith("P="):
                 prop_name = segments[0][2:]
                 try:
-                    p = c[prop_name]
+                    found = c[prop_name]
                 except KeyError:
-                    pass
-                else:
+                    continue
+                # A property that occurs more than once (e.g. several
+                # CATEGORIES lines) is returned as a list by icalendar.
+                props: list[Any] = found if isinstance(found, list) else [found]
+                for p in props:
                     if p is not None:
                         if len(segments) == 2 and segments[1].startswith("A="):
                             value = _index_property_parameter(p, segments[1][2:])
