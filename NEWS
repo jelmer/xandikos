@@ -1,4 +1,4 @@
-0.4.9	UNRELEASED
+0.4.9	2026-10-11
 
  * Handle properties that occur more than once in a component (e.g.
    several CATEGORIES lines) in calendar-query filters and indexes,
