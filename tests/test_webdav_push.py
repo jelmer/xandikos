@@ -21,12 +21,22 @@
 
 import asyncio
 import base64
+import http.server
 import os
 import tempfile
+import threading
 import unittest
+from unittest import mock
 from xml.etree import ElementTree as ET
 
 from xandikos import webdav, webdav_push
+
+try:
+    import requests
+
+    from xandikos import webdav_push_http
+except ImportError:
+    webdav_push_http = None  # type: ignore[assignment]
 
 
 PUSH_NS = webdav_push.NAMESPACE
@@ -202,6 +212,82 @@ class PushResourceValidationTests(unittest.TestCase):
             webdav_push._validate_push_resource("http://127.0.0.1:9911/x")
         finally:
             os.environ.pop(webdav_push._ALLOW_INTERNAL_ENV, None)
+
+
+class _RecordingServer(http.server.ThreadingHTTPServer):
+    def __init__(self):
+        super().__init__(("127.0.0.1", 0), _RecordingHandler)
+        self.requests: list[str] = []
+
+
+class _RecordingHandler(http.server.BaseHTTPRequestHandler):
+    server: _RecordingServer
+
+    def do_POST(self):
+        self.server.requests.append(self.path)
+        if self.path == "/redirect":
+            # Allow the first hop but check the one the redirect leads to.
+            os.environ.pop(webdav_push._ALLOW_INTERNAL_ENV, None)
+            self.send_response(307)
+            self.send_header(
+                "Location", f"http://localhost:{self.server.server_port}/internal"
+            )
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(201)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        pass
+
+
+@unittest.skipIf(webdav_push_http is None, "requests not available")
+class PushHTTPSessionTests(unittest.TestCase):
+    def setUp(self):
+        os.environ.pop(webdav_push._ALLOW_INTERNAL_ENV, None)
+        self.addCleanup(os.environ.__setitem__, webdav_push._ALLOW_INTERNAL_ENV, "1")
+        self.server = _RecordingServer()
+        self.port = self.server.server_address[1]
+        thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join)
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+        self.session = webdav_push_http.make_session()
+        self.addCleanup(self.session.close)
+
+    def test_refuses_loopback_address(self):
+        with self.assertRaises(requests.ConnectionError):
+            self.session.post(f"http://127.0.0.1:{self.port}/push", timeout=5)
+        self.assertEqual(self.server.requests, [])
+
+    def test_refuses_name_resolving_to_loopback(self):
+        with self.assertRaises(requests.ConnectionError):
+            self.session.post(f"http://localhost:{self.port}/push", timeout=5)
+        self.assertEqual(self.server.requests, [])
+
+    def test_env_override_allows_loopback(self):
+        os.environ[webdav_push._ALLOW_INTERNAL_ENV] = "1"
+        response = self.session.post(f"http://127.0.0.1:{self.port}/push", timeout=5)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.server.requests, ["/push"])
+
+    def test_refuses_redirect_to_loopback(self):
+        os.environ[webdav_push._ALLOW_INTERNAL_ENV] = "1"
+        with self.assertRaises(requests.ConnectionError):
+            self.session.post(f"http://127.0.0.1:{self.port}/redirect", timeout=5)
+        self.assertEqual(self.server.requests, ["/redirect"])
+
+    def test_ignores_proxy_environment(self):
+        os.environ[webdav_push._ALLOW_INTERNAL_ENV] = "1"
+        with mock.patch.dict(os.environ, {"HTTP_PROXY": "http://192.0.2.1:9"}):
+            response = self.session.post(
+                f"http://127.0.0.1:{self.port}/push", timeout=5
+            )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.server.requests, ["/push"])
 
 
 class PushSubscriptionStoreTests(unittest.TestCase):

@@ -179,6 +179,33 @@ def _addresses_for(host: str) -> list[_IPAddress]:
     return addrs
 
 
+class NonPublicHostError(Exception):
+    """A push-resource host does not resolve to a public address."""
+
+
+def _resolve_public_host(host: str) -> list[_IPAddress]:
+    """Resolve ``host``, raising NonPublicHostError unless all addresses are public."""
+    addrs = _addresses_for(host)
+    if not addrs:
+        raise NonPublicHostError(
+            f"push-resource host {host!r} did not resolve to any address"
+        )
+    for addr in addrs:
+        if (
+            addr.is_loopback
+            or addr.is_link_local
+            or addr.is_private
+            or addr.is_multicast
+            or addr.is_reserved
+            or addr.is_unspecified
+        ):
+            raise NonPublicHostError(
+                f"push-resource host {host!r} resolves to a non-routable "
+                f"address ({addr})"
+            )
+    return addrs
+
+
 def _validate_push_resource(url: str) -> None:
     """Reject push-resource URLs that would enable SSRF.
 
@@ -201,24 +228,10 @@ def _validate_push_resource(url: str) -> None:
         raise InvalidSubscriptionError("push-resource is missing a host")
     if _allow_internal_push_resource():
         return
-    addrs = _addresses_for(host)
-    if not addrs:
-        raise InvalidSubscriptionError(
-            f"push-resource host {host!r} did not resolve to any address"
-        )
-    for addr in addrs:
-        if (
-            addr.is_loopback
-            or addr.is_link_local
-            or addr.is_private
-            or addr.is_multicast
-            or addr.is_reserved
-            or addr.is_unspecified
-        ):
-            raise InvalidSubscriptionError(
-                f"push-resource host {host!r} resolves to a non-routable "
-                f"address ({addr})"
-            )
+    try:
+        _resolve_public_host(host)
+    except NonPublicHostError as exc:
+        raise InvalidSubscriptionError(str(exc)) from exc
 
 
 @dataclasses.dataclass
@@ -874,6 +887,7 @@ async def deliver_push_message(
         raise RuntimeError(
             "pywebpush is required for WebDAV-Push; install xandikos[webdav-push]"
         ) from exc
+    from .webdav_push_http import make_session
 
     sub_info = {
         "endpoint": subscription.push_resource,
@@ -887,15 +901,17 @@ async def deliver_push_message(
 
     def _send() -> int:
         try:
-            response = webpush(
-                subscription_info=sub_info,
-                data=payload,
-                vapid_private_key=vapid_private_key,
-                vapid_claims=vapid_claims,
-                content_encoding=subscription.content_encoding,
-                headers={"Content-Type": "application/xml; charset=utf-8"},
-                timeout=PUSH_DELIVERY_TIMEOUT_SECONDS,
-            )
+            with make_session() as session:
+                response = webpush(
+                    subscription_info=sub_info,
+                    data=payload,
+                    vapid_private_key=vapid_private_key,
+                    vapid_claims=vapid_claims,
+                    content_encoding=subscription.content_encoding,
+                    headers={"Content-Type": "application/xml; charset=utf-8"},
+                    timeout=PUSH_DELIVERY_TIMEOUT_SECONDS,
+                    requests_session=session,
+                )
             return response.status_code
         except WebPushException as exc:
             if exc.response is not None:
