@@ -179,31 +179,15 @@ def _addresses_for(host: str) -> list[_IPAddress]:
     return addrs
 
 
-def _validate_push_resource(url: str) -> None:
-    """Reject push-resource URLs that would enable SSRF.
+class NonPublicHostError(Exception):
+    """A push-resource host does not resolve to a public address."""
 
-    Only http/https targets are accepted, and the host must not resolve
-    to a loopback, link-local, private, multicast, or otherwise reserved
-    address. Set ``XANDIKOS_ALLOW_INTERNAL_PUSH_RESOURCE=1`` to disable
-    the network-location check (useful in tests or when the push service
-    genuinely lives on an internal network).
-    """
-    try:
-        parsed = urllib.parse.urlsplit(url)
-    except ValueError as exc:
-        raise InvalidSubscriptionError(f"invalid push-resource URL: {exc}") from exc
-    if parsed.scheme not in ("http", "https"):
-        raise InvalidSubscriptionError(
-            f"push-resource scheme {parsed.scheme!r} is not allowed"
-        )
-    host = parsed.hostname
-    if not host:
-        raise InvalidSubscriptionError("push-resource is missing a host")
-    if _allow_internal_push_resource():
-        return
+
+def _resolve_public_host(host: str) -> list[_IPAddress]:
+    """Resolve ``host``, raising NonPublicHostError unless all addresses are public."""
     addrs = _addresses_for(host)
     if not addrs:
-        raise InvalidSubscriptionError(
+        raise NonPublicHostError(
             f"push-resource host {host!r} did not resolve to any address"
         )
     for addr in addrs:
@@ -215,10 +199,48 @@ def _validate_push_resource(url: str) -> None:
             or addr.is_reserved
             or addr.is_unspecified
         ):
-            raise InvalidSubscriptionError(
+            raise NonPublicHostError(
                 f"push-resource host {host!r} resolves to a non-routable "
                 f"address ({addr})"
             )
+    return addrs
+
+
+def _parse_push_resource(url: str) -> urllib.parse.SplitResult:
+    """Parse a push-resource URL, requiring https.
+
+    WebDAV-Push requires HTTP over TLS for the Web Push transport.
+    """
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError as exc:
+        raise InvalidSubscriptionError(f"invalid push-resource URL: {exc}") from exc
+    if parsed.scheme != "https":
+        raise InvalidSubscriptionError(
+            f"push-resource must use https, not {parsed.scheme!r}"
+        )
+    return parsed
+
+
+def _validate_push_resource(url: str) -> None:
+    """Reject push-resource URLs that would enable SSRF.
+
+    Only https targets are accepted, and the host must not resolve to a
+    loopback, link-local, private, multicast, or otherwise reserved
+    address. Set ``XANDIKOS_ALLOW_INTERNAL_PUSH_RESOURCE=1`` to disable
+    the network-location check (useful in tests or when the push service
+    genuinely lives on an internal network).
+    """
+    parsed = _parse_push_resource(url)
+    host = parsed.hostname
+    if not host:
+        raise InvalidSubscriptionError("push-resource is missing a host")
+    if _allow_internal_push_resource():
+        return
+    try:
+        _resolve_public_host(host)
+    except NonPublicHostError as exc:
+        raise InvalidSubscriptionError(str(exc)) from exc
 
 
 @dataclasses.dataclass
@@ -868,12 +890,14 @@ async def deliver_push_message(
     Returns the HTTP status code from the push service. A ``404`` or
     ``410`` means the subscription is gone and callers should evict it.
     """
+    _parse_push_resource(subscription.push_resource)
     try:
         from pywebpush import webpush, WebPushException  # type: ignore[import-not-found]
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
             "pywebpush is required for WebDAV-Push; install xandikos[webdav-push]"
         ) from exc
+    from .webdav_push_http import make_session
 
     sub_info = {
         "endpoint": subscription.push_resource,
@@ -887,18 +911,27 @@ async def deliver_push_message(
 
     def _send() -> int:
         try:
-            response = webpush(
-                subscription_info=sub_info,
-                data=payload,
-                vapid_private_key=vapid_private_key,
-                vapid_claims=vapid_claims,
-                content_encoding=subscription.content_encoding,
-                headers={"Content-Type": "application/xml; charset=utf-8"},
-                timeout=PUSH_DELIVERY_TIMEOUT_SECONDS,
-            )
+            with make_session() as session:
+                response = webpush(
+                    subscription_info=sub_info,
+                    data=payload,
+                    vapid_private_key=vapid_private_key,
+                    vapid_claims=vapid_claims,
+                    content_encoding=subscription.content_encoding,
+                    headers={"Content-Type": "application/xml; charset=utf-8"},
+                    timeout=PUSH_DELIVERY_TIMEOUT_SECONDS,
+                    requests_session=session,
+                )
             return response.status_code
         except WebPushException as exc:
             if exc.response is not None:
+                if exc.response.is_redirect:
+                    logger.warning(
+                        "push service for %s returned a redirect (%d); "
+                        "redirects are not followed",
+                        subscription.push_resource,
+                        exc.response.status_code,
+                    )
                 return exc.response.status_code
             logger.warning(
                 "push delivery to %s failed: %s",
