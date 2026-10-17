@@ -526,6 +526,19 @@ class GitStore(Store):
     def _iterblobs(self, ctag=None):
         raise NotImplementedError(self._iterblobs)
 
+    def _get_ctag_tree(self, ctag: str) -> Tree:
+        """Look up the tree for a ctag.
+
+        Raises InvalidCTag if the ctag doesn't name a tree.
+        """
+        try:
+            tree = self.repo.object_store[ctag.encode("ascii")]
+        except KeyError as exc:
+            raise InvalidCTag(ctag) from exc
+        if not isinstance(tree, Tree):
+            raise InvalidCTag(ctag)
+        return tree
+
     def iter_with_etag(self, ctag=None):
         """Iterate over all items in the store with etag.
 
@@ -763,10 +776,7 @@ class BareGitStore(GitStore):
         if ctag is None:
             tree = self._get_current_tree()
         else:
-            try:
-                tree = self.repo.object_store[ctag.encode("ascii")]
-            except KeyError as exc:
-                raise InvalidCTag(ctag) from exc
+            tree = self._get_ctag_tree(ctag)
         for name, mode, sha in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
             if is_metadata_file(name):
@@ -1087,10 +1097,7 @@ class TreeGitStore(GitStore):
         :yield: (name, etag) tuples
         """
         if ctag is not None:
-            try:
-                tree = self.repo.object_store[ctag.encode("ascii")]
-            except KeyError as exc:
-                raise InvalidCTag(ctag) from exc
+            tree = self._get_ctag_tree(ctag)
             for name, mode, sha in tree.iteritems():
                 name = name.decode(DEFAULT_ENCODING)
                 if is_metadata_file(name):

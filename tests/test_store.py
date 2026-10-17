@@ -358,6 +358,12 @@ class BaseGitStoreTest(BaseStoreTest):
         with self.assertRaises(InvalidCTag):
             list(gc.iter_changes("0" * 40, gc.get_ctag()))
 
+    def test_iter_changes_non_tree_ctag(self):
+        gc = self.create_store()
+        (name, etag) = gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        with self.assertRaises(InvalidCTag):
+            list(gc.iter_changes(etag, gc.get_ctag()))
+
     def test_iter_changes_malformed_ctag(self):
         # A sync token comes from the client, so it can be any string.
         # Anything that doesn't name a tree is an invalid ctag, which the
