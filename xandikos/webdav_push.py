@@ -75,6 +75,10 @@ _index: SubscriptionIndex | None = None
 # DAVx5's default refresh cadence.
 DEFAULT_EXPIRY_SECONDS = 30 * 24 * 3600
 
+# Without an explicit timeout pywebpush lets requests wait forever, so a
+# slow push service could tie up a delivery thread indefinitely.
+PUSH_DELIVERY_TIMEOUT_SECONDS = 30.0
+
 # Header that lets a client suppress notifications for the request that
 # caused them (RFC-style draft, section "Suppressing notifications").
 PUSH_DONT_NOTIFY_HEADER = "Push-Dont-Notify"
@@ -890,6 +894,7 @@ async def deliver_push_message(
                 vapid_claims=vapid_claims,
                 content_encoding=subscription.content_encoding,
                 headers={"Content-Type": "application/xml; charset=utf-8"},
+                timeout=PUSH_DELIVERY_TIMEOUT_SECONDS,
             )
             return response.status_code
         except WebPushException as exc:
