@@ -39,7 +39,7 @@ from dulwich.index import (
     index_entry_from_stat,
     locked_index,
 )
-from dulwich.objects import Blob, Commit, Tree
+from dulwich.objects import Blob, Commit, Tree, valid_hexsha
 from dulwich.repo import get_user_identity
 
 from . import (
@@ -529,10 +529,17 @@ class GitStore(Store):
     def _get_ctag_tree(self, ctag: str) -> Tree:
         """Look up the tree for a ctag.
 
-        Raises InvalidCTag if the ctag doesn't name a tree.
+        The ctag may come from a client (e.g. as a sync token), so anything
+        that doesn't name a tree raises InvalidCTag.
         """
         try:
-            tree = self.repo.object_store[ctag.encode("ascii")]
+            sha = ctag.encode("ascii")
+        except UnicodeEncodeError as exc:
+            raise InvalidCTag(ctag) from exc
+        if not valid_hexsha(sha):
+            raise InvalidCTag(ctag)
+        try:
+            tree = self.repo.object_store[sha]
         except KeyError as exc:
             raise InvalidCTag(ctag) from exc
         if not isinstance(tree, Tree):
