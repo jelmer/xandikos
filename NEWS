@@ -1,4 +1,4 @@
-0.4.10	UNRELEASED
+0.4.10	2026-10-17
 
  * webdav-push: Check push-resource addresses on delivery, don't
    follow redirects and set a timeout. (Jelmer Vernooĳ)
