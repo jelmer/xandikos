@@ -188,28 +188,41 @@ class PushResourceValidationTests(unittest.TestCase):
         with self.assertRaises(webdav_push.InvalidSubscriptionError):
             webdav_push._validate_push_resource("ftp://example.com/x")
 
+    def test_rejects_plain_http(self):
+        with self.assertRaises(webdav_push.InvalidSubscriptionError) as cm:
+            webdav_push._validate_push_resource("http://93.184.215.14/x")
+        self.assertEqual(str(cm.exception), "push-resource must use https, not 'http'")
+
+    def test_env_override_does_not_allow_plain_http(self):
+        os.environ[webdav_push._ALLOW_INTERNAL_ENV] = "1"
+        try:
+            with self.assertRaises(webdav_push.InvalidSubscriptionError):
+                webdav_push._validate_push_resource("http://127.0.0.1:9911/x")
+        finally:
+            os.environ.pop(webdav_push._ALLOW_INTERNAL_ENV, None)
+
     def test_rejects_loopback_literal(self):
         with self.assertRaises(webdav_push.InvalidSubscriptionError):
-            webdav_push._validate_push_resource("http://127.0.0.1:9911/x")
+            webdav_push._validate_push_resource("https://127.0.0.1:9911/x")
         with self.assertRaises(webdav_push.InvalidSubscriptionError):
-            webdav_push._validate_push_resource("http://[::1]/x")
+            webdav_push._validate_push_resource("https://[::1]/x")
 
     def test_rejects_link_local_metadata_address(self):
         with self.assertRaises(webdav_push.InvalidSubscriptionError):
-            webdav_push._validate_push_resource("http://169.254.169.254/latest")
+            webdav_push._validate_push_resource("https://169.254.169.254/latest")
 
     def test_rejects_private_address(self):
         with self.assertRaises(webdav_push.InvalidSubscriptionError):
-            webdav_push._validate_push_resource("http://10.0.0.1/x")
+            webdav_push._validate_push_resource("https://10.0.0.1/x")
 
     def test_rejects_missing_host(self):
         with self.assertRaises(webdav_push.InvalidSubscriptionError):
-            webdav_push._validate_push_resource("http:///no-host")
+            webdav_push._validate_push_resource("https:///no-host")
 
     def test_env_override_allows_loopback(self):
         os.environ[webdav_push._ALLOW_INTERNAL_ENV] = "1"
         try:
-            webdav_push._validate_push_resource("http://127.0.0.1:9911/x")
+            webdav_push._validate_push_resource("https://127.0.0.1:9911/x")
         finally:
             os.environ.pop(webdav_push._ALLOW_INTERNAL_ENV, None)
 
@@ -286,6 +299,24 @@ class PushHTTPSessionTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(self.server.requests, ["/push"])
+
+
+class DeliverPushMessageSchemeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_refuses_stored_plain_http_subscription(self):
+        # Subscriptions registered before https was required may still be
+        # stored with a plain http push-resource.
+        sub = webdav_push.Subscription(
+            id="abc",
+            push_resource="http://push.example/x",
+            content_encoding="aes128gcm",
+            p256dh=b"\x04" + b"\x00" * 64,
+            auth_secret=b"\x00" * 16,
+            expires=None,
+            triggers=[],
+        )
+        with self.assertRaises(webdav_push.InvalidSubscriptionError) as cm:
+            await webdav_push.deliver_push_message(None, sub, b"<x/>")
+        self.assertEqual(str(cm.exception), "push-resource must use https, not 'http'")
 
 
 class PushSubscriptionStoreTests(unittest.TestCase):

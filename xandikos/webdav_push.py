@@ -206,23 +206,32 @@ def _resolve_public_host(host: str) -> list[_IPAddress]:
     return addrs
 
 
-def _validate_push_resource(url: str) -> None:
-    """Reject push-resource URLs that would enable SSRF.
+def _parse_push_resource(url: str) -> urllib.parse.SplitResult:
+    """Parse a push-resource URL, requiring https.
 
-    Only http/https targets are accepted, and the host must not resolve
-    to a loopback, link-local, private, multicast, or otherwise reserved
-    address. Set ``XANDIKOS_ALLOW_INTERNAL_PUSH_RESOURCE=1`` to disable
-    the network-location check (useful in tests or when the push service
-    genuinely lives on an internal network).
+    WebDAV-Push requires HTTP over TLS for the Web Push transport.
     """
     try:
         parsed = urllib.parse.urlsplit(url)
     except ValueError as exc:
         raise InvalidSubscriptionError(f"invalid push-resource URL: {exc}") from exc
-    if parsed.scheme not in ("http", "https"):
+    if parsed.scheme != "https":
         raise InvalidSubscriptionError(
-            f"push-resource scheme {parsed.scheme!r} is not allowed"
+            f"push-resource must use https, not {parsed.scheme!r}"
         )
+    return parsed
+
+
+def _validate_push_resource(url: str) -> None:
+    """Reject push-resource URLs that would enable SSRF.
+
+    Only https targets are accepted, and the host must not resolve to a
+    loopback, link-local, private, multicast, or otherwise reserved
+    address. Set ``XANDIKOS_ALLOW_INTERNAL_PUSH_RESOURCE=1`` to disable
+    the network-location check (useful in tests or when the push service
+    genuinely lives on an internal network).
+    """
+    parsed = _parse_push_resource(url)
     host = parsed.hostname
     if not host:
         raise InvalidSubscriptionError("push-resource is missing a host")
@@ -881,6 +890,7 @@ async def deliver_push_message(
     Returns the HTTP status code from the push service. A ``404`` or
     ``410`` means the subscription is gone and callers should evict it.
     """
+    _parse_push_resource(subscription.push_resource)
     try:
         from pywebpush import webpush, WebPushException  # type: ignore[import-not-found]
     except ImportError as exc:  # pragma: no cover
