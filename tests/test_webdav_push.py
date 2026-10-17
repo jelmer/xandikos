@@ -226,12 +226,8 @@ class _RecordingHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         self.server.requests.append(self.path)
         if self.path == "/redirect":
-            # Allow the first hop but check the one the redirect leads to.
-            os.environ.pop(webdav_push._ALLOW_INTERNAL_ENV, None)
             self.send_response(307)
-            self.send_header(
-                "Location", f"http://localhost:{self.server.server_port}/internal"
-            )
+            self.send_header("Location", "/internal")
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -274,10 +270,12 @@ class PushHTTPSessionTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(self.server.requests, ["/push"])
 
-    def test_refuses_redirect_to_loopback(self):
+    def test_does_not_follow_redirects(self):
         os.environ[webdav_push._ALLOW_INTERNAL_ENV] = "1"
-        with self.assertRaises(requests.ConnectionError):
-            self.session.post(f"http://127.0.0.1:{self.port}/redirect", timeout=5)
+        response = self.session.post(
+            f"http://127.0.0.1:{self.port}/redirect", timeout=5
+        )
+        self.assertEqual(response.status_code, 307)
         self.assertEqual(self.server.requests, ["/redirect"])
 
     def test_ignores_proxy_environment(self):

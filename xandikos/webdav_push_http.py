@@ -23,8 +23,9 @@ Push-resource URLs are validated when a subscription is registered, but
 that alone does not stop a push service from redirecting delivery to an
 internal address, or from changing its DNS records afterwards. The
 session returned by :func:`make_session` checks the resolved address of
-every connection it makes, including those for redirects, and connects
-to exactly the address it checked.
+every connection it makes and connects to exactly the address it
+checked. It also does not follow redirects; neither RFC 8030 nor
+WebDAV-Push defines them for push message delivery.
 
 This module depends on ``requests`` (pulled in by ``pywebpush``), so it
 is only imported when a push message is actually delivered.
@@ -101,9 +102,14 @@ class _PublicAddressAdapter(HTTPAdapter):
         }
 
 
+class _NoRedirectSession(requests.Session):
+    def get_redirect_target(self, resp: requests.Response) -> None:
+        return None
+
+
 def make_session() -> requests.Session:
     """Create a session that only connects to public addresses."""
-    session = requests.Session()
+    session = _NoRedirectSession()
     # Requests through a proxy would connect to the proxy rather than the
     # push service, bypassing the address check, so ignore proxy settings
     # from the environment.

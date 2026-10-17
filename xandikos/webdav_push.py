@@ -915,6 +915,13 @@ async def deliver_push_message(
             return response.status_code
         except WebPushException as exc:
             if exc.response is not None:
+                if exc.response.is_redirect:
+                    logger.warning(
+                        "push service for %s returned a redirect (%d); "
+                        "redirects are not followed",
+                        subscription.push_resource,
+                        exc.response.status_code,
+                    )
                 return exc.response.status_code
             logger.warning(
                 "push delivery to %s failed: %s",
