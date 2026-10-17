@@ -32,6 +32,7 @@ from xandikos.store import (
     DuplicateUidError,
     File,
     Filter,
+    InvalidCTag,
     InvalidETag,
     InvalidFileNameError,
     NoSuchItem,
@@ -351,6 +352,33 @@ class BaseGitStoreTest(BaseStoreTest):
 
     def add_blob(self, gc, name, contents):
         raise NotImplementedError(self.add_blob)
+
+    def test_iter_changes_unknown_ctag(self):
+        gc = self.create_store()
+        with self.assertRaises(InvalidCTag):
+            list(gc.iter_changes("0" * 40, gc.get_ctag()))
+
+    def test_iter_changes_non_tree_ctag(self):
+        gc = self.create_store()
+        (name, etag) = gc.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+        with self.assertRaises(InvalidCTag):
+            list(gc.iter_changes(etag, gc.get_ctag()))
+
+    def test_iter_changes_malformed_ctag(self):
+        # A sync token comes from the client, so it can be any string.
+        # Anything that doesn't name a tree is an invalid ctag, which the
+        # sync-collection report turns into DAV:valid-sync-token.
+        gc = self.create_store()
+        for ctag in [
+            "not a ctag",
+            "http://example.invalid/never-issued",
+            "abc123",
+            "z" * 40,
+            "\xe6\xf8\xe5",
+        ]:
+            with self.subTest(ctag=ctag):
+                with self.assertRaises(InvalidCTag):
+                    list(gc.iter_changes(ctag, gc.get_ctag()))
 
     def test_create(self):
         d = tempfile.mkdtemp()

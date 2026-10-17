@@ -6,6 +6,9 @@
  * webdav-push: Only accept ``https`` push-resource URLs.
    (Jelmer Vernooĳ)
 
+ * Report ``DAV:valid-sync-token`` rather than a 500 for a sync token
+   that isn't a hex SHA or doesn't name a tree. (Jelmer Vernooĳ, #743)
+
 0.4.9	2026-10-11
 
  * Handle properties that occur more than once in a component (e.g.

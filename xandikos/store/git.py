@@ -39,7 +39,7 @@ from dulwich.index import (
     index_entry_from_stat,
     locked_index,
 )
-from dulwich.objects import Blob, Commit, Tree
+from dulwich.objects import Blob, Commit, Tree, valid_hexsha
 from dulwich.repo import get_user_identity
 
 from . import (
@@ -526,6 +526,26 @@ class GitStore(Store):
     def _iterblobs(self, ctag=None):
         raise NotImplementedError(self._iterblobs)
 
+    def _get_ctag_tree(self, ctag: str) -> Tree:
+        """Look up the tree for a ctag.
+
+        The ctag may come from a client (e.g. as a sync token), so anything
+        that doesn't name a tree raises InvalidCTag.
+        """
+        try:
+            sha = ctag.encode("ascii")
+        except UnicodeEncodeError as exc:
+            raise InvalidCTag(ctag) from exc
+        if not valid_hexsha(sha):
+            raise InvalidCTag(ctag)
+        try:
+            tree = self.repo.object_store[sha]
+        except KeyError as exc:
+            raise InvalidCTag(ctag) from exc
+        if not isinstance(tree, Tree):
+            raise InvalidCTag(ctag)
+        return tree
+
     def iter_with_etag(self, ctag=None):
         """Iterate over all items in the store with etag.
 
@@ -763,10 +783,7 @@ class BareGitStore(GitStore):
         if ctag is None:
             tree = self._get_current_tree()
         else:
-            try:
-                tree = self.repo.object_store[ctag.encode("ascii")]
-            except KeyError as exc:
-                raise InvalidCTag(ctag) from exc
+            tree = self._get_ctag_tree(ctag)
         for name, mode, sha in tree.iteritems():
             name = name.decode(DEFAULT_ENCODING)
             if is_metadata_file(name):
@@ -1087,10 +1104,7 @@ class TreeGitStore(GitStore):
         :yield: (name, etag) tuples
         """
         if ctag is not None:
-            try:
-                tree = self.repo.object_store[ctag.encode("ascii")]
-            except KeyError as exc:
-                raise InvalidCTag(ctag) from exc
+            tree = self._get_ctag_tree(ctag)
             for name, mode, sha in tree.iteritems():
                 name = name.decode(DEFAULT_ENCODING)
                 if is_metadata_file(name):
