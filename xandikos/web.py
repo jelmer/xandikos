@@ -658,8 +658,11 @@ class StoreBasedCollection:
         except InvalidCTag as exc:
             raise sync.InvalidToken(exc.ctag) from exc
 
-    def get_owner(self):
-        return None
+    def get_owner(self) -> str | None:
+        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        if owning is None:
+            return None
+        return owning[0]
 
     def get_supported_locks(self):
         return []
@@ -801,16 +804,55 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
 
         Stored in the principal's ``.xandikos`` config; ``None``
         unsets the override and restores the auto-pick.
+
+        See :meth:`_resolve_default_calendar` for which URLs are
+        accepted.
         """
+        precondition = "{%s}valid-schedule-default-calendar-URL" % caldav.NAMESPACE
         owning = scheduling.find_owning_principal(self.backend, self.relpath)
         if owning is None:
             raise webdav.PreconditionFailure(
-                "{%s}valid-schedule-default-calendar-URL" % caldav.NAMESPACE,
+                precondition,
                 "Cannot set schedule-default-calendar-URL: inbox has no "
                 "owning principal.",
             )
-        _, principal = owning
+        principal_path, principal = owning
+        if (
+            url is not None
+            and self._resolve_default_calendar(principal_path, principal, url) is None
+        ):
+            raise webdav.PreconditionFailure(
+                precondition,
+                "schedule-default-calendar-URL must reference a calendar "
+                "collection in one of the principal's calendar homes.",
+            )
         principal.set_schedule_default_calendar_url(url)
+
+    def _resolve_default_calendar(
+        self, principal_path: str, principal: webdav.Principal, url: str
+    ) -> "CalendarCollection | None":
+        """Resolve *url* if it is a valid default calendar for the principal.
+
+        RFC 6638 §9.2: it must be a calendar collection in one of the
+        principal's calendar homes. It must also be owned by the
+        principal, so that iTIP auto-processing can't be pointed at
+        another principal's calendar.
+        """
+        try:
+            cal = self.backend.get_resource(url)
+        except ValueError:
+            return None
+        if not isinstance(cal, CalendarCollection) or cal.get_owner() != principal_path:
+            return None
+        for home in principal.get_calendar_home_set():
+            home_resource = self.backend.get_resource(
+                posixpath.join(principal_path, home)
+            )
+            if home_resource is None:
+                continue
+            if cal.relpath.startswith(home_resource.relpath.rstrip("/") + "/"):
+                return cal
+        return None
 
     async def post_create_member_hook(
         self,
@@ -884,12 +926,23 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
             await self._apply_reply(parsed, uid, existing)
 
     def _default_calendar(self) -> "CalendarCollection | None":
-        url = self.get_schedule_default_calendar_url()
-        if url is None:
+        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        if owning is None:
             return None
-        cal = self.backend.get_resource(url)
-        if not isinstance(cal, CalendarCollection):
+        principal_path, principal = owning
+        try:
+            url = principal.get_schedule_default_calendar_url()
+        except KeyError:
             return None
+        # Re-check on use: the stored value may predate validation.
+        cal = self._resolve_default_calendar(principal_path, principal, url)
+        if cal is None:
+            logger.warning(
+                "Ignoring schedule-default-calendar-URL %r for %s: not a "
+                "calendar in one of the principal's calendar homes",
+                url,
+                principal_path,
+            )
         return cal
 
     async def _apply_request(

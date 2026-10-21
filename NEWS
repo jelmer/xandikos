@@ -1,3 +1,13 @@
+0.4.11	UNRELEASED
+
+ * Only accept a ``schedule-default-calendar-URL`` that refers to a
+   calendar collection in one of the principal's calendar homes (RFC
+   6638 9.2), and ignore stored values that don't when auto-applying
+   iTIP messages. Previously a user could point it at another user's
+   calendar and write to it through their own inbox. (Jelmer Vernooĳ)
+
+ * Report ``DAV:owner`` for collections. (Jelmer Vernooĳ)
+
 0.4.10	2026-10-17
 
  * webdav-push: Check push-resource addresses on delivery, don't

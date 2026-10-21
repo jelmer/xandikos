@@ -1908,13 +1908,94 @@ class ScheduleInboxDefaultCalendarTests(unittest.TestCase):
         self.assertIsNone(self._inbox().get_schedule_default_calendar_url())
 
     def test_override_persists_across_inbox_lookups(self):
+        from xandikos.store import STORE_TYPE_CALENDAR
+
         self.backend.create_principal("/alice", create_defaults=True)
+        other = self.backend.create_collection("/alice/calendars/other")
+        other.store.set_type(STORE_TYPE_CALENDAR)
         self._inbox().set_schedule_default_calendar_url("/alice/calendars/other")
         # Refetch the inbox object; the override should still be visible.
         self.assertEqual(
             "/alice/calendars/other",
             self._inbox().get_schedule_default_calendar_url(),
         )
+
+    def _assert_rejected(self, url: str) -> None:
+        with self.assertRaises(webdav.PreconditionFailure) as ctx:
+            self._inbox().set_schedule_default_calendar_url(url)
+        self.assertEqual(
+            "{urn:ietf:params:xml:ns:caldav}valid-schedule-default-calendar-URL",
+            ctx.exception.precondition,
+        )
+        self.assertEqual(
+            "/alice/calendars/calendar",
+            self._inbox().get_schedule_default_calendar_url(),
+        )
+
+    def test_rejects_other_principals_calendar(self):
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+        self._assert_rejected("/bob/calendars/calendar")
+
+    def test_rejects_path_traversal(self):
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+        self._assert_rejected("/alice/calendars/../../bob/calendars/calendar")
+
+    def test_rejects_missing_calendar(self):
+        self.backend.create_principal("/alice", create_defaults=True)
+        self._assert_rejected("/alice/calendars/nonexistent")
+
+    def test_rejects_non_calendar_collection(self):
+        self.backend.create_principal("/alice", create_defaults=True)
+        self._assert_rejected("/alice/contacts/addressbook")
+
+    def test_rejects_own_calendar_outside_calendar_home(self):
+        from xandikos.store import STORE_TYPE_CALENDAR
+
+        self.backend.create_principal("/alice", create_defaults=True)
+        stray = self.backend.create_collection("/alice/elsewhere")
+        stray.store.set_type(STORE_TYPE_CALENDAR)
+        self._assert_rejected("/alice/elsewhere")
+
+    def test_rejects_relative_url(self):
+        self.backend.create_principal("/alice", create_defaults=True)
+        self._assert_rejected("calendars/calendar")
+
+    def test_collection_owner(self):
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+        self.assertEqual("/alice", self._inbox().get_owner())
+        self.assertEqual(
+            "/bob", self.backend.get_resource("/bob/calendars/calendar").get_owner()
+        )
+
+    def test_auto_apply_ignores_foreign_stored_default(self):
+        # A pre-existing pointer at another principal's calendar must not
+        # be followed when applying iTIP.
+        self.backend.create_principal("/alice", create_defaults=True)
+        self.backend.create_principal("/bob", create_defaults=True)
+        alice = self.backend.get_principal("/alice")
+        assert alice is not None
+        alice.set_schedule_default_calendar_url("/bob/calendars/calendar")
+        request = (
+            b"BEGIN:VCALENDAR\r\n"
+            b"VERSION:2.0\r\n"
+            b"PRODID:-//Test//EN\r\n"
+            b"METHOD:REQUEST\r\n"
+            b"BEGIN:VEVENT\r\n"
+            b"UID:evil@example.com\r\n"
+            b"DTSTAMP:20260101T120000Z\r\n"
+            b"DTSTART:20260601T100000Z\r\n"
+            b"DTEND:20260601T110000Z\r\n"
+            b"SUMMARY:Forged\r\n"
+            b"END:VEVENT\r\n"
+            b"END:VCALENDAR\r\n"
+        )
+        asyncio.run(self._inbox().create_member("evil.ics", [request], "text/calendar"))
+        bob_cal = self.backend.get_resource("/bob/calendars/calendar")
+        assert isinstance(bob_cal, StoreBasedCollection)
+        self.assertEqual([], list(bob_cal.store.iter_with_etag()))
 
 
 class InboxAutoProcessingTests(unittest.TestCase):

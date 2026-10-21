@@ -578,7 +578,7 @@ class Resource:
         """
         raise NotImplementedError(self.get_content_type)
 
-    def get_owner(self) -> str:
+    def get_owner(self) -> str | None:
         """Get an href identifying the owner of the resource.
 
         Can be None if owner information is not known.
