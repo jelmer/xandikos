@@ -3558,6 +3558,29 @@ class PrincipalCalendarProxyForTests(unittest.TestCase):
         self.assertEqual([], self.principal.get_calendar_proxy_read_for())
 
 
+class CollectionOwnerTests(unittest.TestCase):
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/alice", create_defaults=True)
+
+    def _owner(self, relpath):
+        resource = self.backend.get_resource(relpath)
+        assert resource is not None
+        return resource.get_owner()
+
+    def test_nested_collection(self):
+        self.assertEqual("/alice", self._owner("/alice/calendars/calendar/"))
+
+    def test_collection_outside_principal(self):
+        from xandikos.store import STORE_TYPE_CALENDAR
+
+        cal = self.backend.create_collection("/shared")
+        cal.store.set_type(STORE_TYPE_CALENDAR)
+        self.assertEqual(None, self._owner("/shared"))
+
+
 class FilesystemBackendMapPathTests(unittest.TestCase):
     """Tests for FilesystemBackend._map_to_file_path traversal handling."""
 

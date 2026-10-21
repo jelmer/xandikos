@@ -658,8 +658,23 @@ class StoreBasedCollection:
         except InvalidCTag as exc:
             raise sync.InvalidToken(exc.ctag) from exc
 
+    def _owning_principal(self) -> "tuple[str, Principal] | None":
+        """Return ``(path, principal)`` for the principal owning this collection.
+
+        Collections live underneath their principal in this backend, e.g.
+        ``/alice/calendars/work`` is owned by ``/alice``.
+        """
+        p = posixpath.normpath(self.relpath)
+        while True:
+            principal = self.backend.get_principal(p)
+            if principal is not None:
+                return p, principal
+            if p == "/":
+                return None
+            p = posixpath.dirname(p)
+
     def get_owner(self) -> str | None:
-        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        owning = self._owning_principal()
         if owning is None:
             return None
         return owning[0]
@@ -790,7 +805,7 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
         scheduling still works, clients just don't get a pre-chosen
         target.
         """
-        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        owning = self._owning_principal()
         if owning is None:
             return None
         _, principal = owning
@@ -809,7 +824,7 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
         accepted.
         """
         precondition = "{%s}valid-schedule-default-calendar-URL" % caldav.NAMESPACE
-        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        owning = self._owning_principal()
         if owning is None:
             raise webdav.PreconditionFailure(
                 precondition,
@@ -926,7 +941,7 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
             await self._apply_reply(parsed, uid, existing)
 
     def _default_calendar(self) -> "CalendarCollection | None":
-        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        owning = self._owning_principal()
         if owning is None:
             return None
         principal_path, principal = owning
@@ -1102,7 +1117,7 @@ class ScheduleOutbox(StoreBasedCollection, scheduling.ScheduleOutbox):
         this attendee. Otherwise walks the principal's calendar-home and
         gathers busy/availability periods via :func:`caldav.iter_freebusy`.
         """
-        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        owning = self._owning_principal()
         if owning is None:
             return None
         principal_path, principal = owning
@@ -1448,9 +1463,10 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         if cal is None:
             return
 
-        principal = self._owning_principal()
-        if principal is None:
+        owning = self._owning_principal()
+        if owning is None:
             return
+        _, principal = owning
         organiser_addresses = set(principal.get_calendar_user_address_set())
 
         is_organiser, attendees = _organiser_attendees(cal, organiser_addresses)
@@ -1501,9 +1517,10 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             return None
         new_cal = parsed
 
-        principal = self._owning_principal()
-        if principal is None:
+        owning = self._owning_principal()
+        if owning is None:
             return None
+        _, principal = owning
         own_addresses = set(principal.get_calendar_user_address_set())
 
         old_cal: Calendar | None = None
@@ -1681,12 +1698,6 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         reply = itip.build_itip_reply(new_cal, own_address)
         await _deliver_status(self.backend, organiser, reply, originator=own_address)
         return outcomes
-
-    def _owning_principal(self) -> webdav.Principal | None:
-        owning = scheduling.find_owning_principal(self.backend, self.relpath)
-        if owning is None:
-            return None
-        return owning[1]
 
 
 async def _calendar_from_member(member: webdav.Resource) -> Calendar | None:

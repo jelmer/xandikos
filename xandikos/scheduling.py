@@ -42,26 +42,6 @@ from xandikos.itip import (
 )
 
 
-def find_owning_principal(
-    backend: "webdav.Backend", relpath: str
-) -> "tuple[str, webdav.Principal] | None":
-    """Walk up *relpath* until a principal is found, or return None.
-
-    Useful for collections that need to find the principal they belong
-    to without baking in a specific directory layout (e.g. a calendar
-    collection at ``/alice/calendars/work`` finds the principal at
-    ``/alice``).
-    """
-    p = relpath.rstrip("/") or "/"
-    while True:
-        principal = backend.get_principal(p)
-        if principal is not None:
-            return p, principal
-        if p in ("/", ""):
-            return None
-        p = posixpath.dirname(p) or "/"
-
-
 def find_principal_by_calendar_user_address(
     backend: "webdav.Backend", address: str
 ) -> "tuple[str, webdav.Principal] | None":
