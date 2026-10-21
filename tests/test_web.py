@@ -38,6 +38,7 @@ from xandikos.web import (
     SingleUserFilesystemBackend,
     StoreBasedCollection,
     XandikosApp,
+    web_url,
 )
 
 EXAMPLE_VTIMEZONE = """\
@@ -3611,3 +3612,34 @@ class FilesystemBackendMapPathTests(unittest.TestCase):
                 self.tempdir,
                 f"{candidate!r} mapped to {mapped!r} escaped {self.tempdir!r}",
             )
+
+
+class WebUrlTests(unittest.TestCase):
+    def test_hostname(self):
+        self.assertEqual(
+            "http://localhost:8080/", web_url("localhost", 8080, "/", secure=False)
+        )
+
+    def test_secure(self):
+        self.assertEqual(
+            "https://example.com:8443/", web_url("example.com", 8443, "/", secure=True)
+        )
+
+    def test_route_prefix(self):
+        self.assertEqual(
+            "http://localhost:8080/dav/",
+            web_url("localhost", 8080, "/dav/", secure=False),
+        )
+
+    def test_wildcard_ipv4(self):
+        self.assertEqual(
+            "http://localhost:8080/", web_url("0.0.0.0", 8080, "/", secure=False)
+        )
+
+    def test_wildcard_ipv6(self):
+        self.assertEqual(
+            "http://localhost:8080/", web_url("::", 8080, "/", secure=False)
+        )
+
+    def test_ipv6(self):
+        self.assertEqual("http://[::1]:8080/", web_url("::1", 8080, "/", secure=False))

@@ -2893,6 +2893,22 @@ def _maybe_mount_subscription_route(aiohttp_app, main_app: "XandikosApp") -> Non
 MDNS_NAME = "Xandikos CalDAV/CardDAV service"
 
 
+def web_url(listen_address: str, port: int, route_prefix: str, secure: bool) -> str:
+    """Return the URL at which the web interface can be reached.
+
+    Wildcard listen addresses are replaced with localhost, since they
+    can not be connected to.
+    """
+    if listen_address in ("", "0.0.0.0", "::"):
+        host = "localhost"
+    elif ":" in listen_address:
+        host = f"[{listen_address}]"
+    else:
+        host = listen_address
+    scheme = "https" if secure else "http"
+    return f"{scheme}://{host}:{port}/{route_prefix.lstrip('/')}"
+
+
 def avahi_register(port: int, path: str):
     import avahi
     import dbus
@@ -3479,6 +3495,17 @@ async def main(options, parser):
 
     for site in sites:
         await site.start()
+
+    if listen_address is not None and listen_port is not None:
+        logger.info(
+            "Web interface available at %s",
+            web_url(
+                listen_address,
+                listen_port,
+                options.route_prefix,
+                secure=ssl_context is not None,
+            ),
+        )
 
     imip_listener: imip_listen.Listener | None = None
     if options.imip_listen:
