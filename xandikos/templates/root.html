@@ -1,20 +1,20 @@
-<html>
-  <head>
-      <title>Xandikos WebDAV server</title>
-  </head>
-  <body>
-    <p>This is a Xandikos WebDAV server.</p>
+{% extends "base.html" %}
+{% block title %}Xandikos CalDAV/CardDAV server{% endblock %}
+{% block content %}
+    <h1>Xandikos CalDAV/CardDAV server</h1>
 
-    <p>Principals on this server:
-      <ul>
-          {% for path in principals %}
-              <li><a href="{{ urljoin(self_url+'/', path.lstrip('/')+'/') }}">{{ path }}</a></li>
-          {% endfor %}
-      </ul>
-    </p>
+    <p>This is a Xandikos server, providing calendars (CalDAV) and
+    address books (CardDAV).</p>
 
-    <h2>DAV Client Configuration</h2>
-    <p>Configure your CalDAV/CardDAV client with these URLs:</p>
+    <h2>Setting up a client</h2>
+
+    <p>Most calendar and contacts clients can discover calendars and
+    address books automatically. Configure your client with this server
+    URL:</p>
+
+    <p><code>{{ self_url }}</code></p>
+
+    <p>Some clients ask for a separate CalDAV or CardDAV URL instead:</p>
     <ul>
         <li>CalDAV: <code>{{ caldav_url }}</code></li>
         <li>CardDAV: <code>{{ carddav_url }}</code></li>
@@ -24,13 +24,17 @@
     <p>For DAVx<sup>5</sup> on Android, scan this QR code:</p>
     <img src="data:image/png;base64,{{ qr_code_data }}" alt="DAVx5 QR Code" style="max-width: 300px;">
     <p><small>DAVx<sup>5</sup> URL: <code>{{ davx5_url }}</code></small></p>
-    {% else %}
-    <!-- QR code not available -->
     {% endif %}
 
-    <p>For more information about Xandikos, see <a
-    href="https://www.xandikos.org/">https://www.xandikos.org/</a>
-    or <a href="https://github.com/jelmer/xandikos">https://github.com/jelmer/xandikos</a>.
-    </p>
-  </body>
-</html>
+    <p>See the <a href="https://www.xandikos.org/clients/">client setup
+    instructions</a> for details on configuring specific clients.</p>
+
+    {% if principals %}
+    <h2>Principals</h2>
+    <ul>
+        {% for path in principals %}
+            <li><a href="{{ urljoin(self_url+'/', path.lstrip('/')+'/') }}">{{ path }}</a></li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+{% endblock %}

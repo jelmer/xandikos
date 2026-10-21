@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Xandikos{% endblock %}</title>
+    <style>
+      body { font-family: sans-serif; max-width: 50em; margin: 0 auto; padding: 1em; line-height: 1.4; }
+      code { background: #f0f0f0; padding: 0.1em 0.3em; word-break: break-all; }
+      footer { margin-top: 3em; border-top: 1px solid #ccc; font-size: smaller; color: #555; }
+    </style>
+  </head>
+  <body>
+    {% block content %}{% endblock %}
+
+    <footer>
+      <p>Powered by <a href="https://www.xandikos.org/">Xandikos</a> {{ version }}.
+      See the <a href="https://www.xandikos.org/clients/">client setup instructions</a>,
+      <a href="https://www.xandikos.org/help/">help</a>,
+      <a href="https://github.com/jelmer/xandikos">source code</a> and
+      <a href="https://github.com/jelmer/xandikos/issues">issue tracker</a>.</p>
+      <p>Xandikos is free software, licensed under the
+      <a href="https://www.gnu.org/licenses/gpl-3.0.html">GNU General Public License, version 3 or later</a>.</p>
+    </footer>
+  </body>
+</html>
