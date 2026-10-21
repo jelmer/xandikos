@@ -1,13 +1,12 @@
-<html>
-  <head>
-    <title>WebDAV Principal - {{ principal.get_displayname() }}</title>
-  </head>
-  <body>
-    <h1>{{ principal.get_displayname() }} </h1>
+{% extends "base.html" %}
+{% block title %}WebDAV Principal - {{ principal.get_displayname() }}{% endblock %}
+{% block content %}
+    <h1>{{ principal.get_displayname() }}</h1>
 
     <p>This is a user principal. CalDAV/CardDAV clients that support
-    autodiscovery can use the URL for this page for discovery.
-    </p>
+    autodiscovery can use the URL for this page for discovery:</p>
+
+    <p><code>{{ self_url }}</code></p>
 
     <h2>Subcollections</h2>
 
@@ -36,10 +35,4 @@
     {% endfor %}
     </ul>
     {% endif %}
-
-    <p>For more information about Xandikos, see <a
-    href="https://www.xandikos.org/">https://www.xandikos.org/</a>
-    or <a href="https://github.com/jelmer/xandikos">https://github.com/jelmer/xandikos</a>.
-    </p>
-  </body>
-</html>
+{% endblock %}

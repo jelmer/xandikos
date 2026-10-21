@@ -44,7 +44,7 @@ from itertools import takewhile
 
 import jinja2
 
-from xandikos import __version__ as xandikos_version
+from xandikos import version_string as xandikos_version
 from xandikos import (
     access,
     apache,
