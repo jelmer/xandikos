@@ -18,3 +18,14 @@ updates:
       pip:
         patterns:
           - "*"
+  - package-ecosystem: "pip"
+    directory: "/compat"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      compat:
+        patterns:
+          - "*"

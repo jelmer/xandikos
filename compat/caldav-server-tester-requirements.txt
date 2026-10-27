@@ -1,10 +1,7 @@
-# Requirements for caldav-server-tester compatibility tests
-# Pinned to v1.3.0: post-v1.3.0 main adds a WWW-Authenticate probe that
-# references feature keys ("auth.www-authenticate",
-# "auth.www-authenticate.usable-scheme") not present in the released
-# caldav library, tripping the FeatureSet.find_feature assertion.
-# Upstream is aware; see
-# https://github.com/python-caldav/caldav-server-tester/commit/ddebe23b9
-caldav>=3.2.1
+# Requirements for caldav-server-tester compatibility tests.
+# Both are pinned so new upstream probes do not silently break CI; bump
+# the pair together after confirming they still run cleanly against
+# Xandikos.
+caldav==3.6.0
 vobject
-caldav-server-tester @ git+https://github.com/python-caldav/caldav-server-tester.git@v1.3.0
+caldav-server-tester @ git+https://github.com/python-caldav/caldav-server-tester.git@v1.7.0
