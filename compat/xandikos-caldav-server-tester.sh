@@ -50,6 +50,15 @@ class TestXandikosCompatibility(unittest.TestCase):
             # nowhere legal to put such a time-range, but accepting it is a
             # superset of the required behaviour.
             "search.time-range.comp-type-optional": {"support": "full"},
+            # Xandikos answers an unknown sync-token with 412 and the
+            # DAV:valid-sync-token precondition rather than the 403 RFC 4918
+            # suggests.
+            "sync-token.invalid-token": {"support": "quirk"},
+            # Xandikos truncates oversized sync-collection replies without
+            # the 507 status RFC 6578 asks for, and skips the dropped
+            # changes in the next token.
+            "sync-token.limit": {"support": "broken"},
+            "sync-token.limit.initial-sync": {"support": "broken"},
         })
 
         # Multi-user mode with two principals, so the cross-user RFC 6638
