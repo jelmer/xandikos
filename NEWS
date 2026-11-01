@@ -8,6 +8,12 @@
 
  * Report ``DAV:owner`` for collections. (Jelmer Vernooĳ)
 
+ * Read and write collection configuration in ``.xandikos/config`` once
+   it has been migrated there. Previously setting
+   ``CALDAV:calendar-availability`` on a collection lost its type and
+   other settings, wrote a malformed tree in bare Git repositories and
+   failed for vdir collections. (Jelmer Vernooĳ)
+
 0.4.10	2026-10-17
 
  * webdav-push: Check push-resource addresses on delivery, don't

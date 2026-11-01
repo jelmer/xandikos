@@ -39,7 +39,8 @@ from dulwich.index import (
     index_entry_from_stat,
     locked_index,
 )
-from dulwich.objects import Blob, Commit, Tree, valid_hexsha
+from dulwich.object_store import commit_tree_changes
+from dulwich.objects import Blob, Commit, NotTreeError, Tree, valid_hexsha
 from dulwich.repo import get_user_identity
 
 from . import (
@@ -58,7 +59,7 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
-from .config import CONFIG_FILENAME
+from .config import CONFIG_FILE, CONFIG_FILENAME
 from .config import CollectionMetadata, FileBasedCollectionMetadata, is_metadata_file
 from .index import MemoryIndex
 
@@ -367,20 +368,22 @@ class GitStore(Store):
             return RepoCollectionMetadata(self.repo)
         else:
             cp = configparser.ConfigParser()
-            try:
-                cf = self._get_raw(CONFIG_FILENAME)
-            except KeyError:
-                pass
+            # Collections migrated to the metadata directory keep their
+            # config in .xandikos/config, older ones in .xandikos.
+            for config_name in (CONFIG_FILE, CONFIG_FILENAME):
+                try:
+                    cf = self._get_raw(config_name)
+                except KeyError:
+                    continue
+                cp.read_string(b"".join(cf).decode("utf-8"))
+                break
             else:
-                if cf is not None:
-                    cp.read_string(b"".join(cf).decode("utf-8"))
+                config_name = CONFIG_FILENAME
 
             def save_config(cp, message):
                 f = StringIO()
                 cp.write(f)
-                self._import_one(
-                    CONFIG_FILENAME, [f.getvalue().encode("utf-8")], message
-                )
+                self._import_one(config_name, [f.getvalue().encode("utf-8")], message)
 
             return FileBasedCollectionMetadata(cp, save=save_config)
 
@@ -769,11 +772,21 @@ class BareGitStore(GitStore):
         self._cached_ref_target = current_ref
         return tree
 
-    def get_etag(self, name):
+    def _lookup_blob(self, name: str) -> bytes:
         self.check_name(name)
         tree = self._get_current_tree()
-        name = name.encode(DEFAULT_ENCODING)
-        return tree[name][1].decode("ascii")
+        try:
+            mode, sha = tree.lookup_path(
+                self.repo.object_store.__getitem__, name.encode(DEFAULT_ENCODING)
+            )
+        except NotTreeError as exc:
+            raise KeyError(name) from exc
+        if not stat.S_ISREG(mode):
+            raise KeyError(name)
+        return sha
+
+    def get_etag(self, name):
+        return self._lookup_blob(name).decode("ascii")
 
     def get_ctag(self):
         """Return the ctag for this store."""
@@ -859,10 +872,12 @@ class BareGitStore(GitStore):
         tree = self._get_current_tree()
         old_tree_id = tree.id
         name_enc = name.encode(DEFAULT_ENCODING)
-        tree[name_enc] = (0o644 | stat.S_IFREG, b.id)
-        self.repo.object_store.add_objects([(tree, ""), (b, name_enc)])
-        if tree.id != old_tree_id:
-            self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING))
+        self.repo.object_store.add_object(b)
+        tree_id = commit_tree_changes(
+            self.repo.object_store, tree, [(name_enc, 0o644 | stat.S_IFREG, b.id)]
+        )
+        if tree_id != old_tree_id:
+            self._commit_tree(tree_id, message.encode(DEFAULT_ENCODING))
         return b.id
 
     def delete_one(
@@ -880,17 +895,17 @@ class BareGitStore(GitStore):
           NoSuchItem: when the item doesn't exist
           InvalidETag: If the specified ETag doesn't match the current
         """
-        self.check_name(name)
-        tree = self._get_current_tree()
-        name_enc = name.encode(DEFAULT_ENCODING)
         try:
-            current_sha = tree[name_enc][1]
+            current_sha = self._lookup_blob(name)
         except KeyError as exc:
             raise NoSuchItem(name) from exc
         if etag is not None and current_sha != etag.encode("ascii"):
             raise InvalidETag(name, etag, current_sha.decode("ascii"))
-        del tree[name_enc]
-        self.repo.object_store.add_objects([(tree, "")])
+        tree_id = commit_tree_changes(
+            self.repo.object_store,
+            self._get_current_tree(),
+            [(name.encode(DEFAULT_ENCODING), None, None)],
+        )
         if message is None:
             fi = open_by_extension(
                 self.repo.object_store[current_sha].chunked,
@@ -904,7 +919,7 @@ class BareGitStore(GitStore):
                 message += f"\nRemote-User: {remote_user}"
             if requester is not None:
                 message += f"\nRequester: {requester}"
-        self._commit_tree(tree.id, message.encode(DEFAULT_ENCODING))
+        self._commit_tree(tree_id, message.encode(DEFAULT_ENCODING))
 
     @classmethod
     def create(cls, path):
