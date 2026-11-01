@@ -1078,8 +1078,13 @@ class TreeGitStore(GitStore):
                 current_blob = Blob.from_string(f.read())
         except FileNotFoundError as exc:
             raise NoSuchItem(name) from exc
-        except IsADirectoryError as exc:
+        except (IsADirectoryError, NotADirectoryError) as exc:
             raise NoSuchItem(name) from exc
+        except PermissionError as exc:
+            # Windows reports opening a directory as a permission error.
+            if os.path.isdir(p):
+                raise NoSuchItem(name) from exc
+            raise
         if message is None:
             fi = open_by_extension(current_blob.chunked, name, self.extra_file_handlers)
             message = "Delete " + fi.describe(name)
