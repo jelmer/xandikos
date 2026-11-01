@@ -3655,3 +3655,190 @@ class WebUrlTests(unittest.TestCase):
 
     def test_ipv6(self):
         self.assertEqual("http://[::1]:8080/", web_url("::1", 8080, "/", secure=False))
+
+
+class CfaitPropertyTests(unittest.TestCase):
+    """Cfait stores its settings as custom properties on a calendar."""
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.backend.create_principal("/user", create_defaults=True)
+        self.app = XandikosApp(self.backend, "/user")
+
+    def _request(self, method, path, body, depth=None):
+        from io import BytesIO
+        from wsgiref.util import setup_testing_defaults
+
+        environ = {
+            "PATH_INFO": path,
+            "REQUEST_METHOD": method,
+            "CONTENT_TYPE": "application/xml; charset=utf-8",
+            "CONTENT_LENGTH": str(len(body)),
+            "wsgi.input": BytesIO(body),
+        }
+        if depth is not None:
+            environ["HTTP_DEPTH"] = depth
+        setup_testing_defaults(environ)
+        codes = []
+
+        def start_response(code, _headers):
+            codes.append(code)
+
+        resp = b"".join(self.app(environ, start_response))
+        return codes[0], webdav.ET.fromstring(resp)
+
+    def _propstats(self, root):
+        return [
+            (
+                ps.find("{DAV:}status").text,
+                [(p.tag, p.text) for p in ps.find("{DAV:}prop")],
+            )
+            for ps in root.iter("{DAV:}propstat")
+        ]
+
+    def _proppatch(self, path, op, props):
+        body = (
+            '<?xml version="1.0" encoding="utf-8" ?>'
+            '<D:propertyupdate xmlns:D="DAV:" xmlns:CF="http://trougnouf.com/ns/cfait/">'
+            f"<D:{op}><D:prop>{props}</D:prop></D:{op}>"
+            "</D:propertyupdate>"
+        ).encode()
+        return self._request("PROPPATCH", path, body)
+
+    def _propfind(self, path, props):
+        body = (
+            '<?xml version="1.0" encoding="utf-8" ?>'
+            '<D:propfind xmlns:D="DAV:" xmlns:CF="http://trougnouf.com/ns/cfait/">'
+            f"<D:prop>{props}</D:prop></D:propfind>"
+        ).encode()
+        return self._request("PROPFIND", path, body, depth="0")
+
+    def test_probe(self):
+        path = "/user/calendars/calendar/"
+        ns = "{http://trougnouf.com/ns/cfait/}"
+        code, root = self._proppatch(path, "set", "<CF:probe>abc-123</CF:probe>")
+        self.assertEqual("207 Multi-Status", code)
+        self.assertEqual(
+            [("HTTP/1.1 200 OK", [(ns + "probe", None)])], self._propstats(root)
+        )
+        code, root = self._propfind(path, "<CF:probe/>")
+        self.assertEqual("207 Multi-Status", code)
+        self.assertEqual(
+            [("HTTP/1.1 200 OK", [(ns + "probe", "abc-123")])], self._propstats(root)
+        )
+        code, root = self._proppatch(path, "remove", "<CF:probe/>")
+        self.assertEqual(
+            [("HTTP/1.1 200 OK", [(ns + "probe", None)])], self._propstats(root)
+        )
+        code, root = self._propfind(path, "<CF:probe/>")
+        self.assertEqual(
+            [("HTTP/1.1 404 Not Found", [(ns + "probe", None)])],
+            self._propstats(root),
+        )
+
+    def _calendar_dir(self):
+        return os.path.join(self.tempdir, "user", "calendars", "calendar")
+
+    def test_settings(self):
+        path = "/user/calendars/calendar/"
+        ns = "{http://trougnouf.com/ns/cfait/}"
+        code, root = self._proppatch(
+            path,
+            "set",
+            "<CF:settings>{&quot;a&quot;: &quot;50% &lt;b&gt;&quot;}</CF:settings>"
+            "<CF:settings-rev>1793000000</CF:settings-rev>",
+        )
+        self.assertEqual("207 Multi-Status", code)
+        self.assertEqual(
+            [
+                (
+                    "HTTP/1.1 200 OK",
+                    [(ns + "settings", None), (ns + "settings-rev", None)],
+                )
+            ],
+            self._propstats(root),
+        )
+        settings_path = os.path.join(
+            self._calendar_dir(), ".xandikos", "cfait-settings.json"
+        )
+        with open(settings_path) as f:
+            self.assertEqual('{"a": "50% <b>"}', f.read())
+        os.utime(settings_path, (1700000000.5, 1700000000.5))
+        code, root = self._propfind(path, "<CF:settings/><CF:settings-rev/>")
+        self.assertEqual(
+            [
+                (
+                    "HTTP/1.1 200 OK",
+                    [
+                        (ns + "settings", '{"a": "50% <b>"}'),
+                        (ns + "settings-rev", "1700000000"),
+                    ],
+                )
+            ],
+            self._propstats(root),
+        )
+
+    def test_settings_keep_calendar(self):
+        path = "/user/calendars/calendar/"
+        # The first write migrates the legacy .xandikos config file to the
+        # metadata directory; later writes don't touch the store.
+        self._proppatch(path, "set", "<CF:settings>[]</CF:settings>")
+        store = self.backend.get_resource(path).store
+        ctag = store.get_ctag()
+        self._proppatch(path, "set", "<CF:settings>{}</CF:settings>")
+        self.assertEqual(ctag, store.get_ctag())
+        cal = self.backend.get_resource(path)
+        self.assertEqual("calendar", cal.store.get_type())
+        self.assertEqual("{}", cal.get_cfait_settings())
+
+    def test_remove_settings(self):
+        path = "/user/calendars/calendar/"
+        ns = "{http://trougnouf.com/ns/cfait/}"
+        self._proppatch(path, "set", "<CF:settings>{}</CF:settings>")
+        code, root = self._proppatch(path, "remove", "<CF:settings/><CF:settings-rev/>")
+        self.assertEqual(
+            [
+                (
+                    "HTTP/1.1 200 OK",
+                    [(ns + "settings", None), (ns + "settings-rev", None)],
+                )
+            ],
+            self._propstats(root),
+        )
+        code, root = self._propfind(path, "<CF:settings/><CF:settings-rev/>")
+        self.assertEqual(
+            [
+                (
+                    "HTTP/1.1 404 Not Found",
+                    [(ns + "settings", None), (ns + "settings-rev", None)],
+                )
+            ],
+            self._propstats(root),
+        )
+
+    def test_settings_rev_alone(self):
+        path = "/user/calendars/calendar/"
+        ns = "{http://trougnouf.com/ns/cfait/}"
+        self._proppatch(path, "set", "<CF:settings-rev>5</CF:settings-rev>")
+        code, root = self._propfind(path, "<CF:settings-rev/>")
+        self.assertEqual(
+            [("HTTP/1.1 404 Not Found", [(ns + "settings-rev", None)])],
+            self._propstats(root),
+        )
+
+    def test_unsupported_on_addressbook(self):
+        code, root = self._proppatch(
+            "/user/contacts/addressbook/", "set", "<CF:probe>abc</CF:probe>"
+        )
+        self.assertEqual(
+            [
+                (
+                    "HTTP/1.1 403 Forbidden",
+                    [("{http://trougnouf.com/ns/cfait/}probe", None)],
+                )
+            ],
+            self._propstats(root),
+        )

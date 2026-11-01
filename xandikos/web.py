@@ -50,6 +50,7 @@ from xandikos import (
     apache,
     caldav,
     carddav,
+    cfait,
     imip,
     imip_listen,
     imip_transport as imip_transport_mod,
@@ -85,6 +86,7 @@ from xandikos.store import (
     OutOfSpaceError,
     Store,
 )
+from xandikos.store.config import METADATA_DIRECTORY
 
 from icalendar.cal import Calendar
 from icalendar.cal import Timezone as VTimezone
@@ -182,6 +184,10 @@ DEFAULT_CALENDAR_COMPONENTS = (
     "VAVAILABILITY",
 )
 GIT_PATH = ".git"
+
+# Files in the collection metadata directory that hold Cfait properties.
+CFAIT_SETTINGS_FILENAME = "cfait-settings.json"
+CFAIT_PROBE_FILENAME = "cfait-probe"
 
 # Mapping from content types to their validation error tags
 CONTENT_TYPE_ERROR_TAGS = {
@@ -1214,6 +1220,57 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
 
     def set_calendar_color(self, color):
         self.store.set_color(color)
+
+    def _cfait_path(self, filename):
+        return os.path.join(
+            self.backend._map_to_file_path(self.relpath), METADATA_DIRECTORY, filename
+        )
+
+    def _read_cfait_file(self, filename):
+        try:
+            with open(self._cfait_path(filename), encoding="utf-8") as f:
+                return f.read()
+        except (FileNotFoundError, NotADirectoryError) as exc:
+            raise KeyError(filename) from exc
+
+    def _write_cfait_file(self, filename, value):
+        path = self._cfait_path(filename)
+        if value is None:
+            try:
+                os.unlink(path)
+            except (FileNotFoundError, NotADirectoryError):
+                # RFC 4918 section 14.23: removing a property that does not
+                # exist is not an error.
+                pass
+            return
+        metadata_dir = os.path.dirname(path)
+        if os.path.isfile(metadata_dir):
+            # Still a legacy .xandikos config file.
+            self._ensure_metadata_directory()
+        os.makedirs(metadata_dir, exist_ok=True)
+        tmppath = path + ".tmp"
+        with open(tmppath, "w", encoding="utf-8") as f:
+            f.write(value)
+        os.replace(tmppath, path)
+
+    def get_cfait_settings(self):
+        return self._read_cfait_file(CFAIT_SETTINGS_FILENAME)
+
+    def set_cfait_settings(self, settings):
+        self._write_cfait_file(CFAIT_SETTINGS_FILENAME, settings)
+
+    def get_cfait_settings_mtime(self):
+        try:
+            st = os.stat(self._cfait_path(CFAIT_SETTINGS_FILENAME))
+        except (FileNotFoundError, NotADirectoryError) as exc:
+            raise KeyError(CFAIT_SETTINGS_FILENAME) from exc
+        return int(st.st_mtime)
+
+    def get_cfait_probe(self):
+        return self._read_cfait_file(CFAIT_PROBE_FILENAME)
+
+    def set_cfait_probe(self, value):
+        self._write_cfait_file(CFAIT_PROBE_FILENAME, value)
 
     def get_calendar_order(self):
         order = self.store.config.get_order()
@@ -2718,6 +2775,9 @@ class XandikosApp(webdav.WebDAVApp):
                 infit.AddressbookColorProperty(),
                 infit.SettingsProperty(),
                 infit.HeaderValueProperty(),
+                cfait.SettingsProperty(),
+                cfait.SettingsRevProperty(),
+                cfait.ProbeProperty(),
                 webdav.CommentProperty(),
                 scheduling.CalendarUserAddressSetProperty(),
                 scheduling.ScheduleInboxURLProperty(),

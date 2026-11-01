@@ -14,6 +14,9 @@
    other settings, wrote a malformed tree in bare Git repositories and
    failed for vdir collections. (Jelmer Vernooĳ)
 
+ * Support the custom properties Cfait uses to store its settings on
+   calendar collections. (Jelmer Vernooĳ)
+
 0.4.10	2026-10-17
 
  * webdav-push: Check push-resource addresses on delivery, don't
