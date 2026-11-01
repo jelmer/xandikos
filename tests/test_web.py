@@ -355,6 +355,18 @@ END:VCALENDAR"""
         # Compare the normalized forms
         self.assertEqual(original_cal.to_ical(), retrieved_cal.to_ical())
 
+    def test_calendar_availability_keeps_collection_config(self):
+        self.store.set_type("calendar")
+        self.cal.set_calendar_color("#aabbcc")
+        self.cal.set_calendar_availability(
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VAVAILABILITY\r\nDTSTART:20240101T090000Z\r\n"
+            "END:VAVAILABILITY\r\nEND:VCALENDAR\r\n"
+        )
+        store = TreeGitStore.open_from_path(os.path.join(self.tempdir, "c"))
+        self.assertEqual("calendar", store.get_type())
+        self.assertEqual("#aabbcc", store.get_color())
+
     def test_calendar_availability_set_none_removes(self):
         """Test that setting availability to None removes it."""
         availability_data = """BEGIN:VCALENDAR

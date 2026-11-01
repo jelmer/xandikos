@@ -324,7 +324,52 @@ class BaseStoreTest:
         )
 
 
-class VdirStoreTest(BaseStoreTest, unittest.TestCase):
+class MetadataDirectoryTests:
+    """Collection metadata kept in the .xandikos/ directory."""
+
+    kls: type[Store]
+
+    def create_disk_store(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        path = os.path.join(d, "store")
+        self.kls.create(path)
+        return path
+
+    def test_metadata_file_roundtrip(self):
+        store = self.kls.open_from_path(self.create_disk_store())
+        store.import_one(".xandikos/foo", "text/plain", [b"some data"])
+        self.assertEqual([b"some data"], list(store._get_raw(".xandikos/foo")))
+        self.assertEqual([], list(store.iter_with_etag()))
+        self.assertEqual([], store.subdirectories())
+        store.delete_one(".xandikos/foo")
+        self.assertRaises(KeyError, store.get_etag, ".xandikos/foo")
+
+    def test_metadata_file_below_legacy_config_file(self):
+        store = self.kls.open_from_path(self.create_disk_store())
+        store.config.set_comment("a comment")
+        self.assertRaises(KeyError, store.get_etag, ".xandikos/config")
+        self.assertRaises(KeyError, store._get_raw, ".xandikos/config")
+
+    def test_config_in_metadata_directory(self):
+        path = self.create_disk_store()
+        store = self.kls.open_from_path(path)
+        store.config.set_comment("a comment")
+        legacy = b"".join(store._get_raw(".xandikos"))
+        store.delete_one(".xandikos", message="Delete .xandikos")
+        store.import_one(".xandikos/config", "text/plain", [legacy])
+        store = self.kls.open_from_path(path)
+        self.assertEqual("a comment", store.config.get_comment())
+        store.config.set_description("a description")
+        store = self.kls.open_from_path(path)
+        self.assertEqual("a description", store.config.get_description())
+        self.assertEqual("a comment", store.config.get_comment())
+        self.assertRaises(KeyError, store._get_raw, ".xandikos")
+        self.assertRaises(KeyError, store.get_etag, ".xandikos")
+        self.assertRaises(NoSuchItem, store.delete_one, ".xandikos")
+
+
+class VdirStoreTest(BaseStoreTest, MetadataDirectoryTests, unittest.TestCase):
     kls = VdirStore
 
     def create_store(self):
@@ -534,7 +579,7 @@ class GitStoreTest(unittest.TestCase):
         self.assertEqual(gc.repo.path, d)
 
 
-class BareGitStoreTest(BaseGitStoreTest, unittest.TestCase):
+class BareGitStoreTest(BaseGitStoreTest, MetadataDirectoryTests, unittest.TestCase):
     kls = BareGitStore
 
     def create_store(self):
@@ -545,6 +590,15 @@ class BareGitStoreTest(BaseGitStoreTest, unittest.TestCase):
     def test_create_memory(self):
         gc = BareGitStore.create_memory()
         self.assertIsInstance(gc, GitStore)
+
+    def test_metadata_file_in_subtree(self):
+        gc = self.create_store()
+        gc.import_one(".xandikos/foo", "text/plain", [b"some data"])
+        tree = gc._get_current_tree()
+        self.assertEqual([b".xandikos"], [entry.path for entry in tree.iteritems()])
+        mode, sha = tree[b".xandikos"]
+        self.assertEqual(stat.S_IFDIR, mode)
+        self.assertEqual([b"foo"], [entry.path for entry in gc.repo[sha].iteritems()])
 
     def add_blob(self, gc, name, contents):
         b = Blob.from_string(contents)
@@ -590,7 +644,7 @@ class BareGitStoreTest(BaseGitStoreTest, unittest.TestCase):
         self.assertRaises(KeyError, gc.get_etag, "bar.ics")
 
 
-class TreeGitStoreTest(BaseGitStoreTest, unittest.TestCase):
+class TreeGitStoreTest(BaseGitStoreTest, MetadataDirectoryTests, unittest.TestCase):
     kls = TreeGitStore
 
     def create_store(self):

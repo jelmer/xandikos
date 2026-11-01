@@ -28,6 +28,7 @@ import hashlib
 from logging import getLogger
 import os
 import shutil
+import stat
 import uuid
 
 from . import (
@@ -41,8 +42,13 @@ from . import (
     open_by_content_type,
     open_by_extension,
 )
-from .config import CONFIG_FILENAME
-from .config import FileBasedCollectionMetadata
+from .config import (
+    CONFIG_FILE,
+    CONFIG_FILENAME,
+    METADATA_DIRECTORY,
+    FileBasedCollectionMetadata,
+    is_metadata_file,
+)
 from .index import MemoryIndex
 
 DEFAULT_ENCODING = "utf-8"
@@ -78,10 +84,10 @@ class VdirStore(Store):
         )
 
         cp = configparser.ConfigParser()
-        cp.read([os.path.join(self.path, CONFIG_FILENAME)])
+        cp.read([self._config_path()])
 
         def save_config(cp, message):
-            with open(os.path.join(self.path, CONFIG_FILENAME), "w") as f:
+            with open(self._config_path(), "w") as f:
                 cp.write(f)
 
         self.config = FileBasedCollectionMetadata(cp, save=save_config)
@@ -89,15 +95,22 @@ class VdirStore(Store):
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.path!r})"
 
+    def _config_path(self) -> str:
+        # Collections migrated to the metadata directory keep their config
+        # in .xandikos/config, older ones in .xandikos.
+        if os.path.isdir(os.path.join(self.path, METADATA_DIRECTORY)):
+            return os.path.join(self.path, CONFIG_FILE)
+        return os.path.join(self.path, CONFIG_FILENAME)
+
     def get_etag(self, name):
         self.check_name(name)
         path = os.path.join(self.path, name)
         try:
             st = os.stat(path)
-        except FileNotFoundError as exc:
+        except (FileNotFoundError, NotADirectoryError) as exc:
             raise KeyError(name) from exc
-        except IsADirectoryError as exc:
-            raise KeyError(name) from exc
+        if stat.S_ISDIR(st.st_mode):
+            raise KeyError(name)
 
         cached = self._etag_cache.get(name)
         if cached is not None:
@@ -128,8 +141,13 @@ class VdirStore(Store):
                 return [f.read()]
         except FileNotFoundError as exc:
             raise KeyError(name) from exc
-        except IsADirectoryError as exc:
+        except (IsADirectoryError, NotADirectoryError) as exc:
             raise KeyError(name) from exc
+        except PermissionError as exc:
+            # Windows reports opening a directory as a permission error.
+            if os.path.isdir(path):
+                raise KeyError(name) from exc
+            raise
 
     def _parse_file(self, etag: str, content_type: str | None, name: str):
         """Parse a file, used as the backing function for the LRU cache."""
@@ -257,6 +275,8 @@ class VdirStore(Store):
         # TODO(jelmer): check that a UID is present and that all UIDs are the
         # same
         path = os.path.join(self.path, name)
+        if is_metadata_file(name):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
         tmppath = os.path.join(self.path, name + ".tmp")
         with open(tmppath, "wb") as f:
             for chunk in fi.normalized():
@@ -454,8 +474,13 @@ class VdirStore(Store):
             os.unlink(path)
         except FileNotFoundError as exc:
             raise NoSuchItem(path) from exc
-        except IsADirectoryError as exc:
+        except (IsADirectoryError, NotADirectoryError) as exc:
             raise NoSuchItem(path) from exc
+        except PermissionError as exc:
+            # Windows reports unlinking a directory as a permission error.
+            if os.path.isdir(path):
+                raise NoSuchItem(path) from exc
+            raise
 
     def get_ctag(self):
         """Return the ctag for this store."""
@@ -468,6 +493,8 @@ class VdirStore(Store):
         """
         ret = []
         for name in os.listdir(self.path):
+            if is_metadata_file(name):
+                continue
             p = os.path.join(self.path, name)
             if os.path.isdir(p):
                 ret.append(name)
