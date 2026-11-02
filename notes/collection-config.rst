@@ -52,6 +52,7 @@ Need per calendar config:
 - max attendees per instance
 - calendar timezone
 - calendar schedule transparency
+- cfait settings
 
 Addressbook
 ~~~~~~~~~~~

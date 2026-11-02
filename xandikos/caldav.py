@@ -127,6 +127,26 @@ class Calendar(webdav.Collection):
         """Set the calendar color."""
         raise NotImplementedError(self.set_calendar_color)
 
+    def get_cfait_settings(self) -> str:
+        """Return the Cfait settings payload."""
+        raise NotImplementedError(self.get_cfait_settings)
+
+    def set_cfait_settings(self, settings: str | None) -> None:
+        """Set the Cfait settings payload, or remove it if None."""
+        raise NotImplementedError(self.set_cfait_settings)
+
+    def get_cfait_settings_mtime(self) -> int:
+        """Return when the Cfait settings were last stored, as unix seconds."""
+        raise NotImplementedError(self.get_cfait_settings_mtime)
+
+    def get_cfait_probe(self) -> str:
+        """Return the Cfait probe value."""
+        raise NotImplementedError(self.get_cfait_probe)
+
+    def set_cfait_probe(self, value: str | None) -> None:
+        """Set the Cfait probe value, or remove it if None."""
+        raise NotImplementedError(self.set_cfait_probe)
+
     def get_calendar_order(self) -> str:
         """Return the calendar order."""
         raise NotImplementedError(self.get_calendar_order)
