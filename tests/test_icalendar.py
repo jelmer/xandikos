@@ -1778,13 +1778,14 @@ END:VEVENT
             + "END:VCALENDAR\n"
         ).encode("ascii")
 
-    def _matches(self, data, start, end, comp="VEVENT"):
+    def _matches(self, data, start, end, comp="VEVENT", subcomp=None):
         """Return (index result, full file result) for a time range query."""
         cal = ICalendarFile([data], "text/calendar")
         filter = CalendarFilter(ZoneInfo("UTC"))
-        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
-            comp
-        ).filter_time_range(start, end)
+        comp_filter = filter.filter_subcomponent("VCALENDAR").filter_subcomponent(comp)
+        if subcomp is not None:
+            comp_filter = comp_filter.filter_subcomponent(subcomp)
+        comp_filter.filter_time_range(start, end)
         keys = [k for ks in filter.index_keys() for k in ks]
         try:
             index_result = filter.check_from_indexes("file", cal.get_indexes(keys))
@@ -1919,6 +1920,63 @@ END:VEVENT
             (True, True),
             self._matches(
                 data, self._utc(2026, 1, 5, 10, 15), self._utc(2026, 1, 5, 10, 45)
+            ),
+        )
+
+    def _alarm_matches(self, trigger, start, end, extra=""):
+        alarm = (
+            "BEGIN:VALARM\nACTION:DISPLAY\nDESCRIPTION:x\n"
+            f"{trigger}\n{extra}END:VALARM\n"
+        )
+        data = self._calendar(self.MASTER.format(extra=alarm))
+        return self._matches(data, start, end, subcomp="VALARM")
+
+    def test_alarm_of_later_instance(self):
+        self.assertEqual(
+            (True, True),
+            self._alarm_matches(
+                "TRIGGER:-PT15M",
+                self._utc(2026, 1, 7, 9, 40),
+                self._utc(2026, 1, 7, 9, 50),
+            ),
+        )
+        self.assertEqual(
+            (False, False),
+            self._alarm_matches(
+                "TRIGGER:-PT15M",
+                self._utc(2026, 1, 7, 9, 50),
+                self._utc(2026, 1, 7, 10, 30),
+            ),
+        )
+
+    def test_alarm_related_to_end(self):
+        self.assertEqual(
+            (True, True),
+            self._alarm_matches(
+                "TRIGGER;RELATED=END:PT5M",
+                self._utc(2026, 1, 7, 11, 0),
+                self._utc(2026, 1, 7, 11, 10),
+            ),
+        )
+
+    def test_alarm_repetition(self):
+        self.assertEqual(
+            (True, True),
+            self._alarm_matches(
+                "TRIGGER:-PT30M",
+                self._utc(2026, 1, 8, 9, 48),
+                self._utc(2026, 1, 8, 9, 52),
+                extra="REPEAT:2\nDURATION:PT10M\n",
+            ),
+        )
+
+    def test_alarm_absolute_trigger(self):
+        self.assertEqual(
+            (True, True),
+            self._alarm_matches(
+                "TRIGGER;VALUE=DATE-TIME:20260301T090000Z",
+                self._utc(2026, 3, 1, 8, 55),
+                self._utc(2026, 3, 1, 9, 5),
             ),
         )
 
@@ -2241,6 +2299,37 @@ class ApplyTimeRangeVavailabilityTests(unittest.TestCase):
 
 
 class ExpandCalendarRRuleTests(unittest.TestCase):
+    def test_expand_keeps_alarms(self):
+        cal = Calendar.from_ical(
+            b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:a
+DTSTART:20260105T100000Z
+DTEND:20260105T110000Z
+RRULE:FREQ=DAILY;COUNT=2
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT15M
+END:VALARM
+END:VEVENT
+END:VCALENDAR"""
+        )
+        expanded = expand_calendar_rrule(
+            cal,
+            datetime(2026, 1, 1, tzinfo=timezone.utc),
+            datetime(2026, 2, 1, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            [["VALARM"], ["VALARM"]],
+            [[sub.name for sub in ev.subcomponents] for ev in expanded.subcomponents],
+        )
+        # Each instance must have its own copy.
+        first, second = expanded.subcomponents
+        self.assertIsNot(first.subcomponents[0], second.subcomponents[0])
+
     def test_expand_rdate_period_end(self):
         cal = Calendar.from_ical(
             b"""BEGIN:VCALENDAR

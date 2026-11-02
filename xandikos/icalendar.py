@@ -20,7 +20,7 @@
 """ICalendar file handling."""
 
 from logging import getLogger
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from collections.abc import Callable
 from typing import Any, Protocol, cast, overload, runtime_checkable
@@ -815,6 +815,13 @@ class ComponentTimeRangeMatcher:
                         raise
             return False
 
+        if self.comp == "VALARM":
+            # Triggers depend on the instances of the parent component, which
+            # are not available here.
+            raise InsufficientIndexDataError(
+                "VALARM time ranges are not evaluated from indexes"
+            )
+
         if self.comp in self.recurring_components:
             for prop in self.unindexed_recurrence_props:
                 if indexes["P=" + prop]:
@@ -1243,17 +1250,13 @@ class ComponentFilter:
         self.time_range = ComponentTimeRangeMatcher(start, end, comp=self.name)
         return self.time_range
 
-    def _find_time_range(self):
-        """Recursively find the first time range in this filter or its children."""
-        if self.time_range:
-            return self.time_range
-
+    def _iter_time_ranges(self) -> Iterator["ComponentTimeRangeMatcher"]:
+        """Yield the time ranges in this filter and nested component filters."""
+        if self.time_range is not None:
+            yield self.time_range
         for child in self.children:
             if isinstance(child, ComponentFilter):
-                nested_range = child._find_time_range()
-                if nested_range:
-                    return nested_range
-        return None
+                yield from child._iter_time_ranges()
 
     def match(self, comp: Component, tzify: TzifyFunction):
         # From https://tools.ietf.org/html/rfc4791, 9.7.1:
@@ -1566,28 +1569,20 @@ class CalendarFilter(Filter):
         self.children.append(ret)
         return ret
 
-    def _find_time_range(self):
-        """Recursively find the first time range in component filters."""
+    def _iter_time_ranges(self) -> Iterator[ComponentTimeRangeMatcher]:
         for child in self.children:
             if isinstance(child, ComponentFilter):
-                if child.time_range:
-                    return child.time_range
-                # Recursively check nested filters
-                nested_range = child._find_time_range()
-                if nested_range:
-                    return nested_range
-        return None
+                yield from child._iter_time_ranges()
 
     def check(self, name: str, file: File) -> bool:
         if not isinstance(file, ICalendarFile):
             return False
 
-        # Look for time range in component filters (including nested ones)
-        time_range = self._find_time_range()
-
-        # Expand with time constraints if needed
-        if time_range:
-            c = file.get_expanded_calendar(time_range.start, time_range.end)
+        time_ranges = list(self._iter_time_ranges())
+        if time_ranges:
+            c = file.get_expanded_calendar(
+                *_expansion_window(file.calendar, time_ranges)
+            )
         else:
             # For unbounded queries, use the original calendar without expansion
             # to avoid infinite expansion of recurring events
@@ -2236,6 +2231,72 @@ def _event_overlaps_range(comp: Component, start, end) -> bool:
     return event_start < end_normalized and event_end > start_normalized
 
 
+def _shift_clamped(dt: datetime, delta: timedelta) -> datetime:
+    try:
+        return dt + delta
+    except OverflowError:
+        return MAX_EXPANSION_TIME if delta > timedelta(0) else MIN_EXPANSION_TIME
+
+
+def _alarm_trigger_offsets(
+    calendar: Calendar,
+) -> tuple[timedelta, timedelta] | None:
+    """Find the earliest and latest alarm trigger relative to instance start.
+
+    Returns None if any alarm has an absolute trigger, as that doesn't move
+    with the instance it belongs to.
+    """
+    earliest: timedelta | None = None
+    latest: timedelta | None = None
+    for comp in calendar.subcomponents:
+        duration = _get_event_duration(comp) or timedelta(0)
+        for alarm in comp.subcomponents:
+            if alarm.name != "VALARM" or "TRIGGER" not in alarm:
+                continue
+            trigger = alarm["TRIGGER"]
+            if not isinstance(trigger.dt, timedelta):
+                return None
+            first = trigger.dt
+            if trigger.params.get("RELATED", "START") == "END":
+                first += duration
+            last = first
+            if "REPEAT" in alarm and "DURATION" in alarm:
+                last += alarm["DURATION"].dt * int(alarm["REPEAT"])
+            earliest = first if earliest is None else min(earliest, first)
+            latest = last if latest is None else max(latest, last)
+    if earliest is None or latest is None:
+        return timedelta(0), timedelta(0)
+    return earliest, latest
+
+
+def _expansion_window(
+    calendar: Calendar, time_ranges: list[ComponentTimeRangeMatcher]
+) -> tuple[datetime | None, datetime | None]:
+    """Find the window to expand recurrences in to evaluate time ranges.
+
+    A VALARM time range selects instances whose alarm triggers inside it, so
+    for those the window is shifted by the alarm trigger offsets. Returns
+    (None, None) when the window can't be bounded.
+    """
+    starts = []
+    ends = []
+    for time_range in time_ranges:
+        start, end = time_range.start, time_range.end
+        if time_range.comp == "VALARM":
+            offsets = _alarm_trigger_offsets(calendar)
+            if offsets is None:
+                return None, None
+            earliest, latest = offsets
+            # An instance starting at s has triggers in [s + earliest,
+            # s + latest], so it can match if s is in (start - latest,
+            # end - earliest).
+            start = _shift_clamped(start, -latest)
+            end = _shift_clamped(end, -earliest)
+        starts.append(start)
+        ends.append(end)
+    return min(starts), max(ends)
+
+
 def _set_instance_duration(
     comp: Component, start: date | datetime, duration: timedelta
 ) -> None:
@@ -2375,6 +2436,10 @@ def _expand_rrule_component(
             period = periods.get(ts)
             if period is not None:
                 _set_instance_duration(outcomp, ts_for_dtstart, period)
+
+            # A shallow copy drops subcomponents such as VALARM.
+            for sub in incomp.subcomponents:
+                outcomp.add_component(sub.copy(recursive=True))
 
         # Check if occurrence overlaps with time range
         if start is not None and end is not None:
