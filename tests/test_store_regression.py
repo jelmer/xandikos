@@ -172,12 +172,20 @@ class TimeRangeFilterRegressionTest(unittest.TestCase):
         # the result accurately for time-range queries
         matching_indexes = {
             "C=VCALENDAR/C=VEVENT": [True],
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
             "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20000212T120000Z"],  # Matches range
         }
         self.assertTrue(cal_filter.check_from_indexes("test.ics", matching_indexes))
 
         non_matching_indexes = {
             "C=VCALENDAR/C=VEVENT": [True],
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
             "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20000101T120000Z"],  # Outside range
         }
         self.assertFalse(

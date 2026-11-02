@@ -217,6 +217,10 @@ class RRuleIndexUsageTest(unittest.TestCase):
         # because missing required properties means the event can't match
         incomplete_indexes = {
             "C=VCALENDAR/C=VEVENT": [True],
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
             "C=VCALENDAR/C=VEVENT/P=DTSTART": [],  # Missing!
             "C=VCALENDAR/C=VEVENT/P=DTEND": [b"20200101T110000Z"],
             "C=VCALENDAR/C=VEVENT/P=RRULE": [],
@@ -232,6 +236,10 @@ class RRuleIndexUsageTest(unittest.TestCase):
             "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20200101T100000Z"],
             "C=VCALENDAR/C=VEVENT/P=DTEND": [b"20200101T110000Z"],
             "C=VCALENDAR/C=VEVENT/P=RRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
             # Missing "C=VCALENDAR/C=VEVENT": [True]
         }
 

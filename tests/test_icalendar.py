@@ -653,6 +653,10 @@ class CalendarFilterTests(unittest.TestCase):
                 ["C=VCALENDAR/C=VTODO/P=CREATED"],
                 ["C=VCALENDAR/C=VTODO/P=COMPLETED"],
                 ["C=VCALENDAR/C=VTODO/P=RRULE"],
+                ["C=VCALENDAR/C=VTODO/P=RDATE"],
+                ["C=VCALENDAR/C=VTODO/P=EXDATE"],
+                ["C=VCALENDAR/C=VTODO/P=EXRULE"],
+                ["C=VCALENDAR/C=VTODO/P=RECURRENCE-ID"],
                 ["C=VCALENDAR/C=VTODO/P=DTSTART/A=TZID"],
                 ["C=VCALENDAR/C=VTODO"],
             ],
@@ -666,6 +670,10 @@ class CalendarFilterTests(unittest.TestCase):
                 {
                     "C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"],
                     "C=VCALENDAR/C=VTODO": [True],
+                    "C=VCALENDAR/C=VTODO/P=RDATE": [],
+                    "C=VCALENDAR/C=VTODO/P=EXDATE": [],
+                    "C=VCALENDAR/C=VTODO/P=EXRULE": [],
+                    "C=VCALENDAR/C=VTODO/P=RECURRENCE-ID": [],
                     "C=VCALENDAR/C=VTODO/P=DUE": [],
                     "C=VCALENDAR/C=VTODO/P=DURATION": [],
                     "C=VCALENDAR/C=VTODO/P=COMPLETED": [],
@@ -681,6 +689,10 @@ class CalendarFilterTests(unittest.TestCase):
                 {
                     "C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314"],
                     "C=VCALENDAR/C=VTODO": [True],
+                    "C=VCALENDAR/C=VTODO/P=RDATE": [],
+                    "C=VCALENDAR/C=VTODO/P=EXDATE": [],
+                    "C=VCALENDAR/C=VTODO/P=EXRULE": [],
+                    "C=VCALENDAR/C=VTODO/P=RECURRENCE-ID": [],
                     "C=VCALENDAR/C=VTODO/P=DUE": [],
                     "C=VCALENDAR/C=VTODO/P=DURATION": [],
                     "C=VCALENDAR/C=VTODO/P=COMPLETED": [],
@@ -703,6 +715,10 @@ class CalendarFilterTests(unittest.TestCase):
                 {
                     "C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"],
                     "C=VCALENDAR/C=VTODO": [True],
+                    "C=VCALENDAR/C=VTODO/P=RDATE": [],
+                    "C=VCALENDAR/C=VTODO/P=EXDATE": [],
+                    "C=VCALENDAR/C=VTODO/P=EXRULE": [],
+                    "C=VCALENDAR/C=VTODO/P=RECURRENCE-ID": [],
                     "C=VCALENDAR/C=VTODO/P=DUE": [],
                     "C=VCALENDAR/C=VTODO/P=DURATION": [],
                     "C=VCALENDAR/C=VTODO/P=COMPLETED": [],
@@ -752,6 +768,10 @@ class CalendarFilterTests(unittest.TestCase):
                 ["C=VCALENDAR/C=VEVENT/P=DTEND"],
                 ["C=VCALENDAR/C=VEVENT/P=DURATION"],
                 ["C=VCALENDAR/C=VEVENT/P=RRULE"],
+                ["C=VCALENDAR/C=VEVENT/P=RDATE"],
+                ["C=VCALENDAR/C=VEVENT/P=EXDATE"],
+                ["C=VCALENDAR/C=VEVENT/P=EXRULE"],
+                ["C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID"],
                 ["C=VCALENDAR/C=VEVENT/P=DTSTART/A=TZID"],
                 ["C=VCALENDAR/C=VEVENT"],
             ],
@@ -764,6 +784,10 @@ class CalendarFilterTests(unittest.TestCase):
                 {
                     "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20140314T223512Z"],
                     "C=VCALENDAR/C=VEVENT": [True],
+                    "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+                    "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+                    "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+                    "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
                     "C=VCALENDAR/C=VEVENT/P=DTEND": [],
                     "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"],
                 },
@@ -789,6 +813,10 @@ class CalendarFilterTests(unittest.TestCase):
                     "C=VCALENDAR/C=VEVENT/P=DTEND": [],
                     "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
                     "C=VCALENDAR/C=VEVENT": True,
+                    "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+                    "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+                    "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+                    "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
                 },
             )
         )
@@ -891,6 +919,10 @@ END:VCALENDAR"""
                         "C=VCALENDAR/C=VTODO/P=COMPLETED": [b"20231001T105204Z"],
                         "C=VCALENDAR/C=VTODO/P=RRULE": [b"FREQ=DAILY"],
                         "C=VCALENDAR/C=VTODO": [True],
+                        "C=VCALENDAR/C=VTODO/P=RDATE": [],
+                        "C=VCALENDAR/C=VTODO/P=EXDATE": [],
+                        "C=VCALENDAR/C=VTODO/P=EXRULE": [],
+                        "C=VCALENDAR/C=VTODO/P=RECURRENCE-ID": [],
                     },
                 )
             )
@@ -922,6 +954,10 @@ END:VCALENDAR"""
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         self.assertTrue(filter.check_from_indexes("file", indexes))
 
@@ -949,6 +985,10 @@ END:VCALENDAR"""
             "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=YEARLY;UNTIL=20180314T223512Z"],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"],  # Only original
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         self.assertFalse(filter.check_from_indexes("file", indexes))
 
@@ -978,6 +1018,10 @@ END:VCALENDAR"""
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         self.assertTrue(filter.check_from_indexes("file", indexes))
         self.assertTrue(filter.check("file", self.cal))
@@ -1004,6 +1048,10 @@ END:VCALENDAR"""
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         self.assertTrue(filter.check_from_indexes("file", indexes))
         self.assertTrue(filter.check("file", self.cal))
@@ -1030,6 +1078,10 @@ END:VCALENDAR"""
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         self.assertTrue(filter.check_from_indexes("file", indexes))
         self.assertTrue(filter.check("file", self.cal))
@@ -1080,6 +1132,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=YEARLY;COUNT=3"],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         self.assertTrue(filter.check_from_indexes("file", indexes))
         self.assertTrue(filter.check("file", self.cal))
@@ -1273,13 +1329,14 @@ END:VCALENDAR
             end=self._tzify(datetime(2016, 5, 27, 15, 30, 0)),
         )
 
-        indexes = {
-            "C=VCALENDAR/C=VEVENT/P=DTSTART": expected_dtstart,
-            "C=VCALENDAR/C=VEVENT/P=DTEND": expected_dtend,
-            "C=VCALENDAR/C=VEVENT/P=DURATION": [],
-            "C=VCALENDAR/C=VEVENT": True,
-        }
-        self.assertTrue(filter.check_from_indexes("file", indexes))
+        indexes = self.cal.get_indexes([k for ks in filter.index_keys() for k in ks])
+        self.assertEqual(
+            [b"20160527T100000Z"],
+            indexes["C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID"],
+        )
+        # Overrides can't be matched from the flattened index values.
+        with self.assertRaises(InsufficientIndexDataError):
+            filter.check_from_indexes("file", indexes)
         self.assertTrue(filter.check("file", self.cal))
 
     def test_rrule_index_based_filtering_date_only_events(self):
@@ -1323,6 +1380,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=YEARLY;COUNT=3"],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         self.assertTrue(filter.check_from_indexes("file", indexes))
         self.assertTrue(filter.check("file", self.cal))
@@ -1374,6 +1435,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=WEEKLY;COUNT=5;BYDAY=WE"],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         self.assertTrue(filter.check_from_indexes("file", indexes))
         self.assertTrue(filter.check("file", self.cal))
@@ -1397,6 +1462,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         from xandikos.store import InsufficientIndexDataError
 
@@ -1408,6 +1477,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20160527T221952Z"],
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D"],
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
             # Missing "C=VCALENDAR/C=VEVENT": True
         }
         # Missing component marker should also raise an exception
@@ -1438,6 +1511,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [b"P1D", b"P1D", b"P1D"],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
 
         # Should handle mixed types gracefully and still find matches
@@ -1544,6 +1621,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
 
         filter_unbounded = CalendarFilter(ZoneInfo("UTC"))
@@ -1602,6 +1683,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=DAILY;COUNT=3"],
             "C=VCALENDAR/C=VEVENT/P=UID": [b"open-start-event@example.com"],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
         self.assertFalse(filter.check_from_indexes("test.ics", indexes))
 
@@ -1651,6 +1736,10 @@ END:VCALENDAR
                     "C=VCALENDAR": [True],
                     "C=VCALENDAR/C=VTODO/P=CREATED": [b"20150314T223512Z"],
                     "C=VCALENDAR/C=VTODO": [True],
+                    "C=VCALENDAR/C=VTODO/P=RDATE": [],
+                    "C=VCALENDAR/C=VTODO/P=EXDATE": [],
+                    "C=VCALENDAR/C=VTODO/P=EXRULE": [],
+                    "C=VCALENDAR/C=VTODO/P=RECURRENCE-ID": [],
                     "C=VCALENDAR/C=VTODO/P=DTSTART": [],
                     "C=VCALENDAR/C=VTODO/P=DUE": [],
                     "C=VCALENDAR/C=VTODO/P=DURATION": [],
@@ -1658,6 +1747,199 @@ END:VCALENDAR
                     "C=VCALENDAR/C=VTODO/P=RRULE": [],
                 },
             )
+        )
+
+
+class RecurrenceIndexConsistencyTests(unittest.TestCase):
+    """Index-based and full-file time-range matching must agree."""
+
+    MASTER = """\
+BEGIN:VEVENT
+UID:a
+DTSTART:20260105T100000Z
+DTEND:20260105T110000Z
+RRULE:FREQ=DAILY;COUNT=5
+{extra}END:VEVENT
+"""
+
+    OVERRIDE = """\
+BEGIN:VEVENT
+UID:a
+RECURRENCE-ID:20260107T100000Z
+DTSTART:20260107T150000Z
+DTEND:20260107T160000Z
+END:VEVENT
+"""
+
+    def _calendar(self, *components):
+        return (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:test\n"
+            + "".join(components)
+            + "END:VCALENDAR\n"
+        ).encode("ascii")
+
+    def _matches(self, data, start, end, comp="VEVENT"):
+        """Return (index result, full file result) for a time range query."""
+        cal = ICalendarFile([data], "text/calendar")
+        filter = CalendarFilter(ZoneInfo("UTC"))
+        filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+            comp
+        ).filter_time_range(start, end)
+        keys = [k for ks in filter.index_keys() for k in ks]
+        try:
+            index_result = filter.check_from_indexes("file", cal.get_indexes(keys))
+        except InsufficientIndexDataError:
+            # The store falls back to a full file check in this case.
+            index_result = filter.check("file", cal)
+        return index_result, filter.check("file", cal)
+
+    def _utc(self, *args):
+        return datetime(*args, tzinfo=ZoneInfo("UTC"))
+
+    def test_plain_rrule(self):
+        data = self._calendar(self.MASTER.format(extra=""))
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data, self._utc(2026, 1, 7, 10, 30), self._utc(2026, 1, 7, 10, 45)
+            ),
+        )
+
+    def test_rdate_without_dtstart(self):
+        data = self._calendar(
+            """\
+BEGIN:VTODO
+UID:t
+DUE:20260120T110000Z
+RDATE:20260120T100000Z
+END:VTODO
+"""
+        )
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data,
+                self._utc(2026, 1, 20, 10, 50),
+                self._utc(2026, 1, 20, 11, 10),
+                comp="VTODO",
+            ),
+        )
+
+    def test_exdate_removes_instance(self):
+        data = self._calendar(self.MASTER.format(extra="EXDATE:20260107T100000Z\n"))
+        self.assertEqual(
+            (False, False),
+            self._matches(
+                data, self._utc(2026, 1, 7, 10, 30), self._utc(2026, 1, 7, 10, 45)
+            ),
+        )
+
+    def test_exrule_removes_instance(self):
+        data = self._calendar(self.MASTER.format(extra="EXRULE:FREQ=DAILY;COUNT=1\n"))
+        self.assertEqual(
+            (False, False),
+            self._matches(
+                data, self._utc(2026, 1, 5, 10, 30), self._utc(2026, 1, 5, 10, 45)
+            ),
+        )
+
+    def test_rdate_adds_instance(self):
+        data = self._calendar(self.MASTER.format(extra="RDATE:20260120T100000Z\n"))
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data, self._utc(2026, 1, 20, 10, 30), self._utc(2026, 1, 20, 10, 45)
+            ),
+        )
+
+    def test_rdate_without_rrule(self):
+        data = self._calendar(
+            """\
+BEGIN:VEVENT
+UID:b
+DTSTART:20260105T100000Z
+DTEND:20260105T110000Z
+RDATE:20260120T100000Z
+END:VEVENT
+"""
+        )
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data, self._utc(2026, 1, 20, 10, 30), self._utc(2026, 1, 20, 10, 45)
+            ),
+        )
+        # DTSTART itself remains the first instance.
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data, self._utc(2026, 1, 5, 10, 30), self._utc(2026, 1, 5, 10, 45)
+            ),
+        )
+
+    def test_rdate_period_without_rrule(self):
+        data = self._calendar(
+            """\
+BEGIN:VEVENT
+UID:b
+DTSTART:20260105T100000Z
+DTEND:20260105T110000Z
+RDATE;VALUE=PERIOD:20260120T100000Z/PT1H
+END:VEVENT
+"""
+        )
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data, self._utc(2026, 1, 20, 10, 30), self._utc(2026, 1, 20, 10, 45)
+            ),
+        )
+
+    def test_override_moved_into_range(self):
+        data = self._calendar(self.MASTER.format(extra=""), self.OVERRIDE)
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data, self._utc(2026, 1, 7, 15, 15), self._utc(2026, 1, 7, 15, 45)
+            ),
+        )
+
+    def test_override_moved_out_of_range(self):
+        data = self._calendar(self.MASTER.format(extra=""), self.OVERRIDE)
+        self.assertEqual(
+            (False, False),
+            self._matches(
+                data, self._utc(2026, 1, 7, 10, 15), self._utc(2026, 1, 7, 10, 45)
+            ),
+        )
+
+    def test_override_before_master(self):
+        data = self._calendar(self.OVERRIDE, self.MASTER.format(extra=""))
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data, self._utc(2026, 1, 5, 10, 15), self._utc(2026, 1, 5, 10, 45)
+            ),
+        )
+
+    def test_recurring_vjournal(self):
+        data = self._calendar(
+            """\
+BEGIN:VJOURNAL
+UID:j
+DTSTART:20260105T100000Z
+RRULE:FREQ=DAILY;COUNT=5
+END:VJOURNAL
+"""
+        )
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data,
+                self._utc(2026, 1, 7, 9, 0),
+                self._utc(2026, 1, 7, 11, 0),
+                comp="VJOURNAL",
+            ),
         )
 
 

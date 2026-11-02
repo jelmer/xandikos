@@ -51,6 +51,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=DTEND": [],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
 
         with self.assertRaises(InsufficientIndexDataError) as cm:
@@ -91,6 +95,10 @@ END:VCALENDAR
             "C=VCALENDAR/C=VEVENT/P=RRULE": [b"FREQ=YEARLY;COUNT=3"],
             "C=VCALENDAR/C=VEVENT/P=DURATION": [],
             "C=VCALENDAR/C=VEVENT": True,
+            "C=VCALENDAR/C=VEVENT/P=RDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXDATE": [],
+            "C=VCALENDAR/C=VEVENT/P=EXRULE": [],
+            "C=VCALENDAR/C=VEVENT/P=RECURRENCE-ID": [],
         }
 
         # Should return True (matches 2016 occurrence) without raising exception

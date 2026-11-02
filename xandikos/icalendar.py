@@ -742,6 +742,13 @@ class ComponentTimeRangeMatcher:
         "FREEBUSY",
     ]
 
+    recurring_components = ("VEVENT", "VTODO", "VJOURNAL")
+
+    # Recurrence properties that index-based matching does not evaluate. The
+    # index flattens values from all components into one list per property, so
+    # overrides and per-instance exclusions or additions can't be reconstructed.
+    unindexed_recurrence_props = ("RDATE", "EXDATE", "EXRULE", "RECURRENCE-ID")
+
     # According to https://tools.ietf.org/html/rfc4791, section 9.9 these
     # are the properties to check.
     component_handlers: dict[str, TimeRangeFilter] = {
@@ -807,6 +814,13 @@ class ComponentTimeRangeMatcher:
                     except InsufficientIndexDataError:
                         raise
             return False
+
+        if self.comp in self.recurring_components:
+            for prop in self.unindexed_recurrence_props:
+                if indexes["P=" + prop]:
+                    raise InsufficientIndexDataError(
+                        f"{prop} is not evaluated from indexes"
+                    )
 
         # Check if we have RRULE - if so, expand and test occurrences
         rrule_values = indexes.get("P=RRULE")
@@ -1117,7 +1131,7 @@ class ComponentTimeRangeMatcher:
         elif self.comp == "VTODO":
             props = ["DTSTART", "DUE", "DURATION", "CREATED", "COMPLETED", "RRULE"]
         elif self.comp == "VJOURNAL":
-            props = ["DTSTART"]
+            props = ["DTSTART", "RRULE"]
         elif self.comp == "VFREEBUSY":
             props = ["DTSTART", "DTEND", "FREEBUSY"]
         elif self.comp == "VALARM":
@@ -1125,6 +1139,8 @@ class ComponentTimeRangeMatcher:
             props = ["TRIGGER", "DURATION", "REPEAT"]
         else:
             props = self.all_props
+        if self.comp in self.recurring_components:
+            props = props + list(self.unindexed_recurrence_props)
         keys = [["P=" + prop] for prop in props]
         # DTSTART's TZID travels alongside via a sub-key so RRULE expansion
         # can reconstruct the timezone and stay DST-correct.
@@ -1729,9 +1745,9 @@ class ICalendarFile(File):
         return self._calendar
 
     def _has_recurrence(self) -> bool:
-        """Check if any subcomponent has RRULE or RECURRENCE-ID."""
+        """Check if any subcomponent has RRULE, RDATE or RECURRENCE-ID."""
         for comp in self.calendar.subcomponents:
-            if "RRULE" in comp or "RECURRENCE-ID" in comp:
+            if _is_recurring(comp) or "RECURRENCE-ID" in comp:
                 return True
         return False
 
@@ -1996,20 +2012,23 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
     assert isinstance(dtstart_prop, TimeProperty)
     dtstart = dtstart_prop.dt
     assert isinstance(dtstart, date | datetime)
-    rrule_ical = comp["RRULE"].to_ical()
-    rrulestr = (
-        rrule_ical.decode("utf-8") if isinstance(rrule_ical, bytes) else rrule_ical
-    )
-    # Normalize UNTIL to be UTC if dtstart is timezone-aware
-    rrulestr = _normalize_rrule_until(rrulestr, dtstart)
-    rrule = dateutil.rrule.rrulestr(rrulestr, dtstart=dtstart)
     rs = dateutil.rrule.rruleset()
-    rs.rrule(rrule)  # type: ignore
+    first_occurrence = None
+    if "RRULE" in comp:
+        rrule_ical = comp["RRULE"].to_ical()
+        rrulestr = (
+            rrule_ical.decode("utf-8") if isinstance(rrule_ical, bytes) else rrule_ical
+        )
+        # Normalize UNTIL to be UTC if dtstart is timezone-aware
+        rrulestr = _normalize_rrule_until(rrulestr, dtstart)
+        rrule = dateutil.rrule.rrulestr(rrulestr, dtstart=dtstart)
+        rs.rrule(rrule)  # type: ignore
 
-    # dateutil.rrule internally converts date objects to datetime objects.
-    # To determine what type the rrule will generate, we check the first occurrence.
-    # This is necessary because EXDATE/RDATE values must match the generated type.
-    first_occurrence = next(iter(rrule), None)
+        # dateutil.rrule internally converts date objects to datetime objects.
+        # To determine what type the rrule will generate, we check the first
+        # occurrence. This is necessary because EXDATE/RDATE values must match
+        # the generated type.
+        first_occurrence = next(iter(rrule), None)
     effective_dtstart: datetime
     if first_occurrence is not None:
         effective_dtstart = first_occurrence
@@ -2020,6 +2039,10 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
         # dtstart must be a datetime at this point
         assert isinstance(dtstart, datetime)
         effective_dtstart = dtstart
+    if "RRULE" not in comp:
+        # DTSTART is always the first instance of the recurrence set, even
+        # when it is only defined by RDATE (RFC 5545 section 3.8.5.2).
+        rs.rdate(effective_dtstart)
 
     if "EXDATE" in comp:
         exdate_prop = comp["EXDATE"]
@@ -2050,19 +2073,17 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
         # 2. A list of vDDDLists (multiple RDATE properties)
         # Extract the actual datetime/date values from the .dts list(s)
         # and normalize them to match what the rrule will generate
-        if isinstance(rdate_prop, list):
-            for rdate_list in rdate_prop:
-                assert isinstance(rdate_list, TimeListProperty)
-                for rdate in rdate_list.dts:
-                    assert isinstance(rdate.dt, date | datetime)
-                    normalized = _normalize_to_dtstart_type(rdate.dt, effective_dtstart)
-                    rs.rdate(normalized)
-        else:
-            assert isinstance(rdate_prop, TimeListProperty)
-            for rdate in rdate_prop.dts:
-                assert isinstance(rdate.dt, date | datetime)
-                normalized = _normalize_to_dtstart_type(rdate.dt, effective_dtstart)
-                rs.rdate(normalized)
+        rdate_lists = rdate_prop if isinstance(rdate_prop, list) else [rdate_prop]
+        for rdate_list in rdate_lists:
+            assert isinstance(rdate_list, TimeListProperty)
+            for rdate in rdate_list.dts:
+                value = rdate.dt
+                if isinstance(value, tuple):
+                    # TODO: give PERIOD instances their own end, rather than
+                    # the duration of the component.
+                    value = value[0]
+                assert isinstance(value, date | datetime)
+                rs.rdate(_normalize_to_dtstart_type(value, effective_dtstart))
     if "EXRULE" in comp:
         exrule_ical = comp["EXRULE"].to_ical()
         exrulestr = (
@@ -2195,13 +2216,22 @@ def _event_overlaps_range(comp: Component, start, end) -> bool:
     return event_start < end_normalized and event_end > start_normalized
 
 
+def _is_recurring(comp: Component) -> bool:
+    """Check whether a component defines a recurrence set to expand.
+
+    RDATE values are only meaningful relative to DTSTART, so a component with
+    RDATE but no DTSTART is treated as a single instance.
+    """
+    return "RRULE" in comp or ("RDATE" in comp and "DTSTART" in comp)
+
+
 def _expand_rrule_component(
     incomp: Component,
     start: datetime | None = None,
     end: datetime | None = None,
     existing: dict[str | date | datetime, Component] = {},
 ) -> Iterable[Component]:
-    if "RRULE" not in incomp:
+    if not _is_recurring(incomp):
         return
     if "DTSTART" not in incomp:
         # RFC 5545 anchors the recurrence set on DTSTART (3.8.5.3). Without it
@@ -2348,7 +2378,7 @@ def expand_calendar_rrule(
         elif "RECURRENCE-ID" in comp:
             # Skip - handled separately
             pass
-        elif "RRULE" in comp:
+        elif _is_recurring(comp):
             # Expand recurring events
             for expanded in _expand_rrule_component(comp, start, end, exceptions):
                 outcal.add_component(expanded)
