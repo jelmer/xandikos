@@ -2008,6 +2008,18 @@ def _normalize_rrule_until(rrule_str: str, dtstart: date | datetime) -> str:
 
 
 def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
+    return _recurrence_set_from_comp(comp)[0]
+
+
+def _recurrence_set_from_comp(
+    comp: Component,
+) -> tuple[dateutil.rrule.rruleset, dict[date | datetime, timedelta]]:
+    """Build the recurrence set of a component.
+
+    Returns the rruleset and the durations of instances that come from PERIOD
+    RDATE values, keyed by instance start.
+    """
+    periods: dict[date | datetime, timedelta] = {}
     dtstart_prop = comp["DTSTART"]
     assert isinstance(dtstart_prop, TimeProperty)
     dtstart = dtstart_prop.dt
@@ -2078,12 +2090,20 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
             assert isinstance(rdate_list, TimeListProperty)
             for rdate in rdate_list.dts:
                 value = rdate.dt
+                period: tuple[datetime, datetime | timedelta] | None = None
                 if isinstance(value, tuple):
-                    # TODO: give PERIOD instances their own end, rather than
-                    # the duration of the component.
-                    value = value[0]
+                    period = value
+                    value = period[0]
                 assert isinstance(value, date | datetime)
-                rs.rdate(_normalize_to_dtstart_type(value, effective_dtstart))
+                normalized = _normalize_to_dtstart_type(value, effective_dtstart)
+                rs.rdate(normalized)
+                if period is not None:
+                    period_start, period_end = period
+                    periods[normalized] = (
+                        period_end
+                        if isinstance(period_end, timedelta)
+                        else period_end - period_start
+                    )
     if "EXRULE" in comp:
         exrule_ical = comp["EXRULE"].to_ical()
         exrulestr = (
@@ -2096,7 +2116,7 @@ def rruleset_from_comp(comp: Component) -> dateutil.rrule.rruleset:
         exrule = dateutil.rrule.rrulestr(exrulestr, dtstart=dtstart)
         assert isinstance(exrule, dateutil.rrule.rrule)
         rs.exrule(exrule)
-    return rs
+    return rs, periods
 
 
 def _get_event_duration(comp: Component) -> timedelta | None:
@@ -2216,6 +2236,21 @@ def _event_overlaps_range(comp: Component, start, end) -> bool:
     return event_start < end_normalized and event_end > start_normalized
 
 
+def _set_instance_duration(
+    comp: Component, start: date | datetime, duration: timedelta
+) -> None:
+    """Make a recurrence instance last for the given duration."""
+    if "DURATION" in comp:
+        comp["DURATION"] = vDuration(duration)
+        return
+    end_prop = "DUE" if comp.name == "VTODO" else "DTEND"
+    new_end = create_prop_from_date_or_datetime(start + duration)
+    params = comp[end_prop].params if end_prop in comp else comp["DTSTART"].params
+    if params:
+        new_end.params = params.copy()
+    comp[end_prop] = new_end
+
+
 def _is_recurring(comp: Component) -> bool:
     """Check whether a component defines a recurrence set to expand.
 
@@ -2244,7 +2279,7 @@ def _expand_rrule_component(
         )
         return
 
-    rs = rruleset_from_comp(incomp)
+    rs, periods = _recurrence_set_from_comp(incomp)
     original_dtstart = incomp["DTSTART"]
     assert isinstance(original_dtstart, TimeProperty)
     original_dtstart_dt = original_dtstart.dt
@@ -2261,7 +2296,10 @@ def _expand_rrule_component(
         # Adjust start backwards by event duration to catch overlapping events.
         # Clamp to MIN_EXPANSION_TIME so an open-start query (start=year 1)
         # combined with any positive duration does not overflow datetime.
-        duration = _get_event_duration(incomp)
+        duration = max(
+            (d for d in (_get_event_duration(incomp), *periods.values()) if d),
+            default=None,
+        )
         if duration:
             try:
                 adjusted_start = start - duration
@@ -2333,6 +2371,10 @@ def _expand_rrule_component(
                     except AttributeError:
                         pass
                     outcomp[end_prop] = new_end
+
+            period = periods.get(ts)
+            if period is not None:
+                _set_instance_duration(outcomp, ts_for_dtstart, period)
 
         # Check if occurrence overlaps with time range
         if start is not None and end is not None:

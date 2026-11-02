@@ -1922,6 +1922,17 @@ END:VEVENT
             ),
         )
 
+    def test_rdate_period_duration(self):
+        data = self._calendar(
+            self.MASTER.format(extra="RDATE;VALUE=PERIOD:20260120T100000Z/PT3H\n")
+        )
+        self.assertEqual(
+            (True, True),
+            self._matches(
+                data, self._utc(2026, 1, 20, 12, 0), self._utc(2026, 1, 20, 12, 30)
+            ),
+        )
+
     def test_recurring_vjournal(self):
         data = self._calendar(
             """\
@@ -2230,6 +2241,38 @@ class ApplyTimeRangeVavailabilityTests(unittest.TestCase):
 
 
 class ExpandCalendarRRuleTests(unittest.TestCase):
+    def test_expand_rdate_period_end(self):
+        cal = Calendar.from_ical(
+            b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:a
+DTSTART:20260105T100000Z
+DTEND:20260105T110000Z
+RDATE;VALUE=PERIOD:20260120T100000Z/PT3H
+END:VEVENT
+END:VCALENDAR"""
+        )
+        expanded = expand_calendar_rrule(
+            cal,
+            datetime(2026, 1, 1, tzinfo=timezone.utc),
+            datetime(2026, 2, 1, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            [
+                (
+                    datetime(2026, 1, 5, 10, tzinfo=timezone.utc),
+                    datetime(2026, 1, 5, 11, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2026, 1, 20, 10, tzinfo=timezone.utc),
+                    datetime(2026, 1, 20, 13, tzinfo=timezone.utc),
+                ),
+            ],
+            [(ev["DTSTART"].dt, ev["DTEND"].dt) for ev in expanded.subcomponents],
+        )
+
     def test_expand_recurring_date_only_with_exception(self):
         """Test expansion of recurring events with date-only values and exceptions.
 
