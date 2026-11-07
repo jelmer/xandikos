@@ -19,6 +19,7 @@
 
 """ICalendar file handling."""
 
+import re
 from logging import getLogger
 from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
@@ -140,9 +141,11 @@ SubIndexDict = dict[IndexKey | None, IndexValue]
 
 def create_subindexes(indexes: SubIndexDict | IndexDict, base: str) -> SubIndexDict:
     ret: SubIndexDict = {}
+    prefix = base + "/"
+    prefix_len = len(prefix)
     for k, v in indexes.items():
-        if k is not None and k.startswith(base + "/"):
-            ret[k[len(base) + 1 :]] = v
+        if k is not None and k.startswith(prefix):
+            ret[k[prefix_len:]] = v
         elif k == base:
             ret[None] = v
     return ret
@@ -754,6 +757,37 @@ class ComponentTimeRangeMatcher:
         "AVAILABLE": apply_time_range_available,
     }
 
+    class _IndexValue:
+        """Lightweight stand-in for vDDDTypes; the handlers only read ``.dt``."""
+
+        __slots__ = ("dt",)
+
+        def __init__(self, dt) -> None:
+            self.dt = dt
+
+    # Shapes taken by the fast path: DATE, floating or UTC DATE-TIME.
+    _simple_index_dt = re.compile(r"[0-9]{8}(?:T[0-9]{6}Z?)?").fullmatch
+
+    @classmethod
+    def _parse_index_dt(cls, value: bytes):
+        """Parse an index value exactly like ``vDDDTypes.from_ical``.
+
+        Plain DATE and floating/UTC DATE-TIME values take a fast path; anything
+        else (or anything invalid) goes through icalendar for identical errors.
+        """
+        s = value.decode()
+        # One regex call checks the whole shape instead of several str checks.
+        if cls._simple_index_dt(s):
+            try:
+                if len(s) == 8:
+                    return date.fromisoformat(s)
+                # fromisoformat maps a trailing "Z" to UTC directly, which
+                # compares identically to icalendar's UTC zone.
+                return datetime.fromisoformat(s)
+            except ValueError:
+                pass
+        return vDDDTypes.from_ical(s)
+
     def __init__(self, start, end, comp=None) -> None:
         self.start = start
         self.end = end
@@ -814,38 +848,41 @@ class ComponentTimeRangeMatcher:
             return self._match_indexes_with_rrule(indexes, tzify, context)
 
         # Original logic for non-recurring events
-        vs: list[dict[str, vDDDTypes | None]] = []
+        vs: list[dict[str, Any]] = []
         # Handle edge case where recurring events have inconsistent DTEND/DURATION properties
         # by finding the maximum number of occurrences across all properties
+        # Select the time-property keys once instead of rescanning per occurrence.
+        all_props = self.all_props
+        time_props = [
+            (name, name[2:], values)
+            for name, values in indexes.items()
+            if name and name[2:] in all_props
+        ]
+        wrap = self._IndexValue
+        parse = self._parse_index_dt
         max_occurrences = 0
-        for name, values in indexes.items():
-            if name and name.startswith("P=") and name[2:] in self.all_props:
+        for name, _, values in time_props:
+            if name.startswith("P="):
                 max_occurrences = max(max_occurrences, len(values))
 
         for i in range(max_occurrences):
-            d: dict[str, vDDDTypes | None] = {}
-            for name, values in indexes.items():
-                if not name:
+            d: dict[str, Any] = {}
+            for _, field, values in time_props:
+                try:
+                    value = values[i]
+                except IndexError:
+                    # This property doesn't have a value at this index
+                    # This is expected when events have inconsistent properties
                     continue
-                field = name[2:]
-                if field in self.all_props:
-                    try:
-                        value = values[i]
-                    except IndexError:
-                        # This property doesn't have a value at this index
-                        # This is expected when events have inconsistent properties
-                        continue
-                    else:
-                        if isinstance(value, bool):
-                            continue
-                        if field == "DURATION":
-                            d[field] = vDDDTypes(
-                                vDuration.from_ical(value.decode("utf-8"))
-                            )
-                        else:
-                            d[field] = vDDDTypes(
-                                vDDDTypes.from_ical(value.decode("utf-8"))
-                            )
+                if isinstance(value, bool):
+                    continue
+                if field == "DURATION":
+                    d[field] = wrap(vDuration.from_ical(value.decode()))
+                elif field == "FREEBUSY":
+                    # FREEBUSY handlers iterate the value, so keep the real type.
+                    d[field] = vDDDTypes(vDDDTypes.from_ical(value.decode()))
+                else:
+                    d[field] = wrap(parse(value))
             # Include any entry that has time properties
             if d:
                 vs.append(d)
