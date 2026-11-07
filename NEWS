@@ -17,6 +17,12 @@
  * Support the custom properties Cfait uses to store its settings on
    calendar collections. (Jelmer Vernooĳ)
 
+ * Index times with a timezone in UTC. Previously, once a time-range
+   filter was indexed, the times of non-recurring objects lost their
+   TZID and were read as floating, so the objects were found at the
+   wrong time. (Jelmer Vernooĳ)
+   See https://github.com/python-caldav/caldav/pull/850
+
 0.4.10	2026-10-17
 
  * webdav-push: Check push-resource addresses on delivery, don't
