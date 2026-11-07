@@ -1120,11 +1120,11 @@ END:VCALENDAR
         keys = [key for key_set in winter_hit.index_keys() for key in key_set]
         indexes = self.cal.get_indexes(keys)
 
-        # DTSTART is indexed as a naive wall-clock value; the TZID travels
-        # alongside via the A=TZID sub-key. icalendar resolves the Windows
-        # zone name to Europe/Berlin.
+        # DTSTART is indexed in UTC; the TZID travels alongside via the
+        # A=TZID sub-key. icalendar resolves the Windows zone name to
+        # Europe/Berlin.
         self.assertEqual(
-            indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"], [b"20250722T090500"]
+            indexes["C=VCALENDAR/C=VEVENT/P=DTSTART"], [b"20250722T070500Z"]
         )
         self.assertEqual(
             indexes["C=VCALENDAR/C=VEVENT/P=DTSTART/A=TZID"], [b"Europe/Berlin"]
@@ -1149,8 +1149,131 @@ END:VCALENDAR
         self.assertTrue(summer_hit.check_from_indexes("file", indexes))
         self.assertTrue(summer_hit.check("file", self.cal))
 
+    def _check_index_and_file(self, cal, filter, expected):
+        keys = [key for key_set in filter.index_keys() for key in key_set]
+        indexes = cal.get_indexes(keys)
+        self.assertEqual(filter.check_from_indexes("file", indexes), expected)
+        self.assertEqual(filter.check("file", cal), expected)
+
+    def test_index_based_filtering_tzid(self):
+        """A non-recurring event with a TZID is placed in that zone from the index.
+
+        12:00 in Tokyo is 03:00Z; read as floating it would be 12:00Z.
+        """
+        cal = ICalendarFile(
+            [
+                b"""\
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;TZID=Asia/Tokyo:20270120T120000
+DTEND;TZID=Asia/Tokyo:20270120T130000
+UID:tokyo
+END:VEVENT
+END:VCALENDAR
+"""
+            ],
+            "text/calendar",
+        )
+        self.assertEqual(
+            cal.get_indexes(["C=VCALENDAR/C=VEVENT/P=DTSTART"]),
+            {"C=VCALENDAR/C=VEVENT/P=DTSTART": [b"20270120T030000Z"]},
+        )
+        for hour, expected in [(3, True), (12, False)]:
+            filter = CalendarFilter(ZoneInfo("UTC"))
+            filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+                "VEVENT"
+            ).filter_time_range(
+                start=self._tzify(datetime(2027, 1, 20, hour, 15, 0)),
+                end=self._tzify(datetime(2027, 1, 20, hour, 45, 0)),
+            )
+            self._check_index_and_file(cal, filter, expected)
+
+    def test_index_based_filtering_tzid_todo_due(self):
+        """A task's DUE keeps its timezone through the index."""
+        cal = ICalendarFile(
+            [
+                b"""\
+BEGIN:VCALENDAR
+BEGIN:VTODO
+DUE;TZID=Asia/Tokyo:20270120T120000
+UID:tokyo-todo
+END:VTODO
+END:VCALENDAR
+"""
+            ],
+            "text/calendar",
+        )
+        for hour, expected in [(2, True), (11, False)]:
+            filter = CalendarFilter(ZoneInfo("UTC"))
+            filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+                "VTODO"
+            ).filter_time_range(
+                start=self._tzify(datetime(2027, 1, 20, hour, 30, 0)),
+                end=self._tzify(datetime(2027, 1, 20, hour + 1, 30, 0)),
+            )
+            self._check_index_and_file(cal, filter, expected)
+
+    def test_index_based_filtering_tzid_property_time_range(self):
+        """A time-range on a property with a TZID agrees with the file."""
+        cal = ICalendarFile(
+            [
+                b"""\
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;TZID=Asia/Tokyo:20270120T120000
+UID:tokyo
+END:VEVENT
+END:VCALENDAR
+"""
+            ],
+            "text/calendar",
+        )
+        for hour, expected in [(3, True), (12, False)]:
+            filter = CalendarFilter(ZoneInfo("UTC"))
+            filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+                "VEVENT"
+            ).filter_property("DTSTART").filter_time_range(
+                start=self._tzify(datetime(2027, 1, 20, hour, 0, 0)),
+                end=self._tzify(datetime(2027, 1, 20, hour, 30, 0)),
+            )
+            self._check_index_and_file(cal, filter, expected)
+
+    def test_index_based_filtering_custom_vtimezone(self):
+        """A TZID only defined by the file's VTIMEZONE is honoured."""
+        cal = ICalendarFile(
+            [
+                b"""\
+BEGIN:VCALENDAR
+BEGIN:VTIMEZONE
+TZID:My Office
+BEGIN:STANDARD
+DTSTART:19700101T000000
+TZOFFSETFROM:+0900
+TZOFFSETTO:+0900
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;TZID=My Office:20270120T120000
+DTEND;TZID=My Office:20270120T130000
+UID:office
+END:VEVENT
+END:VCALENDAR
+"""
+            ],
+            "text/calendar",
+        )
+        for hour, expected in [(3, True), (12, False)]:
+            filter = CalendarFilter(ZoneInfo("UTC"))
+            filter.filter_subcomponent("VCALENDAR").filter_subcomponent(
+                "VEVENT"
+            ).filter_time_range(
+                start=self._tzify(datetime(2027, 1, 20, hour, 15, 0)),
+                end=self._tzify(datetime(2027, 1, 20, hour, 45, 0)),
+            )
+            self._check_index_and_file(cal, filter, expected)
+
     def test_rrule_index_based_filtering_unresolvable_tzid(self):
-        """A recurring event whose TZID isn't in tzdata falls back to the file."""
+        """A recurring event whose TZID isn't in tzdata is read as floating."""
         cal = ICalendarFile(
             [
                 b"""\
@@ -1178,12 +1301,10 @@ END:VCALENDAR
         self.assertEqual(
             indexes["C=VCALENDAR/C=VEVENT/P=DTSTART/A=TZID"], [b"Some/Bogus"]
         )
-        self.assertRaises(
-            InsufficientIndexDataError,
-            filter.check_from_indexes,
-            "file",
-            indexes,
-        )
+        # Without a VTIMEZONE icalendar can't resolve the TZID, so the file
+        # path reads the time as floating; the index agrees.
+        self.assertTrue(filter.check_from_indexes("file", indexes))
+        self.assertTrue(filter.check("file", cal))
 
     def test_rrule_index_based_filtering_floating_recurring(self):
         """A genuine floating-time recurring event expands without a TZID."""

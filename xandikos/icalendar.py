@@ -918,13 +918,12 @@ class ComponentTimeRangeMatcher:
 
             # Parse DTSTART and create rrule
             dtstart_parsed = vDDDTypes.from_ical(dtstart_str)
-            # A DTSTART with a TZID loses its timezone through the index (the
-            # parameter is dropped when the value is serialized). Reattach it
-            # from the companion A=TZID sub-index; without a timezone, DST
-            # boundaries would shift every occurrence by an hour.
-            if isinstance(dtstart_parsed, datetime) and dtstart_parsed.tzinfo is None:
-                dtstart_parsed = _attach_indexed_tzid(
-                    dtstart_parsed, indexes["P=DTSTART/A=TZID"]
+            # DTSTART is indexed in UTC. Put it back in its own timezone, from
+            # the companion A=TZID sub-index; expanded in UTC, DST boundaries
+            # would shift every occurrence by an hour.
+            if isinstance(dtstart_parsed, datetime):
+                dtstart_parsed = _localize_indexed_datetime(
+                    dtstart_parsed, indexes.get("P=DTSTART/A=TZID", [])
                 )
             # Normalize UNTIL to be UTC if dtstart is timezone-aware
             rrule_str = _normalize_rrule_until(rrule_str, dtstart_parsed)
@@ -1011,13 +1010,15 @@ class ComponentTimeRangeMatcher:
                 if isinstance(dtstart_parsed, datetime) and isinstance(
                     end_parsed_val, datetime
                 ):
-                    # DTEND is parsed from the index without its TZID, so it
-                    # may be naive while DTSTART has been reattached to one.
-                    # Subtract on wall-clock values to sidestep the mismatch;
-                    # for the RRULE occurrence window this is what we want.
-                    return end_parsed_val.replace(tzinfo=None) - dtstart_parsed.replace(
-                        tzinfo=None
-                    )
+                    if (end_parsed_val.tzinfo is None) != (
+                        dtstart_parsed.tzinfo is None
+                    ):
+                        # One is floating, the other not; subtract on
+                        # wall-clock values to sidestep the mismatch.
+                        return end_parsed_val.replace(
+                            tzinfo=None
+                        ) - dtstart_parsed.replace(tzinfo=None)
+                    return end_parsed_val - dtstart_parsed
         return None
 
     def _get_occurrences_in_range(self, rrule, dtstart_parsed, query_start, query_end):
@@ -1127,7 +1128,7 @@ class ComponentTimeRangeMatcher:
             props = self.all_props
         keys = [["P=" + prop] for prop in props]
         # DTSTART's TZID travels alongside via a sub-key so RRULE expansion
-        # can reconstruct the timezone and stay DST-correct.
+        # can put it back in its timezone and stay DST-correct.
         if "DTSTART" in props:
             keys.append(["P=DTSTART/A=TZID"])
         return keys
@@ -1641,13 +1642,30 @@ def _index_property_parameter(prop, param_name: str) -> bytes | None:
     return raw if isinstance(raw, bytes) else str(raw).encode("utf-8")
 
 
-def _attach_indexed_tzid(dt: datetime, tzid_values: list[bytes | bool]) -> datetime:
-    """Reattach a TZID from the index to a naive datetime.
+def _index_property_value(prop) -> bytes | str:
+    """Serialize a property value for indexing.
 
-    Empty ``tzid_values`` means the property had no TZID (floating time), in
-    which case the datetime stays naive.
+    A datetime with a timezone is stored in UTC, so that it can be read back
+    as the right instant without its TZID parameter.
     """
-    if not tzid_values:
+    if (
+        isinstance(prop, TimeProperty)
+        and isinstance(prop.dt, datetime)
+        and prop.dt.tzinfo is not None
+    ):
+        return vDDDTypes(prop.dt.astimezone(timezone.utc)).to_ical()
+    return prop.to_ical()
+
+
+def _localize_indexed_datetime(
+    dt: datetime, tzid_values: list[bytes | bool]
+) -> datetime:
+    """Convert an indexed datetime back to the timezone of its TZID.
+
+    Empty ``tzid_values`` means the property had no TZID, and a naive ``dt``
+    means it was read as floating time; either way it stays as it is.
+    """
+    if not tzid_values or dt.tzinfo is None:
         return dt
     tzid_bytes = tzid_values[0]
     assert isinstance(tzid_bytes, bytes)
@@ -1661,7 +1679,7 @@ def _attach_indexed_tzid(dt: datetime, tzid_values: list[bytes | bool]) -> datet
             f"recurring event with unresolvable indexed TZID {tzid!r}; "
             "falling back to full file"
         )
-    return dt.replace(tzinfo=tzinfo)
+    return dt.astimezone(tzinfo)
 
 
 class ICalendarFile(File):
@@ -1835,7 +1853,7 @@ class ICalendarFile(File):
                                 yield value
                             continue
                         assert len(segments) == 1, f"segments: {segments!r}"
-                        ical = p.to_ical()
+                        ical = _index_property_value(p)
                         # Special handling for VALARM TRIGGER property
                         if (
                             c.name == "VALARM"
