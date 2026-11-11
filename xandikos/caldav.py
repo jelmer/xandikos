@@ -1794,15 +1794,21 @@ class CalendarAttachmentPostMethod(webdav.Method):
     async def handle(self, request, environ, app):
         import urllib.parse
 
-        href, path, resource = app._get_resource_from_environ(request, environ)
-        if resource is None:
-            return webdav._send_not_found(request)
-
         # Parse query parameters to determine the action
         query_params = urllib.parse.parse_qs(urllib.parse.urlparse(request.path).query)
         action = query_params.get("action", [None])[0]
         managed_id = query_params.get("managed-id", [None])[0]
         rid = query_params.get("rid", [None])[0]  # For recurring events
+
+        # Only handle attachment-related actions; other POSTs (e.g. scheduling
+        # free-busy requests to the outbox, RFC 5995 add-member) fall through
+        # to the default POST method.
+        if action not in ("attachment-add", "attachment-update", "attachment-remove"):
+            return await webdav.PostMethod().handle(request, environ, app)
+
+        href, path, resource = app._get_resource_from_environ(request, environ)
+        if resource is None:
+            return webdav._send_not_found(request)
 
         # Get the calendar containing this resource
         calendar = None
@@ -1826,16 +1832,9 @@ class CalendarAttachmentPostMethod(webdav.Method):
             return await self._handle_attachment_update(
                 request, calendar, resource, managed_id, rid
             )
-        elif action == "attachment-remove":
+        else:
             return await self._handle_attachment_remove(
                 request, calendar, resource, managed_id, rid
-            )
-        else:
-            return webdav._send_simple_dav_error(
-                request,
-                "400 Bad Request",
-                error=ET.Element("{DAV:}bad-request"),
-                description="Missing or invalid 'action' parameter",
             )
 
     async def _handle_attachment_add(self, request, calendar, resource, rid=None):
