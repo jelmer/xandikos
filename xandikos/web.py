@@ -1679,27 +1679,6 @@ class _CalendarSettingsResource(_TransientHtmlResource):
 
 
 class CalendarCollection(StoreBasedCollection, caldav.Calendar):
-    async def render(
-        self, self_url, accepted_content_types, accepted_content_languages
-    ):
-        # Browsers get the month-grid calendar UI; CalDAV clients still
-        # use PROPFIND/REPORT and never hit GET on the collection.
-        try:
-            content_types = webdav.pick_content_types(
-                accepted_content_types, ["text/html"]
-            )
-        except webdav.NotAcceptableError:
-            content_types = []
-        if content_types == ["text/html"]:
-            from . import webcalendar
-
-            return await webcalendar.render_month(
-                self, self_url, accepted_content_types, accepted_content_languages
-            )
-        return await super().render(
-            self_url, accepted_content_types, accepted_content_languages
-        )
-
     def get_member(self, name):
         # Virtual children: ``+new`` serves an empty event/task form,
         # ``+day`` and ``+week`` are namespaces for per-day and per-week
@@ -2016,8 +1995,12 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
                 "text/calendar; charset=utf-8",
                 None,
             )
-        return await super().render(
-            self_url, accepted_content_types, accepted_content_languages
+        # Browsers get the month-grid calendar UI; CalDAV clients still
+        # use PROPFIND/REPORT and never hit GET on the collection.
+        from . import webcalendar
+
+        return await webcalendar.render_month(
+            self, self_url, accepted_content_types, accepted_content_languages
         )
 
     def get_xmpp_heartbeat(self):
