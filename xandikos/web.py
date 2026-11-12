@@ -1171,7 +1171,7 @@ class ScheduleInbox(StoreBasedCollection, scheduling.ScheduleInbox):
         the message isn't a usable REQUEST (no owning principal, no
         matching attendee, no organiser, malformed body).
         """
-        owning = scheduling.find_owning_principal(self.backend, self.relpath)
+        owning = self._owning_principal()
         if owning is None:
             raise ValueError("Inbox has no owning principal")
         _, principal = owning
