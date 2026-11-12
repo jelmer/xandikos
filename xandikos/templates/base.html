@@ -5,16 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Xandikos{% endblock %}</title>
     <style>
-      body { font-family: sans-serif; max-width: 50em; margin: 0 auto; padding: 1em; line-height: 1.4; }
+      body { font-family: sans-serif; max-width: {% block page_width %}60em{% endblock %}; margin: 1em auto; padding: 0 1em; line-height: 1.4; }
+      h1 { margin-bottom: 0.2em; }
+      h2 { margin-top: 1.5em; }
+      a { color: #036; }
       code { background: #f0f0f0; padding: 0.1em 0.3em; word-break: break-all; }
+      ul.plain { list-style: none; padding: 0; }
+      ul.plain li { padding: 0.2em 0; }
+      .nav { margin: 0.5em 0 1em; display: flex; gap: 0.6em; align-items: center; flex-wrap: wrap; }
+      .nav a, .nav button {
+        padding: 0.3em 0.8em; border: 1px solid #888; background: #f0f0f0;
+        text-decoration: none; color: inherit; font: inherit; cursor: pointer;
+      }
+      .nav .spacer { flex: 1; }
+      .actions { margin: 1em 0; }
+      .actions a, .actions button {
+        padding: 0.4em 0.8em; border: 1px solid #888; background: #f0f0f0;
+        text-decoration: none; color: inherit; font: inherit; cursor: pointer;
+        margin-right: 0.4em;
+      }
+      .actions .danger { color: #a00; border-color: #a00; background: #fff; }
+      .empty { color: #888; font-style: italic; padding: 1em 0; }
+      .muted { color: #888; font-size: 0.9em; margin-top: 1em; }
+      .parent-link { margin: 0 0 0.5em; }
       footer { margin-top: 3em; border-top: 1px solid #ccc; font-size: smaller; color: #555; }
+      {% block extra_style %}{% endblock %}
     </style>
   </head>
   <body>
+    {% if parent_url %}
+    <p class="parent-link"><a href="{{ parent_url }}">{% block parent_link_text %}&larr; ..{% endblock %}</a></p>
+    {% endif %}
     {% block content %}{% endblock %}
 
     <footer>
-      <p>Powered by <a href="https://www.xandikos.org/">Xandikos</a> {{ version }}.
+      <p>Powered by <a href="https://www.xandikos.org/">Xandikos</a> {{ version }}{% block footer_extra %}{% endblock %}.
       See the <a href="https://www.xandikos.org/clients/">client setup instructions</a>,
       <a href="https://www.xandikos.org/help/">help</a>,
       <a href="https://github.com/jelmer/xandikos">source code</a> and

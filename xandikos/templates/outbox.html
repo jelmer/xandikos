@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Free/busy lookup - {{ collection.get_displayname() }}{% endblock %}
+{% block page_width %}50em{% endblock %}
+{% block extra_style %}
+      .meta { color: #666; margin-bottom: 1em; }
+      form.lookup { margin: 1em 0; }
+      form.lookup label { display: block; margin: 0.4em 0; }
+      form.lookup .lbl { display: inline-block; min-width: 7em; }
+      input[type=text], input[type=email], input[type=date] { font: inherit; padding: 0.25em; }
+      input[type=text], input[type=email] { width: 22em; max-width: 100%; }
+      .error { background: #fbeaea; border: 1px solid #d99; color: #800; padding: 0.5em; margin: 0.5em 0; }
+      ul.periods { list-style: none; padding: 0; }
+      ul.periods li {
+        border: 1px solid #ddd; border-left: 4px solid #c66; padding: 0.4em 0.7em;
+        margin: 0.35em 0; background: #fff; display: flex; gap: 0.6em; align-items: baseline;
+      }
+      .range { font-variant-numeric: tabular-nums; }
+      .fbtype { color: #777; font-size: 0.85em; }
+{% endblock %}
+{% block content %}
+    <h1>Free/busy lookup</h1>
+    <div class="meta">
+      Schedule outbox &mdash; check when an attendee is busy. CalDAV
+      clients post iTIP scheduling requests here directly.
+    </div>
+
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+    <form class="lookup" method="get" action="{{ collection_url }}">
+      <label>
+        <span class="lbl">Attendee</span>
+        <input type="email" name="attendee" value="{{ attendee }}"
+               placeholder="person@example.com">
+      </label>
+      <label>
+        <span class="lbl">From</span>
+        <input type="date" name="start" value="{{ start }}">
+      </label>
+      <label>
+        <span class="lbl">To</span>
+        <input type="date" name="end" value="{{ end }}">
+      </label>
+      <div class="actions">
+        <button type="submit">Look up</button>
+      </div>
+    </form>
+
+    {% if periods is not none %}
+    <h2>Busy periods</h2>
+    {% if periods %}
+    <ul class="periods">
+    {% for p in periods %}
+      <li>
+        <span class="range">{{ p.start }} &ndash; {{ p.end }}</span>
+        {% if p.fbtype and p.fbtype != 'BUSY' %}<span class="fbtype">{{ p.fbtype }}</span>{% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No busy periods in that range &mdash; the attendee is free.</p>
+    {% endif %}
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Journal - {{ collection.get_displayname() }}{% endblock %}
+{% block page_width %}55em{% endblock %}
+{% block parent_link_text %}&larr; Back to calendar{% endblock %}
+{% block extra_style %}
+      .meta { color: #666; margin-bottom: 1em; }
+      ul.journal { list-style: none; padding: 0; }
+      ul.journal li {
+        border: 1px solid #ddd; border-left: 4px solid #69a; padding: 0.5em 0.8em;
+        margin: 0.5em 0; background: #fff;
+      }
+      .jdate { color: #555; font-variant-numeric: tabular-nums; font-size: 0.9em; }
+      .jtitle { font-weight: bold; }
+      .jtitle a { color: inherit; text-decoration: none; }
+      .jtitle a:hover { text-decoration: underline; }
+      .jpreview { color: #555; margin-top: 0.2em; }
+{% endblock %}
+{% block content %}
+    <h1>Journal &mdash; {{ collection.get_displayname() }}</h1>
+    <div class="meta">
+      {{ journals|length }} entr{% if journals|length != 1 %}ies{% else %}y{% endif %}.
+    </div>
+
+    <div class="nav">
+      <a href="{{ collection_url }}">Calendar</a>
+      <span class="spacer"></span>
+      <a href="{{ urljoin(collection_url, '+newjournal') }}">+ New entry</a>
+    </div>
+
+    {% if journals %}
+    <ul class="journal">
+    {% for j in journals %}
+      <li>
+        <div class="jdate">{{ j.date_str or 'no date' }}</div>
+        <div class="jtitle">
+          <a href="{{ urljoin(collection_url, quote(j.name)) }}">{{ j.summary or '(untitled)' }}</a>
+        </div>
+        {% if j.preview %}<div class="jpreview">{{ j.preview }}</div>{% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No journal entries yet. Use &quot;New entry&quot; to add one.</p>
+    {% endif %}
+{% endblock %}

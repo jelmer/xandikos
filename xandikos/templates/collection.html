@@ -2,14 +2,14 @@
 {% block title %}WebDAV Collection - {{ collection.get_displayname() }}{% endblock %}
 {% block content %}
     <h1>{{ collection.get_displayname() }}</h1>
-
-    <p>This is a collection.</p>
+    <p>This is a WebDAV collection.</p>
 
     <h2>Subcollections</h2>
-
-    <ul>
+    <ul class="plain">
     {% for name, resource in collection.subcollections() %}
-       <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
+      <li><a href="{{ urljoin(self_url+'/', name+'/') }}">{{ name }}</a></li>
+    {% else %}
+      <li class="empty">(no subcollections)</li>
     {% endfor %}
     </ul>
 {% endblock %}
