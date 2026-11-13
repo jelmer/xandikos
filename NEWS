@@ -1,5 +1,11 @@
 0.4.11	UNRELEASED
 
+ * Set ``core.autocrlf=false`` in Git repositories created for
+   collections. Committing to them with command-line Git (or an IDE)
+   under a global ``core.autocrlf`` setting stored LF-converted blobs
+   while the files on disk kept their CRLF line endings, so ETags no
+   longer matched and deletes failed. (yoyosource)
+
  * Only accept a ``schedule-default-calendar-URL`` that refers to a
    calendar collection in one of the principal's calendar homes (RFC
    6638 9.2), and ignore stored values that don't when auto-applying
