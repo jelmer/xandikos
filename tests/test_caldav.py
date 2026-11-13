@@ -238,6 +238,114 @@ class WebTests(test_webdav.WebTestCase):
         self.assertIn(b"403 Forbidden", contents)
         self.assertEqual([], created)
 
+    def test_mkcalendar_ignores_calendar_free_busy_set(self):
+        """Apple clients send the obsolete calendar-free-busy-set.
+
+        It must not cause the all-or-nothing MKCALENDAR to fail, or
+        calendars created from iOS/macOS are silently rolled back.
+        """
+        created = []
+
+        class Collection:
+            resource_types = [
+                "{DAV:}collection",
+                CALENDAR_RESOURCE_TYPE,
+            ]
+
+            def __init__(unused_self, relpath):
+                unused_self.relpath = relpath
+
+            def destroy(unused_self):
+                created.remove(unused_self.relpath)
+
+        class Backend:
+            def create_collection(unused_self, relpath):
+                created.append(relpath)
+                return Collection(relpath)
+
+            def get_resource(unused_self, relpath):
+                return None
+
+        app = self.makeApp(Backend())
+        app.register_properties(
+            [_ResourceTypeProperty(), caldav.CalendarFreeBusySetProperty()]
+        )
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<C:mkcalendar xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            b"<D:set><D:prop><C:calendar-free-busy-set><YES/>"
+            b"</C:calendar-free-busy-set></D:prop></D:set>"
+            b"</C:mkcalendar>"
+        )
+        code, headers, contents = self.mkcalendar(app, "/resource/bla", body)
+        self.assertEqual("201 Created", code)
+        self.assertEqual(["/resource/bla"], created)
+
+    def _mkcalendar_transp(self, transp_xml):
+        stored = []
+        created = []
+
+        class Collection:
+            resource_types = [
+                "{DAV:}collection",
+                CALENDAR_RESOURCE_TYPE,
+            ]
+
+            def __init__(unused_self, relpath):
+                unused_self.relpath = relpath
+
+            def set_schedule_calendar_transparency(unused_self, transp):
+                stored.append(transp)
+
+            def destroy(unused_self):
+                created.remove(unused_self.relpath)
+
+        class Backend:
+            def create_collection(unused_self, relpath):
+                created.append(relpath)
+                return Collection(relpath)
+
+            def get_resource(unused_self, relpath):
+                return None
+
+        app = self.makeApp(Backend())
+        app.register_properties(
+            [_ResourceTypeProperty(), caldav.ScheduleCalendarTransparencyProperty()]
+        )
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<C:mkcalendar xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            b"<D:set><D:prop><C:schedule-calendar-transp>"
+            + transp_xml
+            + b"</C:schedule-calendar-transp></D:prop></D:set>"
+            b"</C:mkcalendar>"
+        )
+        code, headers, contents = self.mkcalendar(app, "/resource/bla", body)
+        return code, contents, stored, created
+
+    def test_mkcalendar_sets_schedule_calendar_transp(self):
+        """RFC 6638 section 9.1: schedule-calendar-transp is not protected.
+
+        iOS sets it in every MKCALENDAR; refusing it rolled back the whole
+        request.
+        """
+        code, contents, stored, created = self._mkcalendar_transp(b"<C:transparent/>")
+        self.assertEqual("201 Created", code)
+        self.assertEqual([caldav.TRANSPARENCY_TRANSPARENT], stored)
+        self.assertEqual(["/resource/bla"], created)
+
+        code, contents, stored, created = self._mkcalendar_transp(b"<C:opaque/>")
+        self.assertEqual("201 Created", code)
+        self.assertEqual([caldav.TRANSPARENCY_OPAQUE], stored)
+
+    def test_mkcalendar_rejects_invalid_schedule_calendar_transp(self):
+        """An invalid value is a 409 for that property and no calendar."""
+        code, contents, stored, created = self._mkcalendar_transp(b"<C:sideways/>")
+        self.assertEqual("207 Multi-Status", code)
+        self.assertIn(b"409 Conflict", contents)
+        self.assertEqual([], stored)
+        self.assertEqual([], created)
+
 
 class ExtractfromCalendarTests(unittest.TestCase):
     def setUp(self):

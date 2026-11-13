@@ -1426,8 +1426,22 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         raise KeyError
 
     def get_schedule_calendar_transparency(self):
-        # TODO(jelmer): Allow configuration in config
+        try:
+            transp = self.store.config.get_schedule_calendar_transp()
+        except (KeyError, NotImplementedError):
+            return caldav.TRANSPARENCY_OPAQUE
+        if transp == caldav.TRANSPARENCY_TRANSPARENT:
+            return caldav.TRANSPARENCY_TRANSPARENT
         return caldav.TRANSPARENCY_OPAQUE
+
+    def set_schedule_calendar_transparency(self, transp):
+        if transp not in (
+            None,
+            caldav.TRANSPARENCY_TRANSPARENT,
+            caldav.TRANSPARENCY_OPAQUE,
+        ):
+            raise ValueError(f"Invalid transparency {transp!r}")
+        self.store.config.set_schedule_calendar_transp(transp)
 
     def get_managed_attachments_server_url(self):
         # TODO(jelmer)
@@ -2789,6 +2803,7 @@ class XandikosApp(webdav.WebDAVApp):
                 webdav.AddMemberProperty(),
                 webdav.ResourceIdProperty(),
                 caldav.ScheduleCalendarTransparencyProperty(),
+                caldav.CalendarFreeBusySetProperty(),
                 scheduling.ScheduleDefaultCalendarURLProperty(),
                 caldav.MaxInstancesProperty(),
                 caldav.MaxAttendeesPerInstanceProperty(),

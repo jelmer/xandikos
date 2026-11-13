@@ -251,6 +251,15 @@ class Calendar(webdav.Collection):
         """
         return TRANSPARENCY_OPAQUE
 
+    def set_schedule_calendar_transparency(self, transp: str | None) -> None:
+        """Set calendar transparency.
+
+        Args:
+          transp: TRANSPARENCY_TRANSPARENT, TRANSPARENCY_OPAQUE, or None to
+            reset to the default (opaque)
+        """
+        raise NotImplementedError(self.set_schedule_calendar_transparency)
+
     def calendar_query(self, create_filter_fn):
         """Query for all the members of this calendar that match `filter`.
 
@@ -1136,6 +1145,46 @@ class ScheduleCalendarTransparencyProperty(webdav.Property):
             ET.SubElement(el, "{%s}opaque" % NAMESPACE)
         else:
             raise ValueError(f"Invalid transparency {transp}")
+
+    async def set_value(self, href, resource, el):
+        # RFC 6638 section 9.1: this property is not protected, and clients
+        # (e.g. iOS) set it in MKCALENDAR, which is all-or-nothing.
+        if el is None:
+            resource.set_schedule_calendar_transparency(None)
+            return
+        tags = {child.tag for child in el}
+        if tags == {"{%s}transparent" % NAMESPACE}:
+            resource.set_schedule_calendar_transparency(TRANSPARENCY_TRANSPARENT)
+        elif tags == {"{%s}opaque" % NAMESPACE}:
+            resource.set_schedule_calendar_transparency(TRANSPARENCY_OPAQUE)
+        else:
+            raise webdav.InvalidPropertyValueError(
+                "schedule-calendar-transp must contain exactly one of "
+                "CALDAV:transparent or CALDAV:opaque"
+            )
+
+
+class CalendarFreeBusySetProperty(webdav.Property):
+    """calendar-free-busy-set property (obsolete).
+
+    Defined by early drafts of CalDAV scheduling
+    (draft-desruisseaux-caldav-sched) and dropped from RFC 6638 in favour
+    of schedule-calendar-transp. Apple clients still include it in every
+    MKCALENDAR request. Since MKCALENDAR is all-or-nothing (RFC 4791
+    section 5.3.1), rejecting it would make calendar creation fail, so
+    accept the value and discard it.
+    """
+
+    name = "{%s}calendar-free-busy-set" % NAMESPACE
+    in_allprops = False
+    live = False
+    resource_type = CALENDAR_RESOURCE_TYPE
+
+    # get_value is inherited and raises KeyError: nothing is stored, so
+    # PROPFIND reports the property as not found.
+
+    async def set_value(self, href, resource, el):
+        logger.debug("Ignoring obsolete calendar-free-busy-set on %r", href)
 
 
 def map_freebusy(comp):
