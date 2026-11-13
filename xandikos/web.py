@@ -209,6 +209,22 @@ def _wrap_vtimezone_in_calendar(vtimezone: VTimezone) -> Calendar:
     return cal
 
 
+def _unfold_ical(text: str) -> str:
+    """Undo iCalendar line folding (RFC 5545 section 3.1).
+
+    The INI-based collection config strips leading whitespace from the
+    lines of a multi-line value, which would turn a folded continuation
+    line into a separate, invalid content line. Unfolded content is
+    equivalent, so store that instead.
+    """
+    return (
+        text.replace("\r\n ", "")
+        .replace("\r\n\t", "")
+        .replace("\n ", "")
+        .replace("\n\t", "")
+    )
+
+
 def get_validation_error(exc: InvalidFileContents):
     """Get appropriate validation error tag for a content type.
 
@@ -1282,7 +1298,15 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
         self.store.config.set_order(order)
 
     def get_calendar_timezone(self):
-        return self.store.config.get_timezone()
+        # The INI-based collection config strips trailing whitespace from
+        # every line of a multi-line value, so the CRLF line endings that
+        # iCalendar requires (RFC 5545 section 3.1) come back as LF.
+        # Restore them, including the one terminating the last line.
+        timezone = self.store.config.get_timezone()
+        lines = timezone.replace("\r\n", "\n").split("\n")
+        while lines and not lines[-1]:
+            lines.pop()
+        return "".join(line + "\r\n" for line in lines)
 
     def set_calendar_timezone(self, content):
         # RFC 7809 section 3.1.5: calendar-timezone and calendar-timezone-id
@@ -1295,7 +1319,7 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             tzid = str(caldav.extract_tzid(Calendar.from_ical(content)))
         except (ValueError, IndexError, KeyError) as exc:
             raise caldav.InvalidTimezoneError(str(exc)) from exc
-        self.store.config.set_timezone(content)
+        self.store.config.set_timezone(_unfold_ical(content))
         self.store.config.set_timezone_id(tzid)
 
     def get_calendar_timezone_id(self):
@@ -1312,7 +1336,9 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             raise caldav.UnknownTimezoneError(timezone_id) from exc
         self.store.config.set_timezone_id(timezone_id)
         self.store.config.set_timezone(
-            _wrap_vtimezone_in_calendar(vtimezone).to_ical().decode("utf-8")
+            _unfold_ical(
+                _wrap_vtimezone_in_calendar(vtimezone).to_ical().decode("utf-8")
+            )
         )
 
     def _ensure_metadata_directory(self):

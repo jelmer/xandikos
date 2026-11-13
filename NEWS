@@ -1,5 +1,11 @@
 0.4.11	UNRELEASED
 
+ * Return ``CALDAV:calendar-timezone`` with CRLF line endings as
+   iCalendar requires, and unfold it before storing it in the collection
+   config. The config strips the CR and the leading whitespace of folded
+   lines, so stored time zones came back with LF line endings and folded
+   lines broken in two. (yoyosource)
+
  * Only accept a ``schedule-default-calendar-URL`` that refers to a
    calendar collection in one of the principal's calendar homes (RFC
    6638 9.2), and ignore stored values that don't when auto-applying

@@ -103,11 +103,36 @@ class CalendarCollectionTests(unittest.TestCase):
         self.cal.set_calendar_timezone_id("Europe/Amsterdam")
         self.assertEqual("Europe/Amsterdam", self.cal.get_calendar_timezone_id())
 
+    def test_timezone_roundtrip_keeps_crlf(self):
+        # RFC 5545 section 3.1: content lines are delimited by CRLF. The
+        # INI-based config strips the CR on the way back in.
+        tz = EXAMPLE_VTIMEZONE.replace("\r\n", "\n").replace("\n", "\r\n")
+        self.cal.set_calendar_timezone(tz)
+        # Store another property so the config is rewritten from a re-read.
+        self.cal.set_calendar_color("#aabbcc")
+        self.assertEqual(tz, self.cal.get_calendar_timezone())
+
+    def test_timezone_roundtrip_keeps_folded_lines(self):
+        # A folded line continues with leading whitespace, which the config
+        # would otherwise strip, splitting it into an invalid content line.
+        tz = EXAMPLE_VTIMEZONE.replace("\r\n", "\n").replace("\n", "\r\n")
+        long_line = "X-LIC-LOCATION:" + "Europe/Amsterdam" * 6
+        folded = long_line[:70] + "\r\n " + long_line[70:]
+        tz_folded = tz.replace(
+            "BEGIN:VTIMEZONE\r\n", "BEGIN:VTIMEZONE\r\n" + folded + "\r\n"
+        )
+        self.cal.set_calendar_timezone(tz_folded)
+        self.cal.set_calendar_color("#aabbcc")
+        result = self.cal.get_calendar_timezone()
+        self.assertIn(long_line + "\r\n", result)
+        self.assertEqual(
+            Calendar.from_ical(tz_folded).to_ical(),
+            Calendar.from_ical(result).to_ical(),
+        )
+
     def test_setting_timezone_id_updates_timezone(self):
         # RFC 7809 section 3.1.5: the alternate property must be updated.
-        # Note: configparser collapses the CRLF line folding that iCalendar
-        # relies on, so a stored VTIMEZONE does not survive a round-trip
-        # through the config intact. Check what gets handed to the store.
+        # Check what gets handed to the store.
         stored = []
         with unittest.mock.patch.object(
             FileBasedCollectionMetadata,
