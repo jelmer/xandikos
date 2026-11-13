@@ -294,6 +294,16 @@ class FileBasedCollectionMetadata(CollectionMetadata):
             return
         self._save_cb(self._configparser, message)
 
+    def _remove_option(self, section, key):
+        # Unsetting a value that isn't set is a no-op, not an error: clients
+        # such as iOS send e.g. an empty CALDAV:calendar-description for
+        # collections that never had one.
+        if (
+            section == self._configparser.default_section
+            or self._configparser.has_section(section)
+        ):
+            self._configparser.remove_option(section, key)
+
     @classmethod
     def from_file(cls, f):
         cp = configparser.ConfigParser()
@@ -307,7 +317,7 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         if url is not None:
             self._configparser["DEFAULT"]["source"] = url
         else:
-            del self._configparser["DEFAULT"]["source"]
+            self._remove_option("DEFAULT", "source")
         self._save("Set source URL.")
 
     def get_color(self):
@@ -326,28 +336,28 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         if color is not None:
             self._configparser["DEFAULT"]["color"] = color
         else:
-            del self._configparser["DEFAULT"]["color"]
+            self._remove_option("DEFAULT", "color")
         self._save("Set color.")
 
     def set_displayname(self, displayname):
         if displayname is not None:
             self._configparser["DEFAULT"]["displayname"] = displayname
         else:
-            del self._configparser["DEFAULT"]["displayname"]
+            self._remove_option("DEFAULT", "displayname")
         self._save("Set display name.")
 
     def set_description(self, description):
         if description is not None:
             self._configparser["DEFAULT"]["description"] = description
         else:
-            del self._configparser["DEFAULT"]["description"]
+            self._remove_option("DEFAULT", "description")
         self._save("Set description.")
 
     def set_comment(self, comment):
         if comment is not None:
             self._configparser["DEFAULT"]["comment"] = comment
         else:
-            del self._configparser["DEFAULT"]["comment"]
+            self._remove_option("DEFAULT", "comment")
         self._save("Set comment.")
 
     def set_type(self, store_type):
@@ -366,7 +376,7 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         except configparser.DuplicateSectionError:
             pass
         if order is None:
-            del self._configparser["calendar"]["order"]
+            self._remove_option("calendar", "order")
         else:
             self._configparser["calendar"]["order"] = order
         self._save("Set calendar order.")
@@ -381,7 +391,7 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         except configparser.DuplicateSectionError:
             pass
         if components is None:
-            del self._configparser["calendar"]["supported-components"]
+            self._remove_option("calendar", "supported-components")
         else:
             self._configparser["calendar"]["supported-components"] = ",".join(
                 components
@@ -395,7 +405,7 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         if refreshrate is not None:
             self._configparser["DEFAULT"]["refreshrate"] = refreshrate
         else:
-            del self._configparser["DEFAULT"]["refreshrate"]
+            self._remove_option("DEFAULT", "refreshrate")
         self._save("Set refresh rate.")
 
     def get_timezone(self):
@@ -405,7 +415,7 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         if timezone is not None:
             self._configparser["DEFAULT"]["timezone"] = timezone
         else:
-            del self._configparser["DEFAULT"]["timezone"]
+            self._remove_option("DEFAULT", "timezone")
         self._save("Set timezone.")
 
     def get_timezone_id(self):
@@ -415,7 +425,7 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         if timezone_id is not None:
             self._configparser["DEFAULT"]["timezone-id"] = timezone_id
         else:
-            del self._configparser["DEFAULT"]["timezone-id"]
+            self._remove_option("DEFAULT", "timezone-id")
         self._save("Set timezone id.")
 
     def _set_scheduling_option(self, key: str, value: str | None, message: str) -> None:
@@ -527,5 +537,5 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         if resource_id is not None:
             self._configparser["DEFAULT"]["resource-id"] = resource_id
         else:
-            del self._configparser["DEFAULT"]["resource-id"]
+            self._remove_option("DEFAULT", "resource-id")
         self._save("Set resource-id.")

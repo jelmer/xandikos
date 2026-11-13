@@ -70,6 +70,14 @@ DEFAULT_FILE_CACHE_SIZE = 1024
 logger = getLogger("xandikos")
 
 
+def _remove_config_option(config, section, name):
+    """Remove an option from a Git config; a no-op if it isn't set."""
+    try:
+        config.remove(section, name)
+    except KeyError:
+        pass
+
+
 class RepoCollectionMetadata(CollectionMetadata):
     def __init__(self, repo) -> None:
         self._repo = repo
@@ -121,7 +129,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if url is not None:
             config.set(b"xandikos", b"source", url.encode(DEFAULT_ENCODING))
         else:
-            config.remove(b"xandikos", b"source")
+            _remove_config_option(config, b"xandikos", b"source")
         self._write_config(config)
 
     def get_color(self):
@@ -136,7 +144,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if color is not None:
             config.set(b"xandikos", b"color", color.encode(DEFAULT_ENCODING))
         else:
-            config.remove(b"xandikos", b"color")
+            _remove_config_option(config, b"xandikos", b"color")
         self._write_config(config)
 
     def get_resource_id(self):
@@ -148,7 +156,12 @@ class RepoCollectionMetadata(CollectionMetadata):
 
     def set_resource_id(self, resource_id):
         config = self._get_config()
-        config.set(b"xandikos", b"resource-id", resource_id.encode(DEFAULT_ENCODING))
+        if resource_id is not None:
+            config.set(
+                b"xandikos", b"resource-id", resource_id.encode(DEFAULT_ENCODING)
+            )
+        else:
+            _remove_config_option(config, b"xandikos", b"resource-id")
         self._write_config(config)
 
     def _write_config(self, config):
@@ -183,7 +196,7 @@ class RepoCollectionMetadata(CollectionMetadata):
                 displayname.encode(DEFAULT_ENCODING),
             )
         else:
-            config.remove(b"xandikos", b"displayname")
+            _remove_config_option(config, b"xandikos", b"displayname")
         self._write_config(config)
 
     def get_description(self):
@@ -210,7 +223,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if comment is not None:
             config.set(b"xandikos", b"comment", comment.encode(DEFAULT_ENCODING))
         else:
-            config.remove(b"xandikos", b"comment")
+            _remove_config_option(config, b"xandikos", b"comment")
         self._write_config(config)
 
     def set_type(self, store_type):
@@ -254,7 +267,7 @@ class RepoCollectionMetadata(CollectionMetadata):
                 b"xandikos", b"refreshrate", refreshrate.encode(DEFAULT_ENCODING)
             )
         else:
-            config.remove(b"xandikos", b"refreshrate")
+            _remove_config_option(config, b"xandikos", b"refreshrate")
         self._write_config(config)
 
     def get_timezone(self):
@@ -269,7 +282,7 @@ class RepoCollectionMetadata(CollectionMetadata):
         if timezone is not None:
             config.set(b"xandikos", b"timezone", timezone.encode(DEFAULT_ENCODING))
         else:
-            config.remove(b"xandikos", b"timezone")
+            _remove_config_option(config, b"xandikos", b"timezone")
         self._write_config(config)
 
     def get_timezone_id(self):
@@ -286,7 +299,7 @@ class RepoCollectionMetadata(CollectionMetadata):
                 b"xandikos", b"timezone-id", timezone_id.encode(DEFAULT_ENCODING)
             )
         else:
-            config.remove(b"xandikos", b"timezone-id")
+            _remove_config_option(config, b"xandikos", b"timezone-id")
         self._write_config(config)
 
 

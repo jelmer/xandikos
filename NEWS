@@ -1,5 +1,14 @@
 0.4.11	UNRELEASED
 
+ * Fix ``500 Internal Server Error`` when a client removes, or sets to
+   empty, a collection property that was never set. iOS does this with
+   ``CALDAV:calendar-description`` right after creating a calendar.
+   Unsetting a missing value is now a no-op in both collection config
+   backends, removing ``calendar-description``, ``calendar-color`` and
+   ``calendar-order`` no longer crashes, removing ``apache:executable``
+   means "not executable", and an invalid ``executable`` value is a
+   ``400 Bad Request``. (yoyosource)
+
  * Only accept a ``schedule-default-calendar-URL`` that refers to a
    calendar collection in one of the principal's calendar homes (RFC
    6638 9.2), and ignore stored values that don't when auto-applying
