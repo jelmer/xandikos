@@ -162,8 +162,7 @@ The container image can be configured using environment variables:
 - ``NO_STRICT`` - Enable client compatibility workarounds (true/false)
 - ``EAGER`` - Pre-populate indexes at startup for faster initial queries (true/false)
 
-See ``examples/docker-compose.yml`` and the
-`man page <https://www.xandikos.org/manpage.html>`_ for more info.
+See ``examples/docker-compose.yml`` for more info.
 
 Running
 =======
