@@ -20,6 +20,7 @@
 import os
 import shutil
 import stat
+import subprocess
 import tempfile
 import unittest
 from zoneinfo import ZoneInfo
@@ -642,6 +643,61 @@ class BareGitStoreTest(BaseGitStoreTest, MetadataDirectoryTests, unittest.TestCa
         # get_etag still works for remaining item
         self.assertEqual(etag1, gc.get_etag("foo.ics"))
         self.assertRaises(KeyError, gc.get_etag, "bar.ics")
+
+
+class TreeGitStoreLineEndingTests(unittest.TestCase):
+    """Repositories must stay byte-for-byte when touched by command-line git."""
+
+    def setUp(self):
+        super().setUp()
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        self.store = TreeGitStore.create(os.path.join(d, "store"))
+        self.tmp = d
+
+    def test_create_disables_autocrlf(self):
+        config = self.store.repo.get_config()
+        self.assertEqual(b"false", config.get((b"core",), b"autocrlf"))
+
+    @unittest.skipUnless(shutil.which("git"), "git command-line tool not available")
+    def test_git_cli_commit_keeps_crlf(self):
+        # Simulate a user with core.autocrlf=input in their global config
+        # committing a CRLF file with command-line git.
+        global_config = os.path.join(self.tmp, "gitconfig")
+        with open(global_config, "w") as f:
+            f.write("[core]\n\tautocrlf = input\n")
+        env = dict(
+            os.environ,
+            GIT_CONFIG_GLOBAL=global_config,
+            GIT_CONFIG_NOSYSTEM="1",
+            GIT_AUTHOR_NAME="Test",
+            GIT_AUTHOR_EMAIL="test@example.com",
+            GIT_COMMITTER_NAME="Test",
+            GIT_COMMITTER_EMAIL="test@example.com",
+        )
+        content = EXAMPLE_VCALENDAR1.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+        path = os.path.join(self.store.repo.path, "foo.ics")
+        with open(path, "wb") as f:
+            f.write(content)
+        subprocess.run(
+            ["git", "add", "foo.ics"],
+            cwd=self.store.repo.path,
+            env=env,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "add"],
+            cwd=self.store.repo.path,
+            env=env,
+            check=True,
+            capture_output=True,
+        )
+        self.store._invalidate_index_cache()
+        self.assertEqual(
+            Blob.from_string(content).id.decode("ascii"),
+            self.store.get_etag("foo.ics"),
+        )
 
 
 class TreeGitStoreTest(BaseGitStoreTest, MetadataDirectoryTests, unittest.TestCase):

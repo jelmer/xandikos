@@ -987,6 +987,14 @@ class TreeGitStore(GitStore):
         os.mkdir(path)
         repo = dulwich.repo.Repo.init(path)
         repo._autogc_disabled = True  # type: ignore[attr-defined]
+        # Xandikos stores files byte-for-byte (iCalendar and vCard use CRLF
+        # line endings) and relies on the working tree matching the index.
+        # Stop command-line git from applying a user's global core.autocrlf
+        # when the repository is modified outside of Xandikos; that would
+        # commit LF-converted blobs and break ETag checks.
+        config = repo.get_config()
+        config.set((b"core",), b"autocrlf", b"false")
+        config.write_to_path()
         return cls(repo)
 
     def get_etag(self, name):
