@@ -1810,3 +1810,21 @@ class CalendarProxyWriteForPropertyTests(unittest.TestCase):
             self.assertEqual([[]], captured)
 
         asyncio.run(run_test())
+
+
+class RemovePropertyTests(unittest.TestCase):
+    """Removing a property passes None to the resource instead of crashing."""
+
+    def test_remove(self):
+        import asyncio
+        from unittest.mock import Mock
+
+        for prop, setter in [
+            (caldav.CalendarDescriptionProperty(), "set_calendar_description"),
+            (caldav.CalendarColorProperty(), "set_calendar_color"),
+            (caldav.CalendarOrderProperty(), "set_calendar_order"),
+        ]:
+            with self.subTest(prop=prop.name):
+                resource = Mock()
+                asyncio.run(prop.set_value("/cal/", resource, None))
+                getattr(resource, setter).assert_called_once_with(None)
