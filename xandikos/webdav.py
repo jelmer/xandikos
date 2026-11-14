@@ -279,6 +279,17 @@ class ProtectedPropertyError(Exception):
         super().__init__(message)
 
 
+class InvalidPropertyValueError(Exception):
+    """A property value whose semantics are not appropriate for the property.
+
+    Reported as 409 Conflict for that property (RFC 4918 section 9.2).
+    """
+
+    def __init__(self, message=None) -> None:
+        self.message = message
+        super().__init__(message)
+
+
 def etag_matches(condition, actual_etag):
     """Check if an etag matches an If-Matches condition.
 
@@ -2496,6 +2507,9 @@ async def apply_modify_prop(
                     # Protected property - cannot be modified
                     # RFC 4918: {DAV:}cannot-modify-protected-property
                     statuscode = "403 Forbidden"
+                except InvalidPropertyValueError:
+                    # RFC 4918 Section 9.2: value semantics not appropriate
+                    statuscode = "409 Conflict"
                 except NotImplementedError:
                     # For backwards compatibility - treat as protected property
                     # RFC 4918: {DAV:}cannot-modify-protected-property

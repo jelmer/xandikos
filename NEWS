@@ -1,5 +1,18 @@
 0.4.11	UNRELEASED
 
+ * Fix creating calendars from iOS and macOS. Since 0.4.7 a property
+   that could not be set makes ``MKCALENDAR`` fail as a whole, and Apple
+   clients send two such properties, so new calendars were silently
+   rolled back. (yoyosource, #753)
+
+   - ``CALDAV:schedule-calendar-transp`` can now be set (RFC 6638 9.1;
+     it is not protected). It is stored in the collection config and
+     transparent calendars are left out of free/busy.
+   - The obsolete ``CALDAV:calendar-free-busy-set`` is accepted and
+     ignored.
+   - Invalid property values in ``PROPPATCH``/``MKCALENDAR`` are now
+     reported as ``409 Conflict`` for that property (RFC 4918 9.2).
+
  * Only accept a ``schedule-default-calendar-URL`` that refers to a
    calendar collection in one of the principal's calendar homes (RFC
    6638 9.2), and ignore stored values that don't when auto-applying
