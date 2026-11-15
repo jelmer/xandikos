@@ -115,6 +115,9 @@ class CalendarCollectionTests(unittest.TestCase):
 
         self.cal = CalendarCollection(self.backend, "c", self.store)
 
+    def test_delete_missing_member(self):
+        self.assertRaises(KeyError, self.cal.delete_member, "missing.ics")
+
     def test_description(self):
         self.store.set_description("foo")
         self.assertEqual("foo", self.cal.get_calendar_description())

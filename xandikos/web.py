@@ -568,15 +568,10 @@ class StoreBasedCollection:
         except InvalidFileNameError as exc:
             raise KeyError(name) from exc
         except NoSuchItem:
-            try:
-                _subcoll = self._get_subcollection(name)
-            except KeyError:
-                # Item doesn't exist at all, raise KeyError to return 404
+            if name not in self.store.subdirectories():
                 raise KeyError(name)
-            else:
-                # TODO: Properly allow removing subcollections
-                # _subcoll.destroy()
-                shutil.rmtree(os.path.join(self.store.path, name))
+            # TODO: Properly allow removing subcollections
+            shutil.rmtree(os.path.join(self.store.path, name))
         self._dispatch_change("content")
 
     async def create_member(
