@@ -1432,15 +1432,12 @@ class CalendarCollection(StoreBasedCollection, caldav.Calendar):
             return caldav.TRANSPARENCY_OPAQUE
         if transp == caldav.TRANSPARENCY_TRANSPARENT:
             return caldav.TRANSPARENCY_TRANSPARENT
+        if transp == caldav.TRANSPARENCY_OPAQUE:
+            return caldav.TRANSPARENCY_OPAQUE
+        logger.warning("Unexpected or new transparency property=%s found using %s as fallback", transp, caldav.TRANSPARENCY_OPAQUE)
         return caldav.TRANSPARENCY_OPAQUE
 
     def set_schedule_calendar_transparency(self, transp):
-        if transp not in (
-            None,
-            caldav.TRANSPARENCY_TRANSPARENT,
-            caldav.TRANSPARENCY_OPAQUE,
-        ):
-            raise ValueError(f"Invalid transparency {transp!r}")
         self.store.config.set_schedule_calendar_transp(transp)
 
     def get_managed_attachments_server_url(self):
