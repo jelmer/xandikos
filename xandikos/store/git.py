@@ -987,6 +987,11 @@ class TreeGitStore(GitStore):
         os.mkdir(path)
         repo = dulwich.repo.Repo.init(path)
         repo._autogc_disabled = True  # type: ignore[attr-defined]
+        # Disable core.autocrlf so command-line git commits stay byte-for-byte
+        # (CRLF) and match what Xandikos uses for ETags.
+        config = repo.get_config()
+        config.set((b"core",), b"autocrlf", b"false")
+        config.write_to_path()
         return cls(repo)
 
     def get_etag(self, name):
