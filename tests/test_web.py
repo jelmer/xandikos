@@ -72,6 +72,37 @@ END:VCALENDAR
 """
 
 
+class SubscriptionCollectionTests(unittest.TestCase):
+    def setUp(self):
+        from xandikos.store import STORE_TYPE_SUBSCRIPTION
+
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        store = TreeGitStore.create(os.path.join(self.tempdir, "sub"))
+        store.set_type(STORE_TYPE_SUBSCRIPTION)
+        store.set_source_url("https://example.com/feed.ics")
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+
+    def test_get(self):
+        from wsgiref.util import setup_testing_defaults
+
+        app = XandikosApp(self.backend, "user")
+        environ = {
+            "PATH_INFO": "/sub/",
+            "REQUEST_METHOD": "GET",
+            "HTTP_ACCEPT": "text/html",
+        }
+        setup_testing_defaults(environ)
+        codes = []
+
+        def start_response(code, _headers):
+            codes.append(code)
+
+        b"".join(app(environ, start_response))
+        self.assertEqual(["200 OK"], codes)
+
+
 class CalendarCollectionTests(unittest.TestCase):
     def setUp(self):
         super().setUp()
