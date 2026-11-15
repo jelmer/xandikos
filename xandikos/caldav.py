@@ -280,7 +280,7 @@ class Calendar(webdav.Collection):
         raise NotImplementedError(self.get_updated_by)
 
 
-class Subscription:
+class Subscription(webdav.Collection):
     resource_types = webdav.Collection.resource_types + [SUBSCRIPTION_RESOURCE_TYPE]
 
     def get_source_url(self):
