@@ -49,6 +49,14 @@ jobs:
       - name: Install subunit
         run: |
           python -m pip install python-subunit
+      # Xandikos uses dulwich and should not depend on the git binary.
+      # Remove just the binary, not the package: apt would also remove gh,
+      # which the inquest action uses to resolve its latest release.
+      - name: Remove git (linux)
+        run: |
+          sudo rm -f /usr/bin/git
+          if command -v git; then exit 1; fi
+        if: "matrix.os == 'ubuntu-latest'"
       - name: Test suite run
         uses: jelmer/inquest@main
         env:
