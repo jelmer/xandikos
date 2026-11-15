@@ -93,6 +93,7 @@ from icalendar.cal import Timezone as VTimezone
 
 from .icalendar import CalendarFilter, ICalendarFile
 from .store.git import GitStore, TreeGitStore
+from .webview import parent_url, wants_html
 
 logger = getLogger("xandikos")
 
@@ -245,9 +246,14 @@ async def render_jinja_page(
     """
     # TODO(jelmer): Support rendering other languages
     encoding = "utf-8"
+    if "parent_url" not in kwargs and "self_url" in kwargs:
+        kwargs["parent_url"] = parent_url(kwargs["self_url"])
     template = jinja_env.get_template(name)
     body = await template.render_async(
-        version=xandikos_version, urljoin=urllib.parse.urljoin, **kwargs
+        version=xandikos_version,
+        urljoin=urllib.parse.urljoin,
+        quote=urllib.parse.quote,
+        **kwargs,
     )
     body_encoded = body.encode(encoding)
     return (
@@ -413,6 +419,21 @@ class ObjectResource(webdav.Resource):
         except (NotImplementedError, KeyError):
             raise KeyError
         return webdav._resource_id_from_name(uid)
+
+    async def render(
+        self, self_url, accepted_content_types, accepted_content_languages
+    ):
+        if self._parent is not None and wants_html(
+            accepted_content_types, self.content_type
+        ):
+            rendered = await self._parent.render_member_html(
+                self, self_url, accepted_content_languages
+            )
+            if rendered is not None:
+                return rendered
+        return await super().render(
+            self_url, accepted_content_types, accepted_content_languages
+        )
 
 
 async def _run_change_listener(awaitable) -> None:
@@ -751,6 +772,16 @@ class StoreBasedCollection:
     async def get_body(self):
         raise NotImplementedError(self.get_body)
 
+    async def render_member_html(
+        self, member: ObjectResource, self_url: str, accepted_content_languages
+    ) -> tuple[Iterable[bytes], int, str | None, str, list[str]] | None:
+        """Render a member as HTML for a browser.
+
+        Returns None if there is no HTML view, in which case the raw body
+        is served.
+        """
+        return None
+
     async def render(
         self, self_url, accepted_content_types, accepted_content_languages
     ):
@@ -790,6 +821,41 @@ class StoreBasedCollection:
             except NotImplementedError:
                 pass
         return f"urn:uuid:{resource_id}"
+
+
+class VirtualPage(webdav.Resource):
+    """An HTML page that is not backed by a stored resource.
+
+    Used for the forms and views of the web interface, e.g. ``+new``
+    below a calendar. Subclasses implement ``render``.
+    """
+
+    resource_types: list[str] = []
+    content_type = "text/html"
+
+    def get_content_type(self) -> str:
+        return "text/html"
+
+    async def get_etag(self) -> str:
+        raise KeyError
+
+    def get_supported_locks(self):
+        return []
+
+    def get_active_locks(self):
+        return []
+
+    def get_owner(self):
+        return None
+
+    async def get_body(self):
+        raise KeyError
+
+    def get_content_language(self):
+        raise KeyError
+
+    def get_last_modified(self):
+        raise KeyError
 
 
 class Collection(StoreBasedCollection, webdav.Collection):

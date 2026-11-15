@@ -56,6 +56,7 @@ def test_suite():
         "vcard",
         "webdav",
         "webdav_push",
+        "webview",
         "web",
         "wsgi",
         "wsgi_helpers",

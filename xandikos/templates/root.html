@@ -16,8 +16,8 @@
 
     <p>Some clients ask for a separate CalDAV or CardDAV URL instead:</p>
     <ul>
-        <li>CalDAV: <code>{{ caldav_url }}</code></li>
-        <li>CardDAV: <code>{{ carddav_url }}</code></li>
+      <li>CalDAV: <code>{{ caldav_url }}</code></li>
+      <li>CardDAV: <code>{{ carddav_url }}</code></li>
     </ul>
 
     {% if qr_code_data %}
@@ -31,7 +31,7 @@
 
     {% if principals %}
     <h2>Principals</h2>
-    <ul>
+    <ul class="plain">
         {% for path in principals %}
             <li><a href="{{ urljoin(self_url+'/', path.lstrip('/')+'/') }}">{{ path }}</a></li>
         {% endfor %}
