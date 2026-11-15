@@ -643,6 +643,7 @@ class BareGitStoreTest(BaseGitStoreTest, MetadataDirectoryTests, unittest.TestCa
         self.assertEqual(etag1, gc.get_etag("foo.ics"))
         self.assertRaises(KeyError, gc.get_etag, "bar.ics")
 
+
 class TreeGitStoreTest(BaseGitStoreTest, MetadataDirectoryTests, unittest.TestCase):
     kls = TreeGitStore
 
