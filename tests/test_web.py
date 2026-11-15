@@ -3876,3 +3876,32 @@ class CfaitPropertyTests(unittest.TestCase):
             ],
             self._propstats(root),
         )
+
+
+class ObjectResourceRenderTests(unittest.TestCase):
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tempdir)
+        self.store = TreeGitStore.create(os.path.join(self.tempdir, "c"))
+        self.store.load_extra_file_handler(ICalendarFile)
+        self.backend = SingleUserFilesystemBackend(self.tempdir)
+        self.store.import_one("foo.ics", "text/calendar", [EXAMPLE_VCALENDAR1])
+
+    def test_browser_gets_raw_body_without_html_view(self):
+        from wsgiref.util import setup_testing_defaults
+
+        app = XandikosApp(self.backend, "user")
+        environ = {
+            "PATH_INFO": "/c/foo.ics",
+            "REQUEST_METHOD": "GET",
+            "HTTP_ACCEPT": "text/html,*/*;q=0.8",
+        }
+        setup_testing_defaults(environ)
+        codes = []
+
+        def start_response(code, _headers):
+            codes.append(code)
+
+        body = b"".join(app(environ, start_response))
+        self.assertEqual(["200 OK"], codes)
+        self.assertEqual(EXAMPLE_VCALENDAR1.replace(b"\n", b"\r\n"), body)
