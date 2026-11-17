@@ -1490,15 +1490,14 @@ def _clean_parent_url(self_url: str, levels: int = 1) -> str:
     runs don't poison the resulting URL (see
     ``webcontacts._post_target_url``).
     """
-    import re
-    from urllib.parse import urlsplit, urlunsplit
-
-    parsed = urlsplit(self_url)
+    parsed = urllib.parse.urlsplit(self_url)
     clean = re.sub(r"/+", "/", parsed.path) or "/"
     parts = clean.rstrip("/").split("/")
     parts = parts[: max(0, len(parts) - levels)]
     new_path = "/".join(parts) + "/"
-    return urlunsplit(parsed._replace(path=new_path, query="", fragment=""))
+    return urllib.parse.urlunsplit(
+        parsed._replace(path=new_path, query="", fragment="")
+    )
 
 
 class _NewEventResource(_TransientHtmlResource):
