@@ -1,4 +1,4 @@
-0.4.11	UNRELEASED
+0.4.11	2026-11-18
 
  * Set ``core.autocrlf=false`` in Git repositories created for
    collections. Committing to them with command-line Git (or an IDE)
