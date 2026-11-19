@@ -24,7 +24,7 @@ from unittest.mock import Mock
 from xml.etree import ElementTree as ET
 import asyncio
 
-from xandikos import apache
+from xandikos import apache, webdav
 
 
 class ExecutablePropertyTests(unittest.TestCase):
@@ -109,7 +109,7 @@ class ExecutablePropertyTests(unittest.TestCase):
             el = ET.Element("test")
             el.text = "X"  # Invalid value
 
-            with self.assertRaises(ValueError) as cm:
+            with self.assertRaises(webdav.BadRequestError) as cm:
                 await prop.set_value("/test", resource, el)
 
             self.assertIn("invalid executable setting 'X'", str(cm.exception))
@@ -127,11 +127,24 @@ class ExecutablePropertyTests(unittest.TestCase):
             el = ET.Element("test")
             el.text = None
 
-            with self.assertRaises(ValueError) as cm:
+            with self.assertRaises(webdav.BadRequestError) as cm:
                 await prop.set_value("/test", resource, el)
 
             self.assertIn("invalid executable setting None", str(cm.exception))
             resource.set_is_executable.assert_not_called()
+
+        asyncio.run(run_test())
+
+    def test_remove(self):
+        """Removing the property means not executable, like an unset x bit."""
+
+        async def run_test():
+            prop = apache.ExecutableProperty()
+            resource = Mock()
+
+            await prop.set_value("/test", resource, None)
+
+            resource.set_is_executable.assert_called_once_with(False)
 
         asyncio.run(run_test())
 

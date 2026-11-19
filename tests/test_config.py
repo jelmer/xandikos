@@ -91,6 +91,31 @@ displayname = DISPLAY-NAME
 
 
 class MetadataTests:
+    def test_unset_missing_is_noop(self):
+        # Clients unset properties that were never set (e.g. iOS sends an
+        # empty CALDAV:calendar-description after MKCALENDAR); that must
+        # not raise.
+        for setter in (
+            "set_color",
+            "set_comment",
+            "set_description",
+            "set_displayname",
+            "set_order",
+            "set_refreshrate",
+            "set_resource_id",
+            "set_source_url",
+            "set_supported_calendar_components",
+            "set_timezone",
+            "set_timezone_id",
+        ):
+            with self.subTest(setter=setter):
+                try:
+                    getattr(self._config, setter)(None)
+                    # Unsetting twice is fine too.
+                    getattr(self._config, setter)(None)
+                except NotImplementedError:
+                    pass
+
     def test_color(self):
         self.assertRaises(KeyError, self._config.get_color)
         self._config.set_color("#ffffff")

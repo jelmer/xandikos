@@ -365,7 +365,7 @@ class CalendarDescriptionProperty(webdav.Property):
         el.text = resource.get_calendar_description()
 
     async def set_value(self, href, resource, el):
-        resource.set_calendar_description(el.text)
+        resource.set_calendar_description(el.text if el is not None else None)
 
 
 def _extract_from_component(incomp: Component, outcomp: Component, requested) -> None:
@@ -467,7 +467,7 @@ class CalendarOrderProperty(webdav.Property):
         el.text = resource.get_calendar_order()
 
     async def set_value(self, href, resource, el):
-        resource.set_calendar_order(el.text)
+        resource.set_calendar_order(el.text if el is not None else None)
 
 
 class CalendarMultiGetReporter(davcommon.MultiGetReporter):
@@ -722,7 +722,7 @@ class CalendarColorProperty(webdav.Property):
         el.text = resource.get_calendar_color()
 
     async def set_value(self, href, resource, el):
-        resource.set_calendar_color(el.text)
+        resource.set_calendar_color(el.text if el is not None else None)
 
 
 class CreatedByProperty(webdav.Property):

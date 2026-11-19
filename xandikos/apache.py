@@ -39,9 +39,10 @@ class ExecutableProperty(webdav.Property):
         el.text = "T" if resource.get_is_executable() else "F"
 
     async def set_value(self, href, resource, el):
-        if el.text == "T":
-            resource.set_is_executable(True)
-        elif el.text == "F":
+        # Removing the property means "not executable", like an unset x bit.
+        if el is None or el.text == "F":
             resource.set_is_executable(False)
+        elif el.text == "T":
+            resource.set_is_executable(True)
         else:
-            raise ValueError(f"invalid executable setting {el.text!r}")
+            raise webdav.BadRequestError(f"invalid executable setting {el.text!r}")
