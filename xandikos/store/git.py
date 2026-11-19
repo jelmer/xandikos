@@ -289,6 +289,25 @@ class RepoCollectionMetadata(CollectionMetadata):
             config.remove(b"xandikos", b"timezone-id")
         self._write_config(config)
 
+    def get_schedule_calendar_transp(self):
+        config = self._get_config()
+        transp = config.get(b"xandikos", b"schedule-calendar-transp")
+        if transp == b"":
+            raise KeyError
+        return transp.decode(DEFAULT_ENCODING)
+
+    def set_schedule_calendar_transp(self, transp):
+        config = self._get_config()
+        if transp is not None:
+            config.set(
+                b"xandikos",
+                b"schedule-calendar-transp",
+                transp.encode(DEFAULT_ENCODING),
+            )
+        else:
+            config.remove(b"xandikos", b"schedule-calendar-transp")
+        self._write_config(config)
+
 
 class GitStore(Store):
     """A Store backed by a Git Repository."""

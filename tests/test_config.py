@@ -148,6 +148,13 @@ class MetadataTests:
         self._config.set_timezone_id(None)
         self.assertRaises(KeyError, self._config.get_timezone_id)
 
+    def test_schedule_calendar_transp(self):
+        self.assertRaises(KeyError, self._config.get_schedule_calendar_transp)
+        self._config.set_schedule_calendar_transp("transparent")
+        self.assertEqual("transparent", self._config.get_schedule_calendar_transp())
+        self._config.set_schedule_calendar_transp(None)
+        self.assertRaises(KeyError, self._config.get_schedule_calendar_transp)
+
 
 class FileBasedPrincipalConfigTests(TestCase):
     """Tests for the [principal] section in FileBasedCollectionMetadata."""

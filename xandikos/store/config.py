@@ -146,6 +146,22 @@ class CollectionMetadata:
         """
         raise NotImplementedError(self.set_timezone_id)
 
+    def get_schedule_calendar_transp(self) -> str:
+        """Get the calendar transparency for free/busy (RFC 6638 section 9.1).
+
+        Returns: "transparent" or "opaque"
+        Raises: KeyError if not set
+        """
+        raise NotImplementedError(self.get_schedule_calendar_transp)
+
+    def set_schedule_calendar_transp(self, transp: str | None) -> None:
+        """Set the calendar transparency for free/busy.
+
+        Args:
+            transp: "transparent", "opaque", or None to unset
+        """
+        raise NotImplementedError(self.set_schedule_calendar_transp)
+
     def get_calendar_user_address_set(self) -> list[str]:
         """Get the calendar-user-address-set (RFC 6638 §2.4.1).
 
@@ -417,6 +433,16 @@ class FileBasedCollectionMetadata(CollectionMetadata):
         else:
             del self._configparser["DEFAULT"]["timezone-id"]
         self._save("Set timezone id.")
+
+    def get_schedule_calendar_transp(self):
+        return self._configparser["DEFAULT"]["schedule-calendar-transp"]
+
+    def set_schedule_calendar_transp(self, transp):
+        if transp is not None:
+            self._configparser["DEFAULT"]["schedule-calendar-transp"] = transp
+        else:
+            self._configparser["DEFAULT"].pop("schedule-calendar-transp", None)
+        self._save("Set schedule calendar transparency.")
 
     def _set_scheduling_option(self, key: str, value: str | None, message: str) -> None:
         if value is not None:
