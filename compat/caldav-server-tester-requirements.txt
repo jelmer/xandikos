@@ -2,6 +2,6 @@
 # Both are pinned so new upstream probes do not silently break CI; bump
 # the pair together after confirming they still run cleanly against
 # Xandikos.
-caldav==3.6.0
+caldav==3.7.0
 vobject
 caldav-server-tester @ git+https://github.com/python-caldav/caldav-server-tester.git@v1.7.0
